@@ -82,6 +82,7 @@ enum Target : int {
     T_MeowClick,         // corps du lambda du bouton Miauler (miaulement aleatoire)
     T_ConfirmBuild,      // construit la boite ConfirmationBox d'un YesNoPrompt
     T_ButtonClick,       // glaiel::Button::Click -- retient le clic sur EndDay_Sign (nuit votee)
+    T_HouseHud,          // sub_1401E3900 -- refait le panneau de fin de journee a chaque image
     T_COUNT
 };
 
@@ -493,6 +494,14 @@ static const TargetDesc kTargets[T_COUNT] = {
     // d'appel (C_ButtonClick) : une fois detournee, ces appels passent par le
     // detour, qui laisse tout passer sauf EndDay_Sign pendant une session.
     { 0x0097E8E0, "BTNCLICK",  "glaiel::Button::Click(Button*, bool force)" },
+    // Appelee sans condition par House::update (slot 10 de la vtable House,
+    // 0x1401E5110), donc a chaque image passee dans la maison. Elle reecrit le
+    // libelle du panneau House+0xB8 (Button+0x1B8) selon l'equipe d'aventure :
+    // HOUSE_BUTTON_ENDDAY sans chat, HOUSE_BUTTON_DEPART ou _DEFEND avec, puis
+    // son nom "EndDay_Sign" (Button+504). Le bouton recopie ce libelle dans son
+    // champ SWF « label » a chaque image (slot 19, 0x14097F6F0) : un libelle
+    // ecrit juste apres cette fonction est celui qui s'affiche.
+    { 0x001E3900, "HOUSEHUD",  "House HUD refresh (sub_1401E3900, House vtable slot 10)" },
 };
 
 // Coarse module guard, checked before the per-target signatures.
@@ -581,6 +590,7 @@ enum Call : int {
     C_PanelHideButton,       // void(MenuPanel*, std::string* nom)
     C_SwfFindChild,          // void* (clip SWF*, std::string* nom) -- consomme le nom
     C_SwfSetText,            // void(champ texte*, std::wstring* texte, bool force, bool balises)
+    C_HouseTeamBox,          // void* (House*) -- le composant 0x1AC : l'equipe d'aventure
     C_COUNT
 };
 
@@ -834,6 +844,11 @@ static const CallDesc kCalls[C_COUNT] = {
     // tampon doit venir du tas du jeu. force=0 ne fait rien si le texte est le
     // meme ; balises=1 interprete [c:red]...[/c]. La boite l'appelle avec (0, 1).
     { 0x0098E8A0, "swf TextField set text" },
+    // Component::get<type 0x1AC>, appele par la mise a jour du panneau
+    // (0x1401E3FCE) avec la maison : `*(resultat+0x100)` pointe sur quatre
+    // Character*, l'equipe d'aventure. Au moins un chat = le panneau dit
+    // « À l'aventure ! » (ou « Défendre ! ») et son clic part en aventure.
+    { 0x000ECD50, "House team box lookup (component 0x1AC)" },
 };
 
 // sub_140138A10 IS NOT A DRAW ROUTINE, and it is in the table above only

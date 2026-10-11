@@ -85,6 +85,19 @@ constexpr uintptr_t kPanel_Clip = 0x38;
 // Director_get_or_create_scene (0x1409D4950) ecrit `*scene = director`.
 constexpr uintptr_t kComp_Scene     = 0x20;
 constexpr uintptr_t kScene_Director = 0x00;
+// Scene+0x4D8 : scene en pause. Le constructeur de la boite (0x14077D363) le met
+// a 1 sur toutes les scenes de priorite plus basse que la sienne (1e6) et les
+// garde dans sa liste (+0x48) pour les relancer a la fermeture ; la creation
+// d'une scene (0x1409D49B9) le remet a 0. Maison en pause = une fenetre modale
+// (la notre, celle du jeu, le menu pause...) est par-dessus.
+constexpr uintptr_t kScene_Paused   = 0x4D8;
+// House+0xB8 : le panneau de fin de journee, un Button. sub_1401E3900 y ecrit
+// le libelle (+0x1B8) puis le nom "EndDay_Sign" (+504) a chaque image.
+constexpr uintptr_t kHouse_Sign     = 0xB8;
+// Composant equipe d'aventure (C_HouseTeamBox) +0x100 : pointeur sur quatre
+// Character*. sub_1401E3900 compte les non nuls (0x1401E3FD3) : zero = « Fin de
+// journée », sinon « À l'aventure ! » (ou « Défendre ! »).
+constexpr uintptr_t kTeam_Slots     = 0x100;
 
 // --- fonctions du jeu ---------------------------------------------------------
 
@@ -106,9 +119,15 @@ using FnMeow         = void (__fastcall*)(void* self);
 using FnConfirmBuild = void (__fastcall*)(void* self, uint64_t a2, uint64_t text, uint64_t a4,
                                           uint64_t a5, uint64_t ok_only, uint64_t a7, uint64_t a8);
 
+// sub_1401E3900(House*, ?) : rcx et rdx d'apres son seul appel (0x1401E5B4A) ;
+// on relaie r8/r9 par prudence et on rend rax tel quel.
+using FnHouseHud = uint64_t (__fastcall*)(void* house, void* a2, uint64_t a3, uint64_t a4);
+using FnTeamBox  = void* (*)(void* house);
+
 FnMainMenuInit o_MainMenuInit = nullptr;
 FnMeow         o_Meow         = nullptr;
 FnConfirmBuild o_ConfirmBuild = nullptr;
+FnHouseHud     o_HouseHud     = nullptr;
 
 template <class F> F call_target(Call c) { return (F)addr_of_call(c); }
 
@@ -186,15 +205,19 @@ bool make_game_wstring(GameWString& out, const std::wstring& w) {
     return true;
 }
 
-bool set_button_label(void* button, const char* utf8) {
+bool set_button_label_w(void* button, const std::wstring& w) {
     auto move = call_target<FnWStrMove>(C_WStrMoveAssign);
     if (!button || !move) return false;
     GameWString tmp;
-    if (!make_game_wstring(tmp, utf8_to_wide(utf8))) return false;
+    if (!make_game_wstring(tmp, w)) return false;
     // Deplacement : le jeu prend le tampon et libere l'ancien libelle. `tmp`
     // ressort vide (tampon interne), il n'y a rien a liberer de notre cote.
     move((GameWString*)((char*)button + kButton_Label), &tmp);
     return true;
+}
+
+bool set_button_label(void* button, const char* utf8) {
+    return set_button_label_w(button, utf8_to_wide(utf8));
 }
 
 void* panel_button(void* panel, const char* name) {
@@ -379,13 +402,17 @@ char g_peer_names[8][64] = {};
 
 // --- la fenetre ouverte -------------------------------------------------------------
 
-enum class Screen { None, Choice, HostLobby, JoinEntry, ClientLobby, BadAddress, NightWait };
+enum class Screen { None, Choice, HostLobby, JoinEntry, ClientLobby, BadAddress, NightWait,
+                    NightNotice };
 
 // Les demandes posees par les clics et par le clavier, traitees au debut de
 // l'image suivante. Un seul emplacement : il n'y a jamais deux clics a la fois.
 enum class Action { None, OpenAuto, StartHost, OpenJoin, DoJoin, ClickPlay, StopSession, OpenBadAddress,
-                    CancelNight };
+                    CancelNight, NightReadyNow };
 Action g_action = Action::None;
+
+// Images depuis le lancement (mm_menu_pump), pour les delais.
+uint32_t g_frame = 0;
 
 // La fenetre en cours de construction, quand c'est l'une des notres. Ecrite
 // juste avant ShowConfirmation, consommee par le detour du constructeur qui
@@ -404,17 +431,31 @@ Pending g_pending;
 // La fenetre affichee. `alive` passe a faux des que l'un de ses boutons a ete
 // clique : ses actions ne s'executent qu'une fois la boite refermee
 // (Confirm_close_call), au moment ou sa scene est marquee pour destruction.
+//
+// Une boite ne se ferme pas d'un coup : le clic lance son animation de fermeture,
+// et son action n'est appelee qu'a la fin (une demi-seconde environ). Pendant ce
+// temps elle est toujours « alive », et ses boutons disparaissent du panneau.
+// D'ou `pressed` : un seul appui automatique, puis on attend (kPressRetry) ; la
+// build 5 rappuyait a chaque image et remplissait le journal.
 struct Live {
-    bool         alive  = false;
-    uint32_t     serial = 0;
-    Screen       screen = Screen::None;
-    void*        self   = nullptr;  // le composant YesNoPrompt
-    void*        panel  = nullptr;  // son MenuPanel "ConfirmationBox"
-    void*        prompt = nullptr;  // son champ texte "prompt"
+    bool         alive   = false;
+    uint32_t     serial  = 0;
+    Screen       screen  = Screen::None;
+    void*        self    = nullptr; // le composant YesNoPrompt
+    void*        panel   = nullptr; // son MenuPanel "ConfirmationBox"
+    void*        prompt  = nullptr; // son champ texte "prompt"
     std::wstring shown;             // dernier texte ecrit dans ce champ
+    bool         pressed = false;   // un appui automatique a ete demande...
+    uint32_t     pressed_frame = 0; // ... a cette image
+    bool         warned  = false;   // « bouton introuvable » deja ecrit
 };
 Live     g_live;
-uint32_t g_serial = 0;
+uint32_t g_serial  = 0;
+uint32_t g_handled = 0;             // derniere boite dont l'action a ete prise
+
+// Un appui qui n'a pas pris (bouton encore en animation d'ouverture) est refait
+// apres ce delai ; une fermeture normale est finie bien avant.
+constexpr uint32_t kPressRetry = 90;
 
 // Un bouton a cliquer au prochain passage dans Button::update.
 void* g_click_target = nullptr;
@@ -442,6 +483,33 @@ void* g_director   = nullptr;       // le Director du jeu (vit tout le processus
 // nuit quand elle passe).
 uint32_t g_silent = 0;
 
+// La scene vivante (pas en cours de destruction) de ce nom, ou nullptr.
+// `paused` recoit son drapeau de pause (kScene_Paused).
+void* find_scene(const char* wanted, bool* paused = nullptr) {
+    if (!g_director) return nullptr;
+    void** begin = nullptr;
+    void** end   = nullptr;
+    if (!mem_read((char*)g_director + kDirector_ScenesBegin, &begin, sizeof(begin)) ||
+        !mem_read((char*)g_director + kDirector_ScenesEnd,   &end,   sizeof(end)) ||
+        !begin || end < begin || end - begin > 256)
+        return nullptr;
+    for (void** it = begin; it < end; ++it) {
+        void* s = nullptr;
+        if (!mem_read(it, &s, sizeof(s)) || !s) continue;
+        uint8_t dying = 1;
+        if (!mem_read((char*)s + kScene_Destroying, &dying, 1) || dying) continue;
+        char name[48] = {};
+        if (!mem_read_std_string((char*)s + kScene_Name, name, sizeof(name))) continue;
+        if (strcmp(name, wanted) != 0) continue;
+        if (paused) {
+            uint8_t p = 1;
+            *paused = !mem_read((char*)s + kScene_Paused, &p, 1) || p != 0;
+        }
+        return s;
+    }
+    return nullptr;
+}
+
 // ShowConfirmation(texte, oui, non, scene) : sans scene, le jeu prend la scene
 // « en cours de mise a jour » (global 0x1413C18F0), qui n'existe que pendant
 // l'update des scenes. Tous les appels du jeu passent nullptr parce qu'ils sont
@@ -452,36 +520,30 @@ uint32_t g_silent = 0;
 // MainMenu::init (premier champ de toute scene) : c'est un singleton qui vit
 // tout le processus.
 void* popup_parent_scene() {
-    if (!g_director) return nullptr;
-    void** begin = nullptr;
-    void** end   = nullptr;
-    if (!mem_read((char*)g_director + kDirector_ScenesBegin, &begin, sizeof(begin)) ||
-        !mem_read((char*)g_director + kDirector_ScenesEnd,   &end,   sizeof(end)) ||
-        !begin || end < begin || end - begin > 256)
-        return nullptr;
-    static const char* const kParents[] = { "House", "MainMenu", "SaveSelectionScreen" };
-    void* found[3] = {};
-    for (void** it = begin; it < end; ++it) {
-        void* s = nullptr;
-        if (!mem_read(it, &s, sizeof(s)) || !s) continue;
-        uint8_t dying = 1;
-        if (!mem_read((char*)s + kScene_Destroying, &dying, 1) || dying) continue;
-        char name[48] = {};
-        if (!mem_read_std_string((char*)s + kScene_Name, name, sizeof(name))) continue;
-        for (int i = 0; i < 3; ++i)
-            if (!found[i] && strcmp(name, kParents[i]) == 0) found[i] = s;
-    }
-    for (void* s : found) if (s) return s;
+    for (const char* name : { "House", "MainMenu", "SaveSelectionScreen" })
+        if (void* s = find_scene(name)) return s;
     return nullptr;
 }
 
 void popup_closed(uint32_t serial) {
     if (g_live.serial != serial) return;
-    g_live.alive  = false;
-    g_live.self   = nullptr;
-    g_live.panel  = nullptr;
-    g_live.prompt = nullptr;
+    g_live.alive   = false;
+    g_live.self    = nullptr;
+    g_live.panel   = nullptr;
+    g_live.prompt  = nullptr;
+    g_live.pressed = false;
     g_click_target = nullptr;
+}
+
+// L'action d'une boite, une seule fois : si un second clic passait pendant
+// l'animation de fermeture, le jeu rappellerait l'action, et « Annuler » de
+// l'attente de la nuit partirait apres coup.
+void popup_action(uint32_t serial, Action a) {
+    if (g_handled == serial) return;
+    g_handled = serial;
+    popup_closed(serial);
+    if (g_silent == serial) { g_silent = 0; return; }
+    if (a != Action::None) g_action = a;
 }
 
 // Toujours depuis mm_menu_pump : la boite precedente doit etre fermee.
@@ -515,16 +577,8 @@ bool open_popup(Screen screen, const std::string& text_utf8, const char* yes, co
 
     // Des actions jamais vides : le jeu appelle _Do_call sans verifier. Elles ne
     // touchent pas au jeu (regle 5) : elles posent la demande suivante.
-    std::function<void()> yes_fn = [serial, on_yes] {
-        popup_closed(serial);
-        if (g_silent == serial) { g_silent = 0; return; }
-        if (on_yes != Action::None) g_action = on_yes;
-    };
-    std::function<void()> no_fn = [serial, on_no] {
-        popup_closed(serial);
-        if (g_silent == serial) { g_silent = 0; return; }
-        if (on_no != Action::None) g_action = on_no;
-    };
+    std::function<void()> yes_fn = [serial, on_yes] { popup_action(serial, on_yes); };
+    std::function<void()> no_fn  = [serial, on_no]  { popup_action(serial, on_no); };
 
     g_pending.active    = true;
     g_pending.ok_only   = ok_only;
@@ -577,17 +631,26 @@ void popup_set_text(const std::string& text_utf8) {
     g_live.shown = std::move(w);
 }
 
-// Demande un clic sur l'un des deux boutons de la boite ouverte.
-void popup_press(const char* name) {
-    if (!g_live.alive || !live_scene_ok()) return;
+// Demande un clic sur l'un des deux boutons de la boite ouverte. Vrai = clic
+// demande. Apres un appui, rien avant kPressRetry images : la boite est sans
+// doute en train de se fermer, et ses boutons ont deja quitte le panneau.
+bool popup_press(const char* name) {
+    if (!g_live.alive || !live_scene_ok()) return false;
+    if (g_live.pressed && g_frame - g_live.pressed_frame < kPressRetry) return false;
     void* b = panel_button(g_live.panel, name);
     if (!b) {
-        log_line("MULTI", "!! bouton '%s' introuvable dans la fenetre", name);
-        return;
+        if (!g_live.warned) {
+            g_live.warned = true;
+            log_line("MULTI", "!! bouton '%s' introuvable dans la fenetre", name);
+        }
+        return false;
     }
-    g_click_target = b;
-    g_click_wait   = 0;
-    g_click_tries  = 0;
+    g_click_target       = b;
+    g_click_wait         = 0;
+    g_click_tries        = 0;
+    g_live.pressed       = true;
+    g_live.pressed_frame = g_frame;
+    return true;
 }
 
 // --- textes des ecrans ----------------------------------------------------------
@@ -804,6 +867,15 @@ void open_auto() {
 // annonce a tous ou on en est (MM_NIGHT_STATE) ; quand tout le monde est pret
 // (a = 1), chaque jeu ferme son attente et rejoue le clic retenu : le jeu fait
 // alors sa fin de journee normale, chacun chez soi.
+//
+// Les autres le voient (build 6) : tant qu'un joueur attend, leur panneau dit
+// « 1 joueur attend », et une petite fenetre le leur annonce, avec « Passer la
+// nuit » pour etre pret sans chercher le panneau. Elle ne s'ouvre que quand la
+// maison est a l'ecran et libre : pas en pause, pas sous une autre fenetre.
+//
+// Le meme panneau sert au depart en aventure : avec des chats dans l'equipe, il
+// dit « À l'aventure ! » (ou « Défendre ! ») et son clic part en aventure. Ce
+// clic-la n'est pas un vote de nuit et passe tel quel.
 
 constexpr char kBtnName_EndDay[] = "EndDay_Sign";
 
@@ -816,6 +888,19 @@ uint32_t g_night_ready_mask  = 0;       // dernieres annonces de l'hote
 uint32_t g_night_roster_mask = 0;
 bool     g_host_ready[8]     = {};      // cote hote : qui est pret, par numero de joueur
 uint32_t g_host_last_roster  = 0;
+
+// L'annonce aux joueurs qui ne sont pas encore prets.
+uint32_t g_notice_mask       = 0;       // les joueurs prets qu'on a deja annonces
+bool     g_notice_wanted     = false;   // une annonce attend que la maison soit libre
+uint32_t g_notice_try        = 0;       // image de la derniere tentative
+uint32_t g_house_free_since  = 0;       // la maison est libre depuis cette image (0 = non)
+
+// La maison, vue par le detour de sub_1401E3900 (une fois par image passee chez soi).
+void*        g_house        = nullptr;  // le composant House
+void*        g_house_sign   = nullptr;  // son panneau (House+0xB8)
+bool         g_house_depart = false;    // des chats dans l'equipe : « À l'aventure ! »
+uint32_t     g_house_frame  = 0;        // image ou on l'a vue pour la derniere fois
+std::wstring g_sign_label;              // libelle impose au panneau ; vide = celui du jeu
 
 bool session_has_others() {
     return session_ready() && net_active() && net_peer_count() >= 2;
@@ -833,9 +918,20 @@ uint32_t roster_mask() {
     return mask;
 }
 
+// Les AUTRES joueurs presents qui sont prets, d'apres la derniere annonce.
+uint32_t others_ready_mask() {
+    if (!session_has_others()) return 0;
+    const uint8_t self = net_self();
+    const uint32_t me = self < 8 ? 1u << self : 0;
+    return g_night_ready_mask & g_night_roster_mask & roster_mask() & ~me;
+}
+
 void apply_night_state(bool go, uint32_t ready, uint32_t roster) {
-    g_night_ready_mask  = ready;
     g_night_roster_mask = roster;
+    // La nuit passe : le compte repart de zero. Sans cette remise a zero, le
+    // « tout le monde est pret » de la veille restait le dernier etat connu, et
+    // le lendemain chacun aurait vu « 1 joueur attend » sans raison.
+    g_night_ready_mask  = go ? 0 : ready;
     if (go && g_night_ready) {
         g_night_ready = false;
         g_night_go    = true;
@@ -877,8 +973,11 @@ void set_night_ready(bool ready) {
     }
 }
 
-std::string night_text() {
+// La liste des joueurs, un par ligne, et combien ne sont pas encore prets
+// (ce joueur compris).
+std::string night_lines(int* not_ready) {
     std::string lines;
+    int waiting = 0;
     uint8_t ids[8] = {};
     const uint8_t n = net_peer_count();
     if (n && net_peer_ids(ids, 8)) {
@@ -888,12 +987,48 @@ std::string night_text() {
             const bool ready = me ? g_night_ready : (g_night_ready_mask & (1u << id)) != 0;
             const std::string who = me ? display_name(mm_local_name()) + u8" (toi)" : peer_name(id);
             lines += "  " + who + (ready ? u8" : prêt\n" : u8" : pas encore\n");
+            if (!ready) ++waiting;
         }
     }
+    if (not_ready) *not_ready = waiting;
+    return lines;
+}
+
+// Ce joueur est pret et attend les autres.
+std::string night_text() {
+    int waiting = 0;
+    const std::string lines = night_lines(&waiting);
+    std::string count;
+    if (waiting <= 0)      count = u8"Tout le monde est prêt !";
+    else if (waiting == 1) count = u8"En attente d'un joueur.";
+    else                   count = fmt(u8"En attente de %d joueurs.", waiting);
     return fmt(u8"Fin de journée\n\n"
-               u8"Tu es prêt à passer la nuit.\n"
-               u8"Elle passera quand tout le monde sera prêt.\n\n%s",
-               lines.c_str());
+               u8"Tu es prêt à passer la nuit.\n%s\n\n%s",
+               count.c_str(), lines.c_str());
+}
+
+// Un ou plusieurs autres joueurs sont prets, pas celui-ci.
+std::string notice_text(bool depart) {
+    const int n = bit_count(others_ready_mask());
+    const std::string lines = night_lines(nullptr);
+    const std::string who = n <= 1 ? std::string(u8"1 joueur attend")
+                                   : fmt(u8"%d joueurs attendent", n);
+    const char* tail = depart
+        ? u8"\nTon panneau sert au départ en aventure :\n"
+          u8"retire tes chats de l'équipe pour finir la journée."
+        : "";
+    return fmt(u8"Fin de journée\n\n"
+               u8"%s pour passer la nuit.\n\n%s%s",
+               who.c_str(), lines.c_str(), tail);
+}
+
+// Le libelle du panneau tant que d'autres attendent ce joueur.
+std::wstring sign_label_wanted() {
+    if (g_night_ready) return {};
+    const int n = bit_count(others_ready_mask());
+    if (n <= 0) return {};
+    if (n == 1) return utf8_to_wide(u8"1 joueur attend");
+    return utf8_to_wide(fmt(u8"%d joueurs attendent", n).c_str());
 }
 
 void open_night_wait() {
@@ -907,20 +1042,136 @@ bool endday_button_valid(void* b) {
            strcmp(name, kBtnName_EndDay) == 0;
 }
 
-// Chaque image : faire passer la nuit quand c'est decide, suivre les departs.
+// --- la maison -----------------------------------------------------------------
+
+// Des chats dans l'equipe d'aventure ? Le meme compte que sub_1401E3900, avec le
+// meme Component::get. Appele depuis son detour, donc pendant House::update.
+bool team_has_cats(void* house) {
+    auto get = call_target<FnTeamBox>(C_HouseTeamBox);
+    if (!get || !house) return false;
+    void* team = get(house);
+    void* slots = nullptr;
+    if (!team || !mem_read((char*)team + kTeam_Slots, &slots, sizeof(slots)) || !slots)
+        return false;
+    void* cats[4] = {};
+    if (!mem_read(slots, cats, sizeof(cats))) return false;
+    for (void* c : cats)
+        if (c) return true;
+    return false;
+}
+
+// Juste apres que le jeu a refait le panneau : on le note, et on lui donne notre
+// libelle s'il en faut un. Le bouton le recopiera dans son champ SWF.
+void house_after_refresh(void* house) {
+    void* sign = nullptr;
+    if (!mem_read((char*)house + kHouse_Sign, &sign, sizeof(sign)) || !endday_button_valid(sign))
+        return;
+    g_house        = house;
+    g_house_sign   = sign;
+    g_house_frame  = g_frame;
+    g_house_depart = team_has_cats(house);
+    if (!g_sign_label.empty() && !g_house_depart) set_button_label_w(sign, g_sign_label);
+}
+
+// Le panneau vu a l'instant dit-il « À l'aventure ! » ?
+bool sign_is_depart(void* button) {
+    return button && button == g_house_sign && g_house_depart && g_frame - g_house_frame < 30;
+}
+
+// Le panneau est-il cliquable pour finir la journee (connu, pas en mode depart,
+// pas grise par le jeu) ?
+bool sign_can_end_day() {
+    void* sign = g_house_sign;
+    // La scene d'abord : maison detruite = pointeur perime, qu'on ne lit pas.
+    if (!find_scene("House")) return false;
+    if (!endday_button_valid(sign) || g_house_depart) return false;
+    int32_t state = 0;
+    if (!mem_read((char*)sign + kBtn_State, &state, sizeof(state))) return false;
+    return state != kBtnState_Disabled;
+}
+
+// La maison est-elle a l'ecran, sans rien par-dessus ? Scene presente, ni en
+// destruction ni en pause (une fenetre modale ou le menu pause la mettent en
+// pause), et refaite par le jeu a l'instant.
+bool house_is_free() {
+    bool paused = true;
+    if (!find_scene("House", &paused) || paused) return false;
+    return g_house && g_frame - g_house_frame <= 2;
+}
+
+// « Passer la nuit » depuis l'annonce : exactement comme un clic sur le panneau.
+void night_ready_now() {
+    if (!session_has_others() || g_night_ready) return;
+    if (!sign_can_end_day()) {
+        log_line("MULTI", "!! nuit : panneau de fin de journee indisponible, clique dessus toi-meme");
+        return;
+    }
+    g_endday_button = g_house_sign;
+    set_night_ready(true);
+    g_night_wait_wanted = true;
+}
+
+bool g_notice_tail = false;             // l'annonce ouverte explique le mode depart
+
+bool open_night_notice() {
+    const bool can = sign_can_end_day();
+    g_notice_tail = !can && g_house_depart;
+    const bool ok = can
+        ? open_popup(Screen::NightNotice, notice_text(false), u8"Passer la nuit", u8"Plus tard",
+                     false, Action::NightReadyNow, Action::None)
+        : open_popup(Screen::NightNotice, notice_text(g_notice_tail), u8"D'accord", nullptr,
+                     true, Action::None, Action::None);
+    if (ok)
+        log_line("MULTI", "nuit : annonce affichee (%d joueur(s) pret(s))",
+                 bit_count(others_ready_mask()));
+    return ok;
+}
+
+// Chaque image : annoncer, faire passer la nuit quand c'est decide, suivre les departs.
 void night_pump() {
-    // Plus personne avec qui voter (deconnexion) : la nuit passe pour ce joueur.
-    if (g_night_ready && !session_has_others()) {
-        log_line("MULTI", "nuit : plus d'autre joueur connecte, elle passe");
-        g_night_ready = false;
-        g_night_go    = true;
+    const bool others_here = session_has_others();
+    // Plus personne avec qui voter (deconnexion) : la nuit passe pour ce joueur,
+    // et rien de cette session ne reste dans les comptes -- sinon un ami qui
+    // revient trouverait des joueurs « prets » qui ne le sont plus.
+    if (!others_here) {
+        if (g_night_ready) {
+            log_line("MULTI", "nuit : plus d'autre joueur connecte, elle passe");
+            g_night_ready = false;
+            g_night_go    = true;
+        }
+        g_night_ready_mask  = 0;
+        g_night_roster_mask = 0;
+        g_host_last_roster  = 0;
+        memset(g_host_ready, 0, sizeof(g_host_ready));
     }
-    // Cote hote : un joueur est parti ou arrive pendant que d'autres attendent.
-    if (net_role() == NetRole::Host && session_has_others()) {
-        bool anyone = false;
-        for (bool r : g_host_ready) anyone |= r;
-        if (anyone && roster_mask() != g_host_last_roster) host_broadcast_night();
+    // Cote hote : un joueur est parti ou arrive. Le parti n'est plus pret (s'il
+    // revient sous le meme numero, il repart de zero) ; si quelqu'un attend, tout
+    // le monde recoit le nouvel etat, l'arrivant compris.
+    if (net_role() == NetRole::Host && others_here) {
+        const uint32_t roster = roster_mask();
+        if (roster != g_host_last_roster) {
+            for (uint8_t id = 0; id < 8; ++id)
+                if (!(roster & (1u << id))) g_host_ready[id] = false;
+            bool anyone = false;
+            for (bool r : g_host_ready) anyone |= r;
+            if (anyone) host_broadcast_night();
+            else        g_host_last_roster = roster;
+        }
     }
+
+    // Les autres joueurs prets. Une annonce par nouveau joueur pret ; celui qui
+    // annule puis revient est annonce de nouveau. Pret soi-meme, on a deja la
+    // liste sous les yeux : rien a annoncer.
+    const uint32_t others = others_ready_mask();
+    g_notice_mask &= others;
+    if (g_night_ready || !others) {
+        g_notice_wanted = false;
+        g_notice_mask   = others;
+    } else if (others & ~g_notice_mask) {
+        g_notice_wanted = true;
+    }
+    g_sign_label = sign_label_wanted();
+
     if (!g_night_go) return;
 
     // D'abord fermer l'attente (sans lancer son action « Annuler »)...
@@ -933,7 +1184,7 @@ void night_pump() {
     }
     // ... puis rejouer le clic sur le panneau, au moment ou le jeu clique.
     g_night_go = false;
-    if (endday_button_valid(g_endday_button)) {
+    if (find_scene("House") && endday_button_valid(g_endday_button)) {
         g_night_passing = true;
         g_click_target  = g_endday_button;
         g_click_wait    = 0;
@@ -943,6 +1194,21 @@ void night_pump() {
         g_night_passing = true;      // le prochain clic du joueur passera sans attendre
     }
     g_endday_button = nullptr;
+}
+
+// Ouvre l'annonce quand la maison est libre depuis un moment (pas pendant un
+// fondu ou la seconde ou la fenetre precedente se ferme).
+void notice_pump() {
+    const bool free_now = g_notice_wanted && !g_live.alive && !g_night_go && house_is_free();
+    if (!free_now) { g_house_free_since = 0; return; }
+    if (!g_house_free_since) g_house_free_since = g_frame;
+    if (g_frame - g_house_free_since < 45) return;
+    if (g_notice_try && g_frame - g_notice_try < 120) return;
+    g_notice_try = g_frame;
+    if (open_night_notice()) {
+        g_notice_wanted = false;
+        g_notice_mask   = others_ready_mask();
+    }
 }
 
 // --- detours -------------------------------------------------------------------
@@ -975,6 +1241,15 @@ void __fastcall h_MainMenuInit(void* self) {
         log_line("MULTI", "menu principal : « Miauler » devient « Multijoueur »");
     else
         log_line("MULTI", "!! menu principal : impossible de changer le texte du bouton");
+}
+
+// La maison refait son panneau de fin de journee (a chaque image) : on passe
+// juste apres le jeu. Hors session, house_after_refresh ne fait que noter le
+// panneau (quelques lectures).
+uint64_t __fastcall h_HouseHud(void* self, void* a2, uint64_t a3, uint64_t a4) {
+    const uint64_t r = o_HouseHud(self, a2, a3, a4);
+    if (self) house_after_refresh(self);
+    return r;
 }
 
 // Le bouton ne miaule plus : il demande la fenetre Multijoueur, qui s'ouvre au
@@ -1029,13 +1304,15 @@ void __fastcall h_ConfirmBuild(void* self, uint64_t a2, uint64_t text, uint64_t 
     }
     if (!prompt) log_line("MULTI", "!! champ texte de la boite introuvable : pas de mise a jour en direct");
 
-    g_live.alive  = true;
-    g_live.serial = p.serial;
-    g_live.screen = p.screen;
-    g_live.self   = self;
-    g_live.panel  = panel;
-    g_live.prompt = prompt;
-    g_live.shown  = std::move(p.text);
+    g_live.alive   = true;
+    g_live.serial  = p.serial;
+    g_live.screen  = p.screen;
+    g_live.self    = self;
+    g_live.panel   = panel;
+    g_live.prompt  = prompt;
+    g_live.shown   = std::move(p.text);
+    g_live.pressed = false;
+    g_live.warned  = false;
 }
 
 } // namespace
@@ -1047,11 +1324,13 @@ bool mm_binding(Target t, void** detour, void*** original) {
     case T_MainMenuInit: *detour = (void*)&h_MainMenuInit; *original = (void**)&o_MainMenuInit; return true;
     case T_MeowClick:    *detour = (void*)&h_Meow;         *original = (void**)&o_Meow;         return true;
     case T_ConfirmBuild: *detour = (void*)&h_ConfirmBuild; *original = (void**)&o_ConfirmBuild; return true;
+    case T_HouseHud:     *detour = (void*)&h_HouseHud;     *original = (void**)&o_HouseHud;     return true;
     default: return false;
     }
 }
 
 void mm_menu_pump() {
+    ++g_frame;
     const Action a = g_action;
     g_action = Action::None;
     switch (a) {
@@ -1070,6 +1349,9 @@ void mm_menu_pump() {
             set_night_ready(false);
             g_endday_button = nullptr;
             break;
+        case Action::NightReadyNow:
+            night_ready_now();
+            break;
     }
 
     night_pump();
@@ -1077,6 +1359,7 @@ void mm_menu_pump() {
         g_night_wait_wanted = false;              // une seule tentative par clic
         if (g_night_ready && !g_night_go) open_night_wait();
     }
+    notice_pump();
 
     // Un clic demande qui n'a pas pris (bouton encore en animation, par exemple) :
     // on le redemande, quelques fois.
@@ -1089,6 +1372,23 @@ void mm_menu_pump() {
     }
 
     if (!g_live.alive) return;
+
+    // Filet de securite : la scene de la boite a ete detruite sans que son action
+    // soit appelee (une transition qui emporte tout, par exemple). Sans cela la
+    // boite resterait « ouverte » pour nous et plus aucune ne s'ouvrirait.
+    // Deux images de suite, pour ne jamais trancher au milieu d'une fermeture.
+    static int stale = 0;
+    if (!live_scene_ok()) {
+        if (++stale >= 2) {
+            stale = 0;
+            log_line("MULTI", "!! la fenetre a disparu sans passer par ses boutons");
+            popup_closed(g_live.serial);
+            return;
+        }
+    } else {
+        stale = 0;
+    }
+
     switch (g_live.screen) {
         case Screen::HostLobby:
             popup_set_text(host_lobby_text());
@@ -1099,13 +1399,26 @@ void mm_menu_pump() {
             // sur « Jouer » pour nous (mgmp_savefile), ce que la boite, modale,
             // empeche. On la referme.
             if (savefile_client_waiting_to_load() && !g_click_target) {
-                log_line("MULTI", "la sauvegarde de l'hote est arrivee : fermeture du salon");
                 g_silent = g_live.serial;
-                popup_press("yes");
+                if (popup_press("yes"))
+                    log_line("MULTI", "la sauvegarde de l'hote est arrivee : fermeture du salon");
             }
             break;
         case Screen::NightWait:
-            popup_set_text(night_text());
+            if (!g_live.pressed) popup_set_text(night_text());
+            break;
+        case Screen::NightNotice:
+            // Plus personne n'attend (il a annule, ou est parti) : l'annonce n'a
+            // plus d'objet, elle se ferme sans lancer « Passer la nuit ».
+            if (!session_has_others() || g_night_ready || !others_ready_mask()) {
+                if (!g_click_target) {
+                    g_silent = g_live.serial;
+                    if (popup_press("yes"))
+                        log_line("MULTI", "nuit : plus personne n'attend, annonce refermee");
+                }
+            } else if (!g_live.pressed) {
+                popup_set_text(notice_text(g_notice_tail));
+            }
             break;
         case Screen::JoinEntry:
             if (g_key_enter)  { g_key_enter = false;  popup_press("yes"); }
@@ -1225,6 +1538,10 @@ bool mm_on_button_click(void* button) {
         return false;
     }
     if (!session_has_others()) return false;     // seul : comme d'habitude
+    if (sign_is_depart(button)) {                // « À l'aventure ! » : pas un vote de nuit
+        log_line("MULTI", "panneau en mode depart (chats dans l'equipe) : clic laisse au jeu");
+        return false;
+    }
     if (g_night_ready || g_live.alive) return true;
     g_endday_button = button;
     set_night_ready(true);

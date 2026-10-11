@@ -81,6 +81,8 @@ static const SigTargetDesc kTargetSigs[] = {
       "4C 89 4C 24 20 4C 89 44 24 18 55 53 56 57 41 54 41 55" },
     { 0x0097E8E0, "BTNCLICK",
       "48 89 74 24 18 57 48 83 EC 60 33 F6" },
+    { 0x001E3900, "HOUSEHUD",
+      "48 89 5C 24 20 48 89 54 24 10 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 D0 FD FF FF" },
 };
 
 // INDEXED BY enum Call -- order is load-bearing.
@@ -138,6 +140,8 @@ static const SigTargetDesc kCallSigs[] = {
       "48 89 54 24 10 53 56 57 48 83 EC 60 48 8B F2 48 8B D9 48 8B 89 80 00 00 00 48 85 C9 75 ? 48 8B CA E8 ? ? ? ? 33 C0 48 83 C4 60 5F 5E 5B C3 48 8B 01 FF 50 18 48 8B 8B 80 00 00 00 48 85 C9 74 ? 48 8B 01 FF 10 83 F8 01 74 ? 48 8B 8B 80 00 00 00 48 8B 01 FF 10 83 F8 02 75 ? 48 8B 9B 80 00 00 00 EB ? 33 DB 48 8B D6 48 8D 4C 24 20 E8 ? ? ? ? 48 8B F8 48 89 84 24 80 00 00 00 48 8B D0 48 8D 4C 24 40 E8 ? ? ? ? 45 33 C0" },
     { 0x0098E8A0, "swf TextField set text",
       "48 89 5C 24 08 48 89 74 24 18 48 89 54 24 10 57 48 83 EC 20 45 0F B6 D0" },
+    { 0x000ECD50, "House team box lookup",
+      "48 89 5C 24 08 57 48 83 EC 20 48 8B 79 18 BA AC 01 00 00" },
 };
 
 // Globals, recovered from a referencing instruction's own

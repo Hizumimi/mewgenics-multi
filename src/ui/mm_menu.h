@@ -32,8 +32,9 @@
 
 namespace mgmp {
 
-// Fournit le detour et l'original des cibles T_MainMenuInit, T_MeowClick et
-// T_ConfirmBuild a install_one (mgmp_hooks.cpp). Faux pour toute autre cible.
+// Fournit le detour et l'original des cibles T_MainMenuInit, T_MeowClick,
+// T_ConfirmBuild et T_HouseHud a install_one (mgmp_hooks.cpp). Faux pour toute
+// autre cible.
 bool mm_binding(Target t, void** detour, void*** original);
 
 // Appele au debut de chaque image (h_FrameBegin) : ouvre les fenetres demandees,
@@ -64,7 +65,11 @@ void mm_on_message(uint8_t from, const MmMsg& m);
 
 // Appele par le detour de Button::Click, avant le clic. Vrai = clic retenu :
 // en session, le panneau de fin de journee (« EndDay_Sign ») attend que tout le
-// monde soit pret ; le mod le rejoue ensuite tel quel.
+// monde soit pret ; le mod le rejoue ensuite tel quel. Pas quand le meme panneau
+// dit « À l'aventure ! » (chats dans l'equipe) : ce clic-la passe.
+//
+// Les joueurs qui ne sont pas encore prets le voient : leur panneau dit
+// « 1 joueur attend » et une fenetre le leur annonce, avec « Passer la nuit ».
 bool mm_on_button_click(void* button);
 
 } // namespace mgmp
