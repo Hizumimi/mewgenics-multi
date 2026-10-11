@@ -11,7 +11,7 @@
 // from a UI vftable), and its only data xref is .pdata unwind info -- so it is
 // not virtual and every map decision passes through it. That is the same shape
 // as TurnControl::ApplyTurnAction, which is what made the battle layer
-// tractable; CLAUDE.md's claim that the meta screens have "no ApplyTurnAction
+// tractable; docs/NOTES_MGMP.md's claim that the meta screens have "no ApplyTurnAction
 // equivalent" turns out to be true of the house/shop/level-up screens but NOT
 // of the map.
 //

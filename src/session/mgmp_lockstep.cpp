@@ -266,7 +266,7 @@ struct State {
     // counted for the whole session rather than per battle.
     //
     // Without it the shutdown summary said `0 desync(s)` whether the peers had
-    // agreed on sixty turns or had never compared a single one -- CLAUDE.md's
+    // agreed on sixty turns or had never compared a single one -- docs/NOTES_MGMP.md's
     // rule 3, and the exact hole a reconnect left. It is also what decides
     // whether that line is quiet or a warning: a session that compared nothing
     // has to say so, because it is the reading a player takes for a pass.
@@ -317,7 +317,7 @@ uint64_t fnv1a(const void* p, size_t n, uint64_t h = 1469598103934665603ULL) {
 
 // A cat the game has taken OFF THE BOARD sits at this exact tile. It is a
 // game constant, not a stray value -- see the departed-cats section in
-// CLAUDE.md, where it is also the address that makes get_affecting_elements
+// docs/NOTES_MGMP.md, where it is also the address that makes get_affecting_elements
 // walk the grid out of bounds.
 const int kTileOffBoard = -5000;
 
@@ -1836,7 +1836,7 @@ void lockstep_init() {
     // Per SESSION, not per battle: lockstep_init has exactly one caller,
     // go_ready. Reset here so a reconnect that compares nothing before the run
     // ends reports that honestly instead of inheriting the previous session's
-    // agreements -- which is CLAUDE.md's open item 2, the case where `0
+    // agreements -- which is docs/NOTES_MGMP.md's open item 2, the case where `0
     // desync(s)` was never backed by a single comparison.
     g.agreements        = 0;
     // Trace unless the barrier is off, in which case the warning is the point.
@@ -1860,7 +1860,7 @@ void lockstep_shutdown() {
     // `0 desync(s)` is a pass ONLY if something was compared. A session that
     // never reached a shared turn boundary produces the identical number and
     // means nothing by it -- so the agreement count is printed beside it and
-    // decides the severity. See CLAUDE.md rule 3.
+    // decides the severity. See docs/NOTES_MGMP.md rule 3.
     const LogLevel lvl = s.desyncs      ? LogLevel::Error
                        : !g.agreements  ? LogLevel::Warn
                                         : LogLevel::Trace;

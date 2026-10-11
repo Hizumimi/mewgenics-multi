@@ -49,7 +49,7 @@
 // registry that maps it to a CatData*. No index scheme, no name cross-check, no
 // pointer that dies between runs.
 //
-// This is RUNSTATE from CLAUDE.md's protocol table, arriving early and scoped to
+// This is RUNSTATE from docs/NOTES_MGMP.md's protocol table, arriving early and scoped to
 // cats.
 //
 // WHAT IT DOES NOT COVER, stated plainly: equipping MOVES an item from the run

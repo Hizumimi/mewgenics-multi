@@ -8,7 +8,7 @@
 # Note: IDA 9.x is unified -- the binary is idat.exe, not idat64.exe.
 #
 # Run C showed the battle draws going to TLS+0x198, not the TLS+0x178 that
-# CLAUDE.md documents as "the global stream". Those are 32 bytes apart -- exactly
+# docs/NOTES_MGMP.md documents as "the global stream". Those are 32 bytes apart -- exactly
 # one xoshiro256 state -- so the TLS block holds several streams, and only one of
 # them was ever being watched.
 #

@@ -280,7 +280,7 @@ def read_data_targets():
 #
 # A global cannot be scanned for -- its bytes are runtime state. It is
 # recovered from the code that references it, by decoding that reference's own
-# RIP-relative displacement. Same rule CLAUDE.md already imposes on the SDL
+# RIP-relative displacement. Same rule docs/NOTES_MGMP.md already imposes on the SDL
 # slots ("decode the RVA from the thunk's own jmp operand, never by counting"),
 # generalised to every datum once the build is allowed to move.
 
@@ -351,7 +351,7 @@ DATA_TARGETS = read_data_targets()
 # The three SDL_DYNAPI slots are DELIBERATELY not among them. Every thunk in
 # that table is `jmp cs:off_...` and every default stub shares one shape, so no
 # byte pattern can tell one slot from its neighbour -- which is the exact trap
-# CLAUDE.md records ("resolving by COUNTING table entries yielded a stub
+# docs/NOTES_MGMP.md records ("resolving by COUNTING table entries yielded a stub
 # belonging to a neighbouring function, and the pinned-build check passed
 # because every stub has the same prologue"). Confirmed again on the
 # 2026-09-05 build: the SDL_GetWindowSize and SDL_GetWindowSizeInPixels stubs

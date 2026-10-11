@@ -291,7 +291,7 @@ struct PeersMsg {
 //   anything else      the sender reached a battle we have not. HOLD it:
 //                      dropping here is what made a peer entering a battle late
 //                      lose the actions taken without it (see the late-join gap
-//                      in CLAUDE.md), and holding costs nothing because the
+//                      in docs/NOTES_MGMP.md), and holding costs nothing because the
 //                      queues are keyed on battle_id and will not hand one over
 //                      early.
 //
@@ -651,7 +651,7 @@ constexpr uint8_t kChoiceLevelUp = 1;
 // This is the bluntest possible answer to "both peers must start from the same
 // state", and it is blunt on purpose: the save is a single self-contained
 // sqlite3 file, so shipping it whole needs none of the ~1390-class
-// serialization that RUNSTATE will. CLAUDE.md's own first-milestone advice was
+// serialization that RUNSTATE will. docs/NOTES_MGMP.md's own first-milestone advice was
 // "copy the host's save file, do not match checkpoints" -- this is that, done
 // by the mod instead of by hand.
 //

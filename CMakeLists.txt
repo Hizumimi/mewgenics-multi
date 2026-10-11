@@ -2,7 +2,7 @@
 #
 # Replaces the old build.ps1. Same outputs, same /MT-static-CRT requirement
 # (the DLL is injected into the game process and must not depend on a VC
-# redist being present there -- see "Write procedure" in CLAUDE.md), just
+# redist being present there -- see "Write procedure" in docs/NOTES_MGMP.md), just
 # driven by CMake instead of one hand-rolled script.
 #
 #   cmake -B build -A x64
@@ -15,7 +15,7 @@ cmake_minimum_required(VERSION 3.21)
 project(mgmp LANGUAGES C CXX)
 
 if(NOT WIN32)
-    message(FATAL_ERROR "mgmp targets Mewgenics.exe, a Windows x64 PE -- see CLAUDE.md")
+    message(FATAL_ERROR "mgmp targets Mewgenics.exe, a Windows x64 PE -- see docs/NOTES_MGMP.md")
 endif()
 
 set(CMAKE_CXX_STANDARD 17)
@@ -27,6 +27,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 option(MGMP_BUILD_TESTS "build the pure-logic unit tests in tests/" ON)
+
+# Numero de build (GitHub Actions le fixe a github.run_number). Affiche dans le
+# journal et le panneau pour savoir quelle version tourne chez un joueur.
+set(MM_BUILD_ID "local" CACHE STRING "numero de build de Mewgenics Multi")
 
 # third_party/minhook ships its own CMakeLists.txt (BUILD_SHARED_LIBS is OFF
 # by default there, which is what we want: a static lib folded into mgmp.dll,
@@ -88,6 +92,7 @@ add_library(mgmp SHARED
 set_target_properties(mgmp PROPERTIES OUTPUT_NAME "mgmp" PREFIX "")
 target_compile_definitions(mgmp PRIVATE
     WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS NOMINMAX
+    MM_BUILD_ID="${MM_BUILD_ID}"
 )
 target_compile_options(mgmp PRIVATE /W3)
 # Flat quoted includes (#include "mgmp_hooks.h") resolve across folders via

@@ -26,7 +26,7 @@
 // determinism -- it is proof that the ~210 call-based draw sites agree.
 //
 // The inlined sites are findable (byte-scan for `ror r64,19` plus `shl r64,17`,
-// or xrefs to the 2^-53 constant at 0x141137238) and CLAUDE.md records the
+// or xrefs to the 2^-53 constant at 0x141137238) and docs/NOTES_MGMP.md records the
 // method. Closing that gap means either patching inlined sites individually or
 // hashing the TLS state block at frame boundaries to catch drift from any
 // source. The second is much cheaper and is the natural next step if Run C

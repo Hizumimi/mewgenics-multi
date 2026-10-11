@@ -3,7 +3,7 @@
 // never sees the save-selection screen.
 //
 // WHY THIS EXISTS AT ALL. Two peers must start a run from byte-identical state,
-// and CLAUDE.md's own first-milestone advice was to arrange that by hand: "copy
+// and docs/NOTES_MGMP.md's own first-milestone advice was to arrange that by hand: "copy
 // the host's save file, do not match checkpoints", because two players at the
 // same tutorial checkpoint on separate save slots do NOT share state -- battle
 // setup draws ~44 times into tls+0x178 from the cat generation cluster, and a

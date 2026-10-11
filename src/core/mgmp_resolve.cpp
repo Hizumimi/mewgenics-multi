@@ -26,7 +26,7 @@ static_assert(sizeof(kSigData) / sizeof(kSigData[0]) == (size_t)D_COUNT,
 // A missing draw call turns a cursor off -- visible, and the module already
 // says so. A missing GetChoice means remote decisions are never injected and
 // both peers quietly play their own game: that is a silent wrong game, which
-// CLAUDE.md ranks as strictly worse than a stall. Those four are the seam
+// docs/NOTES_MGMP.md ranks as strictly worse than a stall. Those four are the seam
 // lockstep is built on, so they refuse.
 bool is_critical(Target t) {
     switch (t) {

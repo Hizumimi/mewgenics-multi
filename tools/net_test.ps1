@@ -1,7 +1,7 @@
 # net_test.ps1 -- drive the two-instance loopback lockstep test.
 #
 # Two Mewgenics instances on one box, host and client, talking over 127.0.0.1.
-# CLAUDE.md used to rule this out on memory grounds; measured on 2026-08-23 it
+# docs/NOTES_MGMP.md used to rule this out on memory grounds; measured on 2026-08-23 it
 # works, and it is a far better first milestone than a mock peer because both
 # sides are the real game.
 #

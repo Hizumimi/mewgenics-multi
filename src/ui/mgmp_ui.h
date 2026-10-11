@@ -14,7 +14,7 @@
 //
 // It does share the DRAW SITE, because there is only one: the takeover of
 // SDL_GL_SwapWindow's SDL_DYNAPI slot that mgmp_overlay installs (see trap 4 in
-// CLAUDE.md for why that is a jump-table write and not a hook).
+// docs/NOTES_MGMP.md for why that is a jump-table write and not a hook).
 // overlay_swap_detour calls us AFTER the peer pointers, so the panel sits on
 // top of them, and both run before the previous implementation presents.
 //

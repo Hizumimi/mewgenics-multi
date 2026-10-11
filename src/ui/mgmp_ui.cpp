@@ -480,7 +480,9 @@ void draw_connect() {
 void draw_session() {
     ImGui::SetNextWindowSize(ImVec2(420, 260), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
-    if (!ImGui::Begin("mgmp -- session")) { ImGui::End(); return; }
+    // Le titre visible porte le numero de build ; l'identifiant apres ### reste
+    // celui de mgmp pour garder la position de la fenetre.
+    if (!ImGui::Begin("Mewgenics Multi -- build " MM_BUILD_ID "###mgmp -- session")) { ImGui::End(); return; }
 
     const NetState st = net_state();
     ImGui::TextDisabled("state");

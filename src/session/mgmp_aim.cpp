@@ -21,7 +21,7 @@ namespace mgmp {
 namespace {
 
 // iVec2D is 8 bytes -- {int x, int y} -- confirmed empirically and recorded in
-// CLAUDE.md. Passed BY VALUE in a register, so it is declared as one here
+// docs/NOTES_MGMP.md. Passed BY VALUE in a register, so it is declared as one here
 // rather than as a pointer: getting that wrong would hand the callee an address
 // where it expects two ints.
 struct iVec2D { int32_t x, y; };

@@ -113,7 +113,7 @@ const float kPeerRGB[kMaxPeers][3] = {
 // by THROWING a std::string, which unwinds to std::terminate and kills the
 // process. It surfaces with no mgmp.dll frame on the stack, because the lookup
 // happens in the UI consumer pass long after our submit has returned. That cost
-// a session; see the crash write-up in CLAUDE.md.
+// a session; see the crash write-up in docs/NOTES_MGMP.md.
 const char* kAnimName = "TargetCursor";   // 12 chars -- still inside the SSO budget
 constexpr int kLayer  = 6;
 constexpr int kFrame  = -1;

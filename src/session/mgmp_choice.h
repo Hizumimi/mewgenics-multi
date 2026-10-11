@@ -20,7 +20,7 @@
 //   1. THE CLIENT RUNS THE EVENT TOO. mgmp_follow calls the game's own
 //      EnterNode on the client for the node the host entered -- every node
 //      type, not just battles -- so the client opens its own WorldEvent screen.
-//      (CLAUDE.md used to claim the opposite. It is wrong; see
+//      (docs/NOTES_MGMP.md used to claim the opposite. It is wrong; see
 //      core/mgmp_hooks.cpp h_MapUpdate, which has always called o_EnterNode.)
 //
 //   2. ENTERING A NODE RE-SEEDS THE SIMULATION STREAM, FOR EVERY NODE TYPE.

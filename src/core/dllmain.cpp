@@ -1,6 +1,6 @@
 // mgmp.dll -- Mewgenics multiplayer mod, L0 loader payload.
 //
-// Phase 1 scope (see CLAUDE.md): get code running inside the process at fixed
+// Phase 1 scope (see docs/NOTES_MGMP.md): get code running inside the process at fixed
 // RVAs and trace the turn/command boundaries. No networking, no determinism
 // work, no state changes.
 #include "mgmp_addresses.h"
@@ -65,6 +65,7 @@ DWORD WINAPI init_thread(LPVOID) {
     uintptr_t base     = (uintptr_t)main_mod;
 
     log_raw("=== mgmp phase 1 trace harness ===");
+    log_raw("mod    : Mewgenics Multi, build %s", MM_BUILD_ID);
     log_raw("host   : %S", exe);
     log_raw("base   : %p  (pinned imagebase 0x140000000)", (void*)base);
     log_raw("pid    : %lu", GetCurrentProcessId());

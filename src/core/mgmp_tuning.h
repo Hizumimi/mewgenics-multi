@@ -64,7 +64,7 @@ constexpr bool     kRecordFrames  = false;
 // This is the one culled setting with a real consequence: it decides which cats
 // the two peers divide between them. It is a constant because there has never
 // been a second answer. If a summonable cat ever turns up with a PlayerBrain,
-// this is where the exception goes -- see the summon note in CLAUDE.md.
+// this is where the exception goes -- see the summon note in docs/NOTES_MGMP.md.
 constexpr const char* kReplayBrains = "PlayerBrain";
 
 // --- the two hooks that CHANGE the game rather than watch it ----------------

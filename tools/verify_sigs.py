@@ -1,6 +1,6 @@
 # verify_sigs.py -- independent check of sigs_generated.h against the SHIPPED PE.
 #
-# The generator ran inside IDA. CLAUDE.md's rule is that a call/hook target is
+# The generator ran inside IDA. docs/NOTES_MGMP.md's rule is that a call/hook target is
 # verified against Mewgenics.exe itself, not against IDA's notes, because the
 # two can disagree. This reads the PE directly and asserts, for every pattern:
 #   - it matches at the rva it claims

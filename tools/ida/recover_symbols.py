@@ -3,7 +3,7 @@
 # Run inside IDA (MCP py_exec_file, or headless idat -A -S).
 #
 # THE POINT: the names are in the BINARY, not in the .i64. A game update
-# replaces the database, and CLAUDE.md's symbol-recovery section described the
+# replaces the database, and docs/NOTES_MGMP.md's symbol-recovery section described the
 # method in prose only -- so after the first update it had to be redone by
 # hand. This is that method, executed. After an update: open the new .i64, run
 # this, then gen_sigs.py.
@@ -40,7 +40,7 @@
 # SO THESE NAMES ARE NAVIGATIONAL, NOT AUTHORITATIVE. Nothing the mod hooks is
 # resolved from them -- mgmp_addresses.h is pinned by unique byte signature and
 # cross-checked against the shipped PE. Treat a name here as a lead to verify,
-# the way every offset in CLAUDE.md carries two independent readings.
+# the way every offset in docs/NOTES_MGMP.md carries two independent readings.
 
 import os, re, collections
 import ida_bytes, ida_funcs, ida_name, idautils, idc

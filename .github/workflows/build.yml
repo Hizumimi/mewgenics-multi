@@ -1,0 +1,43 @@
+name: Compilation
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurer
+        run: cmake -B build -A x64 -DMM_BUILD_ID=${{ github.run_number }}
+
+      - name: Compiler
+        run: cmake --build build --config Release --parallel
+
+      - name: Tests
+        run: ctest --test-dir build --build-config Release --output-on-failure
+
+      - name: Preparer les fichiers
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item build/Release/mgmp.dll, build/Release/mgmp_loader.exe dist/
+          Get-FileHash dist/mgmp.dll, dist/mgmp_loader.exe -Algorithm SHA256 |
+            ForEach-Object { "{0}  {1}" -f $_.Hash.ToLower(), (Split-Path $_.Path -Leaf) } |
+            Set-Content dist/SHA256SUMS.txt
+
+      - name: Publier la build
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "build-${{ github.run_number }}"
+          gh release create $tag dist/mgmp.dll dist/mgmp_loader.exe dist/SHA256SUMS.txt `
+            --prerelease --target ${{ github.sha }} `
+            --title "Build ${{ github.run_number }}" --notes "Commit ${{ github.sha }}"

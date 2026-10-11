@@ -20,7 +20,7 @@
 //                        -> 6 occurrences in the image
 //
 // MSVC emits the same register-save prologue for every large function in a
-// translation unit. That is already recorded in CLAUDE.md as the reason
+// translation unit. That is already recorded in docs/NOTES_MGMP.md as the reason
 // `CallDesc` grew a second window: save_adventure and ContinueAdventure are
 // byte-identical for their first TWENTY-ONE bytes, and a 16-byte guard on the
 // first happily accepts the second -- the one that destroys the House scene and
@@ -205,7 +205,7 @@ SigResolution sig_resolve(uintptr_t module_base, const SigRegion& region,
 //   kRva_SdlGetWindowSizePxSlot      0x012DF178
 //
 // Scanning for them is meaningless -- their contents are runtime state, not a
-// fixed byte string. They are recovered the way CLAUDE.md already insists the
+// fixed byte string. They are recovered the way docs/NOTES_MGMP.md already insists the
 // SDL slots must be: find the CODE that references the datum, and decode the
 // reference's own displacement. "Never by counting" generalises to "never by
 // address" once the build can move.
