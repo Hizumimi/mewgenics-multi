@@ -68,9 +68,17 @@ struct State {
     NetStats stats;
 
     bool     wsa_up = false;
+
+    // Mewgenics Multi : connexion a l'hote en cours, sans bloquer le jeu.
+    // connect() bloquant sur le thread du jeu le figeait ~20 s quand
+    // l'adresse tapee ne repondait pas.
+    SOCKET    pending = INVALID_SOCKET;
+    ULONGLONG pending_deadline = 0;
 };
 
 State g;
+
+constexpr ULONGLONG kConnectTimeoutMs = 8000;
 
 void set_state(NetState s) { InterlockedExchange(&g.state, (LONG)s); }
 
@@ -465,6 +473,52 @@ bool net_host(uint16_t port) {
     return true;
 }
 
+// La socket est connectee : retour en mode bloquant (le fil de reception de
+// start_link attend dans recv), puis meme suite que l'ancien net_join.
+bool finish_connect(SOCKET s) {
+    u_long blocking = 0;
+    ioctlsocket(s, FIONBIO, &blocking);
+    set_state(NetState::Connected);
+    log_line("NET", "connected");
+    return start_link(0, s, kHostPeer);
+}
+
+void drop_pending(const char* what, int err) {
+    fail(what, err);
+    closesocket(g.pending);
+    g.pending = INVALID_SOCKET;
+    // Plus rien en cours : une nouvelle tentative (net_join) redevient possible.
+    g.role = NetRole::None;
+}
+
+// Une interrogation sans attente de la connexion en cours.
+void net_pump_connect() {
+    if (g.pending == INVALID_SOCKET) return;
+    fd_set w, e;
+    FD_ZERO(&w); FD_ZERO(&e);
+    FD_SET(g.pending, &w);
+    FD_SET(g.pending, &e);
+    timeval now{0, 0};
+    const int r = select(0, nullptr, &w, &e, &now);
+    if (r == SOCKET_ERROR) { drop_pending("select", WSAGetLastError()); return; }
+    if (r == 0) {
+        if (GetTickCount64() > g.pending_deadline) drop_pending("connect", WSAETIMEDOUT);
+        return;
+    }
+    if (FD_ISSET(g.pending, &e)) {
+        int err = 0;
+        int len = sizeof(err);
+        getsockopt(g.pending, SOL_SOCKET, SO_ERROR, (char*)&err, &len);
+        drop_pending("connect", err ? err : WSAECONNREFUSED);
+        return;
+    }
+    if (FD_ISSET(g.pending, &w)) {
+        SOCKET s = g.pending;
+        g.pending = INVALID_SOCKET;
+        finish_connect(s);
+    }
+}
+
 bool net_join(const char* addr, uint16_t port) {
     if (g.role != NetRole::None) return false;
     ensure_cs();
@@ -486,22 +540,33 @@ bool net_join(const char* addr, uint16_t port) {
 
     set_state(NetState::Connecting);
     log_line("NET", "connecting to %s:%u", addr, (unsigned)port);
-    if (connect(s, (sockaddr*)&a, sizeof(a)) == SOCKET_ERROR) {
-        fail("connect", WSAGetLastError());
-        closesocket(s);
-        return false;
-    }
+
+    // Mewgenics Multi : connexion non bloquante. Le role est Client des
+    // maintenant (net_role() / net_active() le disent pendant la connexion) ;
+    // net_pump_connect, appele a chaque image par net_poll, termine le travail.
+    u_long nonblocking = 1;
+    ioctlsocket(s, FIONBIO, &nonblocking);
 
     g.role = NetRole::Client;
     // Our own id is not known until PEERS arrives; until then we can still send,
     // because the host overwrites the envelope's `from` with the id it handed
     // this socket regardless of what we put there.
     g.self = kNoPeer;
-
     InterlockedExchange(&g.stop, 0);
-    set_state(NetState::Connected);
-    log_line("NET", "connected");
-    return start_link(0, s, kHostPeer);
+
+    if (connect(s, (sockaddr*)&a, sizeof(a)) == 0)
+        return finish_connect(s);
+
+    const int err = WSAGetLastError();
+    if (err != WSAEWOULDBLOCK) {
+        fail("connect", err);
+        closesocket(s);
+        g.role = NetRole::None;
+        return false;
+    }
+    g.pending = s;
+    g.pending_deadline = GetTickCount64() + kConnectTimeoutMs;
+    return true;
 }
 
 // The transport learns our own id from the same PEERS message the session layer
@@ -530,6 +595,7 @@ bool net_peer_ids(uint8_t* out, uint8_t cap) {
 }
 
 void net_shutdown() {
+    if (g.pending != INVALID_SOCKET) { closesocket(g.pending); g.pending = INVALID_SOCKET; }
     if (g.role == NetRole::None) return;
     InterlockedExchange(&g.stop, 1);
 
@@ -786,6 +852,7 @@ void net_msg_release(NetMsg& m) {
 
 bool net_poll(NetMsg& out) {
     if (!g.cs_ready) return false;
+    net_pump_connect();
     EnterCriticalSection(&g.cs);
     bool got = g.count > 0;
     if (got) {

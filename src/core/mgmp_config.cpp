@@ -161,7 +161,9 @@ void hook_defaults() {
 
     // Hot path, and its only remaining job is pumping the socket -- forced on
     // below by net.role and by the panel.
-    g_cfg.hook[T_FrameBegin] = false;
+    // Toujours actif : la fenetre Multijoueur s'ouvre au debut d'une image
+    // (mm_menu_pump), y compris sans session ni panneau.
+    g_cfg.hook[T_FrameBegin] = true;
 
     // The hottest things in the harness and pure overhead unless a recording is
     // being taken, so they follow debug.record rather than standing alone.
@@ -294,7 +296,7 @@ void config_load(const wchar_t* dll_dir) {
         // other reading of a game that ignored every setting is a typo in the
         // filename.
         warn("no mgmp.json beside mgmp.dll -- running on defaults");
-        hooks_implied_by(false);
+        hooks_implied_by(true);   // Mewgenics Multi : toujours (role choisi dans le menu)
         return;
     }
 
@@ -307,7 +309,7 @@ void config_load(const wchar_t* dll_dir) {
     if (j.is_discarded() || !j.is_object()) {
         warn("mgmp.json is not valid JSON -- EVERY setting in it was ignored "
              "and the mod is running on defaults");
-        hooks_implied_by(false);
+        hooks_implied_by(true);   // Mewgenics Multi : toujours (role choisi dans le menu)
         return;
     }
 
@@ -355,9 +357,12 @@ void config_load(const wchar_t* dll_dir) {
         if (!wcschr(dot, L'\\')) *dot = 0;
     wcsncat_s(g_cfg.record_path, L".mgr", _TRUNCATE);
 
-    const bool net_configured = _stricmp(g_cfg.net_role, "host")   == 0 ||
-                                _stricmp(g_cfg.net_role, "client") == 0;
-    hooks_implied_by(net_configured);
+    // Mewgenics Multi : on heberge ou on rejoint depuis le menu du jeu, donc a
+    // n'importe quel moment. Les crochets coop sont poses des le lancement, quel
+    // que soit le role : poses en cours de partie, ils manquaient (le journal
+    // disait « no hooks could be installed late »). Chacun d'eux ne fait rien
+    // hors session (garde lockstep_active / net_active).
+    hooks_implied_by(true);
 }
 
 const Config& config() { return g_cfg; }

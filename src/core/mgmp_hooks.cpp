@@ -583,6 +583,10 @@ void __fastcall h_ButtonUpdate(void* self) {
     // INTO the host's run, Quit To Menu in the pause sidebar gets it back
     // OUT when the host has left. Same slot, same trampoline reasoning.
     leave_on_button_update(self);
+
+    // Mewgenics Multi : les boutons de nos fenetres et « Jouer » pour l'hote,
+    // cliques au meme moment que le jeu clique les siens.
+    mm_on_button_update(self);
 }
 
 // The aim preview turns the acting cat while a decision is held, writing the
@@ -678,6 +682,10 @@ void __fastcall h_FrameBegin(void* self) {
     // keep arriving while a brain is polled -- a peer's decision has to be able
     // to land in the middle of our wait for it, not only between turns.
     session_update();
+
+    // Mewgenics Multi : les fenetres demandees pendant l'image precedente
+    // s'ouvrent ici, hors de toute iteration sur la liste des scenes.
+    mm_menu_pump();
 
     o_FrameBegin(self);
 }

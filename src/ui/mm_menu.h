@@ -7,15 +7,27 @@
 //     un champ texte « label »), et MenuPanel::register_button plante si on lui
 //     demande un emplacement qui n'existe pas : renommer celui-ci est donc la
 //     seule facon d'avoir un bouton identique aux autres.
-//   - Les messages passent par la fenetre de confirmation du jeu (YesNoPrompt /
-//     ConfirmationBox), celle de « Voulez-vous vraiment abandonner ? ». On lui
-//     donne notre texte en francais, nos libelles de boutons, ou un seul bouton.
+//   - Les fenetres passent par la boite de confirmation du jeu (YesNoPrompt /
+//     ConfirmationBox), celle de « Voulez-vous vraiment abandonner ? » : notre
+//     texte (en Unicode, donc avec les accents), nos libelles de boutons, ou un
+//     seul bouton. Son champ texte « prompt » est mis a jour en direct : liste
+//     des joueurs du salon, adresse tapee au clavier.
 //
-// Tout s'execute sur le thread du jeu, depuis ses propres fonctions.
+// Parcours : Multijoueur -> « Heberger » ou « Rejoindre ».
+//   Heberger  : le salon s'ouvre, l'adresse a donner est affichee (et copiee), la
+//               liste des joueurs se remplit ; « Choisir la sauvegarde » ouvre
+//               l'ecran des sauvegardes, comme « Jouer ».
+//   Rejoindre : on tape l'adresse de l'hote (ou Ctrl+V), Entree ou « Rejoindre » ;
+//               le salon montre la connexion puis l'attente du choix de l'hote.
+//
+// Tout s'execute sur le thread du jeu : les clics ne font que poser une demande,
+// traitee au debut de l'image suivante (mm_menu_pump).
 #pragma once
 
 #include "mgmp_addresses.h"
 
+#include <windows.h>
+#include <cstdint>
 #include <functional>
 
 namespace mgmp {
@@ -24,16 +36,26 @@ namespace mgmp {
 // T_ConfirmBuild a install_one (mgmp_hooks.cpp). Faux pour toute autre cible.
 bool mm_binding(Target t, void** detour, void*** original);
 
-// Ouvre une fenetre du jeu.
-//   texte    : UTF-8, peut contenir \n, &nbsp; et les balises [c:red]...[/c]
-//   oui/non  : libelles des boutons (UTF-8) ; nullptr garde « Oui » / « Non »
-//   un_seul  : vrai -> un seul bouton (le « Oui », renomme par `oui`)
-//   on_oui / on_non : actions des boutons (peuvent etre vides)
-// Faux si les fonctions du jeu necessaires n'ont pas ete trouvees.
-bool mm_show_popup(const char* texte, const char* oui, const char* non, bool un_seul,
-                   std::function<void()> on_oui = {}, std::function<void()> on_non = {});
+// Appele au debut de chaque image (h_FrameBegin) : ouvre les fenetres demandees,
+// met a jour le texte de la fenetre ouverte. Ouvrir une fenetre ajoute une scene
+// a la liste du Director ; le faire pendant que le jeu parcourt cette liste (un
+// clic arrive en plein Button::update) fige le jeu. Le debut d'image est entre
+// deux choses.
+void mm_menu_pump();
 
-// La fenetre « Multijoueur » ouverte par le bouton du menu principal.
-void mm_open_multiplayer_menu();
+// Appele pour chaque bouton du jeu, apres son update (h_ButtonUpdate) : c'est la
+// que nous « cliquons » nos boutons, au meme moment que le jeu le ferait.
+void mm_on_button_update(void* button);
+
+// Appele en premier par la procedure de fenetre (mgmp_ui.cpp). Vrai = message
+// consomme : pendant la saisie de l'adresse, le clavier est a nous.
+bool mm_menu_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
+
+// Le nom de ce joueur (pseudo Steam, sinon « Joueur »), en UTF-8. Envoye dans le
+// HELLO, affiche dans le salon des autres.
+const char* mm_local_name();
+
+// Un pair s'est presente (HELLO accepte) : on garde son nom pour le salon.
+void mm_on_peer_hello(uint8_t peer, const char* name_utf8);
 
 } // namespace mgmp

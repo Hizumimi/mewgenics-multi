@@ -1047,4 +1047,8 @@ void savefile_on_button_update(void* button) {
     g.button_click(button, false);
 }
 
+bool savefile_client_waiting_to_load() {
+    return g.on && g.is_client && g.pending && !g.applied;
+}
+
 } // namespace mgmp

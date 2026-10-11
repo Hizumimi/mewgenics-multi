@@ -136,4 +136,9 @@ bool savefile_adventure_is_loaded();
 // is only read once a save is actually pending.
 void savefile_on_button_update(void* button);
 
+// Mewgenics Multi : vrai sur un invite qui a recu la sauvegarde de l'hote et
+// attend d'appuyer sur « Jouer ». Le salon (mm_menu) se ferme alors, parce que
+// sa boite, modale, empecherait le bouton du menu de recevoir le clic.
+bool savefile_client_waiting_to_load();
+
 } // namespace mgmp

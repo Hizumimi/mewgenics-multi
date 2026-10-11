@@ -3,6 +3,7 @@
 #include "mgmp_cursor.h"
 #include "mgmp_overlay.h"
 #include "mgmp_session.h"
+#include "mm_menu.h"   // Mewgenics Multi : noms des joueurs
 #include "mgmp_net.h"
 #include "mgmp_catsync.h"
 #include "mgmp_invsync.h"
@@ -147,8 +148,9 @@ Hello our_hello() {
     h.proto      = kProtoVersion;
     h.gpak_hash  = g.gpak_hash;
     h.build_hash = g.build_hash;
-    _snprintf_s(h.name, sizeof(h.name), _TRUNCATE, "%s",
-                net_role() == NetRole::Host ? "host" : "client");
+    // Mewgenics Multi : le pseudo Steam, affiche dans le salon des autres.
+    // Le champ est indicatif (diagnostic) : le changer ne touche pas au protocole.
+    _snprintf_s(h.name, sizeof(h.name), _TRUNCATE, "%s", mm_local_name());
     return h;
 }
 
@@ -219,6 +221,7 @@ void handle_hello(uint8_t from, const Hello& h) {
     }
     log_line("SESSION", "peer %u '%s' accepted (proto %u)",
              (unsigned)from, h.name[0] ? h.name : "?", h.proto);
+    mm_on_peer_hello(from, h.name);
 
     if (net_role() != NetRole::Host) return;
 
@@ -348,16 +351,13 @@ bool begin(bool host, const char* addr, uint16_t port) {
                             "'off', so the co-op hooks were skipped at startup and "
                             "are being installed now",
                  host ? "host" : "client");
+        // Mewgenics Multi installe les crochets coop des le lancement (le role
+        // se choisit dans le menu) : en temps normal il n'y a plus rien a
+        // ajouter ici, et zero n'est pas une erreur.
         const int late = hooks_install_late();
         if (late)
             log_line("SESSION", "installed %d hook(s) that role = off had skipped",
                      late);
-        else
-            log_line_lvl(LogLevel::Error, "SESSION",
-                         "!! no hooks could be installed late -- this session will "
-                         "run without the inventory serializer, the facing freeze "
-                         "and the combat lock. Set net.role in mgmp.json and "
-                         "restart.");
     }
 
     // Computed once per process, not per session: hashing the gpak index is

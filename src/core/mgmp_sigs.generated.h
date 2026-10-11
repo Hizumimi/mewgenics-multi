@@ -132,6 +132,10 @@ static const SigTargetDesc kCallSigs[] = {
       "48 89 54 24 10 53 55 56 57 41 54 41 56 41 57 48 81 EC B0 00 00 00" },
     { 0x0097C930, "MenuPanel::hide_button",
       "48 89 5C 24 18 48 89 54 24 10 55 56 57 41 56 41 57 48 83 EC 40 48 8B F2 4C 8B F9 48 8B 69 40 48 8B 5D 08 48 8B FD 80 7B 19 00 75 ? 0F 1F 40 00 48 8D 4B 20 48 8B D6 E8 ? ? ? ? 84 C0 79 ? 48 8B 5B 10 EB ? 48 8B FB 48 8B 1B 80 7B 19 00 74 ? 80 7F 19 00 75 ? 48 8D 57 20 48 8B CE E8 ? ? ? ? 84 C0 78 ? 48 3B FD 74 ? 48 8B D6 49 8D 4F 40 E8 ? ? ? ? 48 8B 08 C7 81 F0 02 00 00 04 00 00 00" },
+    { 0x0005A100, "swf child lookup by name",
+      "48 89 54 24 10 53 56 57 48 83 EC 60 48 8B F2 48 8B D9 48 8B 89 80 00 00 00 48 85 C9 75 ? 48 8B CA E8 ? ? ? ? 33 C0 48 83 C4 60 5F 5E 5B C3 48 8B 01 FF 50 18 48 8B 8B 80 00 00 00 48 85 C9 74 ? 48 8B 01 FF 10 83 F8 01 74 ? 48 8B 8B 80 00 00 00 48 8B 01 FF 10 83 F8 02 75 ? 48 8B 9B 80 00 00 00 EB ? 33 DB 48 8B D6 48 8D 4C 24 20 E8 ? ? ? ? 48 8B F8 48 89 84 24 80 00 00 00 48 8B D0 48 8D 4C 24 40 E8 ? ? ? ? 45 33 C0" },
+    { 0x0098E8A0, "swf TextField set text",
+      "48 89 5C 24 08 48 89 74 24 18 48 89 54 24 10 57 48 83 EC 20 45 0F B6 D0" },
 };
 
 // Globals, recovered from a referencing instruction's own

@@ -21,6 +21,7 @@
 #include "mgmp_follow.h"
 #include "mgmp_combatlock.h"
 #include "mgmp_leave.h"
+#include "mm_menu.h"
 
 // Declared by imgui_impl_win32.h's owner rather than the header itself.
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(
@@ -590,6 +591,10 @@ LRESULT CALLBACK wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
         return 0;
     }
+
+    // Mewgenics Multi : pendant la saisie de l'adresse de l'hote, le clavier
+    // est a la fenetre du jeu que nous affichons, pas au jeu.
+    if (mm_menu_wndproc(hwnd, msg, wp, lp)) return 0;
 
     if (g.ready && g.visible) {
         if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wp, lp))

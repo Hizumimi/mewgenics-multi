@@ -574,6 +574,8 @@ enum Call : int {
     C_ShowConfirmation,      // void(std::string* texte, function* oui, function* non, scene*)
     C_PanelGetButton,        // Button* (MenuPanel*, std::string* nom, bool creer)
     C_PanelHideButton,       // void(MenuPanel*, std::string* nom)
+    C_SwfFindChild,          // void* (clip SWF*, std::string* nom) -- consomme le nom
+    C_SwfSetText,            // void(champ texte*, std::wstring* texte, bool force, bool balises)
     C_COUNT
 };
 
@@ -818,6 +820,15 @@ static const CallDesc kCalls[C_COUNT] = {
     // Les deux CONSOMMENT le nom (le detruisent) : passer des noms <= 15 car.
     { 0x0097C4F0, "MenuPanel::get_button" },
     { 0x0097C930, "MenuPanel::hide_button" },
+    // Cherche un enfant nomme dans un clip SWF (MenuPanel+0x38). La boite de
+    // confirmation s'en sert pour son champ texte "prompt". Le nom est passe par
+    // valeur : la fonction le detruit, d'ou des noms <= 15 caracteres.
+    { 0x0005A100, "swf child lookup by name" },
+    // Ecrit le texte d'un champ SWF (le texte est copie dans champ+0xB8, puis
+    // mis en page). Le std::wstring est passe par valeur et detruit ici : son
+    // tampon doit venir du tas du jeu. force=0 ne fait rien si le texte est le
+    // meme ; balises=1 interprete [c:red]...[/c]. La boite l'appelle avec (0, 1).
+    { 0x0098E8A0, "swf TextField set text" },
 };
 
 // sub_140138A10 IS NOT A DRAW ROUTINE, and it is in the table above only
