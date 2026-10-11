@@ -81,6 +81,7 @@ enum Target : int {
     T_MainMenuInit,      // glaiel::MainMenu::init -- construit les 4 boutons du titre
     T_MeowClick,         // corps du lambda du bouton Miauler (miaulement aleatoire)
     T_ConfirmBuild,      // construit la boite ConfirmationBox d'un YesNoPrompt
+    T_ButtonClick,       // glaiel::Button::Click -- retient le clic sur EndDay_Sign (nuit votee)
     T_COUNT
 };
 
@@ -488,6 +489,10 @@ static const TargetDesc kTargets[T_COUNT] = {
     // de facon synchrone par ShowConfirmation. Le detour renomme les boutons de
     // nos propres fenetres, ou cache "no" pour un message a un seul bouton.
     { 0x0077D240, "CONFIRMBOX","glaiel::YesNoPrompt ConfirmationBox builder" },
+    // Le clic de tout bouton du jeu (appele par Button::update). Aussi une cible
+    // d'appel (C_ButtonClick) : une fois detournee, ces appels passent par le
+    // detour, qui laisse tout passer sauf EndDay_Sign pendant une session.
+    { 0x0097E8E0, "BTNCLICK",  "glaiel::Button::Click(Button*, bool force)" },
 };
 
 // Coarse module guard, checked before the per-target signatures.

@@ -563,6 +563,17 @@ char __fastcall h_HighlightRefresh(void* self) {
     return o_HighlightRefresh(self);
 }
 
+// Mewgenics Multi : nuit votee. Le clic sur le panneau de fin de journee est
+// retenu tant que tous les joueurs ne sont pas prets (mm_on_button_click), puis
+// rejoue tel quel. Tout autre bouton passe sans rien changer.
+using FnButtonClickHook = void(__fastcall*)(void*, char);
+FnButtonClickHook o_ButtonClick = nullptr;
+
+void __fastcall h_ButtonClick(void* self, char force) {
+    if (mm_on_button_click(self)) return;
+    o_ButtonClick(self, force);
+}
+
 void __fastcall h_ButtonUpdate(void* self) {
     // Fires for every button in the game. Outside a combat-menu tick this is a
     // load and a branch: combatlock_on_button's first test is the scope flag.
@@ -747,6 +758,7 @@ const Binding kBindings[] = {
     { T_MainMenuInit, nullptr, nullptr },
     { T_MeowClick,    nullptr, nullptr },
     { T_ConfirmBuild, nullptr, nullptr },
+    { T_ButtonClick,  (void*)&h_ButtonClick, (void**)&o_ButtonClick },
 };
 
 // Resolves the three RNG bindings, which are not static initialisers because

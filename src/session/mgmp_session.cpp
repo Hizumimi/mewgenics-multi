@@ -503,6 +503,10 @@ void session_update() {
                 handle_hello(m.from, m.hello);
                 break;
 
+            case MSG_MM:
+                mm_on_message(m.from, m.mm);
+                break;
+
 
             // Membership changed: someone joined or left. Logged on every peer
             // because the control split is derived from this list, so a session

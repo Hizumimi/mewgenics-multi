@@ -58,4 +58,13 @@ const char* mm_local_name();
 // Un pair s'est presente (HELLO accepte) : on garde son nom pour le salon.
 void mm_on_peer_hello(uint8_t peer, const char* name_utf8);
 
+// Un message MM (MSG_MM) d'un autre joueur : nuit votee, et les fonctions a venir.
+struct MmMsg;
+void mm_on_message(uint8_t from, const MmMsg& m);
+
+// Appele par le detour de Button::Click, avant le clic. Vrai = clic retenu :
+// en session, le panneau de fin de journee (« EndDay_Sign ») attend que tout le
+// monde soit pret ; le mod le rejoue ensuite tel quel.
+bool mm_on_button_click(void* button);
+
 } // namespace mgmp

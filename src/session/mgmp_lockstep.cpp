@@ -1,6 +1,7 @@
 // mgmp_lockstep.cpp -- see mgmp_lockstep.h for the design.
 
 #include "mgmp_lockstep.h"
+#include "mm_menu.h"
 #include "mgmp_addresses.h"
 #include "mgmp_resolve.h"
 #include "mgmp_barrier.h"
@@ -2117,6 +2118,11 @@ void lockstep_pump() {
             // whatever this peer happens to be in the middle of.
             case MSG_HOSTLEFT:
                 leave_on_message(m.hostleft);
+                break;
+
+            // Mewgenics Multi : nuit votee (et les fonctions a venir).
+            case MSG_MM:
+                mm_on_message(m.from, m.mm);
                 break;
 
             // Not epoch-gated, and deliberately so: a cat is RUN state, not

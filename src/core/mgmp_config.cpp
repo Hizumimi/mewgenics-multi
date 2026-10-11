@@ -174,6 +174,9 @@ void hook_defaults() {
 
     // The two that MODIFY the game -- see mgmp_tuning.h.
     g_cfg.hook[T_SaveScumPenalty] = tune::kHookSaveScum;
+    // Mewgenics Multi : nuit votee. Ne fait rien hors session (un nom de bouton
+    // lu a chaque clic, et les clics sont rares).
+    g_cfg.hook[T_ButtonClick] = true;
     g_cfg.hook[T_TimeDelayTick]   = tune::kHookTimeDelay;
 
     // The two MewSaveFile blob accessors exist only to serve mgmp_invsync, and
