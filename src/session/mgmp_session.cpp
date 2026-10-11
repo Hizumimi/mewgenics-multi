@@ -347,9 +347,7 @@ bool begin(bool host, const char* addr, uint16_t port) {
     // Doing it here rather than in apply_request covers session_start() too,
     // where it is a no-op because the file already said host or client.
     if (config_set_role(host)) {
-        log_line("SESSION", "role set to %s by the connect button -- mgmp.json said "
-                            "'off', so the co-op hooks were skipped at startup and "
-                            "are being installed now",
+        log_line("SESSION", "role set to %s from the menu (mgmp.json said 'off')",
                  host ? "host" : "client");
         // Mewgenics Multi installe les crochets coop des le lancement (le role
         // se choisit dans le menu) : en temps normal il n'y a plus rien a

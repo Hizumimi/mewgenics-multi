@@ -79,6 +79,12 @@ constexpr uintptr_t kPrompt_Scene = 0x20;
 // MenuPanel+0x38 : le clip SWF du panneau. Le constructeur y cherche "prompt"
 // (Swf_find_child) puis y ecrit le texte (Swf_set_text(champ, texte, 0, 1)).
 constexpr uintptr_t kPanel_Clip = 0x38;
+// Component+0x20 : la scene du composant (le constructeur de la boite lit
+// `*(popup+0x20)+0x460`, sa priorite d'affichage ; Component+0x28 = Director,
+// cf. docs/NOTES_MGMP.md). Le premier champ d'une scene est son Director :
+// Director_get_or_create_scene (0x1409D4950) ecrit `*scene = director`.
+constexpr uintptr_t kComp_Scene     = 0x20;
+constexpr uintptr_t kScene_Director = 0x00;
 
 // --- fonctions du jeu ---------------------------------------------------------
 
@@ -428,6 +434,35 @@ std::string g_join_ip;
 uint16_t    g_join_port   = 0;
 
 void* g_main_panel = nullptr;       // panneau TitleScreen du menu principal
+void* g_main_scene = nullptr;       // scene du menu principal (parent de nos boites)
+
+// ShowConfirmation(texte, oui, non, scene) : sans scene, le jeu prend la scene
+// « en cours de mise a jour » (global 0x1413C18F0), qui n'existe que pendant
+// l'update des scenes. Tous les appels du jeu passent nullptr parce qu'ils sont
+// faits depuis un bouton ; nous ouvrons au debut de l'image, ou ce global est
+// nul (plantage de la build 3, Mewgenics.exe+0x77DD5F). On passe donc la scene
+// du menu principal, apres avoir verifie qu'elle est toujours dans la liste du
+// Director et pas en cours de destruction.
+void* live_main_scene() {
+    if (!g_main_scene) return nullptr;
+    void* director = nullptr;
+    if (!mem_read((char*)g_main_scene + kScene_Director, &director, sizeof(director)) || !director)
+        return nullptr;
+    void** begin = nullptr;
+    void** end   = nullptr;
+    if (!mem_read((char*)director + kDirector_ScenesBegin, &begin, sizeof(begin)) ||
+        !mem_read((char*)director + kDirector_ScenesEnd,   &end,   sizeof(end)) ||
+        !begin || end < begin || end - begin > 256)
+        return nullptr;
+    for (void** it = begin; it < end; ++it) {
+        void* s = nullptr;
+        if (!mem_read(it, &s, sizeof(s)) || s != g_main_scene) continue;
+        uint8_t dying = 1;
+        if (!mem_read((char*)s + kScene_Destroying, &dying, 1) || dying) return nullptr;
+        return s;
+    }
+    return nullptr;
+}
 
 void popup_closed(uint32_t serial) {
     if (g_live.serial != serial) return;
@@ -448,6 +483,11 @@ bool open_popup(Screen screen, const std::string& text_utf8, const char* yes, co
     }
     if (g_live.alive) {
         log_line("MULTI", "!! une fenetre est deja ouverte, demande ignoree");
+        return false;
+    }
+    void* scene = live_main_scene();
+    if (!scene) {
+        log_line("MULTI", "!! fenetre impossible : scene du menu principal introuvable");
         return false;
     }
     const uint32_t serial = ++g_serial;
@@ -484,7 +524,7 @@ bool open_popup(Screen screen, const std::string& text_utf8, const char* yes, co
     // Le jeu copie les deux actions puis vide nos objets (_Delete_this et
     // pointeur d'implementation remis a zero) : leurs destructeurs ici ne font
     // donc plus rien.
-    confirm(&text, &yes_fn, &no_fn, nullptr);
+    confirm(&text, &yes_fn, &no_fn, scene);
 
     if (g_pending.active) {
         g_pending.active = false;
@@ -752,6 +792,14 @@ void __fastcall h_MainMenuInit(void* self) {
         return;
     }
     g_main_panel = panel;
+    void* scene = nullptr;
+    if (mem_read((char*)self + kComp_Scene, &scene, sizeof(scene)) && scene) {
+        g_main_scene = scene;
+        if (!live_main_scene())
+            log_line("MULTI", "!! menu principal : scene %p absente de la liste du Director", scene);
+    } else {
+        log_line("MULTI", "!! menu principal : scene illisible, les fenetres ne s'ouvriront pas");
+    }
     void* meow = panel_button(panel, "btn_feedback");
     if (!meow) {
         log_line("MULTI", "!! menu principal : bouton btn_feedback introuvable");
