@@ -498,7 +498,8 @@ static const TargetDesc kTargets[T_COUNT] = {
     // 0x1401E5110), donc a chaque image passee dans la maison. Elle reecrit le
     // libelle du panneau House+0xB8 (Button+0x1B8) selon l'equipe d'aventure :
     // HOUSE_BUTTON_ENDDAY sans chat, HOUSE_BUTTON_DEPART ou _DEFEND avec, puis
-    // son nom "EndDay_Sign" (Button+504). Le bouton recopie ce libelle dans son
+    // son nom (Button+504) : "EndDay_Sign" sans chat, "Depart_Sign" avec
+    // (0x1401E41C6). Le bouton recopie ce libelle dans son
     // champ SWF « label » a chaque image (slot 19, 0x14097F6F0) : un libelle
     // ecrit juste apres cette fonction est celui qui s'affiche.
     { 0x001E3900, "HOUSEHUD",  "House HUD refresh (sub_1401E3900, House vtable slot 10)" },
@@ -848,6 +849,8 @@ static const CallDesc kCalls[C_COUNT] = {
     // (0x1401E3FCE) avec la maison : `*(resultat+0x100)` pointe sur quatre
     // Character*, l'equipe d'aventure. Au moins un chat = le panneau dit
     // « À l'aventure ! » (ou « Défendre ! ») et son clic part en aventure.
+    // Plus appele pour l'instant (le nom du panneau suffit) ; garde pour
+    // l'equipe mixte, qui devra lire et remplir cette equipe.
     { 0x000ECD50, "House team box lookup (component 0x1AC)" },
 };
 

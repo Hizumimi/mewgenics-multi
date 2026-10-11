@@ -98,12 +98,10 @@ constexpr uintptr_t kScene_Director = 0x00;
 // (la notre, celle du jeu, le menu pause...) est par-dessus.
 constexpr uintptr_t kScene_Paused   = 0x4D8;
 // House+0xB8 : le panneau de fin de journee, un Button. sub_1401E3900 y ecrit
-// le libelle (+0x1B8) puis le nom "EndDay_Sign" (+504) a chaque image.
+// a chaque image le libelle (+0x1B8) puis le nom (+504) : "EndDay_Sign" sans
+// chat dans l'equipe d'aventure, "Depart_Sign" avec (« À l'aventure ! », ou
+// « Défendre ! » quand un boss attaque la maison).
 constexpr uintptr_t kHouse_Sign     = 0xB8;
-// Composant equipe d'aventure (C_HouseTeamBox) +0x100 : pointeur sur quatre
-// Character*. sub_1401E3900 compte les non nuls (0x1401E3FD3) : zero = « Fin de
-// journée », sinon « À l'aventure ! » (ou « Défendre ! »).
-constexpr uintptr_t kTeam_Slots     = 0x100;
 
 // --- fonctions du jeu ---------------------------------------------------------
 
@@ -128,7 +126,6 @@ using FnConfirmBuild = void (__fastcall*)(void* self, uint64_t a2, uint64_t text
 // sub_1401E3900(House*, ?) : rcx et rdx d'apres son seul appel (0x1401E5B4A) ;
 // on relaie r8/r9 par prudence et on rend rax tel quel.
 using FnHouseHud = uint64_t (__fastcall*)(void* house, void* a2, uint64_t a3, uint64_t a4);
-using FnTeamBox  = void* (*)(void* house);
 
 FnMainMenuInit o_MainMenuInit = nullptr;
 FnMeow         o_Meow         = nullptr;
@@ -891,6 +888,9 @@ void open_auto() {
 // clic-la n'est pas un vote de nuit et passe tel quel.
 
 constexpr char kBtnName_EndDay[] = "EndDay_Sign";
+// Le meme panneau, quand il y a des chats dans l'equipe : sub_1401E3900 lui donne
+// alors ce nom-la (0x1401E41C6) et le libelle « À l'aventure ! » (ou « Défendre ! »).
+constexpr char kBtnName_Depart[] = "Depart_Sign";
 
 bool trip_active();                     // section aventure, plus bas
 
@@ -1051,46 +1051,52 @@ void open_night_wait() {
                Action::CancelNight, Action::CancelNight);
 }
 
-bool endday_button_valid(void* b) {
+// Ce que le panneau de la maison propose, d'apres son nom (Button+504) :
+// 0 pas le panneau, 1 « Fin de journée », 2 « À l'aventure ! » / « Défendre ! ».
+int sign_kind(void* b) {
     char name[32] = {};
-    return b && mem_read_std_string((char*)b + kBtn_Name, name, sizeof(name)) &&
-           strcmp(name, kBtnName_EndDay) == 0;
+    if (!b || !mem_read_std_string((char*)b + kBtn_Name, name, sizeof(name))) return 0;
+    if (strcmp(name, kBtnName_EndDay) == 0) return 1;
+    if (strcmp(name, kBtnName_Depart) == 0) return 2;
+    return 0;
 }
+
+bool endday_button_valid(void* b) { return sign_kind(b) == 1; }
 
 // --- la maison -----------------------------------------------------------------
 
-// Des chats dans l'equipe d'aventure ? Le meme compte que sub_1401E3900, avec le
-// meme Component::get. Appele depuis son detour, donc pendant House::update.
-bool team_has_cats(void* house) {
-    auto get = call_target<FnTeamBox>(C_HouseTeamBox);
-    if (!get || !house) return false;
-    void* team = get(house);
-    void* slots = nullptr;
-    if (!team || !mem_read((char*)team + kTeam_Slots, &slots, sizeof(slots)) || !slots)
+// MewDirector+0x5A8 -> +0x468 non nul et +0x478 nul : le panneau dit « Défendre ! »
+// (un boss attaque la maison), meme test que sub_1401E3900 (0x1401E4282).
+constexpr uintptr_t kDir_HouseBoss     = 0x5A8;
+constexpr uintptr_t kBoss_Pending      = 0x468;
+constexpr uintptr_t kBoss_Busy         = 0x478;
+
+bool house_boss_defend() {
+    const void** slot = (const void**)addr_of_data(D_MewDirectorPtr);
+    const void* dir = nullptr;
+    const void* boss = nullptr;
+    const void* pending = nullptr;
+    int32_t busy = 1;
+    if (!slot || !mem_read(slot, &dir, sizeof(dir)) || !dir) return false;
+    if (!mem_read((const char*)dir + kDir_HouseBoss, &boss, sizeof(boss)) || !boss) return false;
+    if (!mem_read((const char*)boss + kBoss_Pending, &pending, sizeof(pending)) || !pending)
         return false;
-    void* cats[4] = {};
-    if (!mem_read(slots, cats, sizeof(cats))) return false;
-    for (void* c : cats)
-        if (c) return true;
-    return false;
+    if (!mem_read((const char*)boss + kBoss_Busy, &busy, sizeof(busy))) return false;
+    return busy == 0;
 }
 
 // Juste apres que le jeu a refait le panneau : on le note, et on lui donne notre
 // libelle s'il en faut un. Le bouton le recopiera dans son champ SWF.
 void house_after_refresh(void* house) {
     void* sign = nullptr;
-    if (!mem_read((char*)house + kHouse_Sign, &sign, sizeof(sign)) || !endday_button_valid(sign))
-        return;
+    if (!mem_read((char*)house + kHouse_Sign, &sign, sizeof(sign))) return;
+    const int kind = sign_kind(sign);
+    if (!kind) return;
     g_house        = house;
     g_house_sign   = sign;
     g_house_frame  = g_frame;
-    g_house_depart = team_has_cats(house);
-    if (!g_sign_label.empty() && !g_house_depart) set_button_label_w(sign, g_sign_label);
-}
-
-// Le panneau vu a l'instant dit-il « À l'aventure ! » ?
-bool sign_is_depart(void* button) {
-    return button && button == g_house_sign && g_house_depart && g_frame - g_house_frame < 30;
+    g_house_depart = kind == 2;
+    if (!g_sign_label.empty() && kind == 1) set_button_label_w(sign, g_sign_label);
 }
 
 // Le panneau est-il cliquable pour finir la journee (connu, pas en mode depart,
@@ -1563,7 +1569,7 @@ void host_adventure_pump() {
     g_dep_go     = false;
     g_dep_active = false;
     g_dep_wait_wanted = false;
-    if (find_scene("House") && endday_button_valid(g_dep_button)) {
+    if (find_scene("House") && sign_kind(g_dep_button) == 2) {
         g_dep_passing  = true;
         g_click_target = g_dep_button;
         g_click_wait   = 0;
@@ -2261,13 +2267,14 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
 }
 
 bool mm_on_button_click(void* button) {
-    if (!endday_button_valid(button)) return false;
-    if (g_night_passing) {                       // le clic rejoue par night_pump
+    const int kind = sign_kind(button);
+    if (!kind) return false;
+    if (kind == 1 && g_night_passing) {          // le clic rejoue par night_pump
         g_night_passing = false;
         log_line("MULTI", "nuit : clic sur le panneau rejoue, la journee se termine");
         return false;
     }
-    if (g_dep_passing) {                         // le depart, rejoue par l'hote
+    if (kind == 2 && g_dep_passing) {            // le depart, rejoue par l'hote
         g_dep_passing = false;
         log_line("MULTI", "depart : clic sur le panneau rejoue, l'aventure commence");
         return false;
@@ -2279,8 +2286,35 @@ bool mm_on_button_click(void* button) {
         g_home_offer = true;
         return true;
     }
-    if (sign_is_depart(button)) {                // « À l'aventure ! » : vote de depart
+    if (kind == 2) {
+        // « Défendre ! » : la maison de ce joueur est attaquee. Un combat ou
+        // l'autre joueur n'est pas attendrait sa presence pour toujours (mgmp
+        // synchronise tous les combats d'une session) : pas encore en multi.
+        if (house_boss_defend()) {
+            log_line("MULTI", "panneau « Defendre » en session : refuse pour l'instant");
+            show_info(u8"Défendre la maison n'est pas encore prévu\n"
+                      u8"en multijoueur : quitte la session pour la défendre,\n"
+                      u8"puis reconnecte-toi.");
+            return true;
+        }
+        // « À l'aventure ! » : l'hote propose le depart, l'invite ne part pas seul.
         if (net_role() == NetRole::Host) return depart_start(button);
+        // L'hote propose deja un depart, ou il est deja parti : apres un « Pas
+        // encore » ou un « Plus tard », le clic du joueur le lui repropose tout
+        // de suite plutot que d'attendre la relance.
+        if (!savefile_join_armed() && g_dep_req_live) {
+            log_line("MULTI", "depart : clic d'un invite sur le panneau, le depart de l'hote lui est repropose");
+            g_dep_offer    = true;
+            g_dep_offer_at = g_frame;
+            return true;
+        }
+        if (!savefile_join_armed() && g_host_in_run) {
+            log_line("MULTI", "aventure : clic d'un invite sur le panneau, l'aventure en cours lui est reproposee");
+            g_run_offer    = true;
+            g_run_offer_at = g_frame;
+            return true;
+        }
+        log_line("MULTI", "depart demande par un invite : c'est l'hote qui lance l'aventure");
         show_info(fmt(u8"C'est %s qui lance l'aventure :\n"
                       u8"demande-lui de cliquer sur « À l'aventure ! ».",
                       host_display().c_str()));
