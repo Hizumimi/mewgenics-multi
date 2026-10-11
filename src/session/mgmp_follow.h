@@ -72,6 +72,16 @@ void follow_on_message(const EnterNodeMsg& m);
 // afterwards would sit on the map forever.
 void follow_catchup(uint8_t peer);
 
+// Mewgenics Multi : vide la file des cases recues de l'hote. Appele quand une
+// copie de son aventure arrive chez un invite qui n'y est pas encore : elle est
+// a jour, les cases d'avant sont deja dedans.
+void follow_drop_pending();
+
+// Mewgenics Multi (hote) : l'hote est dans une case en ce moment (combat,
+// evenement, boutique...), pas sur la carte. Sur la carte, la case d'avant est
+// finie : la renvoyer a un arrivant le ferait rentrer dans une case resolue.
+bool follow_inside_node();
+
 // --- "are we standing ON the map, or inside a node?" -------------------------
 //
 // True only while MapScreen::update is actually ticking, i.e. the map is on

@@ -6,6 +6,7 @@
 #include "mgmp_nodehash.h"
 #include "mgmp_runhist.h"
 #include "mgmp_follow.h"
+#include "mgmp_savefile.h"   // savefile_in_coop (Mewgenics Multi)
 #include "mgmp_lockstep.h"
 #include "mgmp_net.h"
 #include "mgmp_config.h"
@@ -97,6 +98,13 @@ struct State {
     // Last tick MapScreen::update ran. See follow_on_map: this is what tells
     // the save flush whether the run is between nodes or inside one.
     uint64_t map_tick       = 0;
+
+    // Mewgenics Multi (hote) : dans une case en ce moment. Mis a l'entree,
+    // efface quand la carte tourne de nouveau (plus d'une seconde apres
+    // l'entree : la carte peut encore tourner une image ou deux pendant la
+    // transition). have_here, lui, reste sur la derniere case pour toujours.
+    bool     inside         = false;
+    uint64_t inside_at      = 0;
 
     // A jump asked for by the debug panel, applied at the tail of the next
     // MapScreen::update -- the same site the follow path enters nodes from.
@@ -216,7 +224,9 @@ void follow_shutdown() {
     if (g.cs_ready) { DeleteCriticalSection(&g.cs); g.cs_ready = false; }
 }
 
-bool follow_suppresses_local_input() { return g.on && g.is_client; }
+// Mewgenics Multi : seulement dans la copie de l'aventure de l'hote. Dans sa
+// propre save, la carte de l'invite est a lui.
+bool follow_suppresses_local_input() { return g.on && g.is_client && savefile_in_coop(); }
 
 // Where this peer is now. Recorded on BOTH peers -- the host so it can tell a
 // joiner, the client so its own log says where it thinks it is.
@@ -269,6 +279,9 @@ bool follow_on_enter_node(void* map_screen, void* node, bool* sent) {
     // for -- and acting on it would put the two peers on different nodes, which
     // no amount of battle-layer lockstep can recover from. Swallowing rather
     // than disabling the UI keeps the change to one function.
+    // Mewgenics Multi : dans sa propre save, la carte est a l'invite (il ne
+    // publie rien pour autant : il n'est pas l'hote).
+    if (g.is_client && !savefile_in_coop()) return true;
     if (g.is_client) {
         ++g.suppressed;
         log_line("FOLLOW", "suppressed local map input: node %u (%s) -- the host"
@@ -297,6 +310,8 @@ bool follow_on_enter_node(void* map_screen, void* node, bool* sent) {
     const uint64_t seed = node_seed0(node);
     lockstep_enter_battle(seed);
     remember_node(index, count, type, seed);
+    g.inside    = true;
+    g.inside_at = GetTickCount64();
 
     // Cats FIRST, node second. TCP is ordered and the client applies a CATDATA
     // the moment it pops, while it defers the node entry to the tail of
@@ -443,6 +458,17 @@ void follow_catchup(uint8_t peer) {
              (unsigned long long)m.seed0, (unsigned)peer);
 }
 
+bool follow_inside_node() { return g.inside; }
+
+void follow_drop_pending() {
+    Guard guard;
+    if (g.pending_count)
+        log_line("FOLLOW", "dropped %u queued node(s) from before the host's save that "
+                           "just arrived -- that save already has them",
+                 g.pending_count);
+    pending_clear();
+}
+
 void follow_on_message(const EnterNodeMsg& m) {
     if (!g.on) return;
     Guard guard;
@@ -453,6 +479,11 @@ void follow_on_message(const EnterNodeMsg& m) {
                            " believe they own the run");
         return;
     }
+    // Mewgenics Multi : un invite qui joue dans sa propre save et ne rejoint
+    // pas l'aventure n'a rien a suivre. Les cases s'empileraient (et la file
+    // pleine les marquerait « sautees » pour la couche des choix) ; il recevra
+    // la case actuelle en rejoignant (session_catchup_peer).
+    if (!savefile_in_coop() && !savefile_join_armed()) return;
     // A full queue means this peer is eight nodes behind, which no amount of
     // waiting is going to fix. Refuse the newest and SAY SO: the run is already
     // wrong, and the one thing that must not happen is what used to -- losing a
@@ -497,6 +528,7 @@ void* follow_map_update(void* map_screen) {
     // The map is ticking, so the run is BETWEEN nodes. This is the stamp the
     // save flush reads -- see follow_on_map.
     g.map_tick = GetTickCount64();
+    if (g.inside && g.map_tick - g.inside_at > 1000) g.inside = false;
 
     // --- a jump asked for by the debug panel --------------------------------
     //
@@ -535,6 +567,9 @@ void* follow_map_update(void* map_screen) {
         return node;
     }
 
+    // Mewgenics Multi : jamais dans la propre save de l'invite -- les cases de
+    // l'hote sont celles de SA course, pas de celle-ci.
+    if (g.is_client && !savefile_in_coop()) return nullptr;
     if (!pending_any()) return nullptr;
     State::PendingNode& p = pending_front();
 

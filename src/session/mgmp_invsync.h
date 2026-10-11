@@ -163,4 +163,9 @@ bool invsync_intercept_store(void* key, void* bs);
 // CLIENT: point the ByteStream at our bytes instead of at sqlite.
 bool invsync_intercept_load(void* key, void* bs);
 
+
+// Mewgenics Multi : jette les poussees gardees (une save a jour de l'aventure de
+// l'hote vient d'arriver chez un invite qui la rejoint ; elle les contient).
+void invsync_drop_pending();
+
 } // namespace mgmp

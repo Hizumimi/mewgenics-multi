@@ -2,6 +2,7 @@
 // replicating everything the choice does.
 #include "mgmp_choice.h"
 #include "mgmp_follow.h"
+#include "mgmp_savefile.h"   // savefile_in_coop (Mewgenics Multi)
 #include "mgmp_net.h"
 #include "mgmp_config.h"
 #include "mgmp_tuning.h"
@@ -72,6 +73,8 @@ struct State {
     // two agree -- the single check that stops a choice outliving its node.
     uint64_t pending_seed[2]     = {0, 0};
     uint64_t here_seed           = 0;
+    // Mewgenics Multi (hote) : un choix a deja ete publie dans cette case.
+    bool     chose_here          = false;
 
     // NODES THIS PEER WILL NEVER ENTER, so a choice that arrives for one after
     // the fact can be refused instead of held forever.
@@ -407,6 +410,10 @@ bool choice_on_event_commit(void* cap) {
 
     Guard guard;
 
+    // Mewgenics Multi : un invite dans SA save joue ses propres choix, et on
+    // ne retient rien de ses ecrans.
+    if (g.is_client && !savefile_in_coop()) return true;
+
     void* we    = nullptr;
     void* entry = nullptr;
     if (!mem_read((const uint8_t*)cap + 8,  &we,    sizeof(we)))    return true;
@@ -444,6 +451,7 @@ bool choice_on_event_commit(void* cap) {
     option_name(kChoiceEvent, (const uint8_t*)entry, m.name, sizeof(m.name));
     if (net_send_choice(m)) {
         ++g.sent;
+        g.chose_here = true;   // Mewgenics Multi : voir choice_made_in_node
         log_line("CHOICE", "-> event option %u/%u ('%s')", m.index, m.count, m.name);
     }
     return true;
@@ -451,6 +459,7 @@ bool choice_on_event_commit(void* cap) {
 
 void choice_on_event_update(void* world_event) {
     if (!g.on || !world_event) return;
+    if (g.is_client && !savefile_in_coop()) return;   // Mewgenics Multi : sa propre save
     Guard guard;
     g.world_event = world_event;
     if (g.is_client) apply_pending(kChoiceEvent, world_event);
@@ -462,6 +471,7 @@ bool choice_on_level_select(void* screen, void* opt) {
     if (!g.on || !screen || !opt) return true;
     if (g.injecting) return true;
 
+    if (g.is_client && !savefile_in_coop()) return true;   // Mewgenics Multi : sa propre save
     Guard guard;
     g.level_screen = screen;
 
@@ -511,6 +521,7 @@ bool choice_on_level_select(void* screen, void* opt) {
     memcpy(m.name, want_name, sizeof(m.name));
     if (net_send_choice(m)) {
         ++g.sent;
+        g.chose_here = true;   // Mewgenics Multi : voir choice_made_in_node
         log_line("CHOICE", "-> level-up option %u/%u (type %u '%s')",
                  m.index, m.count, m.aux, m.name);
     }
@@ -519,6 +530,7 @@ bool choice_on_level_select(void* screen, void* opt) {
 
 void choice_on_level_update(void* level_screen) {
     if (!g.on || !level_screen) return;
+    if (g.is_client && !savefile_in_coop()) return;   // Mewgenics Multi : sa propre save
     Guard guard;
     g.level_screen = level_screen;
     if (!g.is_client) return;
@@ -552,6 +564,12 @@ void choice_on_message(const ChoiceMsg& m) {
         return;
     }
     const uint8_t kind = (m.kind == kChoiceLevelUp) ? kChoiceLevelUp : kChoiceEvent;
+
+    // Mewgenics Multi : hors de la copie de l'aventure de l'hote, un choix de
+    // l'hote ne concerne pas ce joueur -- sauf s'il est en train de la rejoindre :
+    // alors il est garde, et applique une fois dans la copie (pas tout de suite).
+    const bool outside = !savefile_in_coop();
+    if (outside && !savefile_join_armed()) return;
 
     // A choice for a node mgmp_follow already gave up on. Refusing it here is
     // the other half of choice_on_node_skipped: that one catches the choice
@@ -588,13 +606,37 @@ void choice_on_message(const ChoiceMsg& m) {
     // takes it. Doing it here too is what makes the common case land in the
     // same frame the message arrived.
     void* screen = (kind == kChoiceLevelUp) ? g.level_screen : g.world_event;
-    if (screen) apply_pending(kind, screen);
+    if (screen && !outside) apply_pending(kind, screen);
+}
+
+bool choice_made_in_node() { return g.chose_here; }
+
+void choice_forget_screens() {
+    Guard guard;
+    g.world_event  = nullptr;
+    g.level_screen = nullptr;
+}
+
+void choice_forget() {
+    Guard guard;
+    g.world_event  = nullptr;
+    g.level_screen = nullptr;
+    g.here_seed    = 0;
+    for (uint8_t kind = 0; kind < 2; ++kind) {
+        if (g.pending[kind])
+            log_line("CHOICE", "dropped a held %s choice (option %u) -- the host's save "
+                               "that just arrived already has it",
+                     kind_name(kind), g.pending_index[kind]);
+        g.pending[kind]        = false;
+        g.pending_warned[kind] = false;
+    }
 }
 
 void choice_on_node_entered(uint64_t node_seed) {
     if (!g.on) return;
     Guard guard;
-    g.here_seed = node_seed;
+    g.here_seed  = node_seed;
+    g.chose_here = false;
 
     // The cached screens belong to the node just left. Clearing them is not
     // tidiness: choice_on_message applies straight into whichever pointer is

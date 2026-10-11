@@ -197,6 +197,71 @@ void refuse_peer(uint8_t peer, const char* why) {
     }
 }
 
+// The catch-up a peer needs to arrive in the run where it stands now: the save,
+// then the cats, inventory and history, then the current node, then the
+// decisions already taken in the current battle. Run for a peer that has just
+// been accepted, and (Mewgenics Multi) for a peer that was playing its own save
+// and now asks to join the adventure in progress (MM_RUN_REQ).
+void catchup_peer(uint8_t from) {
+    // A peer that joined after the save was already published gets it now.
+    // Without this it would be accepted and welcomed and then sit forever on a
+    // save-selection screen whose input is suppressed, waiting for a broadcast
+    // that already happened.
+    savefile_catchup(from);
+
+    // ...and the run state on top of it. THE SAVE IS NOT ENOUGH, in either
+    // direction, which is why both of these happen and neither replaces the
+    // other:
+    //
+    //   * a peer whose PROCESS restarted has nothing and needs the save -- it
+    //     is the only way to construct a run, and it is what carries the map,
+    //     whose per-node MapNode+0x118 seeds are what make two peers roll the
+    //     same battle;
+    //   * a peer that only lost the SOCKET still has its run, declines the
+    //     save (see savefile_on_message) and needs exactly this: the cats and
+    //     the inventory as they stand now, rather than at whatever node it was
+    //     last told about.
+    //
+    // The forget() calls are load-bearing. Both publishers dedupe against the
+    // last push, and that cache is per-RUN, not per-peer -- so without them a
+    // reconnecting peer would be told only about whatever happened to change
+    // since the last map node, and nothing about the rest.
+    //
+    // Both publish by broadcast, so peers already in the session are re-sent
+    // state they already have. That is idempotent (the client resolves by cat
+    // id and applies over itself) and a reconnect is rare; a per-peer push
+    // would be the better shape if this ever runs hot.
+    catsync_forget();
+    invsync_forget();
+    runhist_forget();
+    catsync_publish("a peer joined or reconnected");
+    invsync_publish("a peer joined or reconnected");
+    // The used-event list belongs in the same burst and for the same reason: a
+    // peer whose process restarted has the history that was in the save, which
+    // is the run's state at the last checkpoint rather than now.
+    runhist_publish("a peer joined or reconnected");
+
+    // Mewgenics Multi : la case et les decisions du combat seulement si l'hote
+    // est DANS une case. Sur la carte, la derniere case est finie (et deja dans
+    // la save) : la renvoyer ferait rentrer l'arrivant dans une case resolue,
+    // et ses decisions resteraient a jamais dans sa file.
+    if (!follow_inside_node()) return;
+
+    // ...and finally WHERE the run is. Order is load-bearing and it is the
+    // same order follow_on_enter_node uses for the live path: save, then cats
+    // and inventory, then the node. The joiner acts on the node the moment it
+    // can, and a battle built before its cats arrive is a battle built from the
+    // wrong cats.
+    follow_catchup(from);
+
+    // The decisions already taken in the battle it is walking into. Must come
+    // after the node -- these name a battle_id the peer does not recognise
+    // until it has entered that node, and until then they would sit in its
+    // pending queue as "a battle we have not reached". Which is survivable
+    // (they are held, not dropped) but the ordering makes the log readable.
+    lockstep_catchup(from);
+}
+
 // Accept (or refuse) one peer's HELLO.
 //
 // Pulled out of session_update's poll loop because that loop STOPS RUNNING once
@@ -261,57 +326,8 @@ void handle_hello(uint8_t from, const Hello& h) {
     // to have happened before the catch-up send.
     go_ready("host");
 
-    // A peer that joined after the save was already published gets it now.
-    // Without this it would be accepted and welcomed and then sit forever on a
-    // save-selection screen whose input is suppressed, waiting for a broadcast
-    // that already happened.
-    savefile_catchup(from);
-
-    // ...and the run state on top of it. THE SAVE IS NOT ENOUGH, in either
-    // direction, which is why both of these happen and neither replaces the
-    // other:
-    //
-    //   * a peer whose PROCESS restarted has nothing and needs the save -- it
-    //     is the only way to construct a run, and it is what carries the map,
-    //     whose per-node MapNode+0x118 seeds are what make two peers roll the
-    //     same battle;
-    //   * a peer that only lost the SOCKET still has its run, declines the
-    //     save (see savefile_on_message) and needs exactly this: the cats and
-    //     the inventory as they stand now, rather than at whatever node it was
-    //     last told about.
-    //
-    // The forget() calls are load-bearing. Both publishers dedupe against the
-    // last push, and that cache is per-RUN, not per-peer -- so without them a
-    // reconnecting peer would be told only about whatever happened to change
-    // since the last map node, and nothing about the rest.
-    //
-    // Both publish by broadcast, so peers already in the session are re-sent
-    // state they already have. That is idempotent (the client resolves by cat
-    // id and applies over itself) and a reconnect is rare; a per-peer push
-    // would be the better shape if this ever runs hot.
-    catsync_forget();
-    invsync_forget();
-    runhist_forget();
-    catsync_publish("a peer joined or reconnected");
-    invsync_publish("a peer joined or reconnected");
-    // The used-event list belongs in the same burst and for the same reason: a
-    // peer whose process restarted has the history that was in the save, which
-    // is the run's state at the last checkpoint rather than now.
-    runhist_publish("a peer joined or reconnected");
-
-    // ...and finally WHERE the run is. Order is load-bearing and it is the
-    // same order follow_on_enter_node uses for the live path: save, then cats
-    // and inventory, then the node. The joiner acts on the node the moment it
-    // can, and a battle built before its cats arrive is a battle built from the
-    // wrong cats.
-    follow_catchup(from);
-
-    // The decisions already taken in the battle it is walking into. Must come
-    // after the node -- these name a battle_id the peer does not recognise
-    // until it has entered that node, and until then they would sit in its
-    // pending queue as "a battle we have not reached". Which is survivable
-    // (they are held, not dropped) but the ordering makes the log readable.
-    lockstep_catchup(from);
+    // Tout ce qu'il faut pour le mettre a niveau : voir session_catchup_peer.
+    catchup_peer(from);
 }
 
 } // namespace
@@ -319,6 +335,13 @@ void handle_hello(uint8_t from, const Hello& h) {
 // ---------------------------------------------------------------------------
 
 void session_on_hello(uint8_t from, const Hello& h) { handle_hello(from, h); }
+
+void session_catchup_peer(uint8_t peer) {
+    if (net_role() != NetRole::Host || !net_active()) return;
+    log_line("SESSION", "catching peer %u up to the adventure in progress (it asked to join)",
+             (unsigned)peer);
+    catchup_peer(peer);
+}
 
 namespace {
 

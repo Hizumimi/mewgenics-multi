@@ -156,4 +156,16 @@ void choice_on_node_entered(uint64_t node_seed);
 // ChoiceMsg::node_seed.
 void choice_on_node_skipped(uint64_t node_seed);
 
+
+// Mewgenics Multi (hote) : un choix (evenement, montee de niveau) a deja ete
+// publie dans la case actuelle. Un invite qui arrive maintenant recevrait une
+// save d'avant ce choix, et ce choix ne lui serait jamais renvoye.
+bool choice_made_in_node();
+
+// Mewgenics Multi : oublie les ecrans retenus (une autre partie se charge).
+void choice_forget_screens();
+// Mewgenics Multi : oublie aussi les choix retenus et la case actuelle (une
+// copie a jour de l'aventure de l'hote vient d'arriver, elle les contient).
+void choice_forget();
+
 } // namespace mgmp

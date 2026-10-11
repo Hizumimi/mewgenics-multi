@@ -141,4 +141,47 @@ void savefile_on_button_update(void* button);
 // sa boite, modale, empecherait le bouton du menu de recevoir le clic.
 bool savefile_client_waiting_to_load();
 
+// --- Mewgenics Multi : chacun sa save ------------------------------------------
+//
+// mgmp chargeait la save de l'hote chez l'invite des le choix de l'hote, et
+// avalait les choix de l'invite : les deux jouaient dans la meme maison. Ici,
+// chacun joue dans SA save, et l'invite ne passe dans la partie de l'hote que
+// pour une aventure (en attendant l'equipe mixte) :
+//
+//   - l'hote ne publie plus sa save au clic sur l'emplacement, mais quand une
+//     aventure est chargee chez lui et qu'il est sur la carte (entre deux cases,
+//     la ou save_adventure est sur) : une fois par aventure ; un invite qui
+//     arrive en cours de route la recoit par session_catchup_peer ;
+//   - l'invite choisit librement son emplacement (retenu : « sa » save) ;
+//   - il ne charge la save de l'hote (dans mgmp_coop.sav, comme avant) que si
+//     le joueur a dit « J'arrive » (savefile_set_join) ;
+//   - au retour, savefile_go_home le ramene dans sa save : « Jouer », puis son
+//     emplacement, sans redirection.
+
+// L'invite veut rejoindre l'aventure de l'hote (ou n'en veut plus).
+void savefile_set_join(bool on);
+// L'invite jette la copie en attente (perimee : une nouvelle va arriver).
+void savefile_drop_pending();
+// Vrai une fois quand une NOUVELLE aventure de l'hote est arrivee alors que cet
+// invite joue encore dans l'ancienne copie : il faut aller la charger.
+bool savefile_take_fresh_in_coop();
+// L'invite rentre dans sa propre save : au menu, « Jouer » puis son emplacement.
+void savefile_go_home();
+// La partie chargee chez cet invite est la copie de l'aventure de l'hote.
+bool savefile_in_coop();
+// Le menu principal vient d'etre reconstruit (MainMenu::init) : le joueur a
+// quitte la partie chargee, donc la copie aussi s'il y etait.
+void savefile_left_game();
+// Cet invite a choisi son propre emplacement dans cette session.
+bool savefile_has_own_slot();
+// L'invite a dit « J'arrive » et n'est pas encore dans l'aventure.
+bool savefile_join_armed();
+// L'invite attend de rentrer chez lui (« Jouer » puis son emplacement).
+bool savefile_home_armed();
+// Hote : une aventure est chargee et sa save a ete publiee pour elle.
+bool savefile_run_published();
+// Hote : nombre de publications de la save depuis le lancement (une de plus a
+// chaque depart, et a chaque demande d'un invite en cours de route).
+uint32_t savefile_publish_count();
+
 } // namespace mgmp

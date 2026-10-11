@@ -456,6 +456,16 @@ void leave_on_message(const HostLeftMsg& m) {
 
     const Where here = refresh_where(nullptr);
 
+    // Mewgenics Multi : seulement si ce joueur est dans la COPIE de l'aventure
+    // de l'hote. Dans sa propre save (meme en pleine aventure a lui), le depart
+    // de l'hote ne le concerne pas : surtout ne pas le sortir de sa partie.
+    if (!savefile_in_coop()) {
+        log_line_lvl(LogLevel::Trace, "LEAVE",
+                 "the host has left its adventure (it is on '%s'); this player is "
+                 "in their own save, so there is nothing to do", m.scene);
+        return;
+    }
+
     // ONLY "definitely out" declines. Unknown ARMS, and that is the correction:
     // the first version bailed with a warning whenever it could not read its own
     // position, which is a drop site that does nothing -- the rule this project

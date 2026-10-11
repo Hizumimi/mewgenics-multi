@@ -30,6 +30,12 @@
 #include "mgmp_resolve.h"
 #include "mgmp_savefile.h"
 #include "mgmp_session.h"
+#include "mgmp_catsync.h"   // republier la course quand un invite arrive
+#include "mgmp_invsync.h"
+#include "mgmp_runhist.h"
+#include "mgmp_lockstep.h"  // lockstep_in_battle
+#include "mgmp_follow.h"    // follow_inside_node
+#include "mgmp_choice.h"    // choice_made_in_node
 
 #include <winsock2.h>   // avant windows.h : types reseau d'iphlpapi
 #include <ws2tcpip.h>
@@ -403,12 +409,14 @@ char g_peer_names[8][64] = {};
 // --- la fenetre ouverte -------------------------------------------------------------
 
 enum class Screen { None, Choice, HostLobby, JoinEntry, ClientLobby, BadAddress, NightWait,
-                    NightNotice };
+                    NightNotice, DepartWait, ArrivalWait, DepartOffer, RunOffer, JoinWait,
+                    HomeOffer, Info };
 
 // Les demandes posees par les clics et par le clavier, traitees au debut de
 // l'image suivante. Un seul emplacement : il n'y a jamais deux clics a la fois.
 enum class Action { None, OpenAuto, StartHost, OpenJoin, DoJoin, ClickPlay, StopSession, OpenBadAddress,
-                    CancelNight, NightReadyNow };
+                    CancelNight, NightReadyNow, DepartCancel, DepartYes, DepartNo, RunJoin, RunLater,
+                    GoHome, JoinCancel, ArrivalDismiss };
 Action g_action = Action::None;
 
 // Images depuis le lancement (mm_menu_pump), pour les delais.
@@ -520,7 +528,7 @@ void* find_scene(const char* wanted, bool* paused = nullptr) {
 // MainMenu::init (premier champ de toute scene) : c'est un singleton qui vit
 // tout le processus.
 void* popup_parent_scene() {
-    for (const char* name : { "House", "MainMenu", "SaveSelectionScreen" })
+    for (const char* name : { "House", "Map", "MainMenu", "SaveSelectionScreen" })
         if (void* s = find_scene(name)) return s;
     return nullptr;
 }
@@ -558,9 +566,13 @@ bool open_popup(Screen screen, const std::string& text_utf8, const char* yes, co
         log_line("MULTI", "!! une fenetre est deja ouverte, demande ignoree");
         return false;
     }
+    // Jamais pendant un combat : la boite met en pause toutes les scenes en
+    // dessous d'elle, et un combat en pause chez un seul joueur casserait la
+    // marche au pas de mgmp. La demande attend la fin du combat.
+    if (find_scene("Battle")) return false;
     void* scene = popup_parent_scene();
     if (!scene) {
-        log_line("MULTI", "!! fenetre impossible : aucune scene ou l'afficher (maison, menu)");
+        log_line("MULTI", "!! fenetre impossible : aucune scene ou l'afficher (maison, carte, menu)");
         return false;
     }
     const uint32_t serial = ++g_serial;
@@ -763,8 +775,9 @@ std::string client_lobby_text() {
     return fmt(u8"Salon multijoueur\n\n"
                u8"Tu as rejoint la partie de %s !\n\n"
                u8"Joueurs :\n  %s (hôte)\n  %s\n\n"
-               u8"%s choisit la sauvegarde :\n"
-               u8"elle se chargera toute seule chez toi.",
+               u8"Choisis ta sauvegarde : ta maison, tes chats.\n"
+               u8"Pour partir à l'aventure, tu rejoindras\n"
+               u8"l'équipe de %s.",
                host.c_str(), host.c_str(), me.c_str(), host.c_str());
 }
 
@@ -787,8 +800,8 @@ void open_host_lobby() {
 void open_client_lobby() {
     // Connexion lancee par mgmp.json (role "client") plutot que par le menu.
     if (g_join_ip.empty()) g_join_ip = config().net_addr;
-    open_popup(Screen::ClientLobby, client_lobby_text(), u8"D'accord", u8"Quitter", false,
-               Action::None, Action::StopSession);
+    open_popup(Screen::ClientLobby, client_lobby_text(), u8"Choisir ta sauvegarde", u8"Quitter",
+               false, Action::ClickPlay, Action::StopSession);
 }
 
 void open_join() {
@@ -878,6 +891,8 @@ void open_auto() {
 // clic-la n'est pas un vote de nuit et passe tel quel.
 
 constexpr char kBtnName_EndDay[] = "EndDay_Sign";
+
+bool trip_active();                     // section aventure, plus bas
 
 bool     g_night_ready       = false;   // ce joueur a clique sur le panneau
 void*    g_endday_button     = nullptr; // le bouton dont le clic est retenu
@@ -1024,7 +1039,7 @@ std::string notice_text(bool depart) {
 
 // Le libelle du panneau tant que d'autres attendent ce joueur.
 std::wstring sign_label_wanted() {
-    if (g_night_ready) return {};
+    if (g_night_ready || savefile_in_coop()) return {};
     const int n = bit_count(others_ready_mask());
     if (n <= 0) return {};
     if (n == 1) return utf8_to_wide(u8"1 joueur attend");
@@ -1199,7 +1214,8 @@ void night_pump() {
 // Ouvre l'annonce quand la maison est libre depuis un moment (pas pendant un
 // fondu ou la seconde ou la fenetre precedente se ferme).
 void notice_pump() {
-    const bool free_now = g_notice_wanted && !g_live.alive && !g_night_go && house_is_free();
+    const bool free_now = g_notice_wanted && !g_live.alive && !g_night_go && house_is_free() &&
+                          !savefile_in_coop() && !savefile_join_armed() && !trip_active();
     if (!free_now) { g_house_free_since = 0; return; }
     if (!g_house_free_since) g_house_free_since = g_frame;
     if (g_frame - g_house_free_since < 45) return;
@@ -1211,10 +1227,582 @@ void notice_pump() {
     }
 }
 
+// --- aventure : chacun sa save ---------------------------------------------------
+//
+// Chacun joue dans sa propre save. Pour une aventure, en attendant l'equipe
+// mixte, l'invite passe dans la copie de l'aventure de l'hote (mgmp_coop.sav,
+// le mecanisme de mgmp) et joue avec les chats de l'hote, puis rentre chez lui.
+//
+//   1. L'hote clique sur « À l'aventure ! » : le clic est retenu (comme pour la
+//      nuit) et chacun recoit MM_DEPART_REQ. L'invite repond « J'arrive » ou
+//      « Pas encore » (re-propose 30 s plus tard). Tout le monde vient : le clic
+//      est rejoue, l'hote part.
+//   2. « J'arrive » : l'invite va au menu principal (Echap ouvre le menu pause,
+//      le mod appuie sur « Quitter vers le menu ») et attend la save de l'hote,
+//      publiee quand l'hote arrive sur la carte (mgmp_savefile). Elle se charge
+//      toute seule (« Jouer », puis l'emplacement, redirige vers mgmp_coop.sav).
+//      Pendant ce temps l'hote attend son equipe sur la carte (fenetre modale) :
+//      les combats de mgmp ne commencent qu'avec tout le monde.
+//   3. L'aventure finie (MM_HOST_RUN a = 0), l'invite rentre : menu, « Jouer »,
+//      puis SON emplacement, sans redirection.
+//
+// Un invite qui arrive pendant une aventure recoit MM_HOST_RUN a = 1 et peut la
+// rejoindre (MM_RUN_REQ : l'hote republie sa save a la case suivante).
+
+// --- hote ---
+bool     g_dep_active      = false;   // vote de depart en cours
+void*    g_dep_button      = nullptr; // le panneau dont le clic est retenu
+uint8_t  g_dep_answer[8]   = {};      // 0 pas de reponse, 1 « J'arrive », 2 « Pas encore »
+bool     g_dep_go          = false;   // tout le monde vient : rejouer le clic
+bool     g_dep_passing     = false;   // le prochain clic sur le panneau est le notre
+bool     g_dep_wait_wanted = false;   // ouvrir l'attente du vote
+int      g_host_run_sent   = -1;      // dernier MM_HOST_RUN envoye (-1 : jamais)
+uint32_t g_host_run_roster = 0;       // presents au dernier envoi
+bool     g_peer_run[8]     = {};      // MM_PEER_RUN recus
+uint32_t g_arrival_mask    = 0;       // joueurs attendus dans l'aventure
+uint32_t g_arrival_dismissed = 0;     // « Ne pas attendre » : ceux-la, plus de fenetre
+uint32_t g_run_req_pending = 0;       // demandes de rejoindre a servir sur la carte
+bool     g_arrival_wanted  = false;   // ouvrir l'attente des arrivants
+
+// --- invite ---
+bool     g_host_in_run     = false;   // derniere annonce de l'hote
+bool     g_dep_req_live    = false;   // la demande de depart de l'hote tient toujours
+bool     g_dep_offer       = false;   // la proposer a ce joueur
+uint32_t g_dep_offer_at    = 0;       // pas avant cette image (« Pas encore »)
+bool     g_run_offer       = false;   // proposer de rejoindre l'aventure en cours
+uint32_t g_run_offer_at    = 0;
+bool     g_home_offer      = false;   // proposer de rentrer
+uint32_t g_home_since      = 0;       // l'aventure de l'hote est finie depuis cette image
+int      g_peer_run_sent   = -1;      // dernier MM_PEER_RUN envoye
+
+// --- un message simple, un seul bouton ---
+bool        g_info_wanted = false;
+std::string g_info_text;
+
+// --- aller au menu principal depuis la maison (ou la carte) ---
+//
+// Il n'y a pas d'ecran de menu pause persistant ou aller cliquer (voir
+// mgmp_leave.h) : on l'ouvre avec la touche Echap, envoyee a la fenetre du jeu,
+// puis on appuie sur son bouton « Quitter vers le menu » depuis Button::update,
+// la ou le jeu clique les siens. Pas de nouvel Echap tant que la scene est en
+// pause : le menu pause (ou une fenetre) est ouvert, il ne faut pas le refermer.
+struct MenuTrip {
+    bool     active   = false;
+    uint32_t next_esc = 0;            // image du prochain Echap
+    uint32_t key_up   = 0;            // image ou relacher la touche
+    bool     key_down = false;
+    int      esc_sent = 0;
+    uint32_t press_ok = 0;            // pas d'autre appui sur « Quitter » avant
+    bool     told     = false;        // le joueur a ete prevenu qu'il faut le faire
+};
+MenuTrip g_trip;
+HWND     g_hwnd = nullptr;            // la fenetre du jeu (vue dans mm_menu_wndproc)
+
+bool trip_active() { return g_trip.active; }
+
+constexpr uint32_t kOfferAgain  = 30 * 60;   // 30 s avant de re-proposer
+constexpr uint32_t kHomeGrace   = 20 * 60;   // l'invite finit sa propre fin d'aventure
+
+void show_info(const std::string& text) {
+    g_info_text   = text;
+    g_info_wanted = true;
+}
+
+bool at_main_menu() {
+    return find_scene("MainMenu") || find_scene("SaveSelectionScreen");
+}
+
+void post_escape(bool down) {
+    if (!g_hwnd) return;
+    // lParam : repetition 1, code de balayage 0x01 (Echap) ; relachement : bits 30 et 31.
+    const LPARAM lp = down ? (LPARAM)0x00010001 : (LPARAM)0xC0010001;
+    PostMessageW(g_hwnd, down ? WM_KEYDOWN : WM_KEYUP, VK_ESCAPE, lp);
+}
+
+void start_menu_trip(const char* why) {
+    if (at_main_menu() || g_trip.active) return;
+    g_trip = MenuTrip{};
+    g_trip.active   = true;
+    g_trip.next_esc = g_frame + 15;   // la fenetre qui vient de se fermer d'abord
+    log_line("MULTI", "aller au menu principal (%s) : Echap, puis « Quitter vers le menu »", why);
+}
+
+void trip_pump() {
+    if (!g_trip.active) return;
+    if (g_trip.key_down && g_frame >= g_trip.key_up) {
+        post_escape(false);
+        g_trip.key_down = false;
+    }
+    if (at_main_menu()) {
+        if (g_trip.key_down) { post_escape(false); g_trip.key_down = false; }
+        g_trip.active = false;
+        log_line("MULTI", "arrive au menu principal");
+        return;
+    }
+    if (g_frame < g_trip.next_esc || g_live.alive) return;
+    // « Quitter vers le menu » a ete appuye : le fondu vers le menu est en
+    // cours (la maison s'efface), pas d'autre Echap pendant ce temps.
+    if (g_trip.press_ok && g_frame < g_trip.press_ok + 600) return;
+    bool paused = false;
+    void* here = find_scene("House", &paused);
+    if (!here) here = find_scene("Map", &paused);
+    if (here && paused) {                    // menu pause ouvert : attendre l'appui
+        g_trip.next_esc = g_frame + 60;
+        return;
+    }
+    if (g_trip.esc_sent >= 3 || !g_hwnd) {
+        if (!g_trip.told) {
+            g_trip.told = true;
+            log_line("MULTI", "!! le menu pause ne s'ouvre pas tout seul : le joueur doit le faire");
+            show_info(u8"Pour continuer, appuie sur Échap\n"
+                      u8"puis sur « Quitter vers le menu ».");
+        }
+        return;
+    }
+    post_escape(true);
+    g_trip.key_down = true;
+    g_trip.key_up   = g_frame + 3;
+    ++g_trip.esc_sent;
+    g_trip.next_esc = g_frame + 150;
+    log_line("MULTI", "Echap envoye a la fenetre du jeu (%d/3)", g_trip.esc_sent);
+}
+
+// Depuis Button::update : le bouton « Quitter vers le menu » du menu pause.
+void trip_on_button(void* button) {
+    if (!g_trip.active || g_frame < g_trip.press_ok) return;
+    char name[64] = {};
+    if (!mem_read_std_string((char*)button + kBtn_Name, name, sizeof(name))) return;
+    if (strcmp(name, kBtnName_PauseQuitToMenu) != 0) return;
+    g_trip.press_ok = g_frame + 120;
+    log_line("MULTI", "menu pause ouvert : appui sur « Quitter vers le menu »");
+    auto click = call_target<FnButtonClick>(C_ButtonClick);
+    if (click) click(button, false);
+}
+
+// --- textes ---
+
+std::string host_display() { return peer_name(0); }
+
+const char* dep_answer_text(uint8_t a) {
+    switch (a) {
+        case 1:  return u8"j'arrive !";
+        case 2:  return u8"pas encore";
+        default: return u8"réfléchit...";
+    }
+}
+
+std::string depart_wait_text() {
+    std::string lines;
+    uint8_t ids[8] = {};
+    const uint8_t n = net_peer_count();
+    if (n && net_peer_ids(ids, 8))
+        for (uint8_t i = 0; i < n && i < 8; ++i) {
+            if (ids[i] == net_self() || ids[i] >= 8) continue;
+            lines += "  " + peer_name(ids[i]) + " : " + dep_answer_text(g_dep_answer[ids[i]]) + "\n";
+        }
+    return fmt(u8"Départ en aventure\n\n"
+               u8"Tu veux partir à l'aventure.\n"
+               u8"Ton équipe répond :\n\n%s", lines.c_str());
+}
+
+std::string arrival_text() {
+    std::string lines;
+    for (uint8_t id = 0; id < 8; ++id)
+        if (g_arrival_mask & (1u << id))
+            lines += "  " + peer_name(id) + u8" : pas encore là\n";
+    return fmt(u8"En attente de ton équipe\n\n%s\n"
+               u8"Les combats l'attendent : attends-la\n"
+               u8"avant d'avancer sur la carte.", lines.c_str());
+}
+
+std::string depart_offer_text() {
+    const std::string h = host_display();
+    return fmt(u8"Départ en aventure\n\n"
+               u8"%s part à l'aventure !\n"
+               u8"Tu rejoins son équipe : pour l'instant,\n"
+               u8"vous jouez avec les chats de %s.\n"
+               u8"Ta maison t'attendra au retour.", h.c_str(), h.c_str());
+}
+
+std::string run_offer_text() {
+    const std::string h = host_display();
+    return fmt(u8"Aventure en cours\n\n"
+               u8"%s est en aventure !\n"
+               u8"Rejoins son équipe : ses combats t'attendent.", h.c_str());
+}
+
+std::string join_wait_text() {
+    const std::string h = host_display();
+    return fmt(u8"En route pour l'aventure\n\n"
+               u8"L'aventure de %s se chargera\n"
+               u8"dès qu'il arrivera sur la carte.", h.c_str());
+}
+
+std::string home_offer_text() {
+    if (!session_has_others())
+        return fmt(u8"Retour à la maison\n\n"
+                   u8"La connexion avec %s est coupée.\n"
+                   u8"Tu rentres dans ta maison.", host_display().c_str());
+    return u8"Retour à la maison\n\n"
+           u8"L'aventure est finie !\n"
+           u8"Tu rentres dans ta maison.";
+}
+
+// --- hote ---
+
+uint32_t peers_mask_others() {
+    const uint8_t self = net_self();
+    return roster_mask() & ~(self < 8 ? 1u << self : 0u);
+}
+
+uint32_t peer_run_mask() {
+    uint32_t m = 0;
+    for (uint8_t id = 0; id < 8; ++id) if (g_peer_run[id]) m |= 1u << id;
+    return m;
+}
+
+void depart_check_go() {
+    if (!g_dep_active) return;
+    const uint32_t others = peers_mask_others();
+    for (uint8_t id = 0; id < 8; ++id)
+        if ((others & (1u << id)) && g_dep_answer[id] != 1) return;
+    g_dep_go = true;
+    log_line("MULTI", "depart : toute l'equipe vient, l'hote part");
+}
+
+void depart_cancel(const char* why) {
+    if (!g_dep_active) return;
+    g_dep_active = false;
+    g_dep_go     = false;
+    g_dep_button = nullptr;
+    MmMsg m{};
+    m.kind = MM_DEPART_REQ;
+    m.a = 0;
+    net_send_mm(m);
+    log_line("MULTI", "depart annule (%s)", why);
+}
+
+bool depart_start(void* button) {
+    if (g_dep_active) return true;
+    g_dep_active = true;
+    g_dep_go     = false;
+    g_dep_button = button;
+    memset(g_dep_answer, 0, sizeof(g_dep_answer));
+    MmMsg m{};
+    m.kind = MM_DEPART_REQ;
+    m.a = 1;
+    net_send_mm(m);
+    g_dep_wait_wanted = true;
+    log_line("MULTI", "depart : l'hote propose de partir, en attente de l'equipe");
+    return true;
+}
+
+void host_adventure_pump() {
+    if (net_role() != NetRole::Host) return;
+    if (!session_has_others()) {
+        // Plus personne : un vote en cours n'a plus d'objet, l'hote part seul.
+        if (g_dep_active) {
+            log_line("MULTI", "depart : plus d'autre joueur connecte, l'hote part seul");
+            g_dep_go = true;
+        }
+        g_host_run_sent     = -1;
+        memset(g_peer_run, 0, sizeof(g_peer_run));
+        g_arrival_mask      = 0;
+        g_arrival_dismissed = 0;
+        g_arrival_wanted    = false;
+        g_run_req_pending   = 0;
+    } else {
+        // Ou en est l'hote : annonce a chaque changement, et a chaque arrivant.
+        const bool in_run = savefile_run_published();
+        const uint32_t roster = roster_mask();
+        if ((int)in_run != g_host_run_sent || roster != g_host_run_roster) {
+            MmMsg m{};
+            m.kind = MM_HOST_RUN;
+            m.a = in_run ? 1 : 0;
+            net_send_mm(m);
+            g_host_run_sent = in_run ? 1 : 0;
+            if (!in_run) {
+                memset(g_peer_run, 0, sizeof(g_peer_run));
+                g_arrival_dismissed = 0;
+            }
+            for (uint8_t id = 0; id < 8; ++id)
+                if (!(roster & (1u << id))) g_peer_run[id] = false;
+            // Un joueur arrive pendant un vote de depart : la demande pour lui
+            // aussi (ceux qui ont deja repondu ne la revoient pas s'ils viennent).
+            if (g_dep_active && roster != g_host_run_roster) {
+                MmMsg r{};
+                r.kind = MM_DEPART_REQ;
+                r.a = 1;
+                net_send_mm(r);
+            }
+            g_host_run_roster = roster;
+        }
+        // En aventure, ceux qui n'y sont pas encore : les combats de mgmp les
+        // attendent. La fenetre le dit a l'hote, sur la carte, jusqu'a leur
+        // arrivee (ou « Ne pas attendre », retenu pour ces joueurs-la).
+        g_arrival_mask   = in_run ? (peers_mask_others() & ~peer_run_mask()) : 0;
+        g_arrival_wanted = (g_arrival_mask & ~g_arrival_dismissed) != 0;
+        if (g_dep_active) depart_check_go();
+        // Les demandes de rejoindre gardees pour le retour sur la carte.
+        if (g_run_req_pending && !follow_inside_node()) {
+            const uint32_t req = g_run_req_pending & roster;
+            g_run_req_pending = 0;
+            for (uint8_t id = 0; id < 8; ++id)
+                if (req & (1u << id)) session_catchup_peer(id);
+        }
+    }
+
+    if (!g_dep_go) return;
+    if (g_live.alive) {
+        if (g_live.screen == Screen::DepartWait && !g_click_target) {
+            g_silent = g_live.serial;
+            popup_press("yes");
+        }
+        return;
+    }
+    g_dep_go     = false;
+    g_dep_active = false;
+    g_dep_wait_wanted = false;
+    if (find_scene("House") && endday_button_valid(g_dep_button)) {
+        g_dep_passing  = true;
+        g_click_target = g_dep_button;
+        g_click_wait   = 0;
+        g_click_tries  = 0;
+    } else {
+        log_line("MULTI", "!! depart : panneau introuvable, clique dessus toi-meme");
+        g_dep_passing = true;
+    }
+    g_dep_button = nullptr;
+}
+
+// --- invite ---
+
+void send_simple(MmKind kind, uint8_t a) {
+    MmMsg m{};
+    m.kind = kind;
+    m.a = a;
+    net_send_mm(m);
+}
+
+void start_join(const char* why) {
+    // Une ancienne copie en attente (une aventure qu'il n'avait pas rejointe)
+    // serait chargee avant la bonne : on la jette, la nouvelle va arriver.
+    savefile_drop_pending();
+    savefile_set_join(true);
+    g_dep_offer = false;
+    g_run_offer = false;
+    if (g_night_ready) set_night_ready(false);   // il part : plus pret pour la nuit
+    start_menu_trip(why);
+}
+
+void stop_menu_trip() {
+    if (!g_trip.active) return;
+    if (g_trip.key_down) post_escape(false);
+    g_trip = MenuTrip{};
+    log_line("MULTI", "trajet vers le menu interrompu");
+}
+
+void cancel_join(const char* why) {
+    if (!savefile_join_armed()) return;
+    savefile_set_join(false);
+    log_line("MULTI", "aventure : on ne la rejoint plus (%s)", why);
+    if (savefile_in_coop()) return;
+    // Au menu, ou « Quitter vers le menu » deja appuye : retour dans sa propre
+    // save. Encore dans sa maison : il y reste, le trajet s'arrete.
+    const bool leaving = at_main_menu() || (g_trip.active && g_trip.press_ok);
+    if (leaving && savefile_has_own_slot()) savefile_go_home();
+    if (!at_main_menu() && !(g_trip.active && g_trip.press_ok)) stop_menu_trip();
+}
+
+void client_adventure_pump() {
+    if (net_role() != NetRole::Client) return;
+    const bool others = session_has_others();
+
+    // Dire a l'hote si ce joueur est dans l'aventure.
+    if (others) {
+        const int in_run = (savefile_in_coop() && savefile_adventure_is_loaded()) ? 1 : 0;
+        if (in_run != g_peer_run_sent) {
+            // Arrive : ce que l'hote a pousse pendant le trajet (chats,
+            // historique) a ete garde ; on l'applique tout de suite, hors combat.
+            // L'inventaire, lui, attend la premiere case suivie (mgmp_follow).
+            if (in_run && g_peer_run_sent != 1 && !lockstep_in_battle()) {
+                catsync_apply_pending("arrived in the host's adventure");
+                runhist_apply_pending("arrived in the host's adventure");
+            }
+            send_simple(MM_PEER_RUN, (uint8_t)in_run);
+            g_peer_run_sent = in_run;
+            log_line("MULTI", "aventure : %s", in_run ? "ce joueur est dans l'aventure de l'hote"
+                                                      : "ce joueur n'est pas dans l'aventure de l'hote");
+        }
+    } else {
+        g_peer_run_sent = -1;
+        g_host_in_run   = false;
+        g_dep_req_live  = false;
+        g_dep_offer     = false;
+        g_run_offer     = false;
+        // La connexion est coupee pendant qu'il partait : il ne la rejoint plus.
+        if (savefile_join_armed() && !savefile_in_coop())
+            cancel_join("connexion coupee");
+    }
+
+    // Sa propre save est en pleine aventure : en multijoueur, les combats de
+    // mgmp attendent l'hote, ils ne commenceraient jamais. On le lui dit, une
+    // fois par partie chargee.
+    static bool said_own_run = false;
+    if (others && !savefile_in_coop() && !savefile_join_armed() &&
+        savefile_adventure_is_loaded() && !at_main_menu()) {
+        if (!said_own_run) {
+            said_own_run = true;
+            log_line("MULTI", "!! la save de ce joueur est en pleine aventure : elle ne peut "
+                              "pas se jouer pendant une session");
+            show_info(u8"Ta save est en pleine aventure.\n"
+                      u8"En multijoueur, les aventures se jouent avec l'hôte :\n"
+                      u8"retourne au menu et choisis une autre save,\n"
+                      u8"ou finis celle-ci en solo.");
+        }
+    } else if (!savefile_adventure_is_loaded()) {
+        said_own_run = false;
+    }
+
+    // L'hote a recharge son aventure (ou en a commence une autre) pendant que ce
+    // joueur jouait encore l'ancienne copie : on va charger la nouvelle.
+    if (savefile_take_fresh_in_coop()) {
+        log_line("MULTI", "aventure : nouvelle copie de l'hote, ce joueur va la charger");
+        show_info(fmt(u8"%s a rechargé l'aventure :\ntu la recharges aussi.",
+                      host_display().c_str()));
+        start_menu_trip("recharger l'aventure de l'hote");
+    }
+
+    // L'hote est en aventure et ce joueur n'y est pas (arrive en cours de route,
+    // « Plus tard », sorti de la copie...) : le lui proposer, encore et encore --
+    // les combats de l'hote l'attendent.
+    if (others && g_host_in_run && !savefile_in_coop() && !savefile_join_armed() &&
+        !g_dep_offer && !g_run_offer) {
+        g_run_offer    = true;
+        g_run_offer_at = g_frame;
+    }
+
+    // Dans la copie de l'aventure de l'hote alors qu'elle est finie (ou que la
+    // connexion est coupee) : proposer de rentrer, une fois sa propre fin
+    // d'aventure jouee (ou au bout d'un moment).
+    if (savefile_in_coop() && !savefile_home_armed() && (!others || !g_host_in_run)) {
+        if (!g_home_since) g_home_since = g_frame;
+        if (!savefile_adventure_is_loaded() || g_frame - g_home_since > kHomeGrace)
+            g_home_offer = true;
+    } else {
+        g_home_since = 0;
+        g_home_offer = false;
+    }
+}
+
+// --- les fenetres de l'aventure, par ordre de priorite ---
+
+bool open_depart_wait() {
+    return open_popup(Screen::DepartWait, depart_wait_text(), u8"Annuler", nullptr, true,
+                      Action::DepartCancel, Action::DepartCancel);
+}
+
+void adventure_popups() {
+    if (g_live.alive) return;
+    if (g_trip.active && !g_info_wanted) return;     // en route pour le menu
+    // Entre deux ecrans (chargement, fondu), rien ou s'afficher : on attend, sans
+    // rien ecrire au journal a chaque image.
+    if (!popup_parent_scene() || find_scene("Battle")) return;
+    const bool host = net_role() == NetRole::Host;
+
+    if (g_info_wanted) {
+        if (open_popup(Screen::Info, g_info_text, u8"D'accord", nullptr, true,
+                       Action::None, Action::None))
+            g_info_wanted = false;
+        return;
+    }
+    if (host && g_dep_wait_wanted && g_dep_active && !g_dep_go) {
+        if (open_depart_wait()) g_dep_wait_wanted = false;
+        return;
+    }
+    if (host && g_arrival_wanted) {
+        if (!find_scene("Map")) return;              // sur la carte seulement
+        open_popup(Screen::ArrivalWait, arrival_text(), u8"Ne pas attendre", nullptr, true,
+                   Action::ArrivalDismiss, Action::ArrivalDismiss);
+        return;
+    }
+    if (host) return;
+
+    if (g_home_offer && savefile_in_coop()) {
+        open_popup(Screen::HomeOffer, home_offer_text(), u8"Rentrer", nullptr, true,
+                   Action::GoHome, Action::GoHome);
+        return;
+    }
+    if (g_dep_offer && g_dep_req_live && g_frame >= g_dep_offer_at && !savefile_in_coop() &&
+        !savefile_join_armed()) {
+        open_popup(Screen::DepartOffer, depart_offer_text(), u8"J'arrive", u8"Pas encore", false,
+                   Action::DepartYes, Action::DepartNo);
+        return;
+    }
+    if (g_run_offer && g_host_in_run && g_frame >= g_run_offer_at && !savefile_in_coop() &&
+        !savefile_join_armed() && !g_dep_offer) {
+        open_popup(Screen::RunOffer, run_offer_text(), u8"Rejoindre", u8"Plus tard", false,
+                   Action::RunJoin, Action::RunLater);
+        return;
+    }
+    if (savefile_join_armed() && !savefile_in_coop() && !savefile_client_waiting_to_load() &&
+        at_main_menu() && !g_trip.active) {
+        open_popup(Screen::JoinWait, join_wait_text(), u8"Annuler", nullptr, true,
+                   Action::JoinCancel, Action::JoinCancel);
+        return;
+    }
+}
+
+// Les mises a jour des fenetres de l'aventure ouvertes (appele chaque image).
+void adventure_live() {
+    if (!g_live.alive || g_live.pressed) return;
+    auto close_silently = [] {
+        if (g_click_target) return;
+        g_silent = g_live.serial;
+        popup_press("yes");
+    };
+    switch (g_live.screen) {
+        case Screen::DepartWait:
+            if (!g_dep_active || g_dep_go) close_silently();
+            else popup_set_text(depart_wait_text());
+            break;
+        case Screen::ArrivalWait:
+            if (!session_has_others() || !g_arrival_mask) {
+                if (session_has_others()) log_line("MULTI", "aventure : toute l'equipe est arrivee");
+                close_silently();
+            } else {
+                popup_set_text(arrival_text());
+            }
+            break;
+        case Screen::DepartOffer:
+            if (!g_dep_req_live || savefile_in_coop()) close_silently();
+            break;
+        case Screen::RunOffer:
+            if (!g_host_in_run || savefile_join_armed() || savefile_in_coop()) close_silently();
+            break;
+        case Screen::HomeOffer:
+            if (!savefile_in_coop() || (session_has_others() && g_host_in_run)) close_silently();
+            else popup_set_text(home_offer_text());
+            break;
+        case Screen::JoinWait:
+            if (savefile_client_waiting_to_load() || !savefile_join_armed() || savefile_in_coop()) {
+                if (savefile_client_waiting_to_load())
+                    log_line("MULTI", "aventure : la save de l'hote est la, elle se charge");
+                close_silently();
+            }
+            break;
+        default:
+            break;
+    }
+}
+
 // --- detours -------------------------------------------------------------------
 
 void __fastcall h_MainMenuInit(void* self) {
     o_MainMenuInit(self);
+    // Le menu principal se reconstruit : la partie d'avant (la copie de
+    // l'aventure de l'hote, peut-etre) n'est plus chargee.
+    savefile_left_game();
 
     void* panel = nullptr;
     if (!mem_read((char*)self + kMainMenu_Panel, &panel, sizeof(panel)) || !panel) {
@@ -1352,13 +1940,63 @@ void mm_menu_pump() {
         case Action::NightReadyNow:
             night_ready_now();
             break;
+        case Action::DepartCancel:
+            depart_cancel("annule par l'hote");
+            break;
+        case Action::DepartYes:
+            if (!g_dep_req_live) {                   // annule pendant qu'il cliquait
+                show_info(fmt(u8"%s a annulé le départ.", host_display().c_str()));
+                break;
+            }
+            send_simple(MM_DEPART_READY, 1);
+            log_line("MULTI", "depart : ce joueur arrive");
+            start_join("depart en aventure");
+            break;
+        case Action::DepartNo:
+            send_simple(MM_DEPART_READY, 0);
+            log_line("MULTI", "depart : ce joueur n'est pas encore pret");
+            g_dep_offer    = true;
+            g_dep_offer_at = g_frame + kOfferAgain;
+            break;
+        case Action::RunJoin:
+            if (!g_host_in_run) break;               // finie pendant qu'il cliquait
+            // D'abord jeter la copie qui attendrait encore, PUIS demander la
+            // nouvelle : start_join vide l'attente, la demande part ensuite.
+            start_join("rejoindre l'aventure en cours");
+            send_simple(MM_RUN_REQ, 1);
+            log_line("MULTI", "aventure : ce joueur rejoint l'aventure en cours");
+            break;
+        case Action::RunLater:
+            g_run_offer_at = g_frame + kOfferAgain;
+            break;
+        case Action::GoHome:
+            g_home_offer = false;
+            savefile_go_home();
+            start_menu_trip("retour chez soi");
+            break;
+        case Action::JoinCancel:
+            if (g_dep_req_live) {                    // le vote tient : « pas encore »
+                send_simple(MM_DEPART_READY, 0);
+                g_dep_offer    = true;
+                g_dep_offer_at = g_frame + kOfferAgain;
+            }
+            cancel_join("annule par le joueur");
+            break;
+        case Action::ArrivalDismiss:
+            g_arrival_dismissed |= g_arrival_mask;
+            log_line("MULTI", "aventure : l'hote n'attend plus son equipe");
+            break;
     }
 
+    host_adventure_pump();
+    client_adventure_pump();
+    trip_pump();
     night_pump();
     if (g_night_wait_wanted && !g_live.alive) {
         g_night_wait_wanted = false;              // une seule tentative par clic
         if (g_night_ready && !g_night_go) open_night_wait();
     }
+    adventure_popups();
     notice_pump();
 
     // Un clic demande qui n'a pas pris (bouton encore en animation, par exemple) :
@@ -1389,6 +2027,7 @@ void mm_menu_pump() {
         stale = 0;
     }
 
+    adventure_live();
     switch (g_live.screen) {
         case Screen::HostLobby:
             popup_set_text(host_lobby_text());
@@ -1405,7 +2044,16 @@ void mm_menu_pump() {
             }
             break;
         case Screen::NightWait:
-            if (!g_live.pressed) popup_set_text(night_text());
+            // Plus pret (annule ailleurs : un depart en aventure, par exemple) :
+            // l'attente se ferme sans lancer « Annuler ».
+            if (!g_night_ready && !g_night_go) {
+                if (!g_live.pressed && !g_click_target) {
+                    g_silent = g_live.serial;
+                    popup_press("yes");
+                }
+            } else if (!g_live.pressed) {
+                popup_set_text(night_text());
+            }
             break;
         case Screen::NightNotice:
             // Plus personne n'attend (il a annule, ou est parti) : l'annonce n'a
@@ -1431,13 +2079,15 @@ void mm_menu_pump() {
 }
 
 void mm_on_button_update(void* button) {
+    if (button) trip_on_button(button);
     if (!button || button != g_click_target) return;
     g_click_target = nullptr;
     auto click = call_target<FnButtonClick>(C_ButtonClick);
     if (click) click(button, false);   // force = 0, comme un vrai clic
 }
 
-bool mm_menu_wndproc(HWND /*hwnd*/, UINT msg, WPARAM wp, LPARAM lp) {
+bool mm_menu_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (hwnd) g_hwnd = hwnd;           // pour envoyer Echap (aller au menu)
     if (!g_live.alive || g_live.screen != Screen::JoinEntry) return false;
 
     switch (msg) {
@@ -1524,6 +2174,86 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
         case MM_NIGHT_STATE:
             if (net_role() == NetRole::Client) apply_night_state(m.a != 0, m.x, m.y);
             break;
+        case MM_DEPART_REQ:
+            if (net_role() != NetRole::Client) break;
+            if (m.a) {
+                g_dep_req_live = true;
+                if (!savefile_join_armed()) {
+                    g_dep_offer    = true;
+                    g_dep_offer_at = 0;
+                }
+                // Pret pour la nuit, sa fenetre d'attente cacherait la demande :
+                // l'hote veut partir, la nuit attendra.
+                if (g_night_ready) set_night_ready(false);
+                log_line("MULTI", "depart : %s propose de partir a l'aventure", host_display().c_str());
+            } else {
+                g_dep_req_live = false;
+                g_dep_offer    = false;
+                log_line("MULTI", "depart : %s a annule", host_display().c_str());
+                if (savefile_join_armed() && !savefile_in_coop()) {
+                    cancel_join("depart annule par l'hote");
+                    show_info(fmt(u8"%s a annulé le départ.", host_display().c_str()));
+                }
+            }
+            break;
+        case MM_DEPART_READY:
+            if (net_role() == NetRole::Host && from < 8 && g_dep_active) {
+                g_dep_answer[from] = m.a ? 1 : 2;
+                log_line("MULTI", "depart : %s %s", peer_name(from).c_str(),
+                         m.a ? "arrive" : "n'est pas encore pret");
+                depart_check_go();
+            }
+            break;
+        case MM_HOST_RUN: {
+            if (net_role() != NetRole::Client) break;
+            const bool was = g_host_in_run;
+            g_host_in_run  = m.a != 0;
+            // L'hote renvoie cet etat a chaque arrivee ou depart d'un joueur, et
+            // apres avoir recharge sa partie : redire ou on en est, a chaque fois.
+            g_peer_run_sent = -1;
+            if (g_host_in_run == was) break;     // seuls les changements comptent
+            log_line("MULTI", "aventure : %s %s", host_display().c_str(),
+                     g_host_in_run ? "est en aventure" : "n'est plus en aventure");
+            if (g_host_in_run) {
+                g_dep_req_live = false;           // le depart a eu lieu
+                g_dep_offer    = false;
+                if (!savefile_in_coop() && !savefile_join_armed()) {
+                    g_run_offer    = true;
+                    g_run_offer_at = 0;
+                }
+            } else {
+                g_run_offer = false;
+                if (savefile_join_armed() && !savefile_in_coop())
+                    cancel_join("l'aventure de l'hote est finie");
+            }
+            break;
+        }
+        case MM_PEER_RUN:
+            if (net_role() == NetRole::Host && from < 8) {
+                const bool was = g_peer_run[from];
+                g_peer_run[from] = m.a != 0;
+                if (g_peer_run[from] == was) break;
+                log_line("MULTI", "aventure : %s %s", peer_name(from).c_str(),
+                         m.a ? "est arrive dans l'aventure" : "n'est plus dans l'aventure");
+                if (m.a) g_arrival_dismissed &= ~(1u << from);
+            }
+            break;
+        case MM_RUN_REQ:
+            if (net_role() == NetRole::Host && from < 8) {
+                log_line("MULTI", "aventure : %s veut rejoindre l'aventure en cours",
+                         peer_name(from).c_str());
+                g_arrival_dismissed &= ~(1u << from);
+                // Dans une case ou l'hote a deja fait un choix (evenement, montee
+                // de niveau), la save envoyee serait d'avant ce choix, qui ne lui
+                // serait jamais renvoye : on attend le retour sur la carte.
+                if (follow_inside_node() && choice_made_in_node()) {
+                    g_run_req_pending |= 1u << from;
+                    log_line("MULTI", "aventure : il la recevra au retour sur la carte");
+                } else {
+                    session_catchup_peer(from);
+                }
+            }
+            break;
         default:
             log_line("MULTI", "message MM inconnu (%u) de %u", (unsigned)m.kind, (unsigned)from);
             break;
@@ -1537,10 +2267,24 @@ bool mm_on_button_click(void* button) {
         log_line("MULTI", "nuit : clic sur le panneau rejoue, la journee se termine");
         return false;
     }
-    if (!session_has_others()) return false;     // seul : comme d'habitude
-    if (sign_is_depart(button)) {                // « À l'aventure ! » : pas un vote de nuit
-        log_line("MULTI", "panneau en mode depart (chats dans l'equipe) : clic laisse au jeu");
+    if (g_dep_passing) {                         // le depart, rejoue par l'hote
+        g_dep_passing = false;
+        log_line("MULTI", "depart : clic sur le panneau rejoue, l'aventure commence");
         return false;
+    }
+    if (!session_has_others()) return false;     // seul : comme d'habitude
+    // Dans la copie de l'aventure de l'hote, la maison n'est pas la sienne : ni
+    // nuit ni depart ici, on lui propose de rentrer.
+    if (net_role() == NetRole::Client && savefile_in_coop()) {
+        g_home_offer = true;
+        return true;
+    }
+    if (sign_is_depart(button)) {                // « À l'aventure ! » : vote de depart
+        if (net_role() == NetRole::Host) return depart_start(button);
+        show_info(fmt(u8"C'est %s qui lance l'aventure :\n"
+                      u8"demande-lui de cliquer sur « À l'aventure ! ».",
+                      host_display().c_str()));
+        return true;
     }
     if (g_night_ready || g_live.alive) return true;
     g_endday_button = button;

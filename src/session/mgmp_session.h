@@ -40,6 +40,13 @@ void session_update();
 // disagree about what accepting a peer means.
 void session_on_hello(uint8_t from, const Hello& h);
 
+// Mewgenics Multi : met un pair a niveau dans l'aventure en cours (la save, les
+// chats, l'inventaire, l'historique, la case actuelle, les decisions du combat
+// en cours) -- ce que l'hote fait pour un pair qui arrive, refait pour un invite
+// qui jouait dans sa propre save et demande a rejoindre (MM_RUN_REQ). Hote
+// seulement.
+void session_catchup_peer(uint8_t peer);
+
 bool        session_ready();
 const char* session_status();   // one line for the banner / diagnostics
 

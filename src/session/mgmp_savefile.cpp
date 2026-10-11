@@ -8,7 +8,9 @@
 #include "mgmp_log.h"
 #include "mgmp_addresses.h"
 #include "mgmp_resolve.h"
-#include "mgmp_follow.h"   // follow_on_map
+#include "mgmp_follow.h"   // follow_on_map, follow_drop_pending
+#include "mgmp_choice.h"   // choice_forget (Mewgenics Multi)
+#include "mgmp_leave.h"    // leave_in_run (Mewgenics Multi)
 // A slot click starts a run, which makes the three per-run dedupe caches stale.
 // See the block in savefile_on_slot_click.
 #include "mgmp_catsync.h"
@@ -296,6 +298,21 @@ struct State {
     uint32_t play_cooldown = 0;
     bool     said_gave_up  = false;
     bool     said_no_click = false;
+
+    // --- Mewgenics Multi : chacun sa save (voir mgmp_savefile.h) ---
+    // hote : publie une fois par aventure, quand elle est chargee et la carte a
+    // l'ecran ; `run_seen` = une aventure etait chargee a la derniere image.
+    bool     run_published = false;
+    bool     run_seen      = false;
+    uint32_t run_off       = 0;       // images consecutives hors aventure
+    // invite
+    int      own_slot      = -1;      // son emplacement, choisi a la main
+    char     own_name[64]  = {};
+    bool     in_coop       = false;   // la partie chargee vient de mgmp_coop.sav
+    bool     join_armed    = false;   // « J'arrive » : charger l'aventure de l'hote
+    bool     home_armed    = false;   // rentrer : « Jouer » puis own_slot
+    uint32_t publishes     = 0;       // publications reussies (hote)
+    bool     fresh_in_coop = false;   // une nouvelle aventure arrivee dans la copie
 };
 
 // How hard to try. The first press is immediate; if the Play button is still
@@ -554,16 +571,13 @@ void savefile_init() {
     g.announced = true;
     if (g.is_client)
         log_line_lvl(LogLevel::Trace, "SAVEFILE",
-                             "armed -- waiting for the host's save; local save-file "
-                             "input is suppressed and the run will load from '%s', "
-                             "leaving this machine's own saves alone", kCoopSaveName);
+                             "armed -- this player keeps their own save; the host's "
+                             "adventure loads from '%s' when they join one",
+                             kCoopSaveName);
     else
         log_line_lvl(LogLevel::Trace, "SAVEFILE",
-                             "armed -- will publish this peer's save file to the client");
-    if (!g.is_client && g.have_slot)
-        log_line_lvl(LogLevel::Trace, "SAVEFILE",
-                             "the host had already chosen slot %u '%s' before the "
-                             "peer connected -- publishing it now", g.slot, g.name);
+                             "armed -- this host's save is published when an "
+                             "adventure starts");
 }
 
 void savefile_shutdown() {
@@ -586,14 +600,16 @@ void savefile_shutdown() {
         //     in the run and a save cannot be applied off the selection screen)
         //     and resynchronises from the per-node pushes instead. That is
         //     g.applied == false with g.refused > 0, and it is a success.
-        const bool failed = g.announced &&
-                            (g.is_client ? (!g.applied && !g.refused)
-                                         : !g.published);
-        log_line_lvl(failed ? LogLevel::Error : LogLevel::Trace, "SAVEFILE",
+        // Mewgenics Multi : chacun joue dans sa save, et la save de l'hote ne
+        // part qu'avec une aventure. Une session sans aventure ne publie donc
+        // rien, et ce n'est pas une erreur.
+        log_line_lvl(LogLevel::Trace, "SAVEFILE",
                  "done: %s, %u local pick(s) suppressed, %u save(s) "
                  "declined as already-in-run",
-                 g.is_client ? (g.applied ? "loaded the host's save" : "never received a save")
-                             : (g.published ? "published our save" : "published nothing"),
+                 g.is_client ? (g.applied ? "joined the host's adventure"
+                                          : "stayed in this player's own save")
+                             : (g.published ? "published an adventure"
+                                            : "no adventure to publish"),
                  g.suppressed, g.refused);
     }
     g.on = false;
@@ -655,6 +671,9 @@ void savefile_catchup(uint8_t peer) {
     if (!g.on || g.is_client) return;
     if (!g.published || !g.have_slot) return;
     if (!net_active()) return;
+    // Mewgenics Multi : hors aventure, il n'y a rien a rattraper -- l'invite
+    // joue dans sa propre save. Il recevra l'aventure suivante a son depart.
+    if (!g.run_seen || !g.run_published) return;
     // fresh = false: this peer is being caught up, not told to restart. A
     // client already in the run must keep it and resync from the per-node
     // pushes; only a slot click means "drop what you have".
@@ -674,8 +693,45 @@ void savefile_pump() {
     if (g.play_cooldown) --g.play_cooldown;
 
     if (!g.on || g.is_client) return;
-    if (g.published) return;
     if (!net_active()) return;
+
+    // MEWGENICS MULTI : LA SAVE PART AVEC L'AVENTURE, PLUS AU CLIC.
+    //
+    // Chacun joue dans sa propre save : celle de l'hote ne sert a l'invite que
+    // pour une aventure. Elle est donc publiee quand une aventure est chargee
+    // chez l'hote (la liste des chats de la course n'est pas vide) et qu'il est
+    // sur la carte -- entre deux cases, seul moment ou flush_live_run peut
+    // appeler save_adventure sans coincer la course. Une fois par aventure
+    // (fresh : l'invite repart de celle-ci). Un invite qui arrive en cours de
+    // route la recoit par session_catchup_peer (savefile_catchup).
+    //
+    // « En aventure » se lit comme mgmp_leave le fait : la liste des chats de la
+    // course n'est pas vide ET aucune scene de dehors (maison, menu, ecran des
+    // saves) n'est chargee. La fin est confirmee pendant deux secondes avant
+    // d'etre annoncee : un trou d'une image pendant une transition ne doit pas
+    // renvoyer l'invite chez lui.
+    {
+        const bool run = adventure_is_loaded_impl() && leave_in_run();
+        if (!run) {
+            if (g.run_seen && ++g.run_off >= 120) {
+                log_line("SAVEFILE", "the host's adventure is over -- the next one "
+                                     "will be published when it starts");
+                g.run_seen      = false;
+                g.run_published = false;
+            }
+            return;
+        }
+        g.run_off = 0;
+        if (!g.run_seen) {
+            g.run_seen      = true;
+            g.run_published = false;
+            g.publish_tries = 0;
+            log_line("SAVEFILE", "an adventure is loaded on the host -- publishing "
+                                 "it as soon as the map is up");
+        }
+        if (g.run_published) return;
+        if (!follow_on_map()) return;
+    }
 
     // THE SILENT STALL. g.have_slot is set by savefile_on_slot_click and by
     // nothing else, so a host that never passed through the save-selection
@@ -704,10 +760,18 @@ void savefile_pump() {
     // to disk. Once a second is often enough for a transfer that happens once.
     if (++g.publish_tries % 60 != 1) return;
 
-    // fresh = true: the only way g.have_slot is set is savefile_on_slot_click,
-    // so everything this path publishes is a slot the host just chose.
+    // fresh = true : une nouvelle aventure, l'invite laisse tomber celle qu'il
+    // aurait encore et repart de celle-ci. Elle rend aussi faux les caches
+    // anti-doublon par course de catsync, invsync et runhist (meme raison qu'au
+    // clic sur l'emplacement, plus bas). Un invite qui arrive en cours de route
+    // passe par session_catchup_peer (la save, puis tout le reste).
+    catsync_forget();
+    invsync_forget();
+    runhist_forget();
     if (publish(kNoPeer, /*fresh=*/true)) {
-        g.published = true;
+        g.published     = true;
+        g.run_published = true;
+        ++g.publishes;
         return;
     }
     if (g.publish_tries == 1)
@@ -715,6 +779,7 @@ void savefile_pump() {
                              "(a new game has no save file until the game writes one)",
                  g.name);
 }
+
 
 bool savefile_on_slot_click(void* ss, int slot) {
     ensure_state();
@@ -731,9 +796,25 @@ bool savefile_on_slot_click(void* ss, int slot) {
     // disabling the buttons keeps the change to one function, and it holds even
     // while we are still waiting for the host's file.
     if (g.is_client) {
+        // Mewgenics Multi : l'invite joue dans SA save. Son choix passe, et on
+        // retient l'emplacement pour l'y ramener apres une aventure. Seule
+        // exception : il a dit « J'arrive » -- c'est alors l'aventure de l'hote
+        // qui se charge (savefile_autoselect), pas sa save.
+        if (!g.join_armed) {
+            g.own_slot = slot;
+            if (have_names && (uint32_t)slot < names.count)
+                strncpy_s(g.own_name, names.v[slot], _TRUNCATE);
+            else
+                g.own_name[0] = 0;
+            g.home_armed = false;
+            log_line("SAVEFILE", "this player chose their own save: slot %d (%s) -- "
+                                 "it is theirs, the host's save is only used for an "
+                                 "adventure", slot, g.own_name[0] ? g.own_name : "?");
+            return true;
+        }
         ++g.suppressed;
-        log_line("SAVEFILE", "suppressed local save pick: slot %d (%s) -- the host's "
-                             "save is used%s",
+        log_line("SAVEFILE", "suppressed local save pick: slot %d (%s) -- joining the "
+                             "host's adventure%s",
                  slot,
                  (have_names && (uint32_t)slot < names.count) ? names.v[slot] : "?",
                  g.pending ? "" : " (not received yet)");
@@ -781,9 +862,9 @@ bool savefile_on_slot_click(void* ss, int slot) {
     invsync_forget();
     runhist_forget();
 
-    log_line("SAVEFILE", "host chose slot %u '%s' -- publishing it and forgetting "
-                         "the per-run cat/inventory/history caches, because this "
-                         "starts a run", g.slot, g.name);
+    log_line("SAVEFILE", "host chose slot %u '%s' -- it will be published when an "
+                         "adventure starts (each player keeps their own save "
+                         "until then)", g.slot, g.name);
     return true;
 }
 
@@ -818,7 +899,13 @@ void savefile_on_message(const SaveFileMsg& m) {
     //
     // The run is kept and the host's per-node CATDATA/INVENTORY/ENTERNODE
     // pushes resynchronise it, which is what a reconnect actually needs.
-    if (g.applied && !m.fresh) {
+    // Mewgenics Multi : seulement s'il est VRAIMENT dans la copie de l'aventure.
+    // Un invite reste dans sa propre save entre deux aventures ; s'il demande a
+    // rejoindre en cours de route, la copie qu'on lui renvoie est pour lui.
+    // redirect_armed : le clic sur l'emplacement est parti, la copie se charge
+    // -- une seconde copie la, et l'ecran des saves recliquerait sans redirection
+    // (sur la vraie save du joueur).
+    if (g.applied && !m.fresh && (g.in_coop || g.redirect_armed)) {
         ++g.refused;
         if (g.refused == 1)
             log_line("SAVEFILE", "<- host's save (slot %u '%s', hash %016llx) "
@@ -835,15 +922,14 @@ void savefile_on_message(const SaveFileMsg& m) {
     // g.applied, which is set once per process, was the whole reason the second
     // save was declined. Clear it and re-arm the auto-Play so the client can
     // follow the host back through the save screen.
-    if (g.applied && m.fresh) {
+    if (g.applied) {
         g.applied      = false;
         g.play_presses = 0;
         g.play_cooldown = 0;
         g.said_gave_up = false;
-        log_line_lvl(LogLevel::Warn, "SAVEFILE",
-                 "the host picked a save again -- it has left the run this peer "
-                 "was in, so that run is being dropped and reloaded from the "
-                 "host's new pick");
+        log_line("SAVEFILE", m.fresh
+                 ? "a new adventure from the host -- it replaces the previous copy"
+                 : "a fresh copy of the host's adventure, asked for to join it");
 
         // The residual limit, stated rather than hidden. autoselect only runs
         // from SaveSelection::update and the auto-Play only from the main menu's
@@ -851,7 +937,7 @@ void savefile_on_message(const SaveFileMsg& m) {
         // either of them can act on. The blob is kept and applies the moment the
         // player gets back to the menu -- but nothing can drag them there, so
         // this has to be said out loud.
-        if (adventure_is_loaded_impl())
+        if (g.in_coop && adventure_is_loaded_impl())
             log_line_lvl(LogLevel::Error, "SAVEFILE",
                      "!! this peer is INSIDE a run and a save can only be applied "
                      "from the save-selection screen -- quit to the main menu and "
@@ -871,6 +957,39 @@ void savefile_on_message(const SaveFileMsg& m) {
 
     log_line("SAVEFILE", "<- host's save: slot %u '%s', %u bytes, hash %016llx",
              m.slot, m.name, m.size, (unsigned long long)h);
+
+    // Mewgenics Multi : cette copie est l'aventure telle qu'elle est MAINTENANT.
+    // Les cases et les choix recus avant elle (pendant que le joueur etait chez
+    // lui) sont deja dedans : rejoues apres le chargement, ils feraient rentrer
+    // la copie dans des cases deja resolues. Ce qui arrive apres est garde.
+    if (!g.in_coop || m.fresh) {
+        follow_drop_pending();
+        choice_forget();
+        catsync_drop_pending();
+        invsync_drop_pending();
+        runhist_drop_pending();
+    }
+    // Une NOUVELLE aventure alors qu'il joue encore l'ancienne copie (l'hote a
+    // recharge sa partie, par exemple). Des maintenant, l'ancienne copie ne
+    // compte plus : rien n'y sera suivi ni applique, et il est « en train de
+    // rejoindre » la nouvelle -- mm_menu l'emmene la charger.
+    if (g.in_coop && m.fresh) {
+        g.in_coop       = false;
+        g.join_armed    = true;
+        g.home_armed    = false;
+        g.play_presses  = 0;
+        g.play_cooldown = 0;
+        g.said_gave_up  = false;
+        g.fresh_in_coop = true;
+        log_line("SAVEFILE", "a new adventure while still in the old copy -- this "
+                             "player will load the new one");
+    }
+}
+
+bool savefile_take_fresh_in_coop() {
+    const bool f = g.fresh_in_coop;
+    g.fresh_in_coop = false;
+    return f && g.pending;
 }
 
 int savefile_autoselect(void* ss) {
@@ -896,7 +1015,31 @@ int savefile_autoselect(void* ss) {
         }
     }
 
-    if (!g.is_client || g.applied) return -1;
+    if (!g.is_client) return -1;
+
+    // Mewgenics Multi : retour a la maison. On clique l'emplacement que le
+    // joueur avait choisi lui-meme, sans redirection : c'est sa vraie save.
+    if (g.home_armed) {
+        Names names{};
+        if (!read_slot_names(ss, names)) return -1;   // ecran pas encore construit
+        g.home_armed     = false;
+        g.redirect_armed = false;                      // surtout pas mgmp_coop.sav
+        if (g.own_slot < 0 || (uint32_t)g.own_slot >= names.count) {
+            log_line("SAVEFILE", "back on the save screen -- this player has not "
+                                 "chosen a save of their own in this session, so "
+                                 "they pick one");
+            return -1;
+        }
+        int slot = g.own_slot;
+        if (g.own_name[0])
+            for (uint32_t i = 0; i < names.count; ++i)
+                if (_stricmp(names.v[i], g.own_name) == 0) { slot = (int)i; break; }
+        log_line("SAVEFILE", "back home: clicking this player's own slot %d (%s), no "
+                             "redirect", slot, names.v[slot]);
+        return slot;
+    }
+
+    if (!g.join_armed || g.applied) return -1;
 
     if (!g.pending) {
         // Say it once. The screen sits there doing nothing until the host picks
@@ -983,8 +1126,21 @@ int savefile_autoselect(void* ss) {
 }
 
 const void* savefile_redirect_load() {
-    if (!g.on || !g.redirect_armed) return nullptr;
+    // Mewgenics Multi : une partie se charge, les ecrans retenus par la couche
+    // des choix appartiennent a la precedente.
+    if (g.is_client) choice_forget_screens();
+    // Toute autre partie chargee est la save du joueur.
+    if (!g.redirect_armed) {
+        if (g.in_coop)
+            log_line("SAVEFILE", "a save of this player's own is loading -- out of "
+                                 "the host's adventure copy");
+        g.in_coop = false;
+        return nullptr;
+    }
+    if (!g.on) return nullptr;
     g.redirect_armed = false;
+    g.in_coop        = true;
+    g.join_armed     = false;          // arrive
     log_line("SAVEFILE", "redirecting MewDirector::init to '%s'", kCoopSaveName);
     return &g.redirect_name;
 }
@@ -994,7 +1150,10 @@ void savefile_on_button_update(void* button) {
     // button in the game on every frame, so everything above the name read is
     // a load and a branch, and g.pending is false for all of a normal session.
     if (!g.on || !g.is_client) return;
-    if (!g.pending || g.applied) return;      // nothing waiting, or already in
+    // Mewgenics Multi : on n'appuie que si le joueur l'a demande -- rejoindre
+    // l'aventure de l'hote (sa save est la), ou rentrer dans sa propre save.
+    const bool want_join = g.join_armed && g.pending && !g.applied;
+    if (!want_join && !g.home_armed) return;
     if (!button) return;
 
     if (!g.button_click) {
@@ -1037,7 +1196,8 @@ void savefile_on_button_update(void* button) {
     // already written to disk and nothing to do but open it.
     ++g.play_presses;
     g.play_cooldown = kPlayRetryFrames;
-    log_line("SAVEFILE", "the host's save is in -- pressing '%s' for you%s",
+    log_line("SAVEFILE", "%s -- pressing '%s' for you%s",
+             want_join ? "the host's save is in" : "going back to this player's own save",
              name,
              g.play_presses > 1 ? " (again; the first press did not take)" : "");
 
@@ -1048,7 +1208,61 @@ void savefile_on_button_update(void* button) {
 }
 
 bool savefile_client_waiting_to_load() {
-    return g.on && g.is_client && g.pending && !g.applied;
+    return g.on && g.is_client && g.pending && !g.applied && g.join_armed;
 }
+
+void savefile_set_join(bool on) {
+    ensure_state();
+    if (!g.on || !g.is_client) return;
+    if (g.join_armed == on) return;
+    g.join_armed = on;
+    if (on) {
+        g.home_armed    = false;
+        g.play_presses  = 0;
+        g.play_cooldown = 0;
+        g.said_gave_up  = false;
+        g.said_waiting  = false;
+    }
+    log_line("SAVEFILE", on ? "this player joins the host's adventure -- its save "
+                              "will load from '%s' once it is here"
+                            : "this player no longer joins the host's adventure%s",
+             on ? kCoopSaveName : "");
+}
+
+void savefile_drop_pending() {
+    ensure_state();
+    if (!g.on || !g.is_client || !g.pending) return;
+    g.pending = false;
+    log_line("SAVEFILE", "dropped the waiting copy of the host's adventure -- a "
+                         "fresh one is on its way");
+}
+
+void savefile_go_home() {
+    ensure_state();
+    if (!g.on || !g.is_client) return;
+    g.join_armed     = false;
+    g.home_armed     = true;
+    // Une copie dont le clic est deja parti se charge : sans sa redirection, le
+    // jeu ouvrirait la vraie save du joueur a l'emplacement de l'hote.
+    if (!(g.applied && g.redirect_armed)) g.redirect_armed = false;
+    g.play_presses   = 0;
+    g.play_cooldown  = 0;
+    g.said_gave_up   = false;
+    log_line("SAVEFILE", "going home: at the menu, Play then this player's own slot "
+                         "(%d, %s)", g.own_slot, g.own_name[0] ? g.own_name : "none yet");
+}
+
+bool savefile_in_coop()       { return g.is_client && g.in_coop; }
+
+void savefile_left_game() {
+    if (!g.in_coop) return;
+    g.in_coop = false;
+    log_line("SAVEFILE", "back on the main menu -- out of the host's adventure copy");
+}
+bool savefile_has_own_slot()  { return g.own_slot >= 0; }
+bool savefile_join_armed()    { return g.on && g.is_client && g.join_armed; }
+bool savefile_home_armed()    { return g.on && g.is_client && g.home_armed; }
+bool savefile_run_published() { return !g.is_client && g.run_seen && g.run_published; }
+uint32_t savefile_publish_count() { return g.publishes; }
 
 } // namespace mgmp

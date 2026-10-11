@@ -9,6 +9,7 @@
 #include "mgmp_mem.h"
 #include "mgmp_net.h"
 #include "mgmp_proto.h"
+#include "mgmp_savefile.h"   // savefile_in_coop (Mewgenics Multi)
 
 #include <windows.h>
 #include <cstdio>
@@ -598,6 +599,26 @@ void invsync_on_message(const InventoryMsg& m) {
         return;
     }
 
+    // MEWGENICS MULTI : PAS DANS LA SAVE DU JOUEUR. Entre deux aventures,
+    // l'invite joue dans sa propre save ; ce que l'hote pousse de SA course n'a
+    // rien a y faire. S'il est en train de rejoindre l'aventure (ou que la copie
+    // se charge encore), la poussee est GARDEE : appliquee une fois la copie
+    // chargee, avant la premiere case suivie (ou avant une poussee plus recente).
+    if (!savefile_in_coop() || !savefile_adventure_is_loaded()) {
+        const bool joining = savefile_in_coop() || savefile_join_armed();
+        if (!joining) {
+            static bool said = false;
+            if (!said) {
+                said = true;
+                log_line("INVSYNC", "not in the host's adventure copy -- this push "
+                                  "is dropped, the player's own save is left alone");
+            }
+            return;
+        }
+        if (stash_pending(m)) ++g.deferred;
+        return;
+    }
+
     if (!defer_applies()) { apply_now(m, "on arrival"); return; }
 
     if (!stash_pending(m)) {
@@ -628,6 +649,14 @@ void invsync_apply_pending(const char* why) {
     }
     apply_now(m, why);
     free_pending();   // frees the same buffers m borrowed; m is dead here
+}
+
+void invsync_drop_pending() {
+    ensure_state();
+    if (g.pend_have)
+        log_line("INVSYNC", "dropped a held inventory from before the host's save "
+                            "that just arrived");
+    free_pending();
 }
 
 } // namespace mgmp

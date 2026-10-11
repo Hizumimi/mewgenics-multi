@@ -97,4 +97,9 @@ void catsync_on_message(const CatDataMsg& m);
 // battle screen, and it is still in time for whatever the node opens.
 void catsync_apply_pending(const char* why);
 
+
+// Mewgenics Multi : jette les poussees gardees (une save a jour de l'aventure de
+// l'hote vient d'arriver chez un invite qui la rejoint ; elle les contient).
+void catsync_drop_pending();
+
 } // namespace mgmp

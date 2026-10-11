@@ -7,6 +7,7 @@
 #include "mgmp_config.h"
 #include "mgmp_tuning.h"
 #include "mgmp_lockstep.h"   // lockstep_in_battle
+#include "mgmp_savefile.h"   // savefile_in_coop (Mewgenics Multi)
 #include "mgmp_log.h"
 #include "mgmp_mem.h"
 #include "mgmp_net.h"
@@ -348,6 +349,26 @@ void runhist_on_message(const RunHistMsg& m) {
     }
     if (!m.data || !m.size) return;
 
+    // MEWGENICS MULTI : PAS DANS LA SAVE DU JOUEUR. Entre deux aventures,
+    // l'invite joue dans sa propre save ; ce que l'hote pousse de SA course n'a
+    // rien a y faire. S'il est en train de rejoindre l'aventure (ou que la copie
+    // se charge encore), la poussee est GARDEE : appliquee une fois la copie
+    // chargee, avant la premiere case suivie (ou avant une poussee plus recente).
+    if (!savefile_in_coop() || !savefile_adventure_is_loaded()) {
+        const bool joining = savefile_in_coop() || savefile_join_armed();
+        if (!joining) {
+            static bool said = false;
+            if (!said) {
+                said = true;
+                log_line("RUNHIST", "not in the host's adventure copy -- this push "
+                                  "is dropped, the player's own save is left alone");
+            }
+            return;
+        }
+        stash_pending(m);
+        return;
+    }
+
     // NOT WHILE THIS PEER IS IN A BATTLE, the same rule and the same reason as
     // catsync_on_message. The host's reconnect catch-up republishes the whole
     // run, which is right for a peer whose process restarted and wrong for one
@@ -389,7 +410,18 @@ void runhist_on_message(const RunHistMsg& m) {
         return;
     }
 
+    // Mewgenics Multi : une poussee gardee pendant que le joueur rejoignait
+    // est plus ancienne que celle-ci, qui la remplace entierement.
+    if (g.pend_data) free_pending();
     apply_now(m, "on arrival");
+}
+
+void runhist_drop_pending() {
+    ensure_state();
+    if (g.pend_data)
+        log_line("RUNHIST", "dropped a held run history from before the host's save "
+                            "that just arrived");
+    free_pending();
 }
 
 } // namespace mgmp

@@ -88,4 +88,9 @@ void runhist_apply_pending(const char* why);
 // boundaries and nowhere else.
 uint64_t runhist_hash();
 
+
+// Mewgenics Multi : jette les poussees gardees (une save a jour de l'aventure de
+// l'hote vient d'arriver chez un invite qui la rejoint ; elle les contient).
+void runhist_drop_pending();
+
 } // namespace mgmp

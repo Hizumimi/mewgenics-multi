@@ -10,6 +10,7 @@
 #include "mgmp_net.h"
 #include "mgmp_proto.h"
 #include "mgmp_lockstep.h"   // lockstep_in_battle
+#include "mgmp_savefile.h"   // savefile_in_coop (Mewgenics Multi)
 
 #include <windows.h>
 #include <cstdio>
@@ -440,6 +441,29 @@ void catsync_on_message(const CatDataMsg& m) {
     }
     if (!m.data || !m.size) return;
 
+    // MEWGENICS MULTI : PAS DANS LA SAVE DU JOUEUR. Entre deux aventures,
+    // l'invite joue dans sa propre save ; ce que l'hote pousse de SA course n'a
+    // rien a y faire. S'il est en train de rejoindre l'aventure (ou que la copie
+    // se charge encore), la poussee est GARDEE : appliquee une fois la copie
+    // chargee, avant la premiere case suivie (ou avant une poussee plus recente).
+    if (!savefile_in_coop() || !savefile_adventure_is_loaded()) {
+        const bool joining = savefile_in_coop() || savefile_join_armed();
+        if (!joining) {
+            static bool said = false;
+            if (!said) {
+                said = true;
+                log_line("CATSYNC", "not in the host's adventure copy -- this push "
+                                  "is dropped, the player's own save is left alone");
+            }
+            return;
+        }
+        if (!stash_pending(m))
+            log_line("CATSYNC", "!! could not hold cat %016llx while joining the "
+                                "adventure -- it will come with the next push",
+                     (unsigned long long)m.id);
+        return;
+    }
+
     // NOT WHILE A BATTLE THIS PEER IS ALREADY IN IS RUNNING -- but HELD, never
     // dropped. The difference cost a whole run on 2026-08-26 and is the reason
     // this branch is written twice over.
@@ -505,7 +529,19 @@ void catsync_on_message(const CatDataMsg& m) {
         return;
     }
 
+    // Mewgenics Multi : jamais une poussee plus recente avant une plus ancienne
+    // encore gardee (celles recues pendant que le joueur rejoignait) -- sinon
+    // l'ancienne, appliquee plus tard, ecraserait la nouvelle.
+    if (g.pend_count) catsync_apply_pending("an older push was still held");
     apply_now(m, "on arrival");
+}
+
+void catsync_drop_pending() {
+    ensure_state();
+    if (g.pend_count)
+        log_line("CATSYNC", "dropped %u held cat push(es) from before the host's save "
+                            "that just arrived", g.pend_count);
+    free_pending();
 }
 
 } // namespace mgmp
