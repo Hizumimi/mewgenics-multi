@@ -112,4 +112,11 @@ void leave_status(char* out, size_t out_size);
 // because the debug panel should be able to show it.
 bool leave_in_run();
 
+// Mewgenics Multi : vrai quand ce module appuiera lui-meme sur « Quitter vers le
+// menu » des que le menu pause sera ouvert (l'hote a quitte l'aventure, il
+// reste des appuis). mm_menu, qui ouvre ce menu pour ramener l'invite chez lui,
+// le laisse alors faire : deux clics sur le meme bouton dans la meme image
+// lanceraient deux fois le retour au menu.
+bool leave_will_press_quit();
+
 } // namespace mgmp

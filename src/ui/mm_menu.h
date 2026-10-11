@@ -63,10 +63,17 @@ void mm_on_peer_hello(uint8_t peer, const char* name_utf8);
 struct MmMsg;
 void mm_on_message(uint8_t from, const MmMsg& m);
 
+// L'hote a quitte son aventure (MSG_HOSTLEFT, apres mgmp_leave). Ce message
+// arrive une ou deux secondes avant MM_HOST_RUN 0 : l'invite note tout de suite
+// que l'aventure est finie, et qu'il doit rentrer s'il est dans la copie --
+// avant que mgmp_leave ne le ramene au menu, ou la copie ne compterait plus.
+void mm_on_host_left();
+
 // Appele par le detour de Button::Click, avant le clic. Vrai = clic retenu :
 // en session, le panneau de fin de journee (« EndDay_Sign ») attend que tout le
-// monde soit pret ; le mod le rejoue ensuite tel quel. Pas quand le meme panneau
-// dit « À l'aventure ! » (chats dans l'equipe) : ce clic-la passe.
+// monde soit pret ; le mod le rejoue ensuite tel quel. Avec des chats dans
+// l'equipe, le meme panneau s'appelle « Depart_Sign » (« À l'aventure ! ») :
+// chez l'hote, son clic ouvre le vote de depart ; chez un invite, il ne part pas.
 //
 // Les joueurs qui ne sont pas encore prets le voient : leur panneau dit
 // « 1 joueur attend » et une fenetre le leur annonce, avec « Passer la nuit ».

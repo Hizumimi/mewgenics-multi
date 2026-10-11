@@ -2118,6 +2118,7 @@ void lockstep_pump() {
             // whatever this peer happens to be in the middle of.
             case MSG_HOSTLEFT:
                 leave_on_message(m.hostleft);
+                mm_on_host_left();      // Mewgenics Multi : l'invite doit rentrer
                 break;
 
             // Mewgenics Multi : nuit votee (et les fonctions a venir).

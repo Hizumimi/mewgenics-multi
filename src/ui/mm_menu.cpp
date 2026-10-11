@@ -36,6 +36,7 @@
 #include "mgmp_lockstep.h"  // lockstep_in_battle
 #include "mgmp_follow.h"    // follow_inside_node
 #include "mgmp_choice.h"    // choice_made_in_node
+#include "mgmp_leave.h"     // leave_will_press_quit
 
 #include <winsock2.h>   // avant windows.h : types reseau d'iphlpapi
 #include <ws2tcpip.h>
@@ -524,11 +525,16 @@ void* find_scene(const char* wanted, bool* paused = nullptr) {
 // principal ou l'ecran des sauvegardes. Le Director est retenu dans
 // MainMenu::init (premier champ de toute scene) : c'est un singleton qui vit
 // tout le processus.
+// Le combat et l'evenement viennent en dernier : on n'y ouvre une fenetre que
+// quand l'aventure de l'hote est finie (battle_popups_ok), pour ramener l'invite
+// chez lui.
 void* popup_parent_scene() {
-    for (const char* name : { "House", "Map", "MainMenu", "SaveSelectionScreen" })
+    for (const char* name : { "House", "Map", "MainMenu", "SaveSelectionScreen", "Battle", "Event" })
         if (void* s = find_scene(name)) return s;
     return nullptr;
 }
+
+bool battle_popups_ok();                // section aventure, plus bas
 
 void popup_closed(uint32_t serial) {
     if (g_live.serial != serial) return;
@@ -565,8 +571,9 @@ bool open_popup(Screen screen, const std::string& text_utf8, const char* yes, co
     }
     // Jamais pendant un combat : la boite met en pause toutes les scenes en
     // dessous d'elle, et un combat en pause chez un seul joueur casserait la
-    // marche au pas de mgmp. La demande attend la fin du combat.
-    if (find_scene("Battle")) return false;
+    // marche au pas de mgmp. La demande attend la fin du combat. Sauf chez un
+    // invite dont l'hote a quitte l'aventure : ce combat-la ne reprendra pas.
+    if (find_scene("Battle") && !battle_popups_ok()) return false;
     void* scene = popup_parent_scene();
     if (!scene) {
         log_line("MULTI", "!! fenetre impossible : aucune scene ou l'afficher (maison, carte, menu)");
@@ -1278,7 +1285,14 @@ uint32_t g_dep_offer_at    = 0;       // pas avant cette image (« Pas encore »
 bool     g_run_offer       = false;   // proposer de rejoindre l'aventure en cours
 uint32_t g_run_offer_at    = 0;
 bool     g_home_offer      = false;   // proposer de rentrer
-uint32_t g_home_since      = 0;       // l'aventure de l'hote est finie depuis cette image
+// L'aventure de l'hote est finie (abandon, victoire, defaite, connexion coupee)
+// et ce joueur n'est pas encore rentre chez lui : vrai dans la copie, et encore
+// apres en etre sorti autrement (mgmp_leave le ramene au menu, ou lui-meme).
+bool     g_home_due        = false;
+// La partie a l'ecran est une copie d'une aventure de l'hote, meme quand
+// mgmp_savefile ne la compte plus (une nouvelle copie arrive pendant que
+// l'ancienne est encore affichee). Faux une fois passe par le menu principal.
+bool     g_copy_on_screen  = false;
 int      g_peer_run_sent   = -1;      // dernier MM_PEER_RUN envoye
 
 // --- un message simple, un seul bouton ---
@@ -1306,8 +1320,20 @@ HWND     g_hwnd = nullptr;            // la fenetre du jeu (vue dans mm_menu_wnd
 
 bool trip_active() { return g_trip.active; }
 
+// Une fenetre par-dessus un combat ne gene la marche au pas que si le combat
+// doit continuer. Chez un invite dont l'hote a quitte l'aventure, il ne
+// reprendra pas : la fenetre « Retour à la maison » peut s'y ouvrir.
+// (Un invite, ou un ancien invite dont la connexion vient de tomber : il n'est
+// plus « Client », mais sa copie, elle, est toujours la.)
+bool battle_popups_ok() {
+    if (net_role() == NetRole::Host) return false;
+    if (session_has_others() && g_host_in_run) return false;     // le combat continue
+    // A rentrer, ou deja en route (le trajet peut avoir a dire « appuie sur
+    // Échap » par-dessus le combat).
+    return g_home_due || (savefile_in_coop() && savefile_home_armed());
+}
+
 constexpr uint32_t kOfferAgain  = 30 * 60;   // 30 s avant de re-proposer
-constexpr uint32_t kHomeGrace   = 20 * 60;   // l'invite finit sa propre fin d'aventure
 
 void show_info(const std::string& text) {
     g_info_text   = text;
@@ -1349,9 +1375,13 @@ void trip_pump() {
     // « Quitter vers le menu » a ete appuye : le fondu vers le menu est en
     // cours (la maison s'efface), pas d'autre Echap pendant ce temps.
     if (g_trip.press_ok && g_frame < g_trip.press_ok + 600) return;
+    // La scene du dessus d'abord : pendant un combat (ou un evenement), la carte
+    // peut etre encore chargee en dessous, et c'est le combat que le menu pause
+    // met en pause.
     bool paused = false;
-    void* here = find_scene("House", &paused);
-    if (!here) here = find_scene("Map", &paused);
+    void* here = nullptr;
+    for (const char* name : { "Battle", "Event", "House", "Map" })
+        if ((here = find_scene(name, &paused)) != nullptr) break;
     if (here && paused) {                    // menu pause ouvert : attendre l'appui
         g_trip.next_esc = g_frame + 60;
         return;
@@ -1380,6 +1410,13 @@ void trip_on_button(void* button) {
     if (!mem_read_std_string((char*)button + kBtn_Name, name, sizeof(name))) return;
     if (strcmp(name, kBtnName_PauseQuitToMenu) != 0) return;
     g_trip.press_ok = g_frame + 120;
+    // L'hote a quitte l'aventure : mgmp_leave appuie deja sur ce bouton (dans
+    // cette image ou apres son delai). Un second clic relancerait le retour au
+    // menu pendant le premier.
+    if (leave_will_press_quit()) {
+        log_line("MULTI", "menu pause ouvert : « Quitter vers le menu » est appuye par mgmp");
+        return;
+    }
     log_line("MULTI", "menu pause ouvert : appui sur « Quitter vers le menu »");
     auto click = call_target<FnButtonClick>(C_ButtonClick);
     if (click) click(button, false);
@@ -1449,9 +1486,9 @@ std::string home_offer_text() {
         return fmt(u8"Retour à la maison\n\n"
                    u8"La connexion avec %s est coupée.\n"
                    u8"Tu rentres dans ta maison.", host_display().c_str());
-    return u8"Retour à la maison\n\n"
-           u8"L'aventure est finie !\n"
-           u8"Tu rentres dans ta maison.";
+    return fmt(u8"Retour à la maison\n\n"
+               u8"L'aventure de %s est terminée.\n"
+               u8"Tu rentres dans ta maison.", host_display().c_str());
 }
 
 // --- hote ---
@@ -1468,7 +1505,7 @@ uint32_t peer_run_mask() {
 }
 
 void depart_check_go() {
-    if (!g_dep_active) return;
+    if (!g_dep_active || g_dep_go) return;     // deja decide : une seule fois
     const uint32_t others = peers_mask_others();
     for (uint8_t id = 0; id < 8; ++id)
         if ((others & (1u << id)) && g_dep_answer[id] != 1) return;
@@ -1613,6 +1650,13 @@ void cancel_join(const char* why) {
     savefile_set_join(false);
     log_line("MULTI", "aventure : on ne la rejoint plus (%s)", why);
     if (savefile_in_coop()) return;
+    // Encore dans une ancienne copie (une nouvelle venait d'arriver, et l'hote
+    // repart aussitot) : elle ne sert plus a rien, il rentre aussi.
+    if (g_copy_on_screen && !at_main_menu()) {
+        savefile_go_home();                  // sans emplacement a lui : il choisira au menu
+        start_menu_trip("sortir de l'ancienne copie");
+        return;
+    }
     // Au menu, ou « Quitter vers le menu » deja appuye : retour dans sa propre
     // save. Encore dans sa maison : il y reste, le trajet s'arrete.
     const bool leaving = at_main_menu() || (g_trip.active && g_trip.press_ok);
@@ -1621,12 +1665,29 @@ void cancel_join(const char* why) {
 }
 
 void client_adventure_pump() {
-    if (net_role() != NetRole::Client) return;
+    if (net_role() != NetRole::Client) {
+        // Plus de session (la connexion est tombee) : le retour a la maison
+        // attendu reste propose tant qu'il est dans la copie, et n'a plus d'objet
+        // une fois dans une maison qui n'est pas la copie.
+        if (g_home_due && (net_role() == NetRole::Host ||
+                           (!savefile_in_coop() && find_scene("House") &&
+                            !savefile_adventure_is_loaded()))) {
+            g_home_due   = false;
+            g_home_offer = false;
+        }
+        return;
+    }
     const bool others = session_has_others();
+
+    if (savefile_in_coop())  g_copy_on_screen = true;
+    else if (at_main_menu()) g_copy_on_screen = false;
 
     // Dire a l'hote si ce joueur est dans l'aventure.
     if (others) {
-        const int in_run = (savefile_in_coop() && savefile_adventure_is_loaded()) ? 1 : 0;
+        // Seulement tant que l'hote y est : la copie d'une aventure finie n'est
+        // plus son aventure (l'hote compterait sinon un arrivant fantome).
+        const int in_run =
+            (savefile_in_coop() && savefile_adventure_is_loaded() && g_host_in_run) ? 1 : 0;
         if (in_run != g_peer_run_sent) {
             // Arrive : ce que l'hote a pousse pendant le trajet (chats,
             // historique) a ete garde ; on l'applique tout de suite, hors combat.
@@ -1655,8 +1716,8 @@ void client_adventure_pump() {
     // mgmp attendent l'hote, ils ne commenceraient jamais. On le lui dit, une
     // fois par partie chargee.
     static bool said_own_run = false;
-    if (others && !savefile_in_coop() && !savefile_join_armed() &&
-        savefile_adventure_is_loaded() && !at_main_menu()) {
+    if (others && !savefile_in_coop() && !g_copy_on_screen && !savefile_join_armed() &&
+        !g_home_due && !g_trip.active && savefile_adventure_is_loaded() && !at_main_menu()) {
         if (!said_own_run) {
             said_own_run = true;
             log_line("MULTI", "!! la save de ce joueur est en pleine aventure : elle ne peut "
@@ -1688,17 +1749,38 @@ void client_adventure_pump() {
         g_run_offer_at = g_frame;
     }
 
-    // Dans la copie de l'aventure de l'hote alors qu'elle est finie (ou que la
-    // connexion est coupee) : proposer de rentrer, une fois sa propre fin
-    // d'aventure jouee (ou au bout d'un moment).
-    if (savefile_in_coop() && !savefile_home_armed() && (!others || !g_host_in_run)) {
-        if (!g_home_since) g_home_since = g_frame;
-        if (!savefile_adventure_is_loaded() || g_frame - g_home_since > kHomeGrace)
-            g_home_offer = true;
-    } else {
-        g_home_since = 0;
-        g_home_offer = false;
+    // L'aventure de l'hote est finie (abandon, victoire, defaite) ou la connexion
+    // est coupee, et ce joueur est dans la copie : il rentre chez lui, et on le
+    // lui propose tout de suite -- sans l'hote, la carte et les combats de la
+    // copie ne bougent plus (la fenetre s'ouvre meme par-dessus un combat,
+    // battle_popups_ok). S'il sort de la copie autrement (mgmp_leave le ramene
+    // au menu quand l'hote abandonne, ou il quitte lui-meme), la fenetre
+    // l'attend au menu : il n'y reste pas bloque.
+    if (savefile_in_coop() && (!others || !g_host_in_run) && !g_home_due &&
+        !savefile_home_armed()) {
+        g_home_due = true;
+        log_line("MULTI", "aventure : celle de l'hote est finie%s, ce joueur doit rentrer chez lui",
+                 others ? "" : " (connexion coupee)");
     }
+    if (g_home_due) {
+        const char* why = nullptr;
+        if (savefile_home_armed())
+            why = "il est en route";
+        else if (savefile_join_armed())
+            why = "il rejoint une nouvelle aventure";
+        else if (others && g_host_in_run && !savefile_in_coop())
+            why = "l'hote est reparti, l'aventure en cours lui est proposee";
+        else if (others && g_host_in_run && savefile_in_coop() && savefile_adventure_is_loaded())
+            why = "la connexion est revenue, l'aventure continue";
+        // Pas de « il est dans sa maison » ici : pendant la sortie de la copie,
+        // la maison de la copie peut rester affichee une image apres que la
+        // copie ne compte plus, et le retour serait oublie en chemin.
+        if (why) {
+            g_home_due = false;
+            log_line("MULTI", "aventure : plus besoin de le ramener chez lui (%s)", why);
+        }
+    }
+    g_home_offer = g_home_due && !savefile_home_armed();
 }
 
 // --- les fenetres de l'aventure, par ordre de priorite ---
@@ -1712,8 +1794,10 @@ void adventure_popups() {
     if (g_live.alive) return;
     if (g_trip.active && !g_info_wanted) return;     // en route pour le menu
     // Entre deux ecrans (chargement, fondu), rien ou s'afficher : on attend, sans
-    // rien ecrire au journal a chaque image.
-    if (!popup_parent_scene() || find_scene("Battle")) return;
+    // rien ecrire au journal a chaque image. Pendant un combat, seulement chez
+    // un invite dont l'hote a quitte l'aventure (battle_popups_ok).
+    if (!popup_parent_scene()) return;
+    if (find_scene("Battle") && !battle_popups_ok()) return;
     const bool host = net_role() == NetRole::Host;
 
     if (g_info_wanted) {
@@ -1734,9 +1818,11 @@ void adventure_popups() {
     }
     if (host) return;
 
-    if (g_home_offer && savefile_in_coop()) {
-        open_popup(Screen::HomeOffer, home_offer_text(), u8"Rentrer", nullptr, true,
-                   Action::GoHome, Action::GoHome);
+    if (g_home_offer && g_home_due) {
+        if (open_popup(Screen::HomeOffer, home_offer_text(), u8"Rentrer", nullptr, true,
+                       Action::GoHome, Action::GoHome))
+            log_line("MULTI", "aventure : fenetre « Retour a la maison » ouverte%s",
+                     find_scene("Battle") ? " (par-dessus le combat)" : "");
         return;
     }
     if (g_dep_offer && g_dep_req_live && g_frame >= g_dep_offer_at && !savefile_in_coop() &&
@@ -1787,7 +1873,7 @@ void adventure_live() {
             if (!g_host_in_run || savefile_join_armed() || savefile_in_coop()) close_silently();
             break;
         case Screen::HomeOffer:
-            if (!savefile_in_coop() || (session_has_others() && g_host_in_run)) close_silently();
+            if (!g_home_due) close_silently();       // une nouvelle aventure, ou deja en route
             else popup_set_text(home_offer_text());
             break;
         case Screen::JoinWait:
@@ -1977,8 +2063,12 @@ void mm_menu_pump() {
             break;
         case Action::GoHome:
             g_home_offer = false;
+            g_home_due   = false;
             savefile_go_home();
-            start_menu_trip("retour chez soi");
+            if (!savefile_home_armed())              // plus de session : il choisira au menu
+                log_line("MULTI", "!! retour a la maison : la session est finie, ce joueur "
+                                  "choisira sa save au menu");
+            start_menu_trip("retour chez soi");      // rien a faire s'il est deja au menu
             break;
         case Action::JoinCancel:
             if (g_dep_req_live) {                    // le vote tient : « pas encore »
@@ -2167,6 +2257,26 @@ const char* mm_local_name() {
     return g_local_name;
 }
 
+// MSG_HOSTLEFT arrive des que l'hote est sorti de son aventure ; MM_HOST_RUN 0
+// suit une ou deux secondes plus tard (mgmp_savefile attend 120 images). Entre
+// les deux, mgmp_leave peut deja ramener l'invite au menu (si son menu pause
+// est ouvert) : la copie ne compterait plus quand MM_HOST_RUN 0 arriverait, et
+// le retour a la maison serait oublie. On le note donc ici, tout de suite.
+void mm_on_host_left() {
+    if (net_role() != NetRole::Client) return;
+    if (g_host_in_run)
+        log_line("MULTI", "aventure : %s a quitte son aventure", host_display().c_str());
+    g_host_in_run   = false;
+    g_run_offer     = false;
+    g_peer_run_sent = -1;                    // redire a l'hote ou on en est
+    if (savefile_join_armed() && !savefile_in_coop())
+        cancel_join("l'aventure de l'hote est finie");
+    if (savefile_in_coop() && !g_home_due && !savefile_home_armed()) {
+        g_home_due = true;
+        log_line("MULTI", "aventure : celle de l'hote est finie, ce joueur doit rentrer chez lui");
+    }
+}
+
 void mm_on_message(uint8_t from, const MmMsg& m) {
     switch (m.kind) {
         case MM_NIGHT_READY:
@@ -2283,7 +2393,8 @@ bool mm_on_button_click(void* button) {
     // Dans la copie de l'aventure de l'hote, la maison n'est pas la sienne : ni
     // nuit ni depart ici, on lui propose de rentrer.
     if (net_role() == NetRole::Client && savefile_in_coop()) {
-        g_home_offer = true;
+        if (!g_home_due) log_line("MULTI", "aventure : clic sur le panneau de la copie, retour propose");
+        g_home_due = true;
         return true;
     }
     if (kind == 2) {

@@ -335,6 +335,11 @@ void leave_set_base(uintptr_t /*base*/) {
 // which is finer than the thing it describes changes.
 bool leave_in_run() { return g.where == Where::InRun; }
 
+bool leave_will_press_quit() {
+    // Le cinquieme appui compte aussi : il vient de partir, dans cette image.
+    return g.pending && g.button_click && (g.presses < kMaxPresses || g.cooldown > 0);
+}
+
 void leave_pump() {
     ensure_state();
 
