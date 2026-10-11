@@ -1317,6 +1317,11 @@ struct MenuTrip {
 };
 MenuTrip g_trip;
 HWND     g_hwnd = nullptr;            // la fenetre du jeu (vue dans mm_menu_wndproc)
+// Apres l'appui sur « Quitter vers le menu », le temps d'attendre le menu avant
+// de demander au joueur de le faire lui-meme (30 s a 60 images par seconde).
+constexpr uint32_t kTripPatience = 30 * 60;
+const std::string kTripHelp = u8"Pour continuer, appuie sur Échap\n"
+                              u8"puis sur « Quitter vers le menu ».";
 
 bool trip_active() { return g_trip.active; }
 
@@ -1368,13 +1373,24 @@ void trip_pump() {
     if (at_main_menu()) {
         if (g_trip.key_down) { post_escape(false); g_trip.key_down = false; }
         g_trip.active = false;
+        // L'aide « appuie sur Échap » n'a plus d'objet : il y est.
+        if (g_trip.told && g_info_wanted && g_info_text == kTripHelp) g_info_wanted = false;
         log_line("MULTI", "arrive au menu principal");
         return;
     }
     if (g_frame < g_trip.next_esc || g_live.alive) return;
-    // « Quitter vers le menu » a ete appuye : le fondu vers le menu est en
-    // cours (la maison s'efface), pas d'autre Echap pendant ce temps.
-    if (g_trip.press_ok && g_frame < g_trip.press_ok + 600) return;
+    // « Quitter vers le menu » a ete appuye : le retour au menu est en cours,
+    // et il peut etre long (sauvegarde, fenetre du jeu en arriere-plan). Plus
+    // aucun Echap : arrive en retard, il tomberait sur le menu principal. Si
+    // rien n'a bouge au bout d'un long moment, on le dit au joueur.
+    if (g_trip.press_ok) {
+        if (g_frame > g_trip.press_ok + kTripPatience && !g_trip.told) {
+            g_trip.told = true;
+            log_line("MULTI", "!! « Quitter vers le menu » appuye, mais toujours pas au menu");
+            show_info(kTripHelp);
+        }
+        return;
+    }
     // La scene du dessus d'abord : pendant un combat (ou un evenement), la carte
     // peut etre encore chargee en dessous, et c'est le combat que le menu pause
     // met en pause.
@@ -1390,8 +1406,7 @@ void trip_pump() {
         if (!g_trip.told) {
             g_trip.told = true;
             log_line("MULTI", "!! le menu pause ne s'ouvre pas tout seul : le joueur doit le faire");
-            show_info(u8"Pour continuer, appuie sur Échap\n"
-                      u8"puis sur « Quitter vers le menu ».");
+            show_info(kTripHelp);
         }
         return;
     }
