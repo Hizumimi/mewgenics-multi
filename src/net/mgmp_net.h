@@ -143,6 +143,10 @@ bool net_send_savefile_to(uint8_t peer, const SaveFileMsg& m);
 // l'invite n'en fait jamais une partie, il en reprend les PNJ et l'histoire.
 bool net_send_world(const SaveFileMsg& m);
 bool net_send_world_to(uint8_t peer, const SaveFileMsg& m);
+// Mewgenics Multi : l'etat des PNJ de l'hote en direct (MSG_NPC, quelques
+// centaines d'octets) : l'invite en recopie la faveur dans sa maison.
+bool net_send_npc(const SaveFileMsg& m);
+bool net_send_npc_to(uint8_t peer, const SaveFileMsg& m);
 // Same contract as net_send_savefile, but small: a serialized cat is well under
 // a kilobyte, so this one is cheap enough to send several of in a row.
 bool net_send_catdata(const CatDataMsg& m);

@@ -2,6 +2,7 @@
 // autre. Voir mm_world_merge.h et mm_world.h.
 
 #include "mm_world_merge.h"
+#include "mm_npc_state.h"
 
 #include "mgmp_log.h"
 #include "sqlite3.h"
@@ -354,14 +355,21 @@ bool apply_world_impl(sqlite3* host, sqlite3* own, WorldSummary& sum) {
     if (!exec(own, "BEGIN")) return false;
     bool ok = true;
 
-    // Les PNJ : ceux de l'hote, tels quels -- un seul monde, sa faveur, ses quetes.
+    // Les PNJ : ceux de l'hote -- un seul monde, sa faveur, ses quetes. Sauf
+    // une recompense prete : c'est l'hote, qui a fait les dons, qui la prend ;
+    // ce qu'elle debloque arrive ici par les autres blocs (npc_progress_for_guest).
     std::vector<uint8_t> npc, own_npc;
     const int hf = get_blob(host, "npc_progress", npc);
     const int of = hf > 0 ? get_blob(own, "npc_progress", own_npc) : 0;
     if (hf < 0 || of < 0) ok = false;
-    else if (hf > 0 && !npc.empty() && npc != own_npc) {
-        ok = put_blob(own, "npc_progress", npc);
-        sum.npc = ok;
+    else if (hf > 0 && !npc.empty()) {
+        sum.npc_ready_cleared = npc_progress_for_guest(npc, own_npc);
+        if (sum.npc_ready_cleared < 0)
+            log_line("WORLD", "!! npc_progress : format inattendu, recopie tel quel");
+        if (npc != own_npc) {
+            ok = put_blob(own, "npc_progress", npc);
+            sum.npc = ok;
+        }
     }
     if (ok) ok = merge_names(host, own, "unlocks", true, sum.unlocks);
     if (ok) ok = merge_names(host, own, "tutorial_tokens", false, sum.tutorials);

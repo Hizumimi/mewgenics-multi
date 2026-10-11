@@ -389,9 +389,13 @@ void world_prepare_own_save(const char* name) {
     char house[96] = "";
     if (!sum.house_to.empty() && sum.house_to != sum.house_from)
         _snprintf_s(house, _TRUNCATE, ", maison %s -> %s", sum.house_from.c_str(), sum.house_to.c_str());
-    log_line("WORLD", "monde de l'hote (%s) repris dans %s : PNJ %s, %d deblocage(s), "
+    char ready[64] = "";
+    if (sum.npc_ready_cleared > 0)
+        _snprintf_s(ready, _TRUNCATE, " (%d recompense(s) prete(s) laissee(s) a l'hote)",
+                    sum.npc_ready_cleared);
+    log_line("WORLD", "monde de l'hote (%s) repris dans %s : PNJ %s%s, %d deblocage(s), "
                       "%d tutoriel(s), %d agrandissement(s)%s, %d propriete(s)",
-             g.host_name, name, sum.npc ? "ceux de l'hote" : "inchanges", sum.unlocks,
+             g.host_name, name, sum.npc ? "ceux de l'hote" : "inchanges", ready, sum.unlocks,
              sum.tutorials, sum.house_ups, house, sum.props);
 }
 

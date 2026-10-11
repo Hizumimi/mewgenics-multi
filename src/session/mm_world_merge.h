@@ -16,6 +16,7 @@ namespace mgmp {
 
 struct WorldSummary {
     bool        npc       = false;   // npc_progress repris de l'hote
+    int         npc_ready_cleared = 0; // recompenses pretes de l'hote effacees (-1 : format inconnu)
     int         unlocks   = 0;       // noms ajoutes a « unlocks »
     int         tutorials = 0;       // noms ajoutes a « tutorial_tokens »
     int         house_ups = 0;       // agrandissements ajoutes a « house_unlocks »

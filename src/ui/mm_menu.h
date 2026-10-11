@@ -69,6 +69,12 @@ void mm_on_message(uint8_t from, const MmMsg& m);
 // avant que mgmp_leave ne le ramene au menu, ou la copie ne compterait plus.
 void mm_on_host_left();
 
+// La maison du jeu est la (scene « House » vivante) : celle du joueur, ou celle
+// de la copie d'une aventure chez un invite (voir savefile_in_coop).
+bool mm_in_house();
+// Une partie est chargee : la maison, la carte, un combat ou un evenement.
+bool mm_in_game();
+
 // Appele par le detour de Button::Click, avant le clic. Vrai = clic retenu :
 // en session, le panneau de fin de journee (« EndDay_Sign ») attend que tout le
 // monde soit pret ; le mod le rejoue ensuite tel quel. Avec des chats dans

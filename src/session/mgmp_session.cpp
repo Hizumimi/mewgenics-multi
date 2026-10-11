@@ -16,6 +16,7 @@
 #include "mgmp_savefile.h"
 #include "mgmp_leave.h"
 #include "mm_world.h"         // Mewgenics Multi : le monde partage
+#include "mm_npc.h"           // Mewgenics Multi : les PNJ en direct
 #include "mgmp_config.h"
 #include "mgmp_hooks.h"     // hooks_install_late, for a session started from the panel
 #include "mgmp_tuning.h"
@@ -176,6 +177,7 @@ void go_ready(const char* how) {
     savefile_init();
     leave_init();
     world_init();
+    npc_init();
     catsync_init();
     invsync_init();
     runhist_init();
@@ -332,6 +334,8 @@ void handle_hello(uint8_t from, const Hello& h) {
     catchup_peer(from);
     // Mewgenics Multi : et le monde de l'hote, qu'il reprendra dans sa save.
     world_catchup(from);
+    // Et l'etat de ses PNJ, recopie dans sa maison des qu'il y sera.
+    npc_catchup(from);
 }
 
 } // namespace
@@ -484,6 +488,7 @@ void session_shutdown() {
     savefile_shutdown();
     leave_shutdown();
     world_shutdown();
+    npc_shutdown();
     catsync_shutdown();
     invsync_shutdown();
     runhist_shutdown();
@@ -521,6 +526,8 @@ void session_update() {
         leave_pump();
         // Mewgenics Multi : l'hote renvoie son monde quand sa save change.
         world_pump();
+        // Mewgenics Multi : les PNJ en direct (l'hote lit, l'invite recopie).
+        npc_pump();
         return;
     }
 
@@ -541,6 +548,9 @@ void session_update() {
             // pendant la presentation. Sans effet : l'hote renvoie sa derniere
             // copie juste apres WELCOME (world_catchup).
             case MSG_WORLD:
+                break;
+            // Pareil pour l'etat des PNJ : renvoye juste apres WELCOME (npc_catchup).
+            case MSG_NPC:
                 break;
 
 

@@ -9,7 +9,9 @@
 // aventure -- il y recopie le monde de l'hote :
 //
 //   - npc_progress (la faveur et les quetes des PNJ, leurs boutiques, les
-//     intros et drapeaux de l'histoire) : celui de l'hote, tel quel ;
+//     intros et drapeaux de l'histoire) : celui de l'hote, sauf ses
+//     « recompenses pretes » (c'est l'hote, qui a fait les dons, qui les
+//     prend) ; entre deux chargements, mm_npc recopie la faveur en direct ;
 //   - unlocks (classes, capacites, boss...) et tutorial_tokens (tutoriels vus) :
 //     ceux de l'hote EN PLUS des siens ;
 //   - house_unlocks : les agrandissements de maison de l'hote en plus des siens,

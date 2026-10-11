@@ -171,6 +171,7 @@ bool decode_into(const uint8_t* buf, uint32_t len, NetMsg& m) {
         case MSG_SAVEFILE: return dec_savefile(r, m.savefile);
         // Mewgenics Multi : le meme cadre, dans le meme champ (mm_world.cpp).
         case MSG_WORLD:    return dec_savefile(r, m.savefile);
+        case MSG_NPC:      return dec_savefile(r, m.savefile);   // (mm_npc.cpp)
         case MSG_CATDATA:  return dec_catdata(r, m.catdata);
         case MSG_INVENTORY: return dec_inventory(r, m.inventory);
         case MSG_RUNHIST:   return dec_runhist(r, m.runhist);
@@ -759,7 +760,7 @@ namespace {
 // Shared by the broadcast and the point-to-point form so the frame cap check
 // and the malloc live in exactly one place.
 bool send_savefile_frame(const SaveFileMsg& m, bool broadcast, uint8_t peer,
-                         bool world = false) {
+                         uint8_t type = MSG_SAVEFILE) {
     uint32_t need = savefile_frame_size(m);
     if (need > kMaxFrame) {
         log_line("NET", "!! save file is %u bytes, over the %u-byte frame cap",
@@ -768,7 +769,9 @@ bool send_savefile_frame(const SaveFileMsg& m, bool broadcast, uint8_t peer,
     }
     uint8_t* p = (uint8_t*)malloc(need);
     if (!p) return false;
-    uint32_t n = world ? enc_world(p, need, m) : enc_savefile(p, need, m);
+    uint32_t n = type == MSG_WORLD ? enc_world(p, need, m)
+               : type == MSG_NPC   ? enc_npc(p, need, m)
+                                   : enc_savefile(p, need, m);
     bool ok = n && (broadcast ? net_send(p, n) : net_send_peer(peer, p, n));
     free(p);
     return ok;
@@ -788,11 +791,20 @@ bool net_send_savefile_to(uint8_t peer, const SaveFileMsg& m) {
 
 // Mewgenics Multi : la save de l'hote comme reference du monde (MSG_WORLD).
 bool net_send_world(const SaveFileMsg& m) {
-    return send_savefile_frame(m, true, kNoPeer, true);
+    return send_savefile_frame(m, true, kNoPeer, MSG_WORLD);
 }
 
 bool net_send_world_to(uint8_t peer, const SaveFileMsg& m) {
-    return send_savefile_frame(m, false, peer, true);
+    return send_savefile_frame(m, false, peer, MSG_WORLD);
+}
+
+// Mewgenics Multi : l'etat des PNJ de l'hote en direct (MSG_NPC).
+bool net_send_npc(const SaveFileMsg& m) {
+    return send_savefile_frame(m, true, kNoPeer, MSG_NPC);
+}
+
+bool net_send_npc_to(uint8_t peer, const SaveFileMsg& m) {
+    return send_savefile_frame(m, false, peer, MSG_NPC);
 }
 
 bool net_send_catdata(const CatDataMsg& m) {

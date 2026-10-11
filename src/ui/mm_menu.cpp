@@ -2127,6 +2127,14 @@ void __fastcall h_ConfirmBuild(void* self, uint64_t a2, uint64_t text, uint64_t 
 
 // --- interface ------------------------------------------------------------------
 
+bool mm_in_house() { return find_scene("House") != nullptr; }
+
+bool mm_in_game() {
+    for (const char* name : { "House", "Map", "Battle", "Event" })
+        if (find_scene(name)) return true;
+    return false;
+}
+
 bool mm_binding(Target t, void** detour, void*** original) {
     switch (t) {
     case T_MainMenuInit: *detour = (void*)&h_MainMenuInit; *original = (void**)&o_MainMenuInit; return true;
