@@ -21,8 +21,9 @@ bool mem_guard_active();
 // Returns false if any byte of [src, src+n) faulted.
 bool mem_read(const void* src, void* dst, size_t n);
 
-// Returns false if the destination faulted. Used only by the replayer, which
-// overwrites Brain::GetChoice's hidden return buffer.
+// Returns false if the destination faulted. Used by the replayer, which
+// overwrites Brain::GetChoice's hidden return buffer, and by the house pipe
+// refusal in mm_menu.cpp, which clears a cat's container field (cat+0xE8).
 bool mem_write(void* dst, const void* src, size_t n);
 
 // Read an MSVC std::string out of the game.

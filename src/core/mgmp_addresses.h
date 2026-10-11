@@ -83,6 +83,7 @@ enum Target : int {
     T_ConfirmBuild,      // construit la boite ConfirmationBox d'un YesNoPrompt
     T_ButtonClick,       // glaiel::Button::Click -- retient le clic sur EndDay_Sign (nuit votee)
     T_HouseHud,          // sub_1401E3900 -- refait le panneau de fin de journee a chaque image
+    T_PipePlaceCat,      // sub_140208C40 -- le tuyau de la maison prend un chat (envoi aux PNJ)
     T_COUNT
 };
 
@@ -503,6 +504,14 @@ static const TargetDesc kTargets[T_COUNT] = {
     // champ SWF « label » a chaque image (slot 19, 0x14097F6F0) : un libelle
     // ecrit juste apres cette fonction est celui qui s'affiche.
     { 0x001E3900, "HOUSEHUD",  "House HUD refresh (sub_1401E3900, House vtable slot 10)" },
+    // Le tuyau de la maison (composant « HousePipe », vtable 0x140EFC9C0, pose
+    // par 0x1401F72A0). Slot 31 (+0xF8) : bool TryPlaceCat(Character*), appele
+    // seulement par Container::AddCat (0x1402E88D0) depuis la mise a jour du
+    // tuyau (0x1402082D0) pour un chat depose dessus. Vrai = le chat est pris
+    // (« Cat_Placed_In_Pipe »), puis la carte « Envoyer {chat} à : » s'ouvre.
+    // Mewgenics Multi : faux pour un invite en session -- ses envois aux PNJ
+    // ne sont pas encore partages (mm_menu.cpp).
+    { 0x00208C40, "PIPEPLACE", "HousePipe::TryPlaceCat (sub_140208C40, vtable slot 31)" },
 };
 
 // Coarse module guard, checked before the per-target signatures.

@@ -46,6 +46,15 @@ target_compile_definitions(test_config PRIVATE
     WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS NOMINMAX)
 add_test(NAME test_config COMMAND test_config)
 
-foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_battleid test_config)
+# Mewgenics Multi : le monde de l'hote recopie dans la save d'un invite, sur deux
+# vraies bases sqlite construites par le test (mm_world_merge.cpp + mm_sqlite).
+add_executable(test_world_merge test_world_merge.cpp ${CMAKE_SOURCE_DIR}/src/session/mm_world_merge.cpp)
+target_include_directories(test_world_merge PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/session ${CMAKE_SOURCE_DIR}/src/core ${CMAKE_SOURCE_DIR}/third_party/sqlite)
+target_link_libraries(test_world_merge PRIVATE mm_sqlite)
+target_compile_options(test_world_merge PRIVATE /utf-8)
+add_test(NAME test_world_merge COMMAND test_world_merge)
+
+foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_battleid test_config test_world_merge)
     target_compile_options(${t} PRIVATE /W3)
 endforeach()

@@ -184,4 +184,10 @@ bool savefile_run_published();
 // chaque depart, et a chaque demande d'un invite en cours de route).
 uint32_t savefile_publish_count();
 
+// Le dossier des saves du jeu (celui que le jeu ouvre), faux s'il est introuvable.
+bool savefile_save_dir(wchar_t* out, size_t n);
+// Hote : le nom de la save qu'il a choisie (« steamcampaign02.sav »), faux s'il
+// n'en a pas encore choisi -- ou sur un invite.
+bool savefile_host_save_name(char* out, size_t n);
+
 } // namespace mgmp

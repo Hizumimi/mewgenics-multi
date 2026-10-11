@@ -15,6 +15,7 @@
 #include "mgmp_choice.h"
 #include "mgmp_savefile.h"
 #include "mgmp_leave.h"
+#include "mm_world.h"         // Mewgenics Multi : le monde partage
 #include "mgmp_config.h"
 #include "mgmp_hooks.h"     // hooks_install_late, for a session started from the panel
 #include "mgmp_tuning.h"
@@ -174,6 +175,7 @@ void go_ready(const char* how) {
     follow_init();
     savefile_init();
     leave_init();
+    world_init();
     catsync_init();
     invsync_init();
     runhist_init();
@@ -328,6 +330,8 @@ void handle_hello(uint8_t from, const Hello& h) {
 
     // Tout ce qu'il faut pour le mettre a niveau : voir session_catchup_peer.
     catchup_peer(from);
+    // Mewgenics Multi : et le monde de l'hote, qu'il reprendra dans sa save.
+    world_catchup(from);
 }
 
 } // namespace
@@ -479,6 +483,7 @@ void session_shutdown() {
     overlay_shutdown();
     savefile_shutdown();
     leave_shutdown();
+    world_shutdown();
     catsync_shutdown();
     invsync_shutdown();
     runhist_shutdown();
@@ -514,6 +519,8 @@ void session_update() {
         // Watches the loaded-scene list on both roles: the host for its own
         // departure, the client for its arrival back on the menu.
         leave_pump();
+        // Mewgenics Multi : l'hote renvoie son monde quand sa save change.
+        world_pump();
         return;
     }
 
@@ -528,6 +535,12 @@ void session_update() {
 
             case MSG_MM:
                 mm_on_message(m.from, m.mm);
+                break;
+
+            // Mewgenics Multi : une diffusion du monde de l'hote qui arrive
+            // pendant la presentation. Sans effet : l'hote renvoie sa derniere
+            // copie juste apres WELCOME (world_catchup).
+            case MSG_WORLD:
                 break;
 
 

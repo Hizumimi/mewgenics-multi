@@ -760,6 +760,7 @@ const Binding kBindings[] = {
     { T_ConfirmBuild, nullptr, nullptr },
     { T_ButtonClick,  (void*)&h_ButtonClick, (void**)&o_ButtonClick },
     { T_HouseHud,     nullptr, nullptr },
+    { T_PipePlaceCat, nullptr, nullptr },
 };
 
 // Resolves the three RNG bindings, which are not static initialisers because

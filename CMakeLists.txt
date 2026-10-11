@@ -37,6 +37,20 @@ set(MM_BUILD_ID "local" CACHE STRING "numero de build de Mewgenics Multi")
 # same as build.ps1 compiling its .c files directly into the DLL link).
 add_subdirectory(third_party/minhook)
 
+# SQLite (domaine public, third_party/sqlite/LISEZ-MOI.md) : les saves du jeu sont
+# des bases sqlite, et le mod reprend le monde de l'hote dans celle d'un invite
+# (src/session/mm_world.cpp). Une bibliotheque statique a part, compilee sans
+# avertissements : c'est du code tiers, on ne le modifie pas.
+add_library(mm_sqlite STATIC third_party/sqlite/sqlite3.c)
+target_compile_definitions(mm_sqlite PRIVATE
+    SQLITE_OMIT_LOAD_EXTENSION
+    SQLITE_OMIT_DEPRECATED
+    SQLITE_DEFAULT_MEMSTATUS=0
+    SQLITE_DQS=0
+    SQLITE_THREADSAFE=1
+)
+target_compile_options(mm_sqlite PRIVATE /W0)
+
 add_library(mgmp SHARED
     res/mgmp_dll.rc
     src/core/dllmain.cpp
@@ -69,6 +83,8 @@ add_library(mgmp SHARED
     src/session/mgmp_combatlock.cpp
     src/session/mgmp_cursor.cpp
     src/session/mgmp_overlay.cpp
+    src/session/mm_world.cpp
+    src/session/mm_world_merge.cpp
     src/ui/mgmp_ui.cpp
     src/ui/mm_menu.cpp
     # Dear ImGui, compiled straight into mgmp.dll -- same rule as minhook and
@@ -107,8 +123,10 @@ target_include_directories(mgmp PRIVATE
     # imgui.h and "backends/imgui_impl_*.h" -- the backends are included with
     # their directory prefix so this one entry covers both.
     third_party/imgui
+    # sqlite3.h (Mewgenics Multi : le monde partage, mm_world.cpp)
+    third_party/sqlite
 )
-target_link_libraries(mgmp PRIVATE minhook kernel32 user32 shell32)
+target_link_libraries(mgmp PRIVATE minhook mm_sqlite kernel32 user32 shell32)
 
 add_executable(mgmp_loader loader/mgmp_loader.cpp res/mgmp_loader.rc)
 target_compile_definitions(mgmp_loader PRIVATE _CRT_SECURE_NO_WARNINGS)

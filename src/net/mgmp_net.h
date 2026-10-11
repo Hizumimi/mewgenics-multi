@@ -139,6 +139,10 @@ bool net_send_aim(const AimMsg& m);
 bool net_send_savefile(const SaveFileMsg& m);
 // Same, to one peer -- for a player who joined after the host published.
 bool net_send_savefile_to(uint8_t peer, const SaveFileMsg& m);
+// Mewgenics Multi : la meme save, envoyee comme reference du monde (MSG_WORLD) :
+// l'invite n'en fait jamais une partie, il en reprend les PNJ et l'histoire.
+bool net_send_world(const SaveFileMsg& m);
+bool net_send_world_to(uint8_t peer, const SaveFileMsg& m);
 // Same contract as net_send_savefile, but small: a serialized cat is well under
 // a kilobyte, so this one is cheap enough to send several of in a row.
 bool net_send_catdata(const CatDataMsg& m);

@@ -11,6 +11,7 @@
 #include "mgmp_follow.h"   // follow_on_map, follow_drop_pending
 #include "mgmp_choice.h"   // choice_forget (Mewgenics Multi)
 #include "mgmp_leave.h"    // leave_in_run (Mewgenics Multi)
+#include "mm_world.h"       // world_prepare_own_save (Mewgenics Multi)
 // A slot click starts a run, which makes the three per-run dedupe caches stale.
 // See the block in savefile_on_slot_click.
 #include "mgmp_catsync.h"
@@ -810,6 +811,9 @@ bool savefile_on_slot_click(void* ss, int slot) {
             log_line("SAVEFILE", "this player chose their own save: slot %d (%s) -- "
                                  "it is theirs, the host's save is only used for an "
                                  "adventure", slot, g.own_name[0] ? g.own_name : "?");
+            // Mewgenics Multi : le monde de l'hote (PNJ, histoire, deblocages)
+            // passe dans cette save juste avant que le jeu ne l'ouvre.
+            if (g.own_name[0]) world_prepare_own_save(g.own_name);
             return true;
         }
         ++g.suppressed;
@@ -1036,6 +1040,7 @@ int savefile_autoselect(void* ss) {
                 if (_stricmp(names.v[i], g.own_name) == 0) { slot = (int)i; break; }
         log_line("SAVEFILE", "back home: clicking this player's own slot %d (%s), no "
                              "redirect", slot, names.v[slot]);
+        world_prepare_own_save(names.v[slot]);   // Mewgenics Multi : le monde de l'hote
         return slot;
     }
 
@@ -1253,6 +1258,21 @@ void savefile_go_home() {
 }
 
 bool savefile_in_coop()       { return g.is_client && g.in_coop; }
+
+bool savefile_save_dir(wchar_t* out, size_t n) {
+    ensure_state();
+    ensure_dir();
+    if (!g.have_dir || !out || !n) return false;
+    wcscpy_s(out, n, g.dir);
+    return true;
+}
+
+bool savefile_host_save_name(char* out, size_t n) {
+    ensure_state();
+    if (g.is_client || !g.have_slot || !g.name[0] || !out || !n) return false;
+    strncpy_s(out, n, g.name, _TRUNCATE);
+    return true;
+}
 
 void savefile_left_game() {
     if (!g.in_coop) return;

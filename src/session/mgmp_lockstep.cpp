@@ -19,6 +19,7 @@
 #include "mgmp_choice.h"
 #include "mgmp_savefile.h"
 #include "mgmp_leave.h"
+#include "mm_world.h"
 #include "mgmp_session.h"
 #include "mgmp_ability.h"
 #include "mgmp_turnaction.h"
@@ -2111,6 +2112,11 @@ void lockstep_pump() {
 
             case MSG_SAVEFILE:
                 savefile_on_message(m.savefile);
+                break;
+
+            // Mewgenics Multi : la save de l'hote comme reference du monde.
+            case MSG_WORLD:
+                world_on_message(m.savefile);
                 break;
 
             // Not battle-gated either: leaving the run is the one thing the

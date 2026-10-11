@@ -37,6 +37,7 @@
 #include "mgmp_follow.h"    // follow_inside_node
 #include "mgmp_choice.h"    // choice_made_in_node
 #include "mgmp_leave.h"     // leave_will_press_quit
+#include "mm_world.h"        // world_have_host : le monde de l'hote est arrive
 
 #include <winsock2.h>   // avant windows.h : types reseau d'iphlpapi
 #include <ws2tcpip.h>
@@ -127,11 +128,14 @@ using FnConfirmBuild = void (__fastcall*)(void* self, uint64_t a2, uint64_t text
 // sub_1401E3900(House*, ?) : rcx et rdx d'apres son seul appel (0x1401E5B4A) ;
 // on relaie r8/r9 par prudence et on rend rax tel quel.
 using FnHouseHud = uint64_t (__fastcall*)(void* house, void* a2, uint64_t a3, uint64_t a4);
+// HousePipe::TryPlaceCat(Character*) : vrai = le tuyau prend le chat.
+using FnPipePlace = bool (__fastcall*)(void* pipe, void* cat);
 
 FnMainMenuInit o_MainMenuInit = nullptr;
 FnMeow         o_Meow         = nullptr;
 FnConfirmBuild o_ConfirmBuild = nullptr;
 FnHouseHud     o_HouseHud     = nullptr;
+FnPipePlace    o_PipePlace    = nullptr;
 
 template <class F> F call_target(Call c) { return (F)addr_of_call(c); }
 
@@ -745,6 +749,18 @@ std::string bad_address_text() {
                g_addr_buf.empty() ? u8"(vide)" : g_addr_buf.c_str());
 }
 
+// Un invite attend le monde de l'hote avant de choisir sa save (mm_world). Pas
+// indefiniment : au bout de 30 secondes de session prete sans rien recu, il
+// peut choisir quand meme -- sa save garde alors son monde jusqu'au chargement
+// suivant.
+uint32_t g_client_ready_at = 0;          // image ou la session est devenue prete
+
+bool client_world_wait_over() {
+    if (net_role() != NetRole::Client || !session_ready()) { g_client_ready_at = 0; return false; }
+    if (!g_client_ready_at) g_client_ready_at = g_frame ? g_frame : 1;
+    return g_frame - g_client_ready_at > 30 * 60;
+}
+
 std::string client_lobby_text() {
     const std::string target = fmt("%s", g_join_ip.c_str());
     const NetRole  r  = net_role();
@@ -776,12 +792,20 @@ std::string client_lobby_text() {
 
     const std::string host = peer_name(0);
     const std::string me   = display_name(mm_local_name());
+    if (!world_have_host() && !client_world_wait_over())
+        return fmt(u8"Salon multijoueur\n\n"
+                   u8"Tu as rejoint la partie de %s !\n\n"
+                   u8"Joueurs :\n  %s (hôte)\n  %s\n\n"
+                   u8"En attente de la partie de %s :\n"
+                   u8"dès qu'il aura choisi sa sauvegarde,\n"
+                   u8"tu pourras choisir la tienne.",
+                   host.c_str(), host.c_str(), me.c_str(), host.c_str());
     return fmt(u8"Salon multijoueur\n\n"
                u8"Tu as rejoint la partie de %s !\n\n"
                u8"Joueurs :\n  %s (hôte)\n  %s\n\n"
                u8"Choisis ta sauvegarde : ta maison, tes chats.\n"
-               u8"Pour partir à l'aventure, tu rejoindras\n"
-               u8"l'équipe de %s.",
+               u8"Les PNJ et l'histoire seront ceux de %s,\n"
+               u8"et pour partir à l'aventure, tu rejoindras son équipe.",
                host.c_str(), host.c_str(), me.c_str(), host.c_str());
 }
 
@@ -1947,6 +1971,95 @@ uint64_t __fastcall h_HouseHud(void* self, void* a2, uint64_t a3, uint64_t a4) {
     return r;
 }
 
+// Le tuyau de la maison : un invite en session n'envoie pas encore ses chats
+// aux PNJ. Le monde, PNJ compris, est celui de l'hote (mm_world) : la faveur
+// gagnee ici serait effacee au chargement suivant de sa save, et le chat, lui,
+// serait parti. Le tuyau refuse donc le chat, qui reste dans la maison.
+//
+// Le jeu demande au tuyau (Container::AddCat 0x1402E88D0, emplacement 31 de
+// HousePipe) quand on y lache un chat, mais aussi a chaque image pour chaque
+// chat pose dessus (HousePipe, emplacement 10, 0x1402082D0). La fenetre ne
+// s'ouvre donc qu'une fois par chat et par passage a la maison, et au plus une
+// fois toutes les 3 secondes.
+//
+// Deux chemins du jeu (un chat qui arrive dans la maison, 0x1401F97F0 ; un
+// chat replace, 0x1401E7202) notent le conteneur sous le chat (chat+0xE8)
+// AVANT de demander : refuse, le chat se croirait dans un tuyau qui ne le
+// liste pas. On remet alors ce champ a zero -- l'etat que le jeu donne lui-meme
+// a un chat lache hors de tout conteneur (0x1401FF156).
+constexpr size_t   kCat_Container      = 0xE8;   // Container* (ecrit par AddCat)
+constexpr size_t   kContainer_CatCount = 0x6C;   // u32
+constexpr size_t   kContainer_Cats     = 0x70;   // HouseCat**
+constexpr uint32_t kPipeToldMax        = 16;
+constexpr uint32_t kPipeGap            = 3 * 60; // images entre deux fenetres
+
+uint32_t g_pipe_said_at  = 0;                    // image de la derniere fenetre
+uint32_t g_pipe_refusals = 0;
+void*    g_pipe_told[kPipeToldMax] = {};         // chats deja prevenus (ce passage)
+uint32_t g_pipe_told_n    = 0;
+uint32_t g_pipe_told_next = 0;
+
+bool pipe_told(const void* cat) {
+    for (uint32_t i = 0; i < g_pipe_told_n; ++i)
+        if (g_pipe_told[i] == cat) return true;
+    return false;
+}
+
+void pipe_remember(void* cat) {
+    g_pipe_told[g_pipe_told_next] = cat;
+    g_pipe_told_next = (g_pipe_told_next + 1) % kPipeToldMax;
+    if (g_pipe_told_n < kPipeToldMax) ++g_pipe_told_n;
+}
+
+// chat+0xE8 == tuyau alors que le tuyau ne le liste pas : on l'efface. S'il est
+// vraiment dans la liste (deja dans le tuyau avant la session), on n'y touche pas.
+void pipe_unlink(void* pipe, void* cat) {
+    void* owner = nullptr;
+    if (!mem_read((const char*)cat + kCat_Container, &owner, sizeof(owner)) || owner != pipe)
+        return;
+    uint32_t n = 0;
+    void**   cats = nullptr;
+    if (!mem_read((const char*)pipe + kContainer_CatCount, &n, sizeof(n)) ||
+        !mem_read((const char*)pipe + kContainer_Cats, &cats, sizeof(cats)) || n > 1024)
+        return;
+    for (uint32_t i = 0; i < n; ++i) {
+        void* c = nullptr;
+        if (!mem_read(cats + i, &c, sizeof(c))) return;
+        if (c == cat) return;
+    }
+    void* const none = nullptr;
+    if (mem_write((char*)cat + kCat_Container, &none, sizeof(none)))
+        log_line("MULTI", "tuyau : le chat refuse n'est plus note comme etant dans le tuyau");
+}
+
+bool __fastcall h_PipePlace(void* pipe, void* cat) {
+    if (net_role() == NetRole::Client && session_has_others()) {
+        ++g_pipe_refusals;
+        if (pipe && cat) pipe_unlink(pipe, cat);
+        if (cat && !pipe_told(cat) && (!g_pipe_said_at || g_frame - g_pipe_said_at > kPipeGap)) {
+            pipe_remember(cat);
+            g_pipe_said_at = g_frame ? g_frame : 1;
+            log_line("MULTI", "tuyau : envoi d'un chat aux PNJ refuse (invite en session, %u refus)",
+                     g_pipe_refusals);
+            show_info(fmt(u8"Les PNJ suivent la partie de %s :\n"
+                          u8"envoyer tes chats dans le tuyau\n"
+                          u8"arrive dans une prochaine version.",
+                          host_display().c_str()));
+        }
+        return false;
+    }
+    return o_PipePlace(pipe, cat);
+}
+
+// Hors de la maison, ses chats n'existent plus : on oublie qui a ete prevenu
+// (de nouveaux chats peuvent reprendre les memes adresses au retour).
+void pipe_pump() {
+    if (g_pipe_told_n && !find_scene("House")) {
+        g_pipe_told_n    = 0;
+        g_pipe_told_next = 0;
+    }
+}
+
 // Le bouton ne miaule plus : il demande la fenetre Multijoueur, qui s'ouvre au
 // debut de l'image suivante (voir mm_menu_pump).
 void __fastcall h_Meow(void* /*self*/) {
@@ -2020,6 +2133,7 @@ bool mm_binding(Target t, void** detour, void*** original) {
     case T_MeowClick:    *detour = (void*)&h_Meow;         *original = (void**)&o_Meow;         return true;
     case T_ConfirmBuild: *detour = (void*)&h_ConfirmBuild; *original = (void**)&o_ConfirmBuild; return true;
     case T_HouseHud:     *detour = (void*)&h_HouseHud;     *original = (void**)&o_HouseHud;     return true;
+    case T_PipePlaceCat: *detour = (void*)&h_PipePlace;    *original = (void**)&o_PipePlace;    return true;
     default: return false;
     }
 }
@@ -2034,7 +2148,17 @@ void mm_menu_pump() {
         case Action::StartHost:      start_host(); break;
         case Action::OpenJoin:       prepare_join(); break;
         case Action::DoJoin:         do_join(); break;
-        case Action::ClickPlay:      click_main_play(); break;
+        case Action::ClickPlay:
+            // Un invite ne choisit sa save qu'une fois le monde de l'hote arrive
+            // (sinon elle garderait le sien jusqu'au chargement suivant).
+            if (net_role() == NetRole::Client && session_ready() && !world_have_host() &&
+                !client_world_wait_over()) {
+                log_line("MULTI", "salon : le monde de l'hote n'est pas encore arrive, on attend");
+                g_action = Action::OpenAuto;           // le salon se rouvre l'image suivante
+                break;
+            }
+            click_main_play();
+            break;
         case Action::StopSession:
             log_line("MULTI", "fin de la session demandee par le menu");
             session_request_disconnect();
@@ -2109,6 +2233,7 @@ void mm_menu_pump() {
     }
     adventure_popups();
     notice_pump();
+    pipe_pump();
 
     // Un clic demande qui n'a pas pris (bouton encore en animation, par exemple) :
     // on le redemande, quelques fois.
