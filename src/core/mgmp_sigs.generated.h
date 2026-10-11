@@ -72,6 +72,13 @@ static const SigTargetDesc kTargetSigs[] = {
       "48 8B C4 48 89 58 10 48 89 70 18 55 57 41 55" },
     { 0x00152700, "HILITE",
       "40 53 57 48 81 EC 88 00 00 00 48 8B 01" },
+    // Ajouts Mewgenics Multi, generes par tools/gen_sig.py (memes regles).
+    { 0x001B8A90, "MAINMENU",
+      "48 89 5C 24 08 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 00 FE FF FF" },
+    { 0x001B9140, "MEOW",
+      "48 8B C4 48 89 58 08 55 56 57 41 54 41 55 41 56 41 57 48 8D A8 28 FF FF FF" },
+    { 0x0077D240, "CONFIRMBOX",
+      "4C 89 4C 24 20 4C 89 44 24 18 55 53 56 57 41 54 41 55" },
 };
 
 // INDEXED BY enum Call -- order is load-bearing.
@@ -114,6 +121,17 @@ static const SigTargetDesc kCallSigs[] = {
       "48 8B C4 44 88 40 18 48 89 50 10 55 53 56 57 41 54 41 55 41 56 41 57 48 8D A8 88 FE FF FF" },
     { 0x0097E8E0, "glaiel::Button::Click",
       "48 89 74 24 18 57 48 83 EC 60 33 F6" },
+    // Ajouts Mewgenics Multi, generes par tools/gen_sig.py (memes regles).
+    { 0x000520D0, "std::string::assign(const char*, size_t)",
+      "48 89 5C 24 10 48 89 6C 24 18 56 57 41 57 48 83 EC 20 48 8B 69 18" },
+    { 0x00063720, "std::wstring::operator=(wstring&&)",
+      "48 89 5C 24 08 57 48 83 EC 20 48 8B FA 48 8B D9 48 3B CA 74 ? 48 8B 51 18 48 83 FA 07" },
+    { 0x0077DD30, "glaiel::ShowConfirmation",
+      "48 8B C4 4C 89 40 18 48 89 50 10 48 89 48 08 53 55 56 57 48 83 EC 68" },
+    { 0x0097C4F0, "MenuPanel::get_button",
+      "48 89 54 24 10 53 55 56 57 41 54 41 56 41 57 48 81 EC B0 00 00 00" },
+    { 0x0097C930, "MenuPanel::hide_button",
+      "48 89 5C 24 18 48 89 54 24 10 55 56 57 41 56 41 57 48 83 EC 40 48 8B F2 4C 8B F9 48 8B 69 40 48 8B 5D 08 48 8B FD 80 7B 19 00 75 ? 0F 1F 40 00 48 8D 4B 20 48 8B D6 E8 ? ? ? ? 84 C0 79 ? 48 8B 5B 10 EB ? 48 8B FB 48 8B 1B 80 7B 19 00 74 ? 80 7F 19 00 75 ? 48 8D 57 20 48 8B CE E8 ? ? ? ? 84 C0 78 ? 48 3B FD 74 ? 48 8B D6 49 8D 4F 40 E8 ? ? ? ? 48 8B 08 C7 81 F0 02 00 00 04 00 00 00" },
 };
 
 // Globals, recovered from a referencing instruction's own

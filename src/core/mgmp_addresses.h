@@ -76,6 +76,11 @@ enum Target : int {
     T_HighlightRefresh,  // sub_140151CE0 -- the status half of the ability
                          // highlight. Swallowed, and ONLY while this peer is
                          // drawing another player's aim. See mgmp_aim.h.
+
+    // --- Mewgenics Multi : interface integree au jeu (src/ui/mm_menu.cpp) ---
+    T_MainMenuInit,      // glaiel::MainMenu::init -- construit les 4 boutons du titre
+    T_MeowClick,         // corps du lambda du bouton Miauler (miaulement aleatoire)
+    T_ConfirmBuild,      // construit la boite ConfirmationBox d'un YesNoPrompt
     T_COUNT
 };
 
@@ -468,6 +473,21 @@ static const TargetDesc kTargets[T_COUNT] = {
     // draw of ANOTHER player's aim, on the peer that does not own that cat.
     // Outside that window it is one predictable branch on a global.
     { 0x00152700, "HILITE",    "ability highlight status refresh (sub_140151CE0)" },
+
+    // --- Mewgenics Multi -----------------------------------------------------
+    // MainMenu::init cree le panneau TitleScreen (MainMenu+0x38) et y enregistre
+    // quatre boutons via MenuPanel::register_button(panneau, anim, cle_texte,
+    // action) : btn_play, btn_settings, btn_quit, btn_feedback (MAIN_MENU_MEOW).
+    // On appelle l'original puis on renomme btn_feedback en "Multijoueur".
+    { 0x001B8A90, "MAINMENU",  "glaiel::MainMenu::init" },
+    // Le _Do_call du std::function du bouton Miauler (0x1401BF470) n'est qu'un
+    // relais `add rcx, 8 ; jmp` vers ce corps, qui joue un miaulement au hasard.
+    // Le detour ouvre la fenetre Multijoueur a la place.
+    { 0x001B9140, "MEOW",      "MainMenu Meow button lambda" },
+    // Construit la boite (panneau "ConfirmationBox", boutons "yes"/"no") ; appele
+    // de facon synchrone par ShowConfirmation. Le detour renomme les boutons de
+    // nos propres fenetres, ou cache "no" pour un message a un seul bouton.
+    { 0x0077D240, "CONFIRMBOX","glaiel::YesNoPrompt ConfirmationBox builder" },
 };
 
 // Coarse module guard, checked before the per-target signatures.
@@ -547,6 +567,13 @@ enum Call : int {
 
     // --- pressing Play for a client that is stuck on the menu ------------
     C_ButtonClick,           // void(Button*, bool force) -- sub_1409764B0
+
+    // --- Mewgenics Multi : interface integree au jeu (src/ui/mm_menu.cpp) ---
+    C_StrAssignCStr,         // std::string* (std::string*, const char*, size_t)
+    C_WStrMoveAssign,        // std::wstring* (std::wstring* dst, std::wstring* src)
+    C_ShowConfirmation,      // void(std::string* texte, function* oui, function* non, scene*)
+    C_PanelGetButton,        // Button* (MenuPanel*, std::string* nom, bool creer)
+    C_PanelHideButton,       // void(MenuPanel*, std::string* nom)
     C_COUNT
 };
 
@@ -777,6 +804,20 @@ static const CallDesc kCalls[C_COUNT] = {
     // The button is identified by the std::string at Button+504 (kBtn_Name),
     // never by pointer or by position in a panel.
     { 0x0097E8E0, "glaiel::Button::Click" },
+
+    // --- Mewgenics Multi -----------------------------------------------------
+    // std::string::assign(const char*, size_t) du jeu : alloue avec le tas du
+    // jeu, donc une chaine que le jeu detruira ensuite reste sur le bon tas.
+    { 0x000520D0, "std::string::assign(const char*, size_t)" },
+    // std::wstring::operator=(wstring&&) : DEPLACE (vole le tampon de la source).
+    // La source doit donc avoir ete allouee par le jeu (C_GameStrAlloc).
+    { 0x00063720, "std::wstring::operator=(wstring&&)" },
+    // Cree un composant YesNoPrompt (fenetre Oui/Non) ; le texte est une cle de
+    // traduction, et une cle inconnue est affichee telle quelle (Loc_lookup).
+    { 0x0077DD30, "glaiel::ShowConfirmation" },
+    // Les deux CONSOMMENT le nom (le detruisent) : passer des noms <= 15 car.
+    { 0x0097C4F0, "MenuPanel::get_button" },
+    { 0x0097C930, "MenuPanel::hide_button" },
 };
 
 // sub_140138A10 IS NOT A DRAW ROUTINE, and it is in the table above only

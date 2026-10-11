@@ -11,7 +11,7 @@
 
   "ui": {
     "enabled": true,
-    "visible": true,
+    "visible": false,
     "key": "F1"
   },
 

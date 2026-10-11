@@ -41,6 +41,7 @@
 #include "mgmp_tuning.h"
 #include "mgmp_timedelay.h"
 #include "mgmp_hooks.h"
+#include "mm_menu.h"   // Mewgenics Multi : bouton Multijoueur et fenetres du jeu
 #include "mgmp_log.h"
 #include "mgmp_mem.h"
 #include "mgmp_record.h"
@@ -733,6 +734,11 @@ const Binding kBindings[] = {
     { T_RandFloat, nullptr, nullptr },
     { T_Rand2,     nullptr, nullptr },
     { T_RollChance,nullptr, nullptr },
+
+    // Mewgenics Multi : detours definis dans src/ui/mm_menu.cpp (mm_binding).
+    { T_MainMenuInit, nullptr, nullptr },
+    { T_MeowClick,    nullptr, nullptr },
+    { T_ConfirmBuild, nullptr, nullptr },
 };
 
 // Resolves the three RNG bindings, which are not static initialisers because
@@ -779,6 +785,7 @@ bool install_one(const Binding& b, bool announce_off) {
     void*  detour   = b.detour;
     void** original = b.original;
     rng_binding(b.target, &detour, &original);
+    mm_binding(b.target, &detour, &original);
     if (!detour || !original) {
         log_raw("  [!] %-9s no detour bound", t.name);
         return false;

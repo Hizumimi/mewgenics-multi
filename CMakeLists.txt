@@ -70,6 +70,7 @@ add_library(mgmp SHARED
     src/session/mgmp_cursor.cpp
     src/session/mgmp_overlay.cpp
     src/ui/mgmp_ui.cpp
+    src/ui/mm_menu.cpp
     # Dear ImGui, compiled straight into mgmp.dll -- same rule as minhook and
     # stb_image: the payload runs inside the game's process and cannot pull in
     # a second DLL that would have to be shipped and found beside it.
@@ -94,7 +95,8 @@ target_compile_definitions(mgmp PRIVATE
     WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS NOMINMAX
     MM_BUILD_ID="${MM_BUILD_ID}"
 )
-target_compile_options(mgmp PRIVATE /W3)
+# /utf-8 : les textes francais (accents) des sources sont en UTF-8.
+target_compile_options(mgmp PRIVATE /W3 /utf-8)
 # Flat quoted includes (#include "mgmp_hooks.h") resolve across folders via
 # these four dirs, so moving a file between layers never touches an #include.
 target_include_directories(mgmp PRIVATE
