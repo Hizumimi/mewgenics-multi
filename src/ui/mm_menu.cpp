@@ -428,6 +428,11 @@ Action g_action = Action::None;
 
 // Images depuis le lancement (mm_menu_pump), pour les delais.
 uint32_t g_frame = 0;
+// Le dernier panneau de la maison clique (1 « Fin de journée », 2 « À
+// l'aventure ! ») et l'image du clic : Button::Click appelle l'action du
+// panneau lui-meme (0x14097E9C4, std::function), donc dans la meme image.
+int      g_sign_click    = 0;
+uint32_t g_sign_click_at = 0;
 
 // La fenetre en cours de construction, quand c'est l'une des notres. Ecrite
 // juste avant ShowConfirmation, consommee par le detour du constructeur qui
@@ -2188,6 +2193,8 @@ bool mm_info_busy() { return g_info_wanted || (g_live.alive && g_live.screen == 
 
 std::string mm_peer_name(uint8_t id) { return peer_name(id); }
 
+int mm_sign_click_kind() { return g_sign_click_at == g_frame ? g_sign_click : 0; }
+
 void mm_depart_called_off() {
     if (net_role() != NetRole::Host) return;
     MmMsg m{};
@@ -2629,6 +2636,10 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
 bool mm_on_button_click(void* button) {
     const int kind = sign_kind(button);
     if (!kind) return false;
+    // Le panneau clique, pour l'action qu'il declenche pendant ce meme clic
+    // (mm_sign_click_kind) : retenu ou pas, c'est ce clic-ci.
+    g_sign_click    = kind;
+    g_sign_click_at = g_frame;
     if (kind == 1 && g_night_passing) {          // le clic rejoue par night_pump
         g_night_passing = false;
         log_line("MULTI", "nuit : clic sur le panneau rejoue, la journee se termine");

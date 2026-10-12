@@ -47,9 +47,11 @@
 //   - House::AddReturningCat (T_HouseReturnCat) saute les chats des invites :
 //     ils ne s'installent jamais dans la maison de l'hote ;
 //   - juste avant ClearRunState (T_RunCleared), chaque chat d'invite retrouve
-//     son jour et ses parents, et son etat final -- rentre, mort, ou perdu en
-//     route s'il n'est plus dans l'equipe -- part chez son proprietaire
-//     (kTeamResult) ; puis une liste de proprietaires vide pour tous ;
+//     son jour et ses parents, et son etat final part chez son proprietaire
+//     (kTeamResult) : mort, rentre si le jeu le ramenait a la maison (il
+//     appelle AddReturningCat pour lui, comme pour ceux de l'hote), sinon pas
+//     revenu -- une aventure abandonnee ou perdue ne ramene personne
+//     (0x1403B4F03) ; puis une liste de proprietaires vide pour tous ;
 //   - l'invite calcule aussi cet etat dans SA copie de l'aventure, qui finit en
 //     meme temps (lockstep) : il peut rentrer avant que l'hote ait fini ;
 //     l'etat de l'hote, s'il arrive avant, est celui qui compte ;

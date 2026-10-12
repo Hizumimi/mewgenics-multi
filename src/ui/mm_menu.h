@@ -88,6 +88,12 @@ bool mm_info_busy();
 // Le nom d'un joueur de la session (pseudo Steam, « Joueur N » a defaut).
 std::string mm_peer_name(uint8_t id);
 
+// Le panneau de la maison clique dans cette image : 1 « Fin de journée »
+// (EndDay_Sign), 2 « À l'aventure ! » (Depart_Sign), 0 aucun. Les deux
+// appellent la meme action du jeu (ButchBox::depart, puis la fin de journee si
+// la boite est vide) : mm_team ne s'occupe que du second.
+int mm_sign_click_kind();
+
 // Hote, le vote de depart passe : personne ne peut partir (mm_team -- boite de
 // l'hote videe pendant le vote, et aucun chat d'invite). Les invites qui
 // attendaient l'aventure en sont liberes, et une fenetre leur dit pourquoi.

@@ -10,7 +10,7 @@
 //     l'equipe ; le jeu les charge lui-meme depuis la table (0x1400D7220) ;
 //     l'hote dit ensuite a chacun a qui est chaque chat (kTeamOwners) : chaque
 //     joueur dirige les siens ;
-//   - a la fin, l'etat final de ses chats (rentre, mort, ou perdu en route)
+//   - a la fin, l'etat final de ses chats (rentre, mort, ou pas revenu)
 //     revient a l'invite, qui le recopie dans SA save juste avant qu'elle se
 //     charge.
 //
@@ -48,7 +48,8 @@ constexpr uint32_t kCatVersion   = 19;
 // Ce que devient un chat (kTeamResult).
 enum : uint8_t {
     kFateHome = 0,      // il rentre (vivant, ou mort : ses drapeaux le disent)
-    kFateGone = 1,      // il a quitte l'equipe en route, vivant : il ne rentre pas
+    kFateGone = 1,      // vivant, mais le jeu ne le ramene pas (aventure abandonnee ou
+                        // perdue, ou il a quitte l'equipe en route) : il ne rentre pas
 };
 
 struct TeamCat {
@@ -137,7 +138,7 @@ bool team_plan_keys(sqlite3* host, const std::vector<TeamCat>& cats, uint64_t mi
 // Invite : recopie dans sa save l'etat final de ses chats, en une transaction.
 // Un chat n'est recopie que si la save a, a sa cle, le meme chat (meme id), et
 // vivant (deja mort, il le reste : compte dans `changed`) ; ce qui est ecrit
-// perd « en aventure » et la marque kCatGuest. Un chat mort, ou perdu en route
+// perd « en aventure » et la marque kCatGuest. Un chat mort, ou pas revenu
 // (kFateGone), quitte aussi house_state.
 // `departed` (facultatif) : les chats tels qu'ils etaient au depart (cle et
 // octets). Donne quand l'etat final arrive en retard -- la save a pu etre jouee

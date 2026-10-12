@@ -45,13 +45,6 @@ constexpr uintptr_t kDir_Day       = 0x580;
 constexpr uintptr_t kDir_Progress  = 0x5A8;
 constexpr uintptr_t kBoss_Pending  = 0x468;
 constexpr uintptr_t kBoss_Busy     = 0x478;
-// Les deux listes de cles que les fins d'aventure rendent a la maison
-// (0x1403B5EAC et 0x1403B5EF7) : l'equipe de la course {+0x5B8 capacite,
-// +0x5BC nombre, +0x5C0 cles}, puis une seconde {+0x644 nombre, +0x648 cles}.
-constexpr uintptr_t kDir_RunCount  = 0x5BC;
-constexpr uintptr_t kDir_RunKeys   = 0x5C0;
-constexpr uintptr_t kDir_MoreCount = 0x644;
-constexpr uintptr_t kDir_MoreKeys  = 0x648;
 // ButchBox+0x100 : quatre emplacements, chacun un chat de la maison ou nul ;
 // la cle de save d'un chat de la maison est a +0x80 (0x1400ADC52).
 constexpr uintptr_t kBox_Slots     = 0x100;
@@ -206,6 +199,8 @@ struct Keep {
     std::string              run_save;       // hote : la save de cette aventure
     uint8_t                  run_seq = 0;    // hote : le vote de son depart
     std::vector<GuestDepart> departs;        // invite, du plus ancien au plus recent
+    std::vector<uint64_t>    came_home;      // fin d'aventure : chats d'invites que le jeu ramenait
+                                             // a la maison (T_HouseReturnCat), cles de la save chargee
     std::vector<std::string> infos;          // fenetres pour ce joueur
     std::vector<std::string> home_infos;     // invite : le retour, une fois chez lui
     uint32_t departs_made = 0, refused = 0, returned = 0, applied = 0;
@@ -314,27 +309,22 @@ bool write_days(void* cat, const CatDays& d) {
            mem_write((char*)cat + kCat_LinkB, &d.lb, sizeof(d.lb));
 }
 
-// Le chat est-il encore dans une des listes que la fin d'aventure rend ?
-bool in_run_lists(void* dir, uint64_t key) {
-    const uintptr_t lists[2][2] = { { kDir_RunCount, kDir_RunKeys }, { kDir_MoreCount, kDir_MoreKeys } };
-    for (const auto& l : lists) {
-        uint32_t n = 0;
-        const uint64_t* keys = nullptr;
-        if (!mem_read((const char*)dir + l[0], &n, sizeof(n)) ||
-            !mem_read((const char*)dir + l[1], &keys, sizeof(keys)) || !keys || n > 4096)
-            continue;
-        for (uint32_t i = 0; i < n; ++i) {
-            uint64_t v = 0;
-            if (mem_read(keys + i, &v, sizeof(v)) && v == key) return true;
-        }
-    }
-    return false;
+// Le jeu l'a-t-il ramene a la maison, a cette fin d'aventure ? Il appelle
+// House::AddReturningCat (T_HouseReturnCat) pour chaque chat de l'equipe qui
+// rentre, juste avant ClearRunState (T_RunCleared) : jamais pour un mort, et
+// pour personne quand l'aventure est abandonnee ou perdue (test de
+// MewDirector+0x70C, 0x1403B4F03 : seule une defense de la maison ramene son
+// equipe). C'est sa regle qui decide, pour les chats des invites comme pour
+// ceux de l'hote.
+bool came_home(uint64_t key) {
+    return std::find(k.came_home.begin(), k.came_home.end(), key) != k.came_home.end();
 }
 
 // L'etat final d'un chat d'invite, comme chez lui : ses jours et liens remis,
-// sa mort (s'il est mort en route) comptee dans son calendrier.
-bool make_result(void* dir, void* cat, uint64_t host_key, uint64_t own_key, const CatDays& orig,
-                 int64_t shift, TeamCat& out, CatInfo& info) {
+// sa mort (s'il est mort en route) comptee dans son calendrier ; rentre si le
+// jeu le ramenait a la maison, sinon perdu (kFateGone).
+bool make_result(void* cat, uint64_t host_key, uint64_t own_key, const CatDays& orig, int64_t shift,
+                 TeamCat& out, CatInfo& info) {
     CatDays cur;
     if (!read_days(cat, cur)) return false;
     CatDays back = orig;
@@ -344,7 +334,7 @@ bool make_result(void* dir, void* cat, uint64_t host_key, uint64_t own_key, cons
     out.own_key  = own_key;
     out.host_key = host_key;
     if (!catsync_serialize_cat(cat, out.data) || !cat_info(out.data, info)) return false;
-    out.fate = ((info.flags & kCatDead) || in_run_lists(dir, host_key)) ? kFateHome : kFateGone;
+    out.fate = ((info.flags & kCatDead) || came_home(host_key)) ? kFateHome : kFateGone;
     return true;
 }
 
@@ -690,6 +680,7 @@ bool mixed_depart(void* box, bool& handled) {
     }
 
     // L'aventure et ses proprietaires, avant le depart du jeu (qui change de scene).
+    k.came_home.clear();
     char save[64] = {};
     k.run      = std::move(run);
     k.run_save = savefile_host_save_name(save, sizeof(save)) ? save : "";
@@ -742,7 +733,7 @@ bool is_guest_cat(uint64_t key) {
     return false;
 }
 
-void send_results(void* dir) {
+void send_results() {
     // Un message par joueur : son nom ET son numero au depart (deux joueurs
     // peuvent porter le meme nom).
     std::vector<size_t> heads;
@@ -765,7 +756,7 @@ void send_results(void* dir) {
             TeamCat t;
             CatInfo info;
             if (!cat || cat_id_of(cat) != rc.cat_id ||
-                !make_result(dir, cat, rc.host_key, rc.own_key, rc.orig, rc.shift, t, info)) {
+                !make_result(cat, rc.host_key, rc.own_key, rc.orig, rc.shift, t, info)) {
                 log_line("TEAM", "!! %s (cle %llu) introuvable a la fin de l'aventure -- il garde chez %s "
                                  "son etat d'avant le depart", rc.name.c_str(),
                          (unsigned long long)rc.host_key, rc.owner_name.c_str());
@@ -778,7 +769,7 @@ void send_results(void* dir) {
         const int peer = in_session() ? peer_for(head) : -1;
         if (peer >= 0 && send_team(team_encode(msg), peer)) {
             ++k.returned;
-            log_line("TEAM", "-> etat final des chats de %s envoye : rentre(s) %s, mort(s) %s, perdu(s) %s",
+            log_line("TEAM", "-> etat final des chats de %s envoye : rentre(s) %s, mort(s) %s, pas revenu(s) %s",
                      head.owner_name.c_str(), back.empty() ? "aucun" : join_names(back).c_str(),
                      lost.empty() ? "aucun" : join_names(lost).c_str(),
                      gone.empty() ? "aucun" : join_names(gone).c_str());
@@ -854,7 +845,7 @@ void copy_results(void* dir) {
         void* cat = key ? catsync_cat_by_key(key) : nullptr;
         TeamCat t;
         CatInfo info;
-        if (!cat || cat_id_of(cat) != dc.id || !make_result(dir, cat, key, dc.own_key, dc.orig, shift, t, info))
+        if (!cat || cat_id_of(cat) != dc.id || !make_result(cat, key, dc.own_key, dc.orig, shift, t, info))
             continue;
         names.push_back(dc.name);
         res.push_back(std::move(t));
@@ -870,11 +861,16 @@ void copy_results(void* dir) {
 // --- detours ---------------------------------------------------------------------------------
 
 bool __fastcall h_ButchDepart(void* box) {
-    // Seul : le depart du jeu. Plus d'aventure mixte en cours (une d'avant,
-    // jamais terminee ici, ne doit rien decider pour celle-ci).
-    if (!g.on || !g.host || !in_session()) {
+    // Le panneau de la maison appelle cette fonction pour ses deux usages :
+    // « À l'aventure ! » (des chats dans la boite) et « Fin de journée » (boite
+    // vide : elle echoue, et le jeu finit alors la journee, 0x1401F8EDF). Seul
+    // le depart nous regarde -- la fin de journee passe telle quelle, comme le
+    // depart d'un joueur seul. Plus d'aventure mixte en cours dans ces cas-la
+    // (une d'avant, jamais terminee ici, ne doit rien decider pour la suite).
+    const int sign = mm_sign_click_kind();
+    if (!g.on || !g.host || !in_session() || sign != 2) {
         g.pending.clear();
-        forget_run("depart sans autre joueur");
+        forget_run(sign == 1 ? "fin de journee" : "depart sans autre joueur");
         return o_ButchDepart(box);
     }
     // En session, l'hote ne part qu'apres le vote de depart (mm_menu) : c'est
@@ -917,6 +913,8 @@ bool __fastcall h_ButchDepart(void* box) {
 
 void __fastcall h_ReturnCat(void* house, uint64_t key) {
     if (is_guest_cat(key)) {
+        // Le jeu le ramene a la maison : il rentre, mais chez son joueur.
+        k.came_home.push_back(key);
         log_line("TEAM", "chat %llu : chat d'invite, il rentre chez son joueur et pas chez l'hote",
                  (unsigned long long)key);
         return;
@@ -928,12 +926,13 @@ void __fastcall h_RunCleared(void* dir) {
     // Avant l'original : les listes de la course sont encore la, et les chats
     // d'invites, nettoyes par la fin de course, sont dans le registre du jeu.
     if (!k.run.empty()) {
-        send_results(dir);
+        send_results();
         forget_run("fin d'aventure");
     } else {
         copy_results(dir);                   // chez un invite, dans sa copie
         if (!g.host) k.owners.clear();       // l'hote enverra la sienne, vide
     }
+    k.came_home.clear();
     o_RunCleared(dir);
 }
 
@@ -948,8 +947,8 @@ std::string home_text(const TeamApplySummary& sum) {
         s += fmt(u8"\n%s %s péri pendant l'aventure.", join_names(sum.lost).c_str(),
                  sum.lost.size() > 1 ? u8"ont" : u8"a");
     if (!sum.gone.empty())
-        s += fmt(u8"\n%s %s quitté l'équipe en route.", join_names(sum.gone).c_str(),
-                 sum.gone.size() > 1 ? u8"ont" : u8"a");
+        s += fmt(u8"\n%s ne %s pas de l'aventure.", join_names(sum.gone).c_str(),
+                 sum.gone.size() > 1 ? u8"reviennent" : u8"revient");
     if (!sum.changed.empty())
         s += fmt(u8"\n%s %s changé depuis le départ :\n%s retour d'aventure n'a pas été recopié.",
                  join_names(sum.changed).c_str(), sum.changed.size() > 1 ? u8"ont" : u8"a",
@@ -1054,7 +1053,7 @@ int apply_results(const char* name, GuestDepart& d) {
         log_line("TEAM", "!! l'etat final des chats n'a pas pu etre recopie dans %s -- rien n'est change", name);
         return -1;
     }
-    log_line("TEAM", "retour dans %s (etat %s%s) : rentre(s) %s, mort(s) %s, perdu(s) %s, change(s) "
+    log_line("TEAM", "retour dans %s (etat %s%s) : rentre(s) %s, mort(s) %s, pas revenu(s) %s, change(s) "
                      "depuis le depart %s%s", name, d.from_host ? "de l'hote" : "de ta copie",
              d.home_loaded ? ", en retard" : "",
              sum.back.empty() ? "aucun" : join_names(sum.back).c_str(),
@@ -1198,7 +1197,7 @@ void on_result(uint8_t from, const SaveFileMsg& m) {
         if (!cat_info(c.data, info)) continue;
         ((info.flags & kCatDead) ? lost : c.fate == kFateGone ? gone : back).push_back(info.name);
     }
-    log_line("TEAM", "<- etat final de tes chats (hote) : rentre(s) %s, mort(s) %s, perdu(s) %s -- recopie "
+    log_line("TEAM", "<- etat final de tes chats (hote) : rentre(s) %s, mort(s) %s, pas revenu(s) %s -- recopie "
                      "dans %s a son prochain chargement%s", back.empty() ? "aucun" : join_names(back).c_str(),
              lost.empty() ? "aucun" : join_names(lost).c_str(), gone.empty() ? "aucun" : join_names(gone).c_str(),
              d->save.empty() ? "ta save" : d->save.c_str(),
