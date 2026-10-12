@@ -197,12 +197,43 @@ bool team_owners_decode(const uint8_t* p, size_t n, uint8_t& seq, std::vector<Te
     return true;
 }
 
+std::vector<uint8_t> team_embark_encode(uint8_t seq, const std::vector<uint64_t>& keys) {
+    std::vector<uint8_t> b;
+    put<uint32_t>(b, kTeamMagic);
+    put<uint8_t>(b, kTeamFormat);
+    put<uint8_t>(b, kTeamEmbark);
+    put<uint8_t>(b, seq);
+    put<uint8_t>(b, (uint8_t)std::min(keys.size(), kMaxTeam));
+    for (size_t i = 0; i < keys.size() && i < kMaxTeam; ++i) put<uint64_t>(b, keys[i]);
+    return b;
+}
+
+bool team_embark_decode(const uint8_t* p, size_t n, uint8_t& seq, std::vector<uint64_t>& keys) {
+    if (!p) return false;
+    Reader r{p, n};
+    if (r.get<uint32_t>() != kTeamMagic || r.get<uint8_t>() != kTeamFormat ||
+        r.get<uint8_t>() != kTeamEmbark)
+        return false;
+    const uint8_t sq    = r.get<uint8_t>();
+    const uint8_t count = r.get<uint8_t>();
+    if (!r.ok || count == 0 || count > kMaxTeam) return false;
+    std::vector<uint64_t> out(count);
+    for (uint64_t& k : out) {
+        k = r.get<uint64_t>();
+        if (r.ok && k == 0) return false;
+    }
+    if (!r.ok || r.pos != n) return false;
+    seq  = sq;
+    keys = std::move(out);
+    return true;
+}
+
 uint8_t team_kind(const uint8_t* p, size_t n) {
     if (!p) return 0;
     Reader r{p, n};
     if (r.get<uint32_t>() != kTeamMagic || r.get<uint8_t>() != kTeamFormat) return 0;
     const uint8_t kind = r.get<uint8_t>();
-    if (!r.ok || kind < kTeamDepart || kind > kTeamOwners) return 0;
+    if (!r.ok || kind < kTeamDepart || kind > kTeamEmbark) return 0;
     return kind;
 }
 

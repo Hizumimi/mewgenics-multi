@@ -2,6 +2,7 @@
 
 #include "mm_team.h"
 #include "mm_team_merge.h"
+#include "mm_embark.h"
 #include "mm_world.h"
 
 #include "mgmp_addresses.h"
@@ -189,6 +190,11 @@ struct State {
     uint8_t                  vote_seq = 0;
     std::vector<PendingTeam> pending;
     uint32_t                 roster   = 0;
+    // Hote, depart ensemble (mm_embark) : l'equipe est preparee des le vote,
+    // le depart du jeu viendra quand les invites auront charge la partie.
+    bool                     prepared         = false;
+    uint8_t                  prepared_seq     = 0;
+    bool                     prepared_brought = false;   // des invites amenaient des chats
 };
 
 // Ce qui survit a une session : une aventure continue, des chats sont a rendre.
@@ -528,12 +534,14 @@ bool has_pending_cats() {
     return false;
 }
 
-// Le depart en equipe mixte. `handled` faux : le jeu fait son depart habituel.
-bool mixed_depart(void* box, bool& handled) {
-    handled = false;
+// Prepare l'equipe mixte : les chats des invites ecrits dans la save de l'hote
+// (marques), relus par le jeu, recales sur son calendrier ; l'aventure et ses
+// proprietaires en memoire. Faux si aucun ne peut venir (refuse_mixed l'a dit
+// au journal) : l'hote partira avec les siens.
+bool prepare_mixed(void* box) {
     std::vector<uint64_t> hkeys;
     if (!box_keys(box, hkeys)) {
-        log_line("TEAM", "!! boite de depart de l'hote illisible -- depart habituel");
+        refuse_mixed("boite de depart de l'hote illisible");
         return false;
     }
     if (house_defense_pending()) {
@@ -669,6 +677,14 @@ bool mixed_depart(void* box, bool& handled) {
             refuse_mixed(fmt("%s ne se recale pas sur le jour de l'hote", info.name.c_str()), i + 1);
             return false;
         }
+        // Et la ligne aussi : la save peut partir telle quelle chez les invites
+        // (depart ensemble), leur copie doit avoir le chat comme l'hote l'a en
+        // memoire -- recale, sans liens. (Echec : la copie aura l'ancienne
+        // ligne, sans effet sur l'aventure de l'hote.)
+        std::vector<uint8_t> now;
+        if (!catsync_serialize_cat(cat, now) || !write_cat_row(dir, plan[i].key, cat_blob_pack(now)))
+            log_line("TEAM", "!! %s : ligne recalee non ecrite (la copie des invites aura l'ancienne)",
+                     info.name.c_str());
         rc.host_key    = plan[i].key;
         rc.own_key     = cats[i].own_key;
         rc.cat_id      = info.id;
@@ -695,18 +711,48 @@ bool mixed_depart(void* box, bool& handled) {
                             k.run[i].owner_name.c_str(), (unsigned long long)k.run[i].host_key,
                             plan[i].reuse ? ", reprise" : "", (long long)k.run[i].shift));
 
-    std::vector<uint64_t> all = hkeys;
-    for (const RunCat& rc : k.run) all.push_back(rc.host_key);
-    DepartCapture capture{ box, (uint32_t)all.size(), (uint32_t)all.size(), all.data() };
-    handled = true;
     g.pending.clear();
-    ++k.departs_made;
-    log_line("TEAM", "equipe mixte : %zu chat(s) de l'hote + %s -- depart", hkeys.size(),
+    log_line("TEAM", "equipe mixte prete : %zu chat(s) de l'hote + %s", hkeys.size(),
              join_names(names).c_str());
+    return true;
+}
+
+// Le depart du jeu, directement (C_DepartGo, comme la fin de ButchBox::depart) :
+// le vote valait confirmation, pas de « moins de 4 chats ? » -- cette boite de
+// ButchBox::depart ne fait partir qu'a son « oui » (0x1400AFDB4), et
+// ButchBox::depart rend vrai des qu'elle est ouverte (0x1400AE111).
+void depart_keys(void* box, std::vector<uint64_t> keys) {
+    DepartCapture capture{ box, (uint32_t)keys.size(), (uint32_t)keys.size(), keys.data() };
     if (!safe_depart_go((FnDepartGo)addr_of_call(C_DepartGo), &capture))
         log_line("TEAM", "!! le depart du jeu a echoue en route -- l'aventure est peut-etre incomplete");
+}
+
+// Le depart en equipe mixte : les chats de la boite de l'hote (lus maintenant :
+// il a pu la changer pendant l'attente), puis ceux des invites prepares. Les
+// cles, dans l'ordre ou le jeu les recoit.
+std::vector<uint64_t> depart_mixed(void* box, const std::vector<uint64_t>& hkeys) {
+    std::vector<uint64_t> all = hkeys;
+    for (const RunCat& rc : k.run) all.push_back(rc.host_key);
+    k.host_cats.clear();
+    for (uint64_t hk : hkeys)
+        if (const uint64_t id = cat_id_at(hk)) k.host_cats.push_back(HostCat{ hk, id });
+    rebuild_owners();
+    ++k.departs_made;
+    log_line("TEAM", "equipe mixte : %zu chat(s) de l'hote + %zu d'invite(s) -- depart", hkeys.size(),
+             k.run.size());
+    depart_keys(box, all);
     send_owners(k.run_seq, "depart");
-    return true;
+    return all;
+}
+
+// Depart ensemble : l'equipe, pour que chaque invite fasse le meme depart.
+void send_embark(uint8_t seq, const std::vector<uint64_t>& keys) {
+    if (keys.empty()) return;
+    if (send_team(team_embark_encode(seq, keys), -1))
+        log_line("TEAM", "-> equipe du depart envoyee aux invites (%zu chat(s), vote %u)", keys.size(),
+                 (unsigned)seq);
+    else
+        log_line("TEAM", "!! envoi de l'equipe du depart impossible");
 }
 
 // --- hote : le retour ---------------------------------------------------------------------
@@ -870,16 +916,31 @@ bool __fastcall h_ButchDepart(void* box) {
     const int sign = mm_sign_click_kind();
     if (!g.on || !g.host || !in_session() || sign != 2) {
         g.pending.clear();
+        g.prepared = false;
         forget_run(sign == 1 ? "fin de journee" : "depart sans autre joueur");
         return o_ButchDepart(box);
     }
     // En session, l'hote ne part qu'apres le vote de depart (mm_menu) : c'est
-    // son clic, rejoue, qui arrive ici.
-    const bool brought = has_pending_cats();
-    if (brought) {
-        bool handled = false;
-        const bool r = mixed_depart(box, handled);
-        if (handled) return r;
+    // son clic, rejoue, qui arrive ici. L'equipe a ete preparee au vote (depart
+    // ensemble : les invites ont charge sa partie et le suivent), ou se prepare
+    // maintenant.
+    const bool prepared = g.prepared && g.prepared_seq == g.vote_seq;
+    g.prepared = false;
+    const bool brought = prepared ? g.prepared_brought : has_pending_cats();
+    bool mixed = prepared ? !k.run.empty() : (brought && prepare_mixed(box));
+    std::vector<uint64_t> keys;
+    const bool read = box_keys(box, keys);
+    if (mixed && !read) {
+        refuse_mixed("boite de depart de l'hote illisible");
+        mixed = false;
+    }
+    if (mixed) {
+        const std::vector<uint64_t> all = depart_mixed(box, keys);
+        if (prepared) {
+            send_embark(g.vote_seq, all);
+            embark_host_departed(g.vote_seq);
+        }
+        return true;
     }
     // Pas d'equipe mixte : les chats des invites restent chez eux.
     drop_mixed();
@@ -887,8 +948,7 @@ bool __fastcall h_ButchDepart(void* box) {
     // depart du jeu, qui finirait la journee (0x1401F8EDF) hors du vote de la
     // nuit. Personne ne part, et les invites qui attendaient l'aventure en sont
     // liberes.
-    std::vector<uint64_t> keys;
-    if (box_keys(box, keys) && keys.empty()) {
+    if (read && keys.empty()) {
         log_line("TEAM", "!! boite de l'hote vide et aucun chat d'invite : personne ne part");
         mm_depart_called_off();
         say(brought ? u8"Départ en aventure\n\n"
@@ -908,6 +968,17 @@ bool __fastcall h_ButchDepart(void* box) {
             u8"Les chats des autres joueurs n'ont pas pu\n"
             u8"rejoindre l'équipe : tu pars avec les tiens.\n"
             u8"(Le journal du mod, mgmp.log, dit pourquoi.)");
+    // Depart ensemble : les invites attendent dans la maison de l'hote. Le
+    // depart du jeu directement, avec les chats de la boite dans l'ordre de ses
+    // emplacements (celui de ButchBox::depart, 0x1400ADC21..), puis l'equipe
+    // pour eux.
+    if (prepared && read) {
+        log_line("TEAM", "depart avec les %zu chat(s) de l'hote (depart ensemble)", keys.size());
+        depart_keys(box, keys);
+        send_embark(g.vote_seq, keys);
+        embark_host_departed(g.vote_seq);
+        return true;
+    }
     return o_ButchDepart(box);
 }
 
@@ -1164,6 +1235,18 @@ void on_owners(uint8_t from, const SaveFileMsg& m) {
     supersede_older((size_t)(d - k.departs.data()));
 }
 
+// Invite : l'hote part, avec cette equipe (depart ensemble).
+void on_embark(uint8_t from, const SaveFileMsg& m) {
+    std::vector<uint64_t> keys;
+    uint8_t seq = 0;
+    if (net_role() != NetRole::Client || from != kHostPeer ||
+        !team_embark_decode(m.data, m.size, seq, keys)) {
+        log_line("TEAM", "!! equipe du depart inattendue ou illisible -- ignoree");
+        return;
+    }
+    embark_on_go(seq, keys);
+}
+
 void on_result(uint8_t from, const SaveFileMsg& m) {
     TeamMsg msg;
     if (net_role() != NetRole::Client || from != kHostPeer || !team_decode(m.data, m.size, msg) ||
@@ -1291,6 +1374,7 @@ void team_on_message(uint8_t from, const SaveFileMsg& m) {
         case kTeamDepart: on_depart(from, m); break;
         case kTeamOwners: on_owners(from, m); break;
         case kTeamResult: on_result(from, m); break;
+        case kTeamEmbark: on_embark(from, m); break;
         default:
             log_line("TEAM", "!! message d'equipe inconnu (%u octets) -- ignore", m.size);
             break;
@@ -1324,12 +1408,57 @@ std::string team_host_too_many_text(int players, int have) {
 void team_vote_begin(uint8_t seq) {
     g.vote_seq = seq;
     g.pending.clear();
+    g.prepared = false;
 }
 
 void team_vote_reset(const char* why) {
     if (!g.pending.empty())
         log_line("TEAM", "chats des invites oublies (%s)", why ? why : "?");
     g.pending.clear();
+    g.prepared = false;
+}
+
+bool team_embark_prepare(uint8_t seq) {
+    if (!g.on || !g.host || !in_session()) return false;
+    BoxState state = kBoxOk;
+    void* box = house_box(state);
+    if (!box) return false;
+    g.prepared         = true;
+    g.prepared_seq     = seq;
+    g.prepared_brought = has_pending_cats();
+    if (!g.prepared_brought)
+        drop_mixed();                        // une aventure d'avant ne decide rien pour celle-ci
+    else if (!prepare_mixed(box))
+        log_line("TEAM", "depart ensemble : les chats des invites ne viennent pas, l'hote partira avec "
+                         "les siens");
+    return true;
+}
+
+bool team_copy_depart(const std::vector<uint64_t>& keys) {
+    if (keys.empty()) return false;
+    BoxState state = kBoxOk;
+    void* box = house_box(state);
+    auto go = (FnDepartGo)addr_of_call(C_DepartGo);
+    if (!box || !go) {
+        log_line("TEAM", "!! depart dans la copie impossible : %s", !box ? "boite de depart introuvable"
+                                                                         : "fonction du jeu introuvable");
+        return false;
+    }
+    // Un chat que la copie n'a pas (l'hote ne l'avait pas encore sauve) : elle
+    // part sans lui ; ses ecrans different alors un peu de ceux de l'hote.
+    std::vector<uint64_t> all;
+    for (uint64_t key : keys) {
+        if (catsync_cat_by_key(key)) all.push_back(key);
+        else log_line("TEAM", "!! la copie de la partie de l'hote n'a pas le chat %llu : elle part sans lui",
+                      (unsigned long long)key);
+    }
+    if (all.empty()) return false;
+    DepartCapture capture{ box, (uint32_t)all.size(), (uint32_t)all.size(), all.data() };
+    if (!safe_depart_go(go, &capture)) {
+        log_line("TEAM", "!! le depart du jeu a echoue dans la copie");
+        return false;
+    }
+    return true;
 }
 
 void team_forget_peer(uint8_t peer) {

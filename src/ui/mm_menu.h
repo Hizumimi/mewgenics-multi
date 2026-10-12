@@ -75,6 +75,10 @@ void mm_on_host_left();
 bool mm_in_house();
 // Une partie est chargee : la maison, la carte, un combat ou un evenement.
 bool mm_in_game();
+// Une scene de ce nom est chargee (et n'est pas en train de disparaitre).
+bool mm_scene_alive(const char* name);
+// Les scenes chargees, « House, Map, ... », pour le journal.
+std::string mm_scene_list();
 
 // La maison a l'ecran : son composant House (celui que refait le panneau a
 // chaque image), verifie -- il appartient a la scene « House » vivante. Nul

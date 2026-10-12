@@ -63,6 +63,7 @@ enum : uint8_t {
     kTeamDepart = 1,    // invite -> hote : les chats qu'il amene
     kTeamResult = 2,    // hote -> invite : ce qu'ils sont devenus
     kTeamOwners = 3,    // hote -> invites : a qui est chaque chat de l'equipe
+    kTeamEmbark = 4,    // hote -> invites : il part, voici l'equipe (mm_embark)
 };
 
 // Le message MSG_TEAM : des chats (kTeamDepart, kTeamResult)...
@@ -86,6 +87,13 @@ struct TeamOwner {
 };
 std::vector<uint8_t> team_owners_encode(uint8_t seq, const std::vector<TeamOwner>& owners);
 bool team_owners_decode(const uint8_t* p, size_t n, uint8_t& seq, std::vector<TeamOwner>& owners);
+
+// ... ou le depart ensemble (kTeamEmbark) : le vote du depart, puis les cles des
+// chats de l'equipe dans la save de l'hote, dans l'ordre ou le jeu les a mis
+// (ceux de l'hote, puis ceux des invites). Chaque invite fait le meme depart
+// dans sa copie de la partie de l'hote.
+std::vector<uint8_t> team_embark_encode(uint8_t seq, const std::vector<uint64_t>& keys);
+bool team_embark_decode(const uint8_t* p, size_t n, uint8_t& seq, std::vector<uint64_t>& keys);
 
 // Le genre d'un message MSG_TEAM, 0 si ce n'en est pas un.
 uint8_t team_kind(const uint8_t* p, size_t n);

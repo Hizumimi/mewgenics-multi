@@ -183,6 +183,11 @@ bool savefile_join_armed();
 bool savefile_home_armed();
 // Hote : une aventure est chargee et sa save a ete publiee pour elle.
 bool savefile_run_published();
+// Hote, depart ensemble (mm_embark) : publie sa save telle qu'elle est sur le
+// disque -- la maison, avec les chats des invites deja ecrits -- comme une
+// nouvelle partie (fresh). Les invites qui ont dit « J'arrive » la chargent et
+// suivent son depart ; l'aventure, elle, sera publiee sur la carte comme avant.
+bool savefile_publish_embark();
 // Hote : nombre de publications de la save depuis le lancement (une de plus a
 // chaque depart, et a chaque demande d'un invite en cours de route).
 uint32_t savefile_publish_count();

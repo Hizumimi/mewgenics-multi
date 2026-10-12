@@ -1298,6 +1298,19 @@ bool savefile_has_own_slot()  { return g.own_slot >= 0; }
 bool savefile_join_armed()    { return g.on && g.is_client && g.join_armed; }
 bool savefile_home_armed()    { return g.on && g.is_client && g.home_armed; }
 bool savefile_run_published() { return !g.is_client && g.run_seen && g.run_published; }
+
+bool savefile_publish_embark() {
+    ensure_state();
+    if (!g.on || g.is_client || !net_active() || !g.have_slot) return false;
+    // Pas de flush : aucune aventure n'est chargee (publish ne le fait que sur la
+    // carte), le fichier est la maison telle que le jeu l'a ecrite, plus les
+    // chats des invites que mm_team vient d'y ecrire par la connexion du jeu.
+    if (!publish(kNoPeer, /*fresh=*/true)) return false;
+    ++g.publishes;
+    log_line("SAVEFILE", "   (depart ensemble : la maison de l'hote, pour que l'equipe suive son depart -- "
+                         "l'aventure sera publiee sur la carte)");
+    return true;
+}
 uint32_t savefile_publish_count() { return g.publishes; }
 
 } // namespace mgmp

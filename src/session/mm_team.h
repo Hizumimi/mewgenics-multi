@@ -28,6 +28,10 @@
 //      les cles que le jeu aurait donnees a ses prochains chats (compteur
 //      D_CatKeyCounter, avance d'autant). Le vote valait confirmation : pas de
 //      « moins de 4 chats ? ».
+//      Depart ensemble (mm_embark) : l'equipe est preparee des que le vote
+//      passe (team_embark_prepare), puis la save de l'hote part chez les
+//      invites ; le depart du jeu vient quand ils l'ont chargee, et l'equipe
+//      (kTeamEmbark) leur est envoyee pour qu'ils le fassent aussi.
 //   4. L'hote envoie a tous la liste des proprietaires (kTeamOwners). Dans
 //      chaque combat, chacun dirige les siens (mgmp_lockstep) ; un chat inconnu
 //      (recrue) ou dont le joueur est parti est a l'hote. Les proprietaires
@@ -122,6 +126,17 @@ void team_vote_begin(uint8_t seq);
 void team_vote_reset(const char* why);
 // Ce joueur ne vient plus (« pas encore » apres « J'arrive »).
 void team_forget_peer(uint8_t peer);
+// Depart ensemble (mm_embark), le vote `seq` passe : l'equipe est preparee
+// tout de suite (les chats des invites ecrits dans la save, avant qu'elle parte
+// chez eux) ; le depart du jeu viendra au clic rejoue. Faux sans maison ou
+// sans boite.
+bool team_embark_prepare(uint8_t seq);
+
+// --- invite : le depart ensemble (mm_embark) --------------------------------------
+
+// Fait dans la copie de la partie de l'hote le depart qu'il vient de faire :
+// les memes cles, dans le meme ordre (C_DepartGo sur la boite de la copie).
+bool team_copy_depart(const std::vector<uint64_t>& keys);
 
 // --- invite : « J'arrive » (mm_menu.cpp) ----------------------------------------
 

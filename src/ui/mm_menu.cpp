@@ -38,7 +38,8 @@
 #include "mgmp_choice.h"    // choice_made_in_node
 #include "mgmp_leave.h"     // leave_will_press_quit
 #include "mm_world.h"        // world_have_host : le monde de l'hote est arrive
-#include "mm_team.h"         // l'equipe mixte : chacun amene ses chats
+#include "mm_team.h"
+#include "mm_embark.h"         // l'equipe mixte : chacun amene ses chats
 
 #include <winsock2.h>   // avant windows.h : types reseau d'iphlpapi
 #include <ws2tcpip.h>
@@ -416,14 +417,14 @@ char g_peer_names[8][64] = {};
 // --- la fenetre ouverte -------------------------------------------------------------
 
 enum class Screen { None, Choice, HostLobby, JoinEntry, ClientLobby, BadAddress, NightWait,
-                    NightNotice, DepartWait, ArrivalWait, DepartOffer, RunOffer, JoinWait,
+                    NightNotice, DepartWait, EmbarkWait, ArrivalWait, DepartOffer, RunOffer, JoinWait,
                     HomeOffer, Info };
 
 // Les demandes posees par les clics et par le clavier, traitees au debut de
 // l'image suivante. Un seul emplacement : il n'y a jamais deux clics a la fois.
 enum class Action { None, OpenAuto, StartHost, OpenJoin, DoJoin, ClickPlay, StopSession, OpenBadAddress,
                     CancelNight, NightReadyNow, DepartCancel, DepartYes, DepartNo, RunJoin, RunLater,
-                    GoHome, JoinCancel, ArrivalDismiss };
+                    GoHome, JoinCancel, ArrivalDismiss, EmbarkNoWait };
 Action g_action = Action::None;
 
 // Images depuis le lancement (mm_menu_pump), pour les delais.
@@ -1303,6 +1304,8 @@ uint8_t  g_dep_answer[8]   = {};      // 0 pas de reponse, 1 « J'arrive », 2 �
 bool     g_dep_go          = false;   // tout le monde vient : rejouer le clic
 bool     g_dep_passing     = false;   // le prochain clic sur le panneau est le notre
 bool     g_dep_wait_wanted = false;   // ouvrir l'attente du vote
+bool     g_dep_embark      = false;   // le vote est passe : l'equipe charge la partie (mm_embark)
+bool     g_embark_wait_wanted = false; // ouvrir l'attente de l'equipe
 uint8_t  g_dep_seq         = 0;       // numero du vote en cours (MM_DEPART_REQ.b) : une
                                       // reponse a un vote d'avant ne compte pas
 // MM_DEPART_REQ a = 0, champ c : pourquoi le depart n'a pas lieu.
@@ -1536,8 +1539,8 @@ std::string run_offer_text() {
 std::string join_wait_text() {
     const std::string h = host_display();
     return fmt(u8"En route pour l'aventure\n\n"
-               u8"L'aventure de %s se chargera\n"
-               u8"dès qu'il arrivera sur la carte.", h.c_str());
+               u8"La partie de %s va se charger :\n"
+               u8"tu partiras avec lui.", h.c_str());
 }
 
 std::string home_offer_text() {
@@ -1564,10 +1567,21 @@ uint32_t peer_run_mask() {
 }
 
 void depart_check_go() {
-    if (!g_dep_active || g_dep_go) return;     // deja decide : une seule fois
+    if (!g_dep_active || g_dep_go || g_dep_embark) return;   // deja decide : une seule fois
     const uint32_t others = peers_mask_others();
     for (uint8_t id = 0; id < 8; ++id)
         if ((others & (1u << id)) && g_dep_answer[id] != 1) return;
+    // Depart ensemble : l'equipe charge d'abord la partie de l'hote, pour voir
+    // avec lui le choix des colliers et des objets (mm_embark).
+    uint32_t joiners = 0;
+    for (uint8_t id = 0; id < 8; ++id)
+        if ((others & (1u << id)) && g_dep_answer[id] == 1) joiners |= 1u << id;
+    if (embark_begin(g_dep_seq, joiners)) {
+        g_dep_embark         = true;
+        g_embark_wait_wanted = true;
+        log_line("MULTI", "depart : toute l'equipe vient, elle charge la partie de l'hote avant le depart");
+        return;
+    }
     g_dep_go = true;
     log_line("MULTI", "depart : toute l'equipe vient, l'hote part");
 }
@@ -1576,7 +1590,9 @@ void depart_cancel(const char* why) {
     if (!g_dep_active) return;
     g_dep_active = false;
     g_dep_go     = false;
+    g_dep_embark = false;
     g_dep_button = nullptr;
+    embark_cancel(why);
     team_vote_reset(why);
     MmMsg m{};
     m.kind = MM_DEPART_REQ;
@@ -1618,9 +1634,10 @@ void host_adventure_pump() {
     if (net_role() != NetRole::Host) return;
     if (!session_has_others()) {
         // Plus personne : un vote en cours n'a plus d'objet, l'hote part seul.
-        if (g_dep_active) {
+        if (g_dep_active && !g_dep_go) {
             log_line("MULTI", "depart : plus d'autre joueur connecte, l'hote part seul");
-            g_dep_go = true;
+            g_dep_go     = true;
+            g_dep_embark = false;
         }
         g_host_run_sent     = -1;
         memset(g_peer_run, 0, sizeof(g_peer_run));
@@ -1661,6 +1678,10 @@ void host_adventure_pump() {
         g_arrival_mask   = in_run ? (peers_mask_others() & ~peer_run_mask()) : 0;
         g_arrival_wanted = (g_arrival_mask & ~g_arrival_dismissed) != 0;
         if (g_dep_active) depart_check_go();
+        if (g_dep_embark && embark_should_go()) {
+            g_dep_embark = false;
+            g_dep_go     = true;
+        }
         // Les demandes de rejoindre gardees pour le retour sur la carte.
         if (g_run_req_pending && !follow_inside_node()) {
             const uint32_t req = g_run_req_pending & roster;
@@ -1672,7 +1693,7 @@ void host_adventure_pump() {
 
     if (!g_dep_go) return;
     if (g_live.alive) {
-        if (g_live.screen == Screen::DepartWait && !g_click_target) {
+        if ((g_live.screen == Screen::DepartWait || g_live.screen == Screen::EmbarkWait) && !g_click_target) {
             g_silent = g_live.serial;
             popup_press("yes");
         }
@@ -1810,6 +1831,12 @@ void client_adventure_pump() {
         said_own_run = false;
     }
 
+    // Il devait rentrer chez lui (depart annule pendant qu'il chargeait la
+    // partie de l'hote) et s'y retrouve quand meme : on l'emmene au menu, d'ou
+    // il rentre dans sa save.
+    if (savefile_in_coop() && savefile_home_armed() && !g_trip.active && !at_main_menu())
+        start_menu_trip("rentrer chez soi depuis la copie");
+
     // L'hote a recharge son aventure (ou en a commence une autre) pendant que ce
     // joueur jouait encore l'ancienne copie : on va charger la nouvelle.
     if (savefile_take_fresh_in_coop()) {
@@ -1836,7 +1863,7 @@ void client_adventure_pump() {
     // au menu quand l'hote abandonne, ou il quitte lui-meme), la fenetre
     // l'attend au menu : il n'y reste pas bloque.
     if (savefile_in_coop() && (!others || !g_host_in_run) && !g_home_due &&
-        !savefile_home_armed()) {
+        !savefile_home_armed() && !embark_guest_active()) {
         g_home_due = true;
         log_line("MULTI", "aventure : celle de l'hote est finie%s, ce joueur doit rentrer chez lui",
                  others ? "" : " (connexion coupee)");
@@ -1885,8 +1912,14 @@ void adventure_popups() {
             g_info_wanted = false;
         return;
     }
-    if (host && g_dep_wait_wanted && g_dep_active && !g_dep_go) {
+    if (host && g_dep_wait_wanted && g_dep_active && !g_dep_go && !g_dep_embark) {
         if (open_depart_wait()) g_dep_wait_wanted = false;
+        return;
+    }
+    if (host && g_embark_wait_wanted && g_dep_embark && !g_dep_go) {
+        if (open_popup(Screen::EmbarkWait, embark_wait_text(), u8"Ne pas attendre", nullptr, true,
+                       Action::EmbarkNoWait, Action::EmbarkNoWait))
+            g_embark_wait_wanted = false;
         return;
     }
     if (host && g_arrival_wanted) {
@@ -1934,8 +1967,12 @@ void adventure_live() {
     };
     switch (g_live.screen) {
         case Screen::DepartWait:
-            if (!g_dep_active || g_dep_go) close_silently();
+            if (!g_dep_active || g_dep_go || g_dep_embark) close_silently();
             else popup_set_text(depart_wait_text());
+            break;
+        case Screen::EmbarkWait:
+            if (!g_dep_embark || g_dep_go) close_silently();
+            else popup_set_text(embark_wait_text());
             break;
         case Screen::ArrivalWait:
             if (!session_has_others() || !g_arrival_mask) {
@@ -2169,6 +2206,30 @@ void __fastcall h_ConfirmBuild(void* self, uint64_t a2, uint64_t text, uint64_t 
 
 bool mm_in_house() { return find_scene("House") != nullptr; }
 
+bool mm_scene_alive(const char* name) { return name && find_scene(name) != nullptr; }
+
+std::string mm_scene_list() {
+    std::string out;
+    if (!g_director) return out;
+    void** begin = nullptr;
+    void** end   = nullptr;
+    if (!mem_read((char*)g_director + kDirector_ScenesBegin, &begin, sizeof(begin)) ||
+        !mem_read((char*)g_director + kDirector_ScenesEnd,   &end,   sizeof(end)) ||
+        !begin || end < begin || end - begin > 256)
+        return out;
+    for (void** it = begin; it < end; ++it) {
+        void* sc = nullptr;
+        if (!mem_read(it, &sc, sizeof(sc)) || !sc) continue;
+        uint8_t dying = 1;
+        if (!mem_read((char*)sc + kScene_Destroying, &dying, 1) || dying) continue;
+        char name[48] = {};
+        if (!mem_read_std_string((char*)sc + kScene_Name, name, sizeof(name))) continue;
+        if (!out.empty()) out += ", ";
+        out += name;
+    }
+    return out;
+}
+
 void* mm_house() {
     void* scene = find_scene("House");
     if (!scene || !g_house) return nullptr;
@@ -2226,6 +2287,8 @@ bool mm_binding(Target t, void** detour, void*** original) {
 
 void mm_menu_pump() {
     ++g_frame;
+    embark_frame_begin();
+    embark_pump();
     const Action a = g_action;
     g_action = Action::None;
     switch (a) {
@@ -2281,11 +2344,13 @@ void mm_menu_pump() {
             send_depart_answer(true);
             log_line("MULTI", "depart : ce joueur arrive");
             start_join("depart en aventure");
+            embark_guest_joining(g_dep_req_seq);     // il suivra le depart de l'hote
             break;
         }
         case Action::DepartNo:
             send_depart_answer(false);
             team_guest_withdraw(g_dep_req_seq);      // ses chats envoyes plus tot ne partent plus
+            embark_guest_cancel("pas encore");
             log_line("MULTI", "depart : ce joueur n'est pas encore pret");
             g_dep_offer    = true;
             g_dep_offer_at = g_frame + kOfferAgain;
@@ -2311,6 +2376,7 @@ void mm_menu_pump() {
             start_menu_trip("retour chez soi");      // rien a faire s'il est deja au menu
             break;
         case Action::JoinCancel:
+            embark_guest_cancel("annule par le joueur");
             if (g_dep_req_live) {                    // le vote tient : « pas encore »
                 send_depart_answer(false);
                 team_guest_withdraw(g_dep_req_seq);
@@ -2322,6 +2388,9 @@ void mm_menu_pump() {
         case Action::ArrivalDismiss:
             g_arrival_dismissed |= g_arrival_mask;
             log_line("MULTI", "aventure : l'hote n'attend plus son equipe");
+            break;
+        case Action::EmbarkNoWait:
+            embark_no_wait();
             break;
     }
 
@@ -2419,6 +2488,7 @@ void mm_menu_pump() {
 
 void mm_on_button_update(void* button) {
     if (button) trip_on_button(button);
+    if (button) embark_on_button_update(button);
     if (!button || button != g_click_target) return;
     g_click_target = nullptr;
     auto click = call_target<FnButtonClick>(C_ButtonClick);
@@ -2551,6 +2621,17 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
                 g_dep_offer    = false;
                 team_guest_withdraw(m.b);            // vote annule : ses chats restent chez lui
                 const bool nobody = m.c == kDepartOff_Nobody;
+                // Deja dans la maison de l'hote (depart ensemble) : il rentre chez lui.
+                // En route vers elle : il n'y entrera pas.
+                const bool in_copy = embark_guest_active();
+                embark_guest_cancel(nobody ? "personne ne part" : "depart annule par l'hote");
+                if (in_copy) {
+                    g_home_due = true;
+                    if (nobody)
+                        show_info(fmt(u8"Départ en aventure\n\n"
+                                      u8"Aucun chat ne peut partir cette fois :\n"
+                                      u8"%s ne part pas à l'aventure.", host_display().c_str()));
+                }
                 log_line("MULTI", "depart : %s", nobody ? "aucun chat ne peut partir, pas d'aventure"
                                                         : (host_display() + " a annule").c_str());
                 if (savefile_join_armed() && !savefile_in_coop()) {
@@ -2561,6 +2642,9 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
                                      : fmt(u8"%s a annulé le départ.", host_display().c_str()));
                 }
             }
+            break;
+        case MM_EMBARK:
+            embark_on_mm(from, m);
             break;
         case MM_DEPART_READY:
             if (net_role() != NetRole::Host || from >= 8) break;
@@ -2634,6 +2718,10 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
 }
 
 bool mm_on_button_click(void* button) {
+    // Le depart ensemble : les clics de l'hote dans le choix des colliers et
+    // des objets partent chez l'equipe ; chez un invite qui regarde, les siens
+    // sont retenus.
+    if (embark_on_button_click(button)) return true;
     const int kind = sign_kind(button);
     if (!kind) return false;
     // Le panneau clique, pour l'action qu'il declenche pendant ce meme clic
@@ -2654,6 +2742,7 @@ bool mm_on_button_click(void* button) {
     // Dans la copie de l'aventure de l'hote, la maison n'est pas la sienne : ni
     // nuit ni depart ici, on lui propose de rentrer.
     if (net_role() == NetRole::Client && savefile_in_coop()) {
+        if (embark_guest_active()) return true;  // il attend le depart de l'hote, dans sa maison
         if (!g_home_due) log_line("MULTI", "aventure : clic sur le panneau de la copie, retour propose");
         g_home_due = true;
         return true;

@@ -277,6 +277,29 @@ void test_owners() {
     CHECK(mgmp::team_kind(nullptr, 0) == 0);
 }
 
+void test_embark() {
+    std::printf("depart ensemble\n");
+    const std::vector<uint64_t> keys = { 41, 43, 49, 50 };
+    const Bytes w = mgmp::team_embark_encode(7, keys);
+    CHECK(mgmp::team_kind(w.data(), w.size()) == mgmp::kTeamEmbark);
+    std::vector<uint64_t> back;
+    uint8_t seq = 0;
+    CHECK(mgmp::team_embark_decode(w.data(), w.size(), seq, back) && seq == 7 && back == keys);
+    Bytes more = w; more.push_back(0);
+    CHECK(!mgmp::team_embark_decode(more.data(), more.size(), seq, back));
+    CHECK(!mgmp::team_embark_decode(w.data(), w.size() - 1, seq, back));
+    // Une equipe vide ou une cle nulle : refuse (le jeu ne part pas sans chat).
+    const Bytes none = mgmp::team_embark_encode(7, {});
+    CHECK(!mgmp::team_embark_decode(none.data(), none.size(), seq, back));
+    const Bytes zero = mgmp::team_embark_encode(7, { 41, 0 });
+    CHECK(!mgmp::team_embark_decode(zero.data(), zero.size(), seq, back));
+    // Les decodeurs ne se melangent pas.
+    std::vector<mgmp::TeamOwner> own;
+    CHECK(!mgmp::team_owners_decode(w.data(), w.size(), seq, own));
+    const Bytes ow = mgmp::team_owners_encode(7, {});
+    CHECK(!mgmp::team_embark_decode(ow.data(), ow.size(), seq, back));
+}
+
 void test_plan_keys() {
     std::printf("cles des chats de l'invite chez l'hote\n");
     sqlite3* h = new_save();
@@ -432,6 +455,7 @@ int main() {
     test_blob();
     test_house();
     test_owners();
+    test_embark();
     test_plan_keys();
     test_guest_apply();
     if (g_fail) { std::printf("%d echec(s)\n", g_fail); return 1; }
