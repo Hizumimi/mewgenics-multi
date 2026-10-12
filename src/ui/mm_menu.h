@@ -29,6 +29,7 @@
 #include <windows.h>
 #include <cstdint>
 #include <functional>
+#include <string>
 
 namespace mgmp {
 
@@ -74,6 +75,23 @@ void mm_on_host_left();
 bool mm_in_house();
 // Une partie est chargee : la maison, la carte, un combat ou un evenement.
 bool mm_in_game();
+
+// La maison a l'ecran : son composant House (celui que refait le panneau a
+// chaque image), verifie -- il appartient a la scene « House » vivante. Nul
+// ailleurs.
+void* mm_house();
+// Une fenetre d'information du jeu (« D'accord »), des qu'une fenetre peut
+// s'ouvrir. Texte UTF-8, en francais.
+void mm_show_info(const std::string& text_utf8);
+// Une fenetre d'information attend ou est ouverte : la suivante attendra.
+bool mm_info_busy();
+// Le nom d'un joueur de la session (pseudo Steam, « Joueur N » a defaut).
+std::string mm_peer_name(uint8_t id);
+
+// Hote, le vote de depart passe : personne ne peut partir (mm_team -- boite de
+// l'hote videe pendant le vote, et aucun chat d'invite). Les invites qui
+// attendaient l'aventure en sont liberes, et une fenetre leur dit pourquoi.
+void mm_depart_called_off();
 
 // Appele par le detour de Button::Click, avant le clic. Vrai = clic retenu :
 // en session, le panneau de fin de journee (« EndDay_Sign ») attend que tout le

@@ -17,6 +17,7 @@
 #include "mgmp_leave.h"
 #include "mm_world.h"         // Mewgenics Multi : le monde partage
 #include "mm_npc.h"           // Mewgenics Multi : les PNJ en direct
+#include "mm_team.h"          // Mewgenics Multi : l'equipe mixte
 #include "mgmp_config.h"
 #include "mgmp_hooks.h"     // hooks_install_late, for a session started from the panel
 #include "mgmp_tuning.h"
@@ -178,6 +179,7 @@ void go_ready(const char* how) {
     leave_init();
     world_init();
     npc_init();
+    team_init();
     catsync_init();
     invsync_init();
     runhist_init();
@@ -207,6 +209,10 @@ void refuse_peer(uint8_t peer, const char* why) {
 // been accepted, and (Mewgenics Multi) for a peer that was playing its own save
 // and now asks to join the adventure in progress (MM_RUN_REQ).
 void catchup_peer(uint8_t from) {
+    // Mewgenics Multi : qui dirige quels chats dans l'aventure en cours, AVANT la
+    // save -- le premier combat de l'arrivant en a besoin.
+    team_catchup(from);
+
     // A peer that joined after the save was already published gets it now.
     // Without this it would be accepted and welcomed and then sit forever on a
     // save-selection screen whose input is suppressed, waiting for a broadcast
@@ -489,6 +495,7 @@ void session_shutdown() {
     leave_shutdown();
     world_shutdown();
     npc_shutdown();
+    team_shutdown();
     catsync_shutdown();
     invsync_shutdown();
     runhist_shutdown();
@@ -528,6 +535,8 @@ void session_update() {
         world_pump();
         // Mewgenics Multi : les PNJ en direct (l'hote lit, l'invite recopie).
         npc_pump();
+        // Mewgenics Multi : l'equipe mixte (fenetres, joueurs partis).
+        team_pump();
         return;
     }
 
@@ -551,6 +560,10 @@ void session_update() {
                 break;
             // Pareil pour l'etat des PNJ : renvoye juste apres WELCOME (npc_catchup).
             case MSG_NPC:
+                break;
+            // L'equipe mixte ne parle qu'une fois la session prete ; les
+            // proprietaires de l'aventure en cours suivent WELCOME (team_catchup).
+            case MSG_TEAM:
                 break;
 
 

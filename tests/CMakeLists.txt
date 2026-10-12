@@ -56,6 +56,15 @@ target_link_libraries(test_world_merge PRIVATE mm_sqlite)
 target_compile_options(test_world_merge PRIVATE /utf-8)
 add_test(NAME test_world_merge COMMAND test_world_merge)
 
-foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_battleid test_config test_world_merge)
+# Mewgenics Multi : l'equipe mixte -- le message, le format des chats (LZ4 compris),
+# house_state, les chats d'un invite chez l'hote et leur retour chez l'invite.
+add_executable(test_team_merge test_team_merge.cpp ${CMAKE_SOURCE_DIR}/src/session/mm_team_merge.cpp)
+target_include_directories(test_team_merge PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/session ${CMAKE_SOURCE_DIR}/src/core ${CMAKE_SOURCE_DIR}/third_party/sqlite)
+target_link_libraries(test_team_merge PRIVATE mm_sqlite)
+target_compile_options(test_team_merge PRIVATE /utf-8)
+add_test(NAME test_team_merge COMMAND test_team_merge)
+
+foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_battleid test_config test_world_merge test_team_merge)
     target_compile_options(${t} PRIVATE /W3)
 endforeach()

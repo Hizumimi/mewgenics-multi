@@ -128,13 +128,13 @@ bool being_written(const wchar_t* path) {
 
 // Lecture sans verrou : le jeu peut tenir la save ouverte, et ne doit jamais
 // voir une ecriture echouer a cause de nous.
-bool read_file(const wchar_t* path, std::vector<uint8_t>& out) {
+bool read_file(const wchar_t* path, std::vector<uint8_t>& out, uint64_t cap = kMaxWorldBytes) {
     out.clear();
     HANDLE h = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                            nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (h == INVALID_HANDLE_VALUE) return false;
     LARGE_INTEGER sz{};
-    if (!GetFileSizeEx(h, &sz) || sz.QuadPart < 100 || (uint64_t)sz.QuadPart > kMaxWorldBytes) {
+    if (!GetFileSizeEx(h, &sz) || sz.QuadPart < 100 || (uint64_t)sz.QuadPart > cap) {
         CloseHandle(h);
         return false;
     }
@@ -314,6 +314,32 @@ void world_on_message(const SaveFileMsg& m) {
 bool world_have_host() {
     if (!g.on) return false;
     return g.is_client ? !g.host_db.empty() : !g.stable.empty();
+}
+
+sqlite3* world_open_host_save_now() {
+    if (!g.on || g.is_client) return nullptr;
+    char name[64] = {};
+    if (!savefile_host_save_name(name, sizeof(name))) return nullptr;
+    wchar_t path[MAX_PATH];
+    // Sur le thread du jeu, entre deux images : sans journal a cote, la derniere
+    // transaction du jeu est finie et le fichier est entier.
+    if (save_path(name, path, MAX_PATH) && !being_written(path)) {
+        std::vector<uint8_t> bytes;
+        if (read_file(path, bytes, 64ull << 20)) {
+            sqlite3* db = world_open_bytes(bytes.data(), bytes.size());
+            if (world_looks_like_save(db)) return db;
+            sqlite3_close(db);
+        }
+    }
+    // Sinon la derniere copie verifiee de cette save, s'il y en a une.
+    if (!g.stable.empty() && strcmp(name, g.name) == 0) {
+        sqlite3* db = world_open_bytes(g.stable.data(), g.stable.size());
+        if (db) {
+            log_line("WORLD", "save de l'hote illisible a l'instant : sa derniere copie verifiee sert");
+            return db;
+        }
+    }
+    return nullptr;
 }
 
 void world_prepare_own_save(const char* name) {

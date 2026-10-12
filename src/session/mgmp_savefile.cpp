@@ -12,6 +12,7 @@
 #include "mgmp_choice.h"   // choice_forget (Mewgenics Multi)
 #include "mgmp_leave.h"    // leave_in_run (Mewgenics Multi)
 #include "mm_world.h"       // world_prepare_own_save (Mewgenics Multi)
+#include "mm_team.h"        // team_prepare_own_save (Mewgenics Multi)
 // A slot click starts a run, which makes the three per-run dedupe caches stale.
 // See the block in savefile_on_slot_click.
 #include "mgmp_catsync.h"
@@ -813,7 +814,10 @@ bool savefile_on_slot_click(void* ss, int slot) {
                                  "adventure", slot, g.own_name[0] ? g.own_name : "?");
             // Mewgenics Multi : le monde de l'hote (PNJ, histoire, deblocages)
             // passe dans cette save juste avant que le jeu ne l'ouvre.
-            if (g.own_name[0]) world_prepare_own_save(g.own_name);
+            if (g.own_name[0]) {
+                world_prepare_own_save(g.own_name);
+                team_prepare_own_save(g.own_name);   // et ce que ses chats sont devenus
+            }
             return true;
         }
         ++g.suppressed;
@@ -831,6 +835,11 @@ bool savefile_on_slot_click(void* ss, int slot) {
                              "%p (slot %d) -- nothing to share", ss, slot);
         return true;
     }
+
+    // Mewgenics Multi : c'est sa save a lui. Une equipe mixte partie d'une autre
+    // save ne decide plus rien, et s'il est deja venu en invite avec des chats de
+    // cette save, leur etat final y passe juste avant que le jeu ne l'ouvre.
+    team_prepare_own_save(names.v[slot]);
 
     g.have_slot = true;
     g.slot      = (uint32_t)slot;
@@ -1041,6 +1050,7 @@ int savefile_autoselect(void* ss) {
         log_line("SAVEFILE", "back home: clicking this player's own slot %d (%s), no "
                              "redirect", slot, names.v[slot]);
         world_prepare_own_save(names.v[slot]);   // Mewgenics Multi : le monde de l'hote
+        team_prepare_own_save(names.v[slot]);    // et ce que ses chats sont devenus
         return slot;
     }
 
@@ -1278,6 +1288,11 @@ void savefile_left_game() {
     if (!g.in_coop) return;
     g.in_coop = false;
     log_line("SAVEFILE", "back on the main menu -- out of the host's adventure copy");
+}
+bool savefile_own_save_name(char* out, size_t n) {
+    if (!g.is_client || g.own_slot < 0 || !g.own_name[0] || !out || !n) return false;
+    strncpy_s(out, n, g.own_name, _TRUNCATE);
+    return true;
 }
 bool savefile_has_own_slot()  { return g.own_slot >= 0; }
 bool savefile_join_armed()    { return g.on && g.is_client && g.join_armed; }

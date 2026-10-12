@@ -174,6 +174,9 @@ bool savefile_in_coop();
 void savefile_left_game();
 // Cet invite a choisi son propre emplacement dans cette session.
 bool savefile_has_own_slot();
+// Invite : le nom de sa propre save (« steamcampaign02.sav »), faux s'il n'en a
+// pas encore choisi dans cette session -- ou sur l'hote.
+bool savefile_own_save_name(char* out, size_t n);
 // L'invite a dit « J'arrive » et n'est pas encore dans l'aventure.
 bool savefile_join_armed();
 // L'invite attend de rentrer chez lui (« Jouer » puis son emplacement).

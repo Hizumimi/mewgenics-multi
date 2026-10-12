@@ -16,6 +16,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <vector>
 
 namespace mgmp {
 namespace {
@@ -239,6 +240,48 @@ void catsync_set_base(uintptr_t base) {
         return;
     }
     g.resolved = true;
+}
+
+// Mewgenics Multi (equipe mixte) : le registre du jeu et son serialiseur, pour
+// les chats de la maison d'un invite et l'etat final des chats d'invites chez
+// l'hote. Rien de la synchro des chats ci-dessous n'est touche.
+void* catsync_cat_by_key(uint64_t key) {
+    if (!g.resolved || !g.director_slot || !key) return nullptr;
+    const void* dir = nullptr;
+    const void* registry = nullptr;
+    if (!mem_read(g.director_slot, &dir, sizeof(dir)) || !dir) return nullptr;
+    if (!mem_read((const uint8_t*)dir + kDir_CatRegistry, &registry, sizeof(registry)) || !registry)
+        return nullptr;
+    void* cat = nullptr;
+    if (!safe_by_id((void*)registry, key, &cat)) return nullptr;
+    return cat;
+}
+
+bool catsync_serialize_cat(void* cat, std::vector<uint8_t>& out) {
+    out.clear();
+    if (!g.resolved || !cat) return false;
+    uint8_t* bytes = nullptr;
+    const uint32_t n = serialize_cat(cat, &bytes);
+    if (!n) return false;
+    out.assign(bytes, bytes + n);
+    free(bytes);
+    return true;
+}
+
+// Le chemin de lecture d'apply_now, sur un chat donne : le tampon est EMPRUNTE
+// (kBS_ReadOwns a 0), le jeu ne le libere pas.
+bool catsync_deserialize_cat(void* cat, const std::vector<uint8_t>& bytes) {
+    if (!g.resolved || !cat || bytes.empty() || bytes.size() > kMaxCatBytes) return false;
+    uint8_t bs[kByteStreamSize];
+    if (!bs_construct(bs)) return false;
+    *(uint32_t*)(bs + kBS_Mode)       = 0;           // read
+    *(const void**)(bs + kBS_ReadBuf) = bytes.data();
+    *(uint8_t*)(bs + kBS_ReadOwns)    = 0;
+    *(uint32_t*)(bs + kBS_ReadLen)    = (uint32_t)bytes.size();
+    *(uint32_t*)(bs + kBS_ReadPos)    = 0;
+    const bool ok = safe_serialize(cat, bs);
+    safe_bs_dtor(bs);
+    return ok;
 }
 
 void catsync_init() {

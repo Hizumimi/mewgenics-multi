@@ -42,6 +42,7 @@
 #include "mgmp_timedelay.h"
 #include "mgmp_hooks.h"
 #include "mm_menu.h"   // Mewgenics Multi : bouton Multijoueur et fenetres du jeu
+#include "mm_team.h"   // Mewgenics Multi : l'equipe mixte (team_binding)
 #include "mgmp_log.h"
 #include "mgmp_mem.h"
 #include "mgmp_record.h"
@@ -761,6 +762,11 @@ const Binding kBindings[] = {
     { T_ButtonClick,  (void*)&h_ButtonClick, (void**)&o_ButtonClick },
     { T_HouseHud,     nullptr, nullptr },
     { T_PipePlaceCat, nullptr, nullptr },
+    // Mewgenics Multi : l'equipe mixte, detours dans src/session/mm_team.cpp
+    // (team_binding).
+    { T_ButchBoxDepart, nullptr, nullptr },
+    { T_HouseReturnCat, nullptr, nullptr },
+    { T_RunCleared,     nullptr, nullptr },
 };
 
 // Resolves the three RNG bindings, which are not static initialisers because
@@ -808,6 +814,7 @@ bool install_one(const Binding& b, bool announce_off) {
     void** original = b.original;
     rng_binding(b.target, &detour, &original);
     mm_binding(b.target, &detour, &original);
+    team_binding(b.target, &detour, &original);
     if (!detour || !original) {
         log_raw("  [!] %-9s no detour bound", t.name);
         return false;

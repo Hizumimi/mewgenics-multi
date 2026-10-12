@@ -35,6 +35,8 @@
 
 #include <cstdint>
 
+struct sqlite3;
+
 namespace mgmp {
 
 struct SaveFileMsg;
@@ -59,5 +61,11 @@ bool world_have_host();
 // (« steamcampaign03.sav ») : y recopie le monde de l'hote. Ne fait rien hors
 // session, sur l'hote, ou si le monde de l'hote n'est pas encore arrive.
 void world_prepare_own_save(const char* name);
+
+// Hote (equipe mixte) : sa save telle qu'elle est sur le disque a l'instant,
+// ouverte en memoire en lecture seule -- sans verrou, comme pour l'envoi du
+// monde. A defaut (le jeu l'ecrit), sa derniere copie verifiee. Nul si aucune
+// des deux. A fermer avec sqlite3_close.
+sqlite3* world_open_host_save_now();
 
 } // namespace mgmp

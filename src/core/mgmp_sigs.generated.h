@@ -85,6 +85,12 @@ static const SigTargetDesc kTargetSigs[] = {
       "48 89 5C 24 20 48 89 54 24 10 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 D0 FD FF FF" },
     { 0x00208C40, "PIPEPLACE",
       "48 8B C4 48 89 58 18 48 89 50 10 55 56 57 41 54 41 55 41 56 41 57 48 81 EC 00 01 00 00" },
+    { 0x000ADBF0, "BUTCHDEPART",
+      "48 89 4C 24 08 55 53 56 57 41 54 41 55 41 56 41 57 48 8D 6C 24 E8 48 81 EC 18 01 00 00 4C 8B F9" },
+    { 0x001E5C10, "RETURNCAT",
+      "48 89 5C 24 08 48 89 54 24 10 57 48 83 EC 30 48 8B 41 18" },
+    { 0x003B62B0, "RUNCLEAR",
+      "48 89 5C 24 10 48 89 6C 24 18 48 89 74 24 20 57 48 83 EC 60 48 8B D9" },
 };
 
 // INDEXED BY enum Call -- order is load-bearing.
@@ -144,6 +150,10 @@ static const SigTargetDesc kCallSigs[] = {
       "48 89 5C 24 08 48 89 74 24 18 48 89 54 24 10 57 48 83 EC 20 45 0F B6 D0" },
     { 0x000ECD50, "House team box lookup",
       "48 89 5C 24 08 57 48 83 EC 20 48 8B 79 18 BA AC 01 00 00" },
+    { 0x000AE360, "ButchBox depart lambda body",
+      "48 89 5C 24 08 48 89 7C 24 20 55 48 8D 6C 24 C0" },
+    { 0x00A0E650, "SQLSaveFile upsert (key, data)",
+      "48 89 5C 24 08 48 89 54 24 10 55 56 57 41 54 41 55 41 56 41 57 48 8D 6C 24 80" },
 };
 
 // Globals, recovered from a referencing instruction's own
@@ -158,7 +168,10 @@ static const SigDataDesc kSigData[] = {
     { 0x013C4A30, "ApplicationBase",
       "48 83 EC 28 B9 50 0F 00 00 E8 ? ? ? ? 48 89 44 24 30 48 8B C8 E8 ? ? ? ? 90 48 89 05 ? ? ? ? 48 83 C4 28",
       31, 35 },  // via 0x1400256EC in sub_1400256D0
+    { 0x012F6C48, "CatKeyCounter",
+      "48 8B F0 41 B1 01 44 8B C7 48 8B C8 E8 ? ? ? ? 48 8B 0D ? ? ? ? 48 FF C1 48 89 0D ? ? ? ? 48 89 8E 48 0C 00 00",
+      20, 24 },  // via 0x1400D71B5 in sub_1400D7160 (Registry::NewCat)
 };
-static const int kSigDataCount = 3;
+static const int kSigDataCount = 4;
 
 } // namespace mgmp

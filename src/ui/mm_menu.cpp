@@ -38,6 +38,7 @@
 #include "mgmp_choice.h"    // choice_made_in_node
 #include "mgmp_leave.h"     // leave_will_press_quit
 #include "mm_world.h"        // world_have_host : le monde de l'hote est arrive
+#include "mm_team.h"         // l'equipe mixte : chacun amene ses chats
 
 #include <winsock2.h>   // avant windows.h : types reseau d'iphlpapi
 #include <ws2tcpip.h>
@@ -92,6 +93,10 @@ constexpr uintptr_t kPanel_Clip = 0x38;
 // cf. docs/NOTES_MGMP.md). Le premier champ d'une scene est son Director :
 // Director_get_or_create_scene (0x1409D4950) ecrit `*scene = director`.
 constexpr uintptr_t kComp_Scene     = 0x20;
+// Component+0x18 : son entite ; Entity+0x08 : la scene de l'entite (Scene::
+// CreateEntity, 0x14096B3E0, `mov [rbx+8], rdi`).
+constexpr uintptr_t kComp_Entity    = 0x18;
+constexpr uintptr_t kEntity_Scene   = 0x08;
 constexpr uintptr_t kScene_Director = 0x00;
 // Scene+0x4D8 : scene en pause. Le constructeur de la boite (0x14077D363) le met
 // a 1 sur toutes les scenes de priorite plus basse que la sienne (1e6) et les
@@ -1293,6 +1298,11 @@ uint8_t  g_dep_answer[8]   = {};      // 0 pas de reponse, 1 « J'arrive », 2 �
 bool     g_dep_go          = false;   // tout le monde vient : rejouer le clic
 bool     g_dep_passing     = false;   // le prochain clic sur le panneau est le notre
 bool     g_dep_wait_wanted = false;   // ouvrir l'attente du vote
+uint8_t  g_dep_seq         = 0;       // numero du vote en cours (MM_DEPART_REQ.b) : une
+                                      // reponse a un vote d'avant ne compte pas
+// MM_DEPART_REQ a = 0, champ c : pourquoi le depart n'a pas lieu.
+constexpr uint8_t kDepartOff_Host   = 0;  // l'hote a annule le vote
+constexpr uint8_t kDepartOff_Nobody = 1;  // le vote est passe, mais aucun chat ne peut partir
 int      g_host_run_sent   = -1;      // dernier MM_HOST_RUN envoye (-1 : jamais)
 uint32_t g_host_run_roster = 0;       // presents au dernier envoi
 bool     g_peer_run[8]     = {};      // MM_PEER_RUN recus
@@ -1304,6 +1314,7 @@ bool     g_arrival_wanted  = false;   // ouvrir l'attente des arrivants
 // --- invite ---
 bool     g_host_in_run     = false;   // derniere annonce de l'hote
 bool     g_dep_req_live    = false;   // la demande de depart de l'hote tient toujours
+uint8_t  g_dep_req_seq     = 0;       // son numero, repris dans la reponse
 bool     g_dep_offer       = false;   // la proposer a ce joueur
 uint32_t g_dep_offer_at    = 0;       // pas avant cette image (« Pas encore »)
 bool     g_run_offer       = false;   // proposer de rejoindre l'aventure en cours
@@ -1501,13 +1512,17 @@ std::string depart_offer_text() {
     const std::string h = host_display();
     return fmt(u8"Départ en aventure\n\n"
                u8"%s part à l'aventure !\n"
-               u8"Tu rejoins son équipe : pour l'instant,\n"
-               u8"vous jouez avec les chats de %s.\n"
-               u8"Ta maison t'attendra au retour.", h.c_str(), h.c_str());
+               u8"Chacun emmène ses chats et dirige les siens.\n\n"
+               u8"%s", h.c_str(), team_guest_offer_line().c_str());
 }
 
 std::string run_offer_text() {
     const std::string h = host_display();
+    if (team_owners_active() && !team_guest_has_cats_in_run())
+        return fmt(u8"Aventure en cours\n\n"
+                   u8"%s est en aventure !\n"
+                   u8"Tes chats ne sont pas du voyage : tu suivras\n"
+                   u8"l'aventure sans diriger de chat.", h.c_str());
     return fmt(u8"Aventure en cours\n\n"
                u8"%s est en aventure !\n"
                u8"Rejoins son équipe : ses combats t'attendent.", h.c_str());
@@ -1557,15 +1572,29 @@ void depart_cancel(const char* why) {
     g_dep_active = false;
     g_dep_go     = false;
     g_dep_button = nullptr;
+    team_vote_reset(why);
     MmMsg m{};
     m.kind = MM_DEPART_REQ;
     m.a = 0;
+    m.b = g_dep_seq;
+    m.c = kDepartOff_Host;
     net_send_mm(m);
     log_line("MULTI", "depart annule (%s)", why);
 }
 
 bool depart_start(void* button) {
     if (g_dep_active) return true;
+    // Equipe mixte : chacun emmene ses chats, l'hote pas plus que sa part.
+    const int players = (int)net_peer_count();
+    const int mine    = team_host_box_count();
+    if (mine > team_quota(true, players)) {
+        log_line("MULTI", "depart : l'hote a %d chats dans sa boite, %d au plus a %d joueurs",
+                 mine, team_quota(true, players), players);
+        show_info(team_host_too_many_text(players, mine));
+        return true;
+    }
+    ++g_dep_seq;
+    team_vote_begin(g_dep_seq);
     g_dep_active = true;
     g_dep_go     = false;
     g_dep_button = button;
@@ -1573,6 +1602,7 @@ bool depart_start(void* button) {
     MmMsg m{};
     m.kind = MM_DEPART_REQ;
     m.a = 1;
+    m.b = g_dep_seq;
     net_send_mm(m);
     g_dep_wait_wanted = true;
     log_line("MULTI", "depart : l'hote propose de partir, en attente de l'equipe");
@@ -1615,6 +1645,7 @@ void host_adventure_pump() {
                 MmMsg r{};
                 r.kind = MM_DEPART_REQ;
                 r.a = 1;
+                r.b = g_dep_seq;
                 net_send_mm(r);
             }
             g_host_run_roster = roster;
@@ -1659,12 +1690,16 @@ void host_adventure_pump() {
 
 // --- invite ---
 
-void send_simple(MmKind kind, uint8_t a) {
+void send_simple(MmKind kind, uint8_t a, uint8_t b = 0) {
     MmMsg m{};
     m.kind = kind;
     m.a = a;
+    m.b = b;
     net_send_mm(m);
 }
+
+// La reponse de cet invite au vote de depart en cours (son numero avec).
+void send_depart_answer(bool coming) { send_simple(MM_DEPART_READY, coming ? 1 : 0, g_dep_req_seq); }
 
 void start_join(const char* why) {
     // Une ancienne copie en attente (une aventure qu'il n'avait pas rejointe)
@@ -2129,6 +2164,42 @@ void __fastcall h_ConfirmBuild(void* self, uint64_t a2, uint64_t text, uint64_t 
 
 bool mm_in_house() { return find_scene("House") != nullptr; }
 
+void* mm_house() {
+    void* scene = find_scene("House");
+    if (!scene || !g_house) return nullptr;
+    // Le composant retenu appartient-il a la maison vivante ? (Une maison
+    // detruite puis refaite -- retour d'une aventure -- laisse un pointeur
+    // perime.) Component+0x20 est sa scene (kComp_Scene) ; +0x18 son entite,
+    // dont +0x08 est la scene -- le chemin que suit C_HouseTeamBox lui-meme
+    // (0x1400ECD5A : mov rdi, [rcx+18h] ; mov rbx, [rdi+8]). L'un ou l'autre.
+    void* owner  = nullptr;
+    void* entity = nullptr;
+    void* via    = nullptr;
+    const bool direct = mem_read((char*)g_house + kComp_Scene, &owner, sizeof(owner)) && owner == scene;
+    const bool chain  = mem_read((char*)g_house + kComp_Entity, &entity, sizeof(entity)) && entity &&
+                        mem_read((char*)entity + kEntity_Scene, &via, sizeof(via)) && via == scene;
+    if (!direct && !chain) return nullptr;
+    return g_house;
+}
+
+void mm_show_info(const std::string& text_utf8) { show_info(text_utf8); }
+
+bool mm_info_busy() { return g_info_wanted || (g_live.alive && g_live.screen == Screen::Info); }
+
+std::string mm_peer_name(uint8_t id) { return peer_name(id); }
+
+void mm_depart_called_off() {
+    if (net_role() != NetRole::Host) return;
+    MmMsg m{};
+    m.kind = MM_DEPART_REQ;
+    m.a = 0;
+    m.b = g_dep_seq;
+    m.c = kDepartOff_Nobody;
+    net_send_mm(m);
+    log_line("MULTI", "depart : aucun chat ne peut partir, pas d'aventure -- les invites sont liberes (vote %u)",
+             (unsigned)g_dep_seq);
+}
+
 bool mm_in_game() {
     for (const char* name : { "House", "Map", "Battle", "Event" })
         if (find_scene(name)) return true;
@@ -2182,17 +2253,32 @@ void mm_menu_pump() {
         case Action::DepartCancel:
             depart_cancel("annule par l'hote");
             break;
-        case Action::DepartYes:
+        case Action::DepartYes: {
             if (!g_dep_req_live) {                   // annule pendant qu'il cliquait
                 show_info(fmt(u8"%s a annulé le départ.", host_display().c_str()));
                 break;
             }
-            send_simple(MM_DEPART_READY, 1);
+            // Equipe mixte : ses chats partent chez l'hote AVANT sa reponse (le
+            // meme canal les lui livre dans cet ordre) ; boite vide ou pas de
+            // boite : il vient sans chat. Trop de chats dans sa boite :
+            // « pas encore », et une fenetre lui dit quoi faire.
+            std::string problem;
+            if (!team_guest_send(g_dep_req_seq, problem)) {
+                send_depart_answer(false);
+                log_line("MULTI", "depart : ce joueur ne peut pas encore partir avec ses chats");
+                g_dep_offer    = true;
+                g_dep_offer_at = g_frame + kOfferAgain;
+                show_info(problem);
+                break;
+            }
+            send_depart_answer(true);
             log_line("MULTI", "depart : ce joueur arrive");
             start_join("depart en aventure");
             break;
+        }
         case Action::DepartNo:
-            send_simple(MM_DEPART_READY, 0);
+            send_depart_answer(false);
+            team_guest_withdraw(g_dep_req_seq);      // ses chats envoyes plus tot ne partent plus
             log_line("MULTI", "depart : ce joueur n'est pas encore pret");
             g_dep_offer    = true;
             g_dep_offer_at = g_frame + kOfferAgain;
@@ -2219,7 +2305,8 @@ void mm_menu_pump() {
             break;
         case Action::JoinCancel:
             if (g_dep_req_live) {                    // le vote tient : « pas encore »
-                send_simple(MM_DEPART_READY, 0);
+                send_depart_answer(false);
+                team_guest_withdraw(g_dep_req_seq);
                 g_dep_offer    = true;
                 g_dep_offer_at = g_frame + kOfferAgain;
             }
@@ -2233,6 +2320,7 @@ void mm_menu_pump() {
 
     host_adventure_pump();
     client_adventure_pump();
+    team_ui_pump();                 // Mewgenics Multi : fenetres de l'equipe mixte
     trip_pump();
     night_pump();
     if (g_night_wait_wanted && !g_live.alive) {
@@ -2442,6 +2530,7 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
             if (net_role() != NetRole::Client) break;
             if (m.a) {
                 g_dep_req_live = true;
+                g_dep_req_seq  = m.b;
                 if (!savefile_join_armed()) {
                     g_dep_offer    = true;
                     g_dep_offer_at = 0;
@@ -2453,15 +2542,28 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
             } else {
                 g_dep_req_live = false;
                 g_dep_offer    = false;
-                log_line("MULTI", "depart : %s a annule", host_display().c_str());
+                team_guest_withdraw(m.b);            // vote annule : ses chats restent chez lui
+                const bool nobody = m.c == kDepartOff_Nobody;
+                log_line("MULTI", "depart : %s", nobody ? "aucun chat ne peut partir, pas d'aventure"
+                                                        : (host_display() + " a annule").c_str());
                 if (savefile_join_armed() && !savefile_in_coop()) {
-                    cancel_join("depart annule par l'hote");
-                    show_info(fmt(u8"%s a annulé le départ.", host_display().c_str()));
+                    cancel_join(nobody ? "aucun chat ne peut partir" : "depart annule par l'hote");
+                    show_info(nobody ? fmt(u8"Départ en aventure\n\n"
+                                           u8"Aucun chat ne peut partir cette fois :\n"
+                                           u8"%s ne part pas à l'aventure.", host_display().c_str())
+                                     : fmt(u8"%s a annulé le départ.", host_display().c_str()));
                 }
             }
             break;
         case MM_DEPART_READY:
-            if (net_role() == NetRole::Host && from < 8 && g_dep_active) {
+            if (net_role() != NetRole::Host || from >= 8) break;
+            if (m.b != g_dep_seq) {                 // la reponse a un vote d'avant
+                log_line("MULTI", "depart : reponse de %s a un vote d'avant (%u, celui-ci %u) -- ignoree",
+                         peer_name(from).c_str(), (unsigned)m.b, (unsigned)g_dep_seq);
+                break;
+            }
+            if (!m.a) team_forget_peer(from);       // ses chats ne partent plus
+            if (g_dep_active) {
                 g_dep_answer[from] = m.a ? 1 : 2;
                 log_line("MULTI", "depart : %s %s", peer_name(from).c_str(),
                          m.a ? "arrive" : "n'est pas encore pret");

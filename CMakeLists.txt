@@ -87,6 +87,8 @@ add_library(mgmp SHARED
     src/session/mm_world_merge.cpp
     src/session/mm_npc.cpp
     src/session/mm_npc_state.cpp
+    src/session/mm_team.cpp
+    src/session/mm_team_merge.cpp
     src/ui/mgmp_ui.cpp
     src/ui/mm_menu.cpp
     # Dear ImGui, compiled straight into mgmp.dll -- same rule as minhook and

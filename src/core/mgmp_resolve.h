@@ -50,6 +50,11 @@ enum DataSym : int {
     D_MewDirectorPtr = 0,
     D_MouseCache,
     D_ApplicationBase,
+    // Mewgenics Multi (equipe mixte) : le compteur des cles de chats (u64), que
+    // Registry::NewCat (0x1400D7160) incremente pour chaque nouveau chat, et que
+    // Registry::Load (0x1400D8C32) remet a max(plus grande cle de la table cats,
+    // propriete catid_counter) au chargement d'une save.
+    D_CatKeyCounter,
     D_COUNT
 };
 uintptr_t addr_of_data(DataSym d);

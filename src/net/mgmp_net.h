@@ -147,6 +147,10 @@ bool net_send_world_to(uint8_t peer, const SaveFileMsg& m);
 // centaines d'octets) : l'invite en recopie la faveur dans sa maison.
 bool net_send_npc(const SaveFileMsg& m);
 bool net_send_npc_to(uint8_t peer, const SaveFileMsg& m);
+// Mewgenics Multi : l'equipe mixte (MSG_TEAM) -- d'un invite, a l'hote seul : les
+// chats qu'il amene ; de l'hote, a un invite : ce qu'ils sont devenus.
+bool net_send_team(const SaveFileMsg& m);
+bool net_send_team_to(uint8_t peer, const SaveFileMsg& m);
 // Same contract as net_send_savefile, but small: a serialized cat is well under
 // a kilobyte, so this one is cheap enough to send several of in a row.
 bool net_send_catdata(const CatDataMsg& m);

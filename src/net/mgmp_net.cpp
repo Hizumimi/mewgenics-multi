@@ -172,6 +172,7 @@ bool decode_into(const uint8_t* buf, uint32_t len, NetMsg& m) {
         // Mewgenics Multi : le meme cadre, dans le meme champ (mm_world.cpp).
         case MSG_WORLD:    return dec_savefile(r, m.savefile);
         case MSG_NPC:      return dec_savefile(r, m.savefile);   // (mm_npc.cpp)
+        case MSG_TEAM:     return dec_savefile(r, m.savefile);   // (mm_team.cpp)
         case MSG_CATDATA:  return dec_catdata(r, m.catdata);
         case MSG_INVENTORY: return dec_inventory(r, m.inventory);
         case MSG_RUNHIST:   return dec_runhist(r, m.runhist);
@@ -771,6 +772,7 @@ bool send_savefile_frame(const SaveFileMsg& m, bool broadcast, uint8_t peer,
     if (!p) return false;
     uint32_t n = type == MSG_WORLD ? enc_world(p, need, m)
                : type == MSG_NPC   ? enc_npc(p, need, m)
+               : type == MSG_TEAM  ? enc_team(p, need, m)
                                    : enc_savefile(p, need, m);
     bool ok = n && (broadcast ? net_send(p, n) : net_send_peer(peer, p, n));
     free(p);
@@ -805,6 +807,16 @@ bool net_send_npc(const SaveFileMsg& m) {
 
 bool net_send_npc_to(uint8_t peer, const SaveFileMsg& m) {
     return send_savefile_frame(m, false, peer, MSG_NPC);
+}
+
+// Mewgenics Multi : l'equipe mixte (MSG_TEAM). Pas dans relayed() : d'un invite,
+// net_send n'atteint que l'hote, et c'est lui seul que ces chats concernent.
+bool net_send_team(const SaveFileMsg& m) {
+    return send_savefile_frame(m, true, kNoPeer, MSG_TEAM);
+}
+
+bool net_send_team_to(uint8_t peer, const SaveFileMsg& m) {
+    return send_savefile_frame(m, false, peer, MSG_TEAM);
 }
 
 bool net_send_catdata(const CatDataMsg& m) {

@@ -21,6 +21,7 @@
 #include "mgmp_leave.h"
 #include "mm_world.h"
 #include "mm_npc.h"
+#include "mm_team.h"
 #include "mgmp_session.h"
 #include "mgmp_ability.h"
 #include "mgmp_turnaction.h"
@@ -721,6 +722,61 @@ const void* resolve_char_list(void* turn_control) {
     return list;
 }
 
+// Mewgenics Multi : l'id d'un chat de combat (CatData+0x00 par Character+0x88),
+// 0 hors chats.
+constexpr uintptr_t kChar_CatData = 0x88;   // nul pour un non-chat (0x140116437)
+
+uint64_t battle_cat_id(const void* character) {
+    const void* cat = nullptr;
+    uint64_t id = 0;
+    if (!character || !mem_read((const uint8_t*)character + kChar_CatData, &cat, sizeof(cat)) || !cat)
+        return 0;
+    if (!mem_read(cat, &id, sizeof(id))) return 0;
+    return id;
+}
+
+// Le partage par proprietaire (equipe mixte). Faux, sans rien toucher, si aucun
+// chat humain de ce combat n'est dans la liste.
+bool split_by_owner() {
+    uint8_t ids[8] = {};
+    const uint8_t n = net_peer_count();
+    const bool have_ids = n && net_peer_ids(ids, 8);
+    auto present = [&](int peer) {
+        if (!have_ids) return peer == (int)kHostPeer;
+        for (uint8_t i = 0; i < n && i < 8; ++i)
+            if (ids[i] == peer) return true;
+        return false;
+    };
+    int owner[kMaxCats];
+    uint32_t known = 0;
+    for (uint32_t i = 0; i < g.cat_count; ++i) {
+        owner[i] = -1;
+        if (!g.human_cat[i]) continue;
+        int o = team_owner_of(battle_cat_id(g.cats[i]));
+        if (o >= 0) ++known;
+        if (o < 0 || !present(o)) o = kHostPeer;
+        owner[i] = o;
+    }
+    if (!known) {
+        log_line("LOCKSTEP", "!! equipe mixte : aucun chat de ce combat n'est dans la liste des "
+                             "proprietaires -- partage habituel");
+        return false;
+    }
+    const uint8_t self = net_self();
+    char list[160] = {};
+    int off = 0;
+    for (uint32_t i = 0; i < g.cat_count; ++i) {
+        if (owner[i] < 0) continue;
+        g.local_cat[i] = owner[i] == (int)self;
+        if (off < (int)sizeof(list) - 12)
+            off += _snprintf_s(list + off, sizeof(list) - off, _TRUNCATE, "%s%u->%d",
+                               off ? " " : "", i, owner[i]);
+    }
+    log_line("LOCKSTEP", "equipe mixte : chaque joueur dirige ses chats (%u connu(s) sur %u) -- "
+                         "chat->joueur : %s", known, g.humans, list);
+    return true;
+}
+
 void snapshot_cats(void* turn_control) {
     if (g.snapped || !turn_control) return;
 
@@ -787,6 +843,7 @@ void snapshot_cats(void* turn_control) {
 
     // --- the control split ---------------------------------------------
     for (uint32_t i = 0; i < kMaxCats; ++i) g.local_cat[i] = false;
+    bool by_owner = false;   // Mewgenics Multi : equipe mixte
 
     if (cfg.net_control_auto) {
         // Derived identically on both peers rather than negotiated, which is
@@ -817,20 +874,32 @@ void snapshot_cats(void* turn_control) {
             log_line("LOCKSTEP", "!! no peer list yet -- deferring the split; if "
                                  "this repeats, PEERS never arrived");
         }
-        const SplitRange range = split_for(g.humans, P, pos);
-        const uint32_t   mine  = range.count;
+        // Mewgenics Multi : en equipe mixte, chaque joueur dirige SES chats --
+        // l'id du chat (Character+0x88 -> CatData+0x00) dans la liste des
+        // proprietaires que l'hote a envoyee au depart (mm_team). Meme liste,
+        // meme liste des joueurs, meme combat : meme partage sur chaque pair,
+        // et CONTROL le verifie comme avant. Un chat que la liste ne connait
+        // pas (une recrue) ou dont le proprietaire n'est plus la est a l'hote.
+        // Aucun chat de la liste dans ce combat : elle est d'une autre
+        // aventure, partage habituel par place.
+        if (team_owners_active() && split_by_owner()) {
+            by_owner = true;
+        } else {
+            const SplitRange range = split_for(g.humans, P, pos);
+            const uint32_t   mine  = range.count;
 
-        uint32_t seen = 0;
-        for (uint32_t i = 0; i < g.cat_count; ++i) {
-            if (!g.human_cat[i]) continue;
-            g.local_cat[i] = split_owns(range, seen);
-            ++seen;
+            uint32_t seen = 0;
+            for (uint32_t i = 0; i < g.cat_count; ++i) {
+                if (!g.human_cat[i]) continue;
+                g.local_cat[i] = split_owns(range, seen);
+                ++seen;
+            }
+
+            if (mine == 0 && g.humans)
+                log_line("LOCKSTEP", "!! %u human cat(s) over %u player(s) leaves this "
+                                     "peer (position %u) with none -- it will watch "
+                                     "this battle", g.humans, P, pos);
         }
-
-        if (mine == 0 && g.humans)
-            log_line("LOCKSTEP", "!! %u human cat(s) over %u player(s) leaves this "
-                                 "peer (position %u) with none -- it will watch "
-                                 "this battle", g.humans, P, pos);
     } else {
         for (uint32_t i = 0; i < cfg.net_control_count; ++i) {
             uint8_t idx = cfg.net_control[i];
@@ -854,7 +923,8 @@ void snapshot_cats(void* turn_control) {
     // on a wrong offset agrees with itself forever and proves nothing.
     log_line("LOCKSTEP", "battle roster: %u cats, %u human, %u local (%s)",
              g.cat_count, g.humans, local,
-             cfg.net_control_auto ? "auto split" : "net_control list");
+             by_owner ? "par proprietaire (equipe mixte)"
+                      : cfg.net_control_auto ? "auto split" : "net_control list");
 
     // A cat can already be OUT of the live character list at battle start --
     // dead, or parked off the board at the (-5000,-5000) sentinel. The hash
@@ -2123,6 +2193,12 @@ void lockstep_pump() {
             // Mewgenics Multi : l'etat des PNJ de l'hote, en direct.
             case MSG_NPC:
                 npc_on_message(m.savefile);
+                break;
+
+            // Mewgenics Multi : l'equipe mixte (chats au depart, proprietaires,
+            // etat final au retour).
+            case MSG_TEAM:
+                team_on_message(m.from, m.savefile);
                 break;
 
             // Not battle-gated either: leaving the run is the one thing the

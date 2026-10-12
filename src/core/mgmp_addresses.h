@@ -84,6 +84,10 @@ enum Target : int {
     T_ButtonClick,       // glaiel::Button::Click -- retient le clic sur EndDay_Sign (nuit votee)
     T_HouseHud,          // sub_1401E3900 -- refait le panneau de fin de journee a chaque image
     T_PipePlaceCat,      // sub_140208C40 -- le tuyau de la maison prend un chat (envoi aux PNJ)
+    // --- Mewgenics Multi : l'equipe mixte (src/session/mm_team.cpp) ---------
+    T_ButchBoxDepart,    // sub_1400ADBF0 -- ButchBox::depart, le clic sur « À l'aventure ! »
+    T_HouseReturnCat,    // sub_1401E5C10 -- House::AddReturningCat(House*, cle)
+    T_RunCleared,        // sub_1403B62B0 -- MewDirector::ClearRunState, fin d'aventure
     T_COUNT
 };
 
@@ -512,6 +516,27 @@ static const TargetDesc kTargets[T_COUNT] = {
     // Mewgenics Multi : faux pour un invite en session -- ses envois aux PNJ
     // ne sont pas encore partages (mm_menu.cpp).
     { 0x00208C40, "PIPEPLACE", "HousePipe::TryPlaceCat (sub_140208C40, vtable slot 31)" },
+    // La boite de depart de la maison (« ButchBox », vtable 0x140EFCCC0, le
+    // composant 0x1AC de C_HouseTeamBox) : [this+0x100] -> quatre emplacements,
+    // chacun un chat de la maison ou nul, sa cle de save a +0x80. depart() est
+    // appele par le clic du panneau (0x1401F8ECE) : il range ces cles dans une
+    // liste, demande confirmation s'il y a moins de 4 chats (ShowConfirmation),
+    // et le « oui » -- ou l'appel direct a 4 chats -- lance C_DepartGo. Faux =
+    // aucun chat : l'appelant finit alors la journee.
+    // Mewgenics Multi : en equipe mixte, le detour ajoute les chats des invites
+    // a la liste et lance C_DepartGo lui-meme (le vote a deja confirme).
+    { 0x000ADBF0, "BUTCHDEPART", "ButchBox::depart (sub_1400ADBF0)" },
+    // Appele par les deux fins d'aventure (victoire 0x1403B5430, defaite ou
+    // abandon 0x1403B4750) pour chaque chat vivant de l'equipe, dans une
+    // transaction du jeu : fabrique le chat de la maison (HouseCat::init) et le
+    // pose. Mewgenics Multi : saute les chats des invites -- ils rentrent chez eux.
+    { 0x001E5C10, "RETURNCAT", "House::AddReturningCat (sub_1401E5C10)" },
+    // Appele par les memes deux fins, apres les retours et l'enregistrement de
+    // la maison : vide les listes de la course (+0x5BC, cles de l'equipe a
+    // +0x5C0...). Mewgenics Multi : juste avant, l'hote envoie a chaque invite
+    // l'etat final de ses chats (le nettoyage de fin de course 0x1400D2D40 est
+    // deja passe sur eux : « en aventure » efface).
+    { 0x003B62B0, "RUNCLEAR",  "MewDirector::ClearRunState (sub_1403B62B0)" },
 };
 
 // Coarse module guard, checked before the per-target signatures.
@@ -601,6 +626,10 @@ enum Call : int {
     C_SwfFindChild,          // void* (clip SWF*, std::string* nom) -- consomme le nom
     C_SwfSetText,            // void(champ texte*, std::wstring* texte, bool force, bool balises)
     C_HouseTeamBox,          // void* (House*) -- le composant 0x1AC : l'equipe d'aventure
+
+    // --- Mewgenics Multi : l'equipe mixte (src/session/mm_team.cpp) -------
+    C_DepartGo,              // void(capture{ButchBox*, u32 cap, u32 n, u64* cles}*) -- sub_1400AE360
+    C_SqlUpsert,             // void(SqlCtx*, std::string* table, Variant* cle, Variant* donnees)
     C_COUNT
 };
 
@@ -861,6 +890,23 @@ static const CallDesc kCalls[C_COUNT] = {
     // Plus appele pour l'instant (le nom du panneau suffit) ; garde pour
     // l'equipe mixte, qui devra lire et remplir cette equipe.
     { 0x000ECD50, "House team box lookup (component 0x1AC)" },
+    // Le depart lui-meme, ce que lance le « oui » de ButchBox::depart (lambda
+    // 0x140ED9A58, _Do_call 0x1400AFDB0 = add rcx, 8 ; jmp ici) ou son appel
+    // direct a 4 chats (0x1400AE140). Argument : la capture {ButchBox*, puis la
+    // liste {u32 capacite, u32 nombre, u64* cles}}. Marque les chats de la
+    // boite (+0xDC = 1), puis MewDirector::GoOnAnAdventure (0x1403B13F0) COPIE
+    // la liste (0x1400483A0) dans l'equipe de la course et charge chaque chat
+    // par sa cle (0x1400D7220, depuis la table cats s'il ne l'est pas encore).
+    // La liste reste a l'appelant, qui la libere.
+    { 0x000AE360, "ButchBox depart lambda body" },
+    // L'ecriture d'une ligne de la save par la connexion du jeu, celle de
+    // Registry::Save (0x1400D882A) : INSERT OR REPLACE INTO <table> (key, data).
+    // rcx = MewDirector+0x4A8 (SQLSaveFile, sa profondeur de transaction a
+    // +0x28), rdx = std::string du nom de table, CONSOMME (_Tidy_deallocate a
+    // la fin : sans effet sous 16 caracteres), r8/r9 = deux Variant de 24
+    // octets {u32 type ; u32 ; u64 a ; u64 b} lus par movaps -- alignes sur 16 :
+    // type 5 = entier (a), type 1 = blob (a = pointeur, b = taille), emprunte.
+    { 0x00A0E650, "SQLSaveFile upsert (key, data)" },
 };
 
 // sub_140138A10 IS NOT A DRAW ROUTINE, and it is in the table above only
