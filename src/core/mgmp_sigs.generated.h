@@ -91,6 +91,8 @@ static const SigTargetDesc kTargetSigs[] = {
       "48 89 5C 24 08 48 89 54 24 10 57 48 83 EC 30 48 8B 41 18" },
     { 0x003B62B0, "RUNCLEAR",
       "48 89 5C 24 10 48 89 6C 24 18 48 89 74 24 20 57 48 83 EC 60 48 8B D9" },
+    { 0x001402A0, "CLASSTAG",
+      "48 89 74 24 20 57 48 83 EC 50 48 8B 41 18" },
 };
 
 // INDEXED BY enum Call -- order is load-bearing.
@@ -154,6 +156,10 @@ static const SigTargetDesc kCallSigs[] = {
       "48 89 5C 24 08 48 89 7C 24 20 55 48 8D 6C 24 C0" },
     { 0x00A0E650, "SQLSaveFile upsert (key, data)",
       "48 89 5C 24 08 48 89 54 24 10 55 56 57 41 54 41 55 41 56 41 57 48 8D 6C 24 80" },
+    { 0x001405A0, "ClassTagBox click (lambda_1 of ClassTagBox::init)",
+      "40 55 53 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 38 FF FF FF" },
+    { 0x000E18B0, "CatSelector::select(u64 key)",
+      "48 89 5C 24 10 48 89 6C 24 18 56 57 41 56 48 83 EC 40 48 8B DA" },
 };
 
 // Globals, recovered from a referencing instruction's own

@@ -472,6 +472,15 @@ struct Live {
 };
 Live     g_live;
 uint32_t g_serial  = 0;
+
+// La derniere confirmation du jeu lui-meme (pas l'une des notres) : ses deux
+// boutons, que rien d'autre ne distingue (meme nom, « GenericButton »).
+struct GamePrompt {
+    void* self = nullptr;           // le composant YesNoPrompt
+    void* yes  = nullptr;
+    void* no   = nullptr;
+};
+GamePrompt g_game_prompt;
 uint32_t g_handled = 0;             // derniere boite dont l'action a ete prise
 
 // Un appui qui n'a pas pris (bouton encore en animation d'ouverture) est refait
@@ -641,6 +650,19 @@ bool live_scene_ok() {
     uint8_t dying = 0;
     if (!mem_read((char*)scene + kScene_Destroying, &dying, 1)) return false;
     return dying == 0;
+}
+
+// La confirmation du jeu relevee est-elle encore la (sa scene, pas en train
+// d'etre detruite) ? Sinon on l'oublie : ses pointeurs ne valent plus rien.
+bool game_prompt_alive() {
+    if (!g_game_prompt.self) return false;
+    void* scene = nullptr;
+    uint8_t dying = 1;
+    if (mem_read((char*)g_game_prompt.self + kPrompt_Scene, &scene, sizeof(scene)) && scene &&
+        mem_read((char*)scene + kScene_Destroying, &dying, 1) && dying == 0)
+        return true;
+    g_game_prompt = GamePrompt{};
+    return false;
 }
 
 // Met a jour le texte de la boite ouverte, s'il a change.
@@ -2149,10 +2171,21 @@ void __fastcall h_ConfirmBuild(void* self, uint64_t a2, uint64_t text, uint64_t 
                                uint64_t a5, uint64_t ok_only, uint64_t a7, uint64_t a8) {
     if (!g_pending.active) {
         o_ConfirmBuild(self, a2, text, a4, a5, ok_only, a7, a8);
+        // Une confirmation du jeu : ses boutons, pour le depart ensemble.
+        g_game_prompt = GamePrompt{};
+        void* panel = nullptr;
+        if (mem_read((char*)self + kPrompt_Panel, &panel, sizeof(panel)) && panel) {
+            g_game_prompt.self = self;
+            g_game_prompt.yes  = panel_button(panel, "yes");
+            g_game_prompt.no   = panel_button(panel, "no");
+        }
         return;
     }
     Pending p = std::move(g_pending);
     g_pending = Pending{};              // une seule fenetre par demande
+    // Une de nos fenetres a l'adresse d'une ancienne confirmation du jeu : ses
+    // boutons ne sont pas ceux du jeu.
+    if (self == g_game_prompt.self) g_game_prompt = GamePrompt{};
 
     // Le texte arrive deja converti en std::wstring par la recherche de
     // traduction, qui lit notre texte octet par octet : les accents en UTF-8 y
@@ -2208,6 +2241,11 @@ bool mm_in_house() { return find_scene("House") != nullptr; }
 
 bool mm_scene_alive(const char* name) { return name && find_scene(name) != nullptr; }
 
+bool mm_scene_running(const char* name) {
+    bool paused = true;
+    return name && find_scene(name, &paused) != nullptr && !paused;
+}
+
 std::string mm_scene_list() {
     std::string out;
     if (!g_director) return out;
@@ -2252,6 +2290,15 @@ void mm_show_info(const std::string& text_utf8) { show_info(text_utf8); }
 
 bool mm_info_busy() { return g_info_wanted || (g_live.alive && g_live.screen == Screen::Info); }
 
+int mm_game_prompt_button(void* button) {
+    if (!button || !game_prompt_alive()) return 0;
+    if (button == g_game_prompt.yes) return 1;
+    if (button == g_game_prompt.no)  return 2;
+    return 0;
+}
+
+bool mm_game_prompt_open() { return game_prompt_alive(); }
+
 std::string mm_peer_name(uint8_t id) { return peer_name(id); }
 
 int mm_sign_click_kind() { return g_sign_click_at == g_frame ? g_sign_click : 0; }
@@ -2287,6 +2334,7 @@ bool mm_binding(Target t, void** detour, void*** original) {
 
 void mm_menu_pump() {
     ++g_frame;
+    game_prompt_alive();                 // oubliee des que sa scene s'en va
     embark_frame_begin();
     embark_pump();
     const Action a = g_action;

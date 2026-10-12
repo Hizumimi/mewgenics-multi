@@ -77,6 +77,8 @@ bool mm_in_house();
 bool mm_in_game();
 // Une scene de ce nom est chargee (et n'est pas en train de disparaitre).
 bool mm_scene_alive(const char* name);
+// ... et n'est pas en pause (une fenetre ou le menu pause par-dessus).
+bool mm_scene_running(const char* name);
 // Les scenes chargees, « House, Map, ... », pour le journal.
 std::string mm_scene_list();
 
@@ -89,6 +91,13 @@ void* mm_house();
 void mm_show_info(const std::string& text_utf8);
 // Une fenetre d'information attend ou est ouverte : la suivante attendra.
 bool mm_info_busy();
+// La derniere confirmation du jeu lui-meme (boite YesNoPrompt qui n'est pas
+// l'une de nos fenetres) : ouverte, et ce bouton est son « oui » (1), son
+// « non » (2), ou ni l'un ni l'autre (0). Ses deux boutons s'appellent
+// « GenericButton » (nom par defaut, 0x140142F00) : seul le panneau les
+// distingue, releve quand le jeu construit la boite (h_ConfirmBuild).
+int  mm_game_prompt_button(void* button);
+bool mm_game_prompt_open();
 // Le nom d'un joueur de la session (pseudo Steam, « Joueur N » a defaut).
 std::string mm_peer_name(uint8_t id);
 

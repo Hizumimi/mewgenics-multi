@@ -43,6 +43,7 @@
 #include "mgmp_hooks.h"
 #include "mm_menu.h"   // Mewgenics Multi : bouton Multijoueur et fenetres du jeu
 #include "mm_team.h"   // Mewgenics Multi : l'equipe mixte (team_binding)
+#include "mm_collars.h" // Mewgenics Multi : le choix des colliers (collars_binding)
 #include "mgmp_log.h"
 #include "mgmp_mem.h"
 #include "mgmp_record.h"
@@ -767,6 +768,9 @@ const Binding kBindings[] = {
     { T_ButchBoxDepart, nullptr, nullptr },
     { T_HouseReturnCat, nullptr, nullptr },
     { T_RunCleared,     nullptr, nullptr },
+    // Mewgenics Multi : le choix des colliers, detour dans
+    // src/session/mm_collars.cpp (collars_binding).
+    { T_ClassTagUpdate, nullptr, nullptr },
 };
 
 // Resolves the three RNG bindings, which are not static initialisers because
@@ -815,6 +819,7 @@ bool install_one(const Binding& b, bool announce_off) {
     rng_binding(b.target, &detour, &original);
     mm_binding(b.target, &detour, &original);
     team_binding(b.target, &detour, &original);
+    collars_binding(b.target, &detour, &original);
     if (!detour || !original) {
         log_raw("  [!] %-9s no detour bound", t.name);
         return false;

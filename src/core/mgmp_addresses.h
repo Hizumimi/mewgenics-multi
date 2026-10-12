@@ -88,6 +88,8 @@ enum Target : int {
     T_ButchBoxDepart,    // sub_1400ADBF0 -- ButchBox::depart, le clic sur « À l'aventure ! »
     T_HouseReturnCat,    // sub_1401E5C10 -- House::AddReturningCat(House*, cle)
     T_RunCleared,        // sub_1403B62B0 -- MewDirector::ClearRunState, fin d'aventure
+    // --- Mewgenics Multi : le choix des colliers (src/session/mm_collars.cpp) --
+    T_ClassTagUpdate,    // sub_1401402A0 -- ClassTagBox::update, un collier du choix
     T_COUNT
 };
 
@@ -537,6 +539,12 @@ static const TargetDesc kTargets[T_COUNT] = {
     // l'etat final de ses chats (le nettoyage de fin de course 0x1400D2D40 est
     // deja passe sur eux : « en aventure » efface).
     { 0x003B62B0, "RUNCLEAR",  "MewDirector::ClearRunState (sub_1403B62B0)" },
+    // Un collier du choix des colliers (scene « ClassChooser ») : slot 11 de la
+    // vtable ClassTagBox (0x140EE2130), appele a chaque image pour chacun. Il
+    // cache et grise (etat 4) les colliers portes par un autre chat que celui
+    // montre, et rend l'etat 5 aux autres. Mewgenics Multi : apres lui, grise
+    // aussi ceux du chat montre quand il n'est pas a ce joueur (mm_collars).
+    { 0x001402A0, "CLASSTAG",  "ClassTagBox::update (sub_1401402A0, vtable slot 11)" },
 };
 
 // Coarse module guard, checked before the per-target signatures.
@@ -630,6 +638,10 @@ enum Call : int {
     // --- Mewgenics Multi : l'equipe mixte (src/session/mm_team.cpp) -------
     C_DepartGo,              // void(capture{ButchBox*, u32 cap, u32 n, u64* cles}*) -- sub_1400AE360
     C_SqlUpsert,             // void(SqlCtx*, std::string* table, Variant* cle, Variant* donnees)
+
+    // --- Mewgenics Multi : le choix des colliers (src/session/mm_collars.cpp) --
+    C_ClassTagClick,         // void(ClassTagBox*) -- sub_1401405A0
+    C_CatSelectorSelect,     // void(CatSelector*, u64 cle) -- sub_1400E18B0
     C_COUNT
 };
 
@@ -907,6 +919,18 @@ static const CallDesc kCalls[C_COUNT] = {
     // octets {u32 type ; u32 ; u64 a ; u64 b} lus par movaps -- alignes sur 16 :
     // type 5 = entier (a), type 1 = blob (a = pointeur, b = taille), emprunte.
     { 0x00A0E650, "SQLSaveFile upsert (key, data)" },
+    // Le clic d'un collier du choix des colliers : le corps du lambda_1 de
+    // ClassTagBox::init (_Func_impl 0x140EE2010, _Do_call 0x140144520 =
+    // mov rcx, [rcx+8] ; jmp ici), appele par Button::Click. rcx = la
+    // ClassTagBox. Agit sur le chat montre, ClassChooser+0xD0 (voir
+    // mm_collars.h) : pose le collier s'il est libre, le retire s'il est porte.
+    { 0x001405A0, "ClassTagBox click (lambda_1 of ClassTagBox::init)" },
+    // La selection du selecteur de chats (CatSelector, vtable 0x140ED9DC0),
+    // void(selecteur, u64 cle), celle des fleches (0x1400E9283, apres leur
+    // +/-1 sur +0x78) et de son rafraichissement (0x1400DFDB9) : +0x88 = cle,
+    // +0x78 recale sur le rang de la cle dans MewDirector+1472, la fiche du
+    // chat a l'ecran (0x1400E1A00).
+    { 0x000E18B0, "CatSelector::select(u64 key)" },
 };
 
 // sub_140138A10 IS NOT A DRAW ROUTINE, and it is in the table above only

@@ -27,18 +27,25 @@
 //      panneau est rejoue), et envoie l'equipe -- les cles, dans l'ordre du jeu
 //      (MSG_TEAM kTeamEmbark). L'invite fait le meme depart dans sa copie
 //      (team_copy_depart).
-//   4. Pendant le choix des colliers et des objets, chaque clic de l'hote dans
-//      ces deux scenes part chez les invites (MM_EMBARK, a = 2 : la scene, le
-//      nom du bouton et son rang parmi les boutons du meme nom) et y est rejoue
-//      au meme bouton. L'invite regarde : ses propres clics y sont retenus.
-//      (Etape 2 a venir : il choisira les colliers de ses chats.)
+//   4. Le choix des colliers (mm_collars) : chacun regarde le chat qu'il veut
+//      et choisit les colliers de ses propres chats ; ceux que posent les
+//      autres apparaissent en direct. Seul « Valider » de l'hote part chez les
+//      invites (MM_EMBARK kEmbarkClick : la scene, le nom du bouton et son rang
+//      parmi les boutons du meme nom), rejoue une fois leurs colliers a jour ;
+//      celui d'un invite est retenu. La confirmation du jeu (« un chat sans
+//      collier ? », scene « YesNoPrompt ») suit le meme chemin ; l'hote dit
+//      avec son « Valider » s'il l'aura (champ c), et si elle ne s'ouvre que
+//      chez l'invite, il y repond « oui ».
+//      Le choix des objets (« StorageItems ») : chaque clic de l'hote y est
+//      rejoue au meme bouton, l'invite regarde (ses clics sont retenus).
 //   5. L'hote arrive sur la carte et publie son aventure comme avant (fresh) :
 //      l'invite recharge celle-ci -- c'est la sienne qui fait foi. Son depart
 //      a lui n'etait qu'un miroir.
 //
 // LIMITES. Un clic que l'invite ne retrouve pas dans les 30 secondes (ou plus
 // aucun clic de l'hote pendant 5 minutes) arrete le miroir : il peut alors
-// finir les ecrans lui-meme pour rejoindre la carte. Un clic que l'hote fait
+// finir les ecrans lui-meme pour rejoindre la carte (et le dit a l'hote, qui
+// peut alors choisir les colliers de ses chats). Un clic que l'hote fait
 // au clavier, hors de l'update de son bouton, peut etre mal place. Un invite
 // qui charge trop lentement (2 minutes) : l'hote part sans l'attendre, et
 // l'invite le rejoint sur la carte, comme avant. Le miroir compte comme la
@@ -53,6 +60,21 @@
 namespace mgmp {
 
 struct MmMsg;
+
+// MM_EMBARK, champ a. Le champ b est toujours le numero du vote.
+enum EmbarkMsg : uint8_t {
+    kEmbarkReady       = 1,  // invite -> hote : il a charge la maison de l'hote
+    kEmbarkClick       = 2,  // hote -> invites : un clic a rejouer (texte « scene|nom »,
+                             //   x = rang parmi les boutons de ce nom, y = numero ; pour
+                             //   « Valider » des colliers, c = 1 : la confirmation du jeu
+                             //   s'ouvre chez l'hote, 0 : non, 2 : on ne sait pas)
+    kEmbarkCollarReq   = 3,  // invite -> hote : c = 1 poser / 0 retirer, x/y = cle du
+                             //   chat (bas/haut), texte = classe du collier
+    kEmbarkCollarSet   = 4,  // hote -> invites : c = 1 porte / 0 aucun, x/y = cle,
+                             //   texte = classe
+    kEmbarkChooserOpen = 5,  // invite -> hote : son choix des colliers est ouvert
+    kEmbarkGone        = 6,  // invite -> hote : il ne suit plus le depart
+};
 
 void embark_init();          // session prete
 void embark_shutdown();
@@ -90,6 +112,9 @@ void embark_guest_cancel(const char* why);
 void embark_on_go(uint8_t seq, const std::vector<uint64_t>& keys);
 // Il suit le depart de l'hote dans sa copie : pas de « Retour a la maison ».
 bool embark_guest_active();
+// Le « Valider » de l'hote est deja arrive (pas encore rejoue) : le choix des
+// colliers se ferme bientot chez lui.
+bool embark_guest_close_queued();
 
 // --- les deux -------------------------------------------------------------------
 
