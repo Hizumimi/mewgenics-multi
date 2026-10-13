@@ -3,10 +3,12 @@
 #include "mm_team.h"
 #include "mm_team_merge.h"
 #include "mm_embark.h"
+#include "mm_gear.h"
 #include "mm_world.h"
 
 #include "mgmp_addresses.h"
 #include "mgmp_catsync.h"
+#include "mgmp_invsync.h"
 #include "mgmp_log.h"
 #include "mgmp_mem.h"
 #include "mgmp_net.h"
@@ -181,6 +183,15 @@ struct GuestDepart {                 // invite : un depart avec ses chats
     bool                   from_host    = false;
     std::vector<TeamCat>   baseline;   // ses lignes au premier chargement sans l'etat final
     std::vector<TeamCat>   results;
+    // Son rangement (mm_gear) : a « J'arrive », tel que le jeu l'avait en memoire
+    // (ce qu'il equipera au depart) et tel que le fichier l'avait (pas de ligne :
+    // disk_found faux) ; puis ce qu'il en reste, photo appliquee par l'hote.
+    bool                   storage_ok   = false;
+    std::vector<uint8_t>   storage_mem;
+    std::vector<uint8_t>   storage_disk;
+    bool                   storage_disk_found = false;
+    bool                   storage_post_set   = false;
+    std::vector<uint8_t>   storage_post;
 };
 
 // Le temps d'une session.
@@ -1024,6 +1035,10 @@ std::string home_text(const TeamApplySummary& sum) {
         s += fmt(u8"\n%s %s changé depuis le départ :\n%s retour d'aventure n'a pas été recopié.",
                  join_names(sum.changed).c_str(), sum.changed.size() > 1 ? u8"ont" : u8"a",
                  sum.changed.size() > 1 ? u8"leur" : u8"son");
+    if (sum.storage == kStorageChanged)
+        s += u8"\nTon rangement a changé depuis le départ :\nles objets équipés au départ n'en ont pas été retirés.";
+    else if (sum.storage == kStorageCatsKept)
+        s += u8"\nTon rangement n'a pas été modifié : les objets\néquipés au départ y sont encore.";
     return s;
 }
 
@@ -1117,8 +1132,19 @@ int apply_results(const char* name, GuestDepart& d) {
             }
         }
     }
+    // Le rangement, si l'hote a applique une photo de ses chats equipes.
+    TeamStorageChange storage;
+    const bool with_storage = d.storage_ok && d.storage_post_set;
+    if (with_storage) {
+        for (const DepartCat& dc : d.cats) storage.cats.push_back(dc.own_key);
+        storage.pre_disk       = d.storage_disk;
+        storage.pre_disk_found = d.storage_disk_found;
+        storage.pre_mem        = d.storage_mem;
+        storage.post           = d.storage_post;
+    }
     TeamApplySummary sum;
-    const bool ok = team_apply_results(db, d.results, d.home_loaded ? &departed : nullptr, sum);
+    const bool ok = team_apply_results(db, d.results, d.home_loaded ? &departed : nullptr, sum,
+                                       with_storage ? &storage : nullptr);
     sqlite3_close(db);
     if (!ok) {
         log_line("TEAM", "!! l'etat final des chats n'a pas pu etre recopie dans %s -- rien n'est change", name);
@@ -1132,6 +1158,13 @@ int apply_results(const char* name, GuestDepart& d) {
              sum.gone.empty() ? "aucun" : join_names(sum.gone).c_str(),
              sum.changed.empty() ? "aucun" : join_names(sum.changed).c_str(),
              sum.skipped ? " (des chats ignores, voir plus haut)" : "");
+    if (with_storage)
+        log_line("TEAM", "rangement de %s : %s", name,
+                 sum.storage == kStorageWritten  ? "celui d'apres le choix des objets (recopie)" :
+                 sum.storage == kStorageSame     ? "deja celui d'apres le choix des objets" :
+                 sum.storage == kStorageChanged  ? "!! il a change depuis le depart -- laisse tel quel" :
+                 sum.storage == kStorageCatsKept ? "!! des chats ne sont pas recopies -- laisse tel quel" :
+                                                   "rien a faire");
     if (!sum.back.empty() || !sum.lost.empty() || !sum.gone.empty() || !sum.changed.empty()) {
         ++k.applied;
         k.home_infos.push_back(home_text(sum));
@@ -1375,10 +1408,17 @@ void team_on_message(uint8_t from, const SaveFileMsg& m) {
         case kTeamOwners: on_owners(from, m); break;
         case kTeamResult: on_result(from, m); break;
         case kTeamEmbark: on_embark(from, m); break;
+        case kTeamGear:
+        case kTeamGearAck: gear_on_team(from, m.data, m.size); break;
         default:
             log_line("TEAM", "!! message d'equipe inconnu (%u octets) -- ignore", m.size);
             break;
     }
+}
+
+bool team_send(const std::vector<uint8_t>& body, int peer) {
+    if (!g.on || body.empty()) return false;
+    return send_team(body, peer);
 }
 
 int team_quota(bool host, int players) {
@@ -1580,6 +1620,20 @@ bool team_guest_send(uint8_t seq, std::string& problem) {
     d.seq  = seq;
     d.save = savefile_own_save_name(own, sizeof(own)) ? own : "";
     d.day  = msg.day;
+    // Son rangement (mm_gear) : en memoire, ce qu'il equipera au depart ; dans
+    // le fichier, pour savoir au retour si sa save a change depuis.
+    if (!d.save.empty() && invsync_serialize_storage(d.storage_mem)) {
+        if (sqlite3* db = open_own(d.save.c_str(), false)) {
+            const int f = team_read_storage(db, d.storage_disk);
+            sqlite3_close(db);
+            d.storage_ok         = f >= 0;
+            d.storage_disk_found = f == 1;
+        }
+    }
+    if (!d.storage_ok) {
+        d.storage_mem.clear();
+        d.storage_disk.clear();
+    }
     for (const BoxCat& b : box) {
         DepartCat dc;
         dc.own_key = b.cat.own_key;
@@ -1589,9 +1643,11 @@ bool team_guest_send(uint8_t seq, std::string& problem) {
         dc.orig    = b.days;
         d.cats.push_back(std::move(dc));
     }
-    log_line("TEAM", "-> chats envoyes a l'hote pour le depart : %s (save %s, jour %lld, vote %u)",
-             join_names(names).c_str(), d.save.empty() ? "inconnue" : d.save.c_str(),
-             (long long)(d.day == kNoDay ? -1 : d.day), (unsigned)seq);
+    log_line("TEAM", "-> chats envoyes a l'hote pour le depart : %s (save %s, jour %lld, vote %u) ; "
+                     "rangement %s", join_names(names).c_str(), d.save.empty() ? "inconnue" : d.save.c_str(),
+             (long long)(d.day == kNoDay ? -1 : d.day), (unsigned)seq,
+             d.storage_ok ? fmt("lu (%zu octets)", d.storage_mem.size()).c_str()
+                          : "illisible : ses chats ne pourront pas etre equipes au depart");
     k.departs.push_back(std::move(d));
     return true;
 }
@@ -1599,6 +1655,27 @@ bool team_guest_send(uint8_t seq, std::string& problem) {
 void team_guest_withdraw(uint8_t seq) {
     GuestDepart* d = departure(seq);
     if (d && !d->departed) d->withdrawn = true;
+}
+
+bool team_guest_storage(uint8_t seq, std::vector<uint8_t>& out) {
+    out.clear();
+    const GuestDepart* d = departure(seq);
+    if (!d || !d->storage_ok || d->storage_mem.size() < 4) return false;
+    out = d->storage_mem;
+    return true;
+}
+
+void team_guest_storage_after(uint8_t seq, const std::vector<uint8_t>& post) {
+    GuestDepart* d = departure(seq);
+    if (!d || !d->storage_ok || post.size() < 4) {
+        log_line("TEAM", "!! rangement d'apres le choix des objets (vote %u) sans depart a lui -- ignore",
+                 (unsigned)seq);
+        return;
+    }
+    d->storage_post     = post;
+    d->storage_post_set = true;
+    log_line("TEAM", "rangement d'apres le choix des objets garde pour le retour (vote %u, %zu octets)",
+             (unsigned)seq, post.size());
 }
 
 bool team_guest_has_cats_in_run() {

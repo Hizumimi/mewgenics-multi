@@ -13,6 +13,7 @@
 #include "mgmp_leave.h"    // leave_in_run (Mewgenics Multi)
 #include "mm_world.h"       // world_prepare_own_save (Mewgenics Multi)
 #include "mm_team.h"        // team_prepare_own_save (Mewgenics Multi)
+#include "mm_gear.h"        // gear_hold_publish (Mewgenics Multi)
 // A slot click starts a run, which makes the three per-run dedupe caches stale.
 // See the block in savefile_on_slot_click.
 #include "mgmp_catsync.h"
@@ -756,6 +757,11 @@ void savefile_pump() {
         }
         return;
     }
+
+    // Mewgenics Multi : le depart ensemble -- les objets que les invites ont
+    // equipes a leurs chats dans leur copie sont appliques ici, sur la carte,
+    // avant que l'aventure ne parte chez eux (flush_live_run les ecrit).
+    if (gear_hold_publish()) return;
 
     // Retried rather than attempted once, because the file may not exist yet:
     // starting a NEW game means the click names a slot the game has not written

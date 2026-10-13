@@ -104,6 +104,7 @@
 //     Those are RUNSTATE and still open.
 
 #include <cstdint>
+#include <vector>
 
 namespace mgmp {
 
@@ -167,5 +168,14 @@ bool invsync_intercept_load(void* key, void* bs);
 // Mewgenics Multi : jette les poussees gardees (une save a jour de l'aventure de
 // l'hote vient d'arriver chez un invite qui la rejoint ; elle les contient).
 void invsync_drop_pending();
+
+// Mewgenics Multi (le depart ensemble, mm_gear) : le rangement de ce joueur
+// (bucket inventory_storage) tel que le jeu l'ecrirait dans la save -- et
+// l'inverse, ces octets relus dans le rangement en memoire (le lecteur du jeu le
+// vide puis le remplit). Memes crochets que la poussee, quel que soit le role.
+// Sur le thread du jeu, ecran des objets ferme pour la relecture (ses boites
+// tiennent les objets du rangement).
+bool invsync_serialize_storage(std::vector<uint8_t>& out);
+bool invsync_load_storage(const std::vector<uint8_t>& bytes);
 
 } // namespace mgmp

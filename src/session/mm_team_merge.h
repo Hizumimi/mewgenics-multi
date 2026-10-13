@@ -64,6 +64,8 @@ enum : uint8_t {
     kTeamResult = 2,    // hote -> invite : ce qu'ils sont devenus
     kTeamOwners = 3,    // hote -> invites : a qui est chaque chat de l'equipe
     kTeamEmbark = 4,    // hote -> invites : il part, voici l'equipe (mm_embark)
+    kTeamGear   = 5,    // invite -> hote : l'equipement de ses chats et son rangement (mm_gear)
+    kTeamGearAck = 6,   // hote -> invite : la photo de son equipement que l'hote a prise
 };
 
 // Le message MSG_TEAM : des chats (kTeamDepart, kTeamResult)...
@@ -95,8 +97,43 @@ bool team_owners_decode(const uint8_t* p, size_t n, uint8_t& seq, std::vector<Te
 std::vector<uint8_t> team_embark_encode(uint8_t seq, const std::vector<uint64_t>& keys);
 bool team_embark_decode(const uint8_t* p, size_t n, uint8_t& seq, std::vector<uint64_t>& keys);
 
+// ... ou l'equipement d'un invite au choix des objets (kTeamGear) : une photo
+// numerotee (1, 2... ; 0 = aucune) de ses chats tels que sa copie les a (cle
+// dans la save de l'hote -- la meme dans la copie --, chat serialise) et de son
+// rangement (le bloc inventory_storage). `final` : il ne changera plus rien.
+// Sans `has_data`, seulement « finie, rien de neuf depuis la photo `snap` ».
+struct GearCat {
+    uint64_t             key = 0;
+    std::vector<uint8_t> data;
+};
+struct GearMsg {
+    uint8_t              vote     = 0;
+    uint32_t             snap     = 0;
+    bool                 final    = false;
+    bool                 has_data = false;
+    std::vector<uint8_t> storage;
+    std::vector<GearCat> cats;
+};
+std::vector<uint8_t> team_gear_encode(const GearMsg& m);
+bool team_gear_decode(const uint8_t* p, size_t n, GearMsg& m);
+// ... et la reponse de l'hote (kTeamGearAck) : la photo qu'il a appliquee a
+// ses chats dans l'aventure (0 : aucune, ils restent tels qu'au depart), avec
+// le rangement de cette photo -- celui que l'invite retrouvera chez lui.
+struct GearAck {
+    uint8_t              vote        = 0;
+    uint32_t             snap        = 0;
+    bool                 has_storage = false;
+    std::vector<uint8_t> storage;
+};
+std::vector<uint8_t> team_gear_ack_encode(const GearAck& a);
+bool team_gear_ack_decode(const uint8_t* p, size_t n, GearAck& a);
+
 // Le genre d'un message MSG_TEAM, 0 si ce n'en est pas un.
 uint8_t team_kind(const uint8_t* p, size_t n);
+
+// Le rangement d'une save (table files, cle inventory_storage) : 1 lu, 0 pas
+// de ligne (`out` vide), -1 erreur.
+int team_read_storage(sqlite3* db, std::vector<uint8_t>& out);
 
 // Un chat serialise : son id, son nom (UTF-8), ses drapeaux et leur position.
 struct CatInfo {
@@ -151,15 +188,39 @@ bool team_plan_keys(sqlite3* host, const std::vector<TeamCat>& cats, uint64_t mi
 // `departed` (facultatif) : les chats tels qu'ils etaient au depart (cle et
 // octets). Donne quand l'etat final arrive en retard -- la save a pu etre jouee
 // depuis : un chat dont la ligne a change depuis le depart n'est pas touche.
+// `storage` (facultatif) : le rangement de l'invite au depart et ce qu'il en
+// restait apres le choix des objets (mm_gear). `post` remplace celui de la save,
+// dans la meme transaction, si chacun des chats partis (`cats`, leurs cles chez
+// lui) est recopie -- sinon les objets partis avec un chat laisse tel quel, ou
+// absent de `results`, seraient perdus -- et si la save a encore le rangement du
+// depart : `pre_disk` (lu dans le fichier) ou `pre_mem` (tel que le jeu l'avait
+// en memoire, pas encore ecrit). Pas de ligne au depart (`pre_disk_found` faux)
+// ni maintenant : la save n'avait pas de rangement.
 // Faux = rien n'est change.
+struct TeamStorageChange {
+    std::vector<uint64_t> cats;
+    std::vector<uint8_t>  pre_disk;
+    bool                  pre_disk_found = false;
+    std::vector<uint8_t>  pre_mem;
+    std::vector<uint8_t>  post;
+};
+enum TeamStorageResult : int {
+    kStorageNone      = 0,    // rien a recopier (pas de `storage`)
+    kStorageWritten   = 1,
+    kStorageSame      = 2,    // la save a deja `post`
+    kStorageChanged   = 3,    // le rangement de la save a change depuis le depart
+    kStorageCatsKept  = 4,    // des chats ne sont pas recopies : le rangement non plus
+};
 struct TeamApplySummary {
     std::vector<std::string> back;      // rentres
     std::vector<std::string> lost;      // morts
     std::vector<std::string> gone;      // perdus en route
     std::vector<std::string> changed;   // joues depuis le depart : laisses tels quels
     int                      skipped = 0;
+    int                      storage = kStorageNone;
 };
 bool team_apply_results(sqlite3* own, const std::vector<TeamCat>& results,
-                        const std::vector<TeamCat>* departed, TeamApplySummary& sum);
+                        const std::vector<TeamCat>* departed, TeamApplySummary& sum,
+                        const TeamStorageChange* storage = nullptr);
 
 } // namespace mgmp

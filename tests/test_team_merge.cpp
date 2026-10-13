@@ -300,6 +300,61 @@ void test_embark() {
     CHECK(!mgmp::team_embark_decode(ow.data(), ow.size(), seq, back));
 }
 
+void test_gear() {
+    std::printf("choix des objets : photos et reponse\n");
+    mgmp::GearMsg m;
+    m.vote = 9; m.snap = 3; m.final = true; m.has_data = true;
+    m.storage = Bytes{ 2, 0, 0, 0, 0xAA, 0xBB, 0xCC };
+    m.cats.resize(2);
+    m.cats[0].key = 47; m.cats[0].data = cat(0xB1, "Garry", 0x3);
+    m.cats[1].key = 48; m.cats[1].data = cat(0xB2, "Eden", 0x3);
+    const Bytes w = mgmp::team_gear_encode(m);
+    CHECK(mgmp::team_kind(w.data(), w.size()) == mgmp::kTeamGear);
+    mgmp::GearMsg back;
+    CHECK(mgmp::team_gear_decode(w.data(), w.size(), back));
+    CHECK(back.vote == 9 && back.snap == 3 && back.final && back.has_data && back.storage == m.storage);
+    CHECK(back.cats.size() == 2 && back.cats[1].key == 48 && back.cats[1].data == m.cats[1].data);
+    Bytes more = w; more.push_back(0);
+    CHECK(!mgmp::team_gear_decode(more.data(), more.size(), back));
+    CHECK(!mgmp::team_gear_decode(w.data(), w.size() - 1, back));
+    // Sans donnees : « fini », rien d'autre.
+    mgmp::GearMsg fin;
+    fin.vote = 9; fin.snap = 3; fin.final = true;
+    const Bytes f = mgmp::team_gear_encode(fin);
+    CHECK(mgmp::team_gear_decode(f.data(), f.size(), back) && back.final && !back.has_data &&
+          back.cats.empty() && back.storage.empty() && back.snap == 3);
+    // Un rangement trop court (moins que son nombre d'objets), une cle nulle :
+    // refuses.
+    mgmp::GearMsg bad = m;
+    bad.storage = Bytes{ 0, 0 };
+    const Bytes b1 = mgmp::team_gear_encode(bad);
+    CHECK(!mgmp::team_gear_decode(b1.data(), b1.size(), back));
+    bad = m;
+    bad.cats[0].key = 0;
+    const Bytes b2 = mgmp::team_gear_encode(bad);
+    CHECK(!mgmp::team_gear_decode(b2.data(), b2.size(), back));
+    // La reponse de l'hote, avec et sans rangement.
+    mgmp::GearAck a;
+    a.vote = 9; a.snap = 3; a.has_storage = true; a.storage = m.storage;
+    const Bytes aw = mgmp::team_gear_ack_encode(a);
+    CHECK(mgmp::team_kind(aw.data(), aw.size()) == mgmp::kTeamGearAck);
+    mgmp::GearAck ab;
+    CHECK(mgmp::team_gear_ack_decode(aw.data(), aw.size(), ab));
+    CHECK(ab.vote == 9 && ab.snap == 3 && ab.has_storage && ab.storage == m.storage);
+    Bytes amore = aw; amore.push_back(1);
+    CHECK(!mgmp::team_gear_ack_decode(amore.data(), amore.size(), ab));
+    mgmp::GearAck none;
+    none.vote = 9;
+    const Bytes nw = mgmp::team_gear_ack_encode(none);
+    CHECK(mgmp::team_gear_ack_decode(nw.data(), nw.size(), ab) && ab.snap == 0 && !ab.has_storage);
+    // Les decodeurs ne se melangent pas.
+    CHECK(!mgmp::team_gear_ack_decode(w.data(), w.size(), ab));
+    CHECK(!mgmp::team_gear_decode(aw.data(), aw.size(), back));
+    uint8_t seq = 0;
+    std::vector<uint64_t> keys;
+    CHECK(!mgmp::team_embark_decode(w.data(), w.size(), seq, keys));
+}
+
 void test_plan_keys() {
     std::printf("cles des chats de l'invite chez l'hote\n");
     sqlite3* h = new_save();
@@ -447,6 +502,99 @@ void test_guest_apply() {
     sqlite3_close(m);
 }
 
+void test_storage() {
+    std::printf("retour chez l'invite : son rangement\n");
+    const Bytes disk = { 2, 0, 0, 0, 0x10, 0x11 };      // dans le fichier a « J'arrive »
+    const Bytes mem  = { 3, 0, 0, 0, 0x10, 0x11, 0x12 }; // en memoire (pas encore ecrit)
+    const Bytes post = { 1, 0, 0, 0, 0x10 };             // apres le choix des objets
+    mgmp::TeamStorageChange sc;
+    sc.cats = { 3 };
+    sc.pre_disk = disk; sc.pre_disk_found = true; sc.pre_mem = mem; sc.post = post;
+    std::vector<mgmp::TeamCat> res(1);
+    res[0].own_key = 3; res[0].data = cat(0xB1, "Garry", 0x3 | mgmp::kCatGuest, 0x77);
+    mgmp::TeamApplySummary sum;
+
+    // La save a encore le rangement du fichier : il devient `post`, avec le chat.
+    sqlite3* o = new_save();
+    put_cat(o, 3, cat(0xB1, "Garry", 0x3, 0x10));
+    put_file(o, "inventory_storage", disk);
+    CHECK(mgmp::team_apply_results(o, res, nullptr, sum, &sc));
+    CHECK(sum.storage == mgmp::kStorageWritten && sum.back.size() == 1);
+    CHECK(get_file(o, "inventory_storage") == post);
+    CHECK(get_cat(o, 3) == cat(0xB1, "Garry", 0x3, 0x77));
+    // Une seconde fois : deja fait.
+    CHECK(mgmp::team_apply_results(o, res, nullptr, sum, &sc) && sum.storage == mgmp::kStorageSame);
+    // Le jeu avait ecrit celui de la memoire depuis : aussi « inchange ».
+    put_file(o, "inventory_storage", mem);
+    CHECK(mgmp::team_apply_results(o, res, nullptr, sum, &sc) && sum.storage == mgmp::kStorageWritten);
+    CHECK(get_file(o, "inventory_storage") == post);
+    // Joue depuis : laisse tel quel, le chat est quand meme recopie.
+    const Bytes other = { 4, 0, 0, 0, 1, 2, 3, 4 };
+    put_file(o, "inventory_storage", other);
+    put_cat(o, 3, cat(0xB1, "Garry", 0x3, 0x10));
+    CHECK(mgmp::team_apply_results(o, res, nullptr, sum, &sc) && sum.storage == mgmp::kStorageChanged);
+    CHECK(get_file(o, "inventory_storage") == other);
+    CHECK(get_cat(o, 3) == cat(0xB1, "Garry", 0x3, 0x77));
+    sqlite3_close(o);
+
+    // Un chat pas recopie (il a change depuis le depart) : le rangement non plus.
+    sqlite3* l = new_save();
+    put_cat(l, 3, cat(0xB1, "Garry", 0x3, 0x21));
+    put_file(l, "inventory_storage", disk);
+    std::vector<mgmp::TeamCat> dep(1);
+    dep[0].own_key = 3; dep[0].data = cat(0xB1, "Garry", 0x3, 0x20);
+    CHECK(mgmp::team_apply_results(l, res, &dep, sum, &sc));
+    CHECK(sum.storage == mgmp::kStorageCatsKept && sum.changed.size() == 1);
+    CHECK(get_file(l, "inventory_storage") == disk);
+    // Deux chats, l'un recopie, l'autre pas (illisible ici) : rien pour le rangement.
+    put_cat(l, 3, cat(0xB1, "Garry", 0x3, 0x10));
+    std::vector<mgmp::TeamCat> two(2);
+    two[0] = res[0];
+    two[1].own_key = 9; two[1].data = cat(0xB9, "Absent", 0x3);
+    CHECK(mgmp::team_apply_results(l, two, nullptr, sum, &sc));
+    CHECK(sum.storage == mgmp::kStorageCatsKept && sum.skipped == 1 && sum.back.size() == 1);
+    CHECK(get_file(l, "inventory_storage") == disk);
+    // Deux chats partis, un seul dans les resultats (l'hote ne l'a pas
+    // retrouve) : le rangement ne change pas -- l'objet du second serait perdu.
+    put_cat(l, 3, cat(0xB1, "Garry", 0x3, 0x10));
+    put_cat(l, 4, cat(0xB2, "Eden", 0x3, 0x20));
+    mgmp::TeamStorageChange both = sc;
+    both.cats = { 3, 4 };
+    CHECK(mgmp::team_apply_results(l, res, nullptr, sum, &both));
+    CHECK(sum.storage == mgmp::kStorageCatsKept && sum.back.size() == 1 && sum.skipped == 0);
+    CHECK(get_file(l, "inventory_storage") == disk);
+    CHECK(get_cat(l, 3) == cat(0xB1, "Garry", 0x3, 0x77));
+    CHECK(get_cat(l, 4) == cat(0xB2, "Eden", 0x3, 0x20));
+    sqlite3_close(l);
+
+    // Pas de rangement dans la save au depart ni maintenant : il est cree.
+    sqlite3* n = new_save();
+    put_cat(n, 3, cat(0xB1, "Garry", 0x3, 0x10));
+    mgmp::TeamStorageChange nr = sc;
+    nr.pre_disk.clear(); nr.pre_disk_found = false;
+    CHECK(mgmp::team_apply_results(n, res, nullptr, sum, &nr) && sum.storage == mgmp::kStorageWritten);
+    CHECK(get_file(n, "inventory_storage") == post);
+    // ... mais il en a un maintenant, autre : laisse tel quel.
+    put_file(n, "inventory_storage", other);
+    put_cat(n, 3, cat(0xB1, "Garry", 0x3, 0x10));
+    CHECK(mgmp::team_apply_results(n, res, nullptr, sum, &nr) && sum.storage == mgmp::kStorageChanged);
+    CHECK(get_file(n, "inventory_storage") == other);
+    // Sans `storage`, ou un `post` qui n'en est pas un : rien a faire.
+    CHECK(mgmp::team_apply_results(n, res, nullptr, sum) && sum.storage == mgmp::kStorageNone);
+    mgmp::TeamStorageChange shortp = sc;
+    shortp.post = Bytes{ 1, 0 };
+    CHECK(mgmp::team_apply_results(n, res, nullptr, sum, &shortp) && sum.storage == mgmp::kStorageNone);
+    CHECK(get_file(n, "inventory_storage") == other);
+    // team_read_storage
+    Bytes rd;
+    CHECK(mgmp::team_read_storage(n, rd) == 1 && rd == other);
+    sqlite3* e = new_save();
+    CHECK(mgmp::team_read_storage(e, rd) == 0 && rd.empty());
+    CHECK(mgmp::team_read_storage(nullptr, rd) == -1);
+    sqlite3_close(e);
+    sqlite3_close(n);
+}
+
 } // namespace
 
 int main() {
@@ -456,8 +604,10 @@ int main() {
     test_house();
     test_owners();
     test_embark();
+    test_gear();
     test_plan_keys();
     test_guest_apply();
+    test_storage();
     if (g_fail) { std::printf("%d echec(s)\n", g_fail); return 1; }
     std::printf("ok\n");
     return 0;

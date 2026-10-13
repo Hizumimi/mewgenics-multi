@@ -124,7 +124,6 @@ struct State {
     CollarRole role      = CollarRole::Off;
     uint8_t    seq       = 0;
     uint32_t   frame     = 1;
-    uint32_t   followers = 0;           // hote
 
     void*      cc        = nullptr;     // le ClassChooser de ces boites
     uint32_t   cc_frame  = 0;           // l'image ou une boite l'a montre
@@ -166,16 +165,6 @@ std::string fmt(const char* f, ...) {
     vsnprintf(buf, sizeof(buf), f, ap);
     va_end(ap);
     return buf;
-}
-
-uint32_t present_mask() {
-    uint8_t ids[8] = {};
-    uint32_t mask = 0;
-    const uint8_t n = net_peer_count();
-    if (n && net_peer_ids(ids, 8))
-        for (uint8_t i = 0; i < n && i < 8; ++i)
-            if (ids[i] < 32) mask |= 1u << ids[i];
-    return mask;
 }
 
 bool is_collar_button(const char* name) {
@@ -270,15 +259,16 @@ int owner_of(const TeamCat& t) {
 }
 
 bool follower_active(int peer) {
-    return peer > 0 && peer < 32 && ((c.followers >> peer) & 1) && ((present_mask() >> peer) & 1);
+    return peer > 0 && peer < 32 && embark_follower_active((uint8_t)peer);
 }
 
 // Ce joueur peut-il poser ou retirer les colliers de ce chat ? L'hote : les
-// siens, et ceux d'un invite qui ne suit pas le depart. Un invite : les siens.
+// siens, et ceux d'un invite qui ne suit pas le depart (tous, si le choix
+// partage s'est arrete). Un invite : les siens.
 bool can_act(const TeamCat* t) {
     if (!t) return c.role == CollarRole::Host;
     const int o = owner_of(*t);
-    if (c.role == CollarRole::Host) return o == (int)kHostPeer || !follower_active(o);
+    if (c.role == CollarRole::Host) return o == (int)kHostPeer || c.broken || !follower_active(o);
     return o != (int)kHostPeer && o == (int)net_self();
 }
 
@@ -318,7 +308,6 @@ void mark_broken(const char* where) {
     c.broken = true;
     log_line("COLLIERS", "!! exception dans le jeu (%s) : le choix partage des colliers s'arrete ici", where);
     if (c.role == CollarRole::Host) {
-        c.followers = 0;
         c.act_frame = 0;
         mm_show_info(u8"Choix des colliers\n\n"
                      u8"Le choix partagé s'est arrêté (erreur du jeu) :\n"
@@ -658,26 +647,6 @@ void collars_end(const char* why) {
     const uint32_t frame = c.frame;
     c = State{};
     c.frame = frame;
-}
-
-void collars_set_followers(uint32_t mask) {
-    c.followers = mask & ~1u;
-}
-
-void collars_add_follower(uint8_t peer) {
-    if (c.role != CollarRole::Host || peer == kHostPeer || peer >= 32 || ((c.followers >> peer) & 1)) return;
-    c.followers |= 1u << peer;
-    c.act_frame = 0;
-    log_line("COLLIERS", "%s suit le depart (pret apres le depart de l'hote) : il choisit pour ses chats",
-             mm_peer_name(peer).c_str());
-}
-
-void collars_drop_follower(uint8_t peer) {
-    if (peer >= 32 || !((c.followers >> peer) & 1)) return;
-    c.followers &= ~(1u << peer);
-    c.act_frame = 0;
-    log_line("COLLIERS", "%s ne suit plus le depart : l'hote peut choisir les colliers de ses chats",
-             mm_peer_name(peer).c_str());
 }
 
 void collars_pump() {

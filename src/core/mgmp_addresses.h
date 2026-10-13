@@ -90,6 +90,8 @@ enum Target : int {
     T_RunCleared,        // sub_1403B62B0 -- MewDirector::ClearRunState, fin d'aventure
     // --- Mewgenics Multi : le choix des colliers (src/session/mm_collars.cpp) --
     T_ClassTagUpdate,    // sub_1401402A0 -- ClassTagBox::update, un collier du choix
+    // --- Mewgenics Multi : le choix des objets (src/session/mm_gear.cpp) -----
+    T_InvItemUpdate,     // sub_14034E280 -- InventoryItemBox::update, un objet de l'ecran
     T_COUNT
 };
 
@@ -545,6 +547,14 @@ static const TargetDesc kTargets[T_COUNT] = {
     // montre, et rend l'etat 5 aux autres. Mewgenics Multi : apres lui, grise
     // aussi ceux du chat montre quand il n'est pas a ce joueur (mm_collars).
     { 0x001402A0, "CLASSTAG",  "ClassTagBox::update (sub_1401402A0, vtable slot 11)" },
+    // Un objet de l'ecran des objets (InventoryScreen2, scene « StorageItems » au
+    // depart, le sac en aventure) : slot 11 de la vtable InventoryItemBox
+    // (0x140F11828, sa seule reference), appele a chaque image pour chacun. Il
+    // cache et grise (etat 4) les objets portes par un autre chat que celui
+    // montre, rend l'etat 5 aux autres -- et retire puis detruit sa boite quand
+    // l'ecran ne retrouve plus son objet. Mewgenics Multi : apres lui, grise
+    // aussi ceux du chat montre quand il n'est pas a ce joueur (mm_gear).
+    { 0x0034E280, "INVITEM",   "InventoryItemBox::update (sub_14034E280, vtable slot 11)" },
 };
 
 // Coarse module guard, checked before the per-target signatures.

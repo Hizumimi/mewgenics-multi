@@ -2,6 +2,7 @@
 
 #include "mm_embark.h"
 #include "mm_collars.h"
+#include "mm_gear.h"
 #include "mm_menu.h"
 #include "mm_team.h"
 
@@ -34,10 +35,11 @@ constexpr uint64_t kWaitMs   = 120000;     // l'hote attend son equipe 2 minutes
 constexpr uint64_t kJoinMs   = 300000;     // l'invite attend la copie 5 minutes
 constexpr uint64_t kReadyMs  = 180000;     // pret, l'hote ne part pas : 3 minutes
 constexpr uint64_t kClickMs  = 30000;      // un bouton introuvable : 30 s
-constexpr uint64_t kIdleMs   = 300000;     // plus aucun clic de l'hote : 5 minutes
+constexpr uint64_t kIdleMs   = 300000;     // plus aucun signe de l'hote : 5 minutes
+constexpr uint64_t kAliveMs  = 20000;      // l'hote, dans les ecrans du depart : un signe de vie
 constexpr uint64_t kLingerMs = 120000;     // fin du miroir : la copie de l'aventure arrive
 constexpr uint64_t kLateMs   = 180000;     // arrive trop tard : la copie de l'aventure arrive
-constexpr uint64_t kPrepMs   = 900000;     // un depart ne dure pas 15 minutes
+constexpr uint64_t kPrepMs   = 900000;     // 15 minutes hors des ecrans du depart (deja a la carte)
 constexpr size_t   kKeyLen      = sizeof(MmMsg::text);   // « scene|nom », tronque comme sur le fil
 constexpr size_t   kMaxQueue    = 512;
 constexpr size_t   kMaxKeys     = 64;
@@ -45,9 +47,11 @@ constexpr size_t   kMaxKeys     = 64;
 // Les deux scenes du depart ou l'on clique. (Les transitions n'ont pas de bouton.)
 const char* const kPrepScenes[] = { "ClassChooser", "StorageItems" };
 constexpr char kChooserScene[] = "ClassChooser";
+constexpr char kStorageScene[] = "StorageItems";
 // La confirmation du jeu (« un chat sans collier ? ») : la meme boite que nos
 // fenetres. Ses clics ne partent ou ne sont rejoues que si ce n'est pas l'une
-// des notres, pendant un ecran du depart.
+// des notres, pendant le choix des colliers -- celles du choix des objets (en
+// equipant) sont a chacun.
 constexpr char kPromptScene[]  = "YesNoPrompt";
 
 enum class Host  { Idle, Waiting, Going, Prep };
@@ -91,6 +95,10 @@ struct State {
     bool     no_wait   = false;
     uint32_t serial    = 0;
     uint32_t sent      = 0;
+    uint64_t alive_at  = 0;
+    // Ceux qui suivent le depart (Prep) : ils avaient charge sa maison, ou leur
+    // « pret » est arrive juste apres ; moins ceux qui ont dit ne plus suivre.
+    uint32_t followers = 0;
 
     // invite
     Guest                 guest       = Guest::Idle;
@@ -98,7 +106,7 @@ struct State {
     uint64_t              join_from   = 0;
     uint64_t              ready_at    = 0;
     uint64_t              departed_at = 0;
-    uint64_t              last_click  = 0;     // le dernier clic de l'hote recu (ou le depart)
+    uint64_t              last_click  = 0;     // le dernier signe de l'hote recu (ou le depart)
     uint64_t              linger_until = 0;    // fin du miroir, encore dans la copie : pas de « retour »
     uint64_t              late_until  = 0;     // arrive trop tard : il attend la copie de l'aventure
     bool                  have_go     = false;
@@ -214,6 +222,17 @@ void send_ready() {
 
 // Il ne suit plus le depart de l'hote : l'hote peut alors choisir les colliers
 // de ses chats (mm_collars).
+// Hote : il est toujours dans les ecrans du depart. Au choix des objets, chacun
+// equipe ses chats et aucun clic ne part : sans ce signe, l'invite croirait
+// l'hote parti au bout de kIdleMs.
+void send_alive() {
+    MmMsg m{};
+    m.kind = MM_EMBARK;
+    m.a    = kEmbarkAlive;
+    m.b    = g.seq;
+    net_send_mm(m);
+}
+
 void send_gone() {
     MmMsg m{};
     m.kind = MM_EMBARK;
@@ -234,6 +253,7 @@ void guest_reset(const char* why, bool linger = false, bool tell_host = true) {
     if (tell_host && !g.mirror_lost && (g.guest == Guest::Ready || g.guest == Guest::Departed))
         send_gone();
     collars_end(why);
+    gear_end(why);
     g.linger_until = (linger && g.guest != Guest::Idle && savefile_in_coop()) ? g.now + kLingerMs : 0;
     g.late_until   = 0;
     g.guest       = Guest::Idle;
@@ -251,7 +271,9 @@ void host_reset(const char* why) {
     if (g.host != Host::Idle)
         log_line("EMBARK", "fin du depart ensemble (%s) : %u clic(s) envoye(s)", why, g.sent);
     collars_end(why);
+    gear_end(why);
     g.host    = Host::Idle;
+    g.followers = 0;
     g.prompt_seen = false;
     g.prompt_yes  = false;
     g.joiners = 0;
@@ -324,6 +346,15 @@ void embark_pump() {
             g.prompt_seen = false;
             g.prompt_yes  = false;
         }
+        // Le temps ne compte qu'une fois les ecrans du depart passes : choisir
+        // colliers et objets peut prendre longtemps.
+        if (prep_scene_alive()) {
+            g.prep_from = g.now;
+            if (g.now - g.alive_at >= kAliveMs) {
+                g.alive_at = g.now;
+                send_alive();
+            }
+        }
         if (savefile_run_published())
             host_reset("l'hote est sur la carte, son aventure est publiee");
         else if (g.now - g.prep_from > kPrepMs)
@@ -364,6 +395,8 @@ void embark_pump() {
                     g.departed_at = g.now;
                     g.last_click  = g.now;
                     log_line("EMBARK", "depart dans la copie avec l'equipe de l'hote (%zu chat(s))", g.keys.size());
+                    // Son rangement a la place de celui de l'hote, avant l'ecran des objets.
+                    gear_begin(GearRole::Guest, g.gseq);
                 } else {
                     guest_reset("le depart dans la copie a echoue", /*linger=*/true);
                 }
@@ -384,16 +417,22 @@ void embark_pump() {
             }
             if (collars_broken() && !g.mirror_lost) lose_mirror("erreur du jeu au choix des colliers");
             if (mm_scene_alive("Map") && !prep_scene_alive()) {
+                gear_guest_flush();
                 guest_reset("arrive sur la carte", /*linger=*/true, /*tell_host=*/false);
                 break;
             }
-            if (g.now - g.departed_at > kPrepMs) { guest_reset("trop long", /*linger=*/true); break; }
-            // Plus aucun clic de l'hote depuis longtemps, un ecran du depart ouvert :
-            // il ne viendra peut-etre plus (l'hote a quitte la partie...). Le
-            // joueur reprend la main.
+            if (prep_scene_alive()) g.departed_at = g.now;   // le temps ne compte qu'apres les ecrans
+            if (g.now - g.departed_at > kPrepMs) {
+                gear_guest_flush();
+                guest_reset("trop long", /*linger=*/true);
+                break;
+            }
+            // Plus aucun signe de l'hote depuis longtemps, un ecran du depart
+            // ouvert : il ne viendra peut-etre plus (l'hote a quitte la partie...).
+            // Le joueur reprend la main.
             if (!g.mirror_lost && g.queue.empty() && prep_scene_alive() &&
                 g.now - g.last_click > kIdleMs)
-                lose_mirror("plus aucun clic de l'hote");
+                lose_mirror("plus aucun signe de l'hote");
             // La confirmation du jeu que l'hote a eue, et pas ce joueur (ses
             // colliers n'etaient pas tout a fait les memes) : il est deja a
             // l'ecran suivant, ce clic ne viendra jamais.
@@ -424,8 +463,10 @@ void embark_pump() {
             break;
     }
 
-    // Le choix des colliers, des deux cotes (il ne fait rien hors du depart).
+    // Le choix des colliers puis celui des objets, des deux cotes (ils ne font
+    // rien hors du depart).
     collars_pump();
+    gear_pump();
 }
 
 // --- hote ------------------------------------------------------------------------
@@ -498,13 +539,13 @@ void embark_host_departed(uint8_t seq) {
     g.serial    = 0;
     g.scenes.clear();
     // Ceux qui suivent : les invites qui avaient charge sa maison, encore la.
-    const uint32_t followers = g.ready & g.joiners & present_mask();
+    g.followers = g.ready & g.joiners & present_mask();
     collars_begin(CollarRole::Host, seq);
-    collars_set_followers(followers);
+    gear_begin(GearRole::Host, seq);
     unsigned n = 0;
-    for (uint32_t m = followers; m; m &= m - 1) ++n;
-    log_line("EMBARK", "l'hote est parti : chacun choisit les colliers de ses chats, ses clics dans le choix "
-                       "des objets partent chez l'equipe (%u invite(s) suivent)", n);
+    for (uint32_t m = g.followers; m; m &= m - 1) ++n;
+    log_line("EMBARK", "l'hote est parti : chacun choisit les colliers de ses chats, puis les equipe avec son "
+                       "rangement (%u invite(s) suivent)", n);
 }
 
 void embark_cancel(const char* why) { host_reset(why ? why : "annule"); }
@@ -545,6 +586,11 @@ void embark_on_go(uint8_t seq, const std::vector<uint64_t>& keys) {
              keys.size());
 }
 
+bool embark_follower_active(uint8_t peer) {
+    if (!g.on || g.host != Host::Prep || peer >= 32) return false;
+    return ((g.followers >> peer) & 1) && ((present_mask() >> peer) & 1);
+}
+
 bool embark_guest_active() {
     if (!g.on) return false;
     if (g.linger_until && savefile_in_coop()) return true;
@@ -566,9 +612,10 @@ void embark_on_mm(uint8_t from, const MmMsg& m) {
         case kEmbarkGone:
             if (net_role() != NetRole::Host || m.b != g.seq || from >= 32) return;
             log_line("EMBARK", "<- %s ne suit plus le depart", mm_peer_name(from).c_str());
-            // Avant le depart : il ne compte plus parmi ceux qui ont charge la maison.
+            // Avant le depart : il ne compte plus parmi ceux qui ont charge la
+            // maison ; apres, l'hote reprend la main sur les colliers de ses chats.
             if (g.host == Host::Waiting || g.host == Host::Going) g.ready &= ~(1u << from);
-            collars_drop_follower(from);
+            g.followers &= ~(1u << from);
             return;
         default:
             break;
@@ -583,7 +630,12 @@ void embark_on_mm(uint8_t from, const MmMsg& m) {
             log_line("EMBARK", "<- %s a charge la partie, pret a partir%s", mm_peer_name(from).c_str(),
                      g.host == Host::Waiting ? "" : " (apres le depart de l'hote)");
         g.ready |= 1u << from;
-        if (g.host == Host::Prep) collars_add_follower(from);
+        if (g.host == Host::Prep) g.followers |= 1u << from;
+        return;
+    }
+    if (m.a == kEmbarkAlive) {
+        if (net_role() != NetRole::Client || from != kHostPeer || m.b != g.gseq) return;
+        if (g.guest == Guest::Departed) g.last_click = g.now;
         return;
     }
     if (m.a == kEmbarkClick) {
@@ -601,7 +653,10 @@ void embark_on_mm(uint8_t from, const MmMsg& m) {
         c.ord    = m.x;
         c.serial = m.y;
         c.expect_prompt = m.c != 0;
+        const bool storage_close = c.key == std::string(kStorageScene) + "|CloseButton";
         g.queue.push_back(std::move(c));
+        // Le « Valider » des objets : la derniere photo de ses chats part avant.
+        if (storage_close) gear_guest_close();
         return;
     }
 }
@@ -610,11 +665,12 @@ bool embark_on_button_click(void* button) {
     if (!g.on) return false;
     if (g.replaying) return false;                // notre propre clic, rejoue
     const bool host  = host_counting();
-    const bool guest = g.guest == Guest::Departed && !g.mirror_lost && savefile_in_coop();
+    const bool guest = g.guest == Guest::Departed && savefile_in_coop();
     if (!host && !guest) return false;
     char scene[48], name[64];
     if (!button_ident(button, scene, sizeof(scene), name, sizeof(name))) return false;
     const bool chooser = strcmp(scene, kChooserScene) == 0;
+    const bool storage = strcmp(scene, kStorageScene) == 0;
     const bool prompt  = strcmp(scene, kPromptScene) == 0;
     int prompt_flag = 0;       // « Valider » des colliers : 1 confirmation chez l'hote, 2 on ne sait pas
     if (host) {
@@ -625,13 +681,19 @@ bool embark_on_button_click(void* button) {
             if (strcmp(name, "CloseButton") != 0) return false;
             collars_flush();
             prompt_flag = collars_host_prompt_expected();
+        } else if (storage) {
+            // Les objets (mm_gear) : chacun equipe ses chats avec son rangement,
+            // rien ne part. Seul « Valider » est rejoue chez les invites.
+            if (gear_on_click(button, name)) return true;
+            if (strcmp(name, "CloseButton") != 0) return false;
         } else if (prompt) {
-            // Une de nos fenetres, ou hors des ecrans du depart : rien a envoyer.
+            // La confirmation du « Valider » des colliers. Une de nos fenetres,
+            // ou une confirmation du choix des objets (chacun les siennes) :
+            // rien a envoyer.
             const int k = mm_game_prompt_button(button);
-            if (!k || !prep_scene_alive()) return false;
+            if (!k || !mm_scene_alive(kChooserScene)) return false;
             if (k == 1) g.prompt_yes = true;
-            // « Non » a la confirmation du jeu : il reste au choix des colliers.
-            else if (mm_scene_alive(kChooserScene)) collars_cancel_close();
+            else        collars_cancel_close();    // « non » : il reste au choix des colliers
         } else if (!is_prep_scene(scene)) {
             log_line("EMBARK", "clic de l'hote hors des ecrans du depart : %s / %s", scene, name);
             return false;
@@ -656,11 +718,20 @@ bool embark_on_button_click(void* button) {
                  prompt_flag < 0 ? " (confirmation du jeu : inconnu)" : "");
         return false;
     }
-    // Invite : il choisit les colliers de ses chats (mm_collars), et regarde
-    // le reste. Ses autres clics dans ces ecrans sont retenus.
+    // Invite. Les objets de ses chats (mm_gear), meme miroir perdu : il finit
+    // alors les ecrans lui-meme, et son « Valider » passe.
+    if (storage) {
+        if (g.mirror_lost && strcmp(name, "CloseButton") == 0) return false;
+        return gear_on_click(button, name);
+    }
+    if (g.mirror_lost) return false;
+    // Les colliers de ses chats (mm_collars) ; il regarde le reste. Ses autres
+    // clics dans ces ecrans sont retenus.
     if (chooser) return collars_on_click(button, name);
     if (prompt) {
-        if (!mm_game_prompt_button(button) || !prep_scene_alive()) return false;   // une de nos fenetres
+        // La confirmation du « Valider » des colliers : l'hote y repond. Une de
+        // nos fenetres, ou une confirmation du choix des objets : la sienne.
+        if (!mm_game_prompt_button(button) || !mm_scene_alive(kChooserScene)) return false;
     } else if (!is_prep_scene(scene)) {
         return false;
     }

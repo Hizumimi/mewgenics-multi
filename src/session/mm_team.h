@@ -63,7 +63,11 @@
 //     (team_prepare_own_save, appele par mgmp_savefile a cote du monde), apres
 //     une copie de securite. Arrive trop tard (sa save a ete chargee depuis le
 //     depart), un chat n'est recopie que s'il n'a pas change depuis le depart.
-//     Une fenetre le lui dit, une fois chez lui. Un chat dont l'etat final
+//     Une fenetre le lui dit, une fois chez lui. Son rangement aussi, s'il a
+//     equipe ses chats au depart (mm_gear) : il devient, dans la meme
+//     transaction, celui de la photo que l'hote a appliquee -- si tous ses chats
+//     sont recopies et si le rangement de la save n'a pas change depuis
+//     « J'arrive ». Un chat dont l'etat final
 //     attend encore d'etre recopie ne repart pas (une fenetre demande de
 //     recharger la save d'abord) ; un chat reparti avant que l'etat final de
 //     son depart d'avant n'arrive ne rentre que de son dernier depart ; un chat
@@ -109,6 +113,8 @@ void team_catchup(uint8_t peer);
 
 // Un message MSG_TEAM.
 void team_on_message(uint8_t from, const SaveFileMsg& m);
+// En envoie un (mm_gear) : a tous (peer < 0) ou a un joueur.
+bool team_send(const std::vector<uint8_t>& body, int peer);
 
 // Le nombre de chats qu'un joueur emmene, pour `players` joueurs en session.
 int team_quota(bool host, int players);
@@ -150,6 +156,12 @@ bool team_guest_send(uint8_t seq, std::string& problem_utf8);
 // Il ne vient plus au vote `seq` (« pas encore », annulation, vote annule) :
 // pas de fenetre « tes chats n'ont pas pu partir » pour ce depart.
 void team_guest_withdraw(uint8_t seq);
+// Le choix des objets (mm_gear). Son rangement tel que le jeu l'avait a
+// « J'arrive » pour le vote `seq` (faux : il n'amene pas de chat, ou il n'a pas
+// pu etre lu) ; puis celui de la photo que l'hote a appliquee a ses chats, qui
+// deviendra celui de sa save a leur retour.
+bool team_guest_storage(uint8_t seq, std::vector<uint8_t>& out);
+void team_guest_storage_after(uint8_t seq, const std::vector<uint8_t>& post);
 // Ses chats sont-ils dans l'aventure en cours de l'hote ? (Faux sans equipe
 // mixte.) Pour la fenetre « Rejoindre l'aventure ».
 bool team_guest_has_cats_in_run();

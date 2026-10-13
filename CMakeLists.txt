@@ -89,6 +89,7 @@ add_library(mgmp SHARED
     src/session/mm_npc_state.cpp
     src/session/mm_embark.cpp
     src/session/mm_collars.cpp
+    src/session/mm_gear.cpp
     src/session/mm_team.cpp
     src/session/mm_team_merge.cpp
     src/ui/mgmp_ui.cpp

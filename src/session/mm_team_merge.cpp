@@ -17,6 +17,7 @@ constexpr uint32_t kTeamMagic  = 0x4D41454D;   // « MEAM » (Mewgenics multi, e
 constexpr uint8_t  kTeamFormat = 2;            // 2 : vote, jour de l'invite, sort de chaque chat, cle hote des proprietaires
 constexpr size_t   kMaxCatBytes = 1u << 16;    // un chat fait moins d'un kilo-octet
 constexpr size_t   kMaxTeam     = 16;
+constexpr size_t   kMaxStorageBytes = 512u << 10; // le rangement : quelques kilo-octets (kMaxInvBytes)
 
 struct Reader {
     const uint8_t* p;
@@ -228,13 +229,112 @@ bool team_embark_decode(const uint8_t* p, size_t n, uint8_t& seq, std::vector<ui
     return true;
 }
 
+std::vector<uint8_t> team_gear_encode(const GearMsg& m) {
+    std::vector<uint8_t> b;
+    put<uint32_t>(b, kTeamMagic);
+    put<uint8_t>(b, kTeamFormat);
+    put<uint8_t>(b, kTeamGear);
+    put<uint8_t>(b, m.vote);
+    put<uint32_t>(b, m.snap);
+    put<uint8_t>(b, (uint8_t)((m.final ? 1 : 0) | (m.has_data ? 2 : 0)));
+    if (!m.has_data) return b;
+    put<uint32_t>(b, (uint32_t)m.storage.size());
+    b.insert(b.end(), m.storage.begin(), m.storage.end());
+    put<uint8_t>(b, (uint8_t)std::min(m.cats.size(), kMaxTeam));
+    for (size_t i = 0; i < m.cats.size() && i < kMaxTeam; ++i) {
+        put<uint64_t>(b, m.cats[i].key);
+        put<uint32_t>(b, (uint32_t)m.cats[i].data.size());
+        b.insert(b.end(), m.cats[i].data.begin(), m.cats[i].data.end());
+    }
+    return b;
+}
+
+bool team_gear_decode(const uint8_t* p, size_t n, GearMsg& m) {
+    if (!p) return false;
+    Reader r{p, n};
+    if (r.get<uint32_t>() != kTeamMagic || r.get<uint8_t>() != kTeamFormat ||
+        r.get<uint8_t>() != kTeamGear)
+        return false;
+    GearMsg out;
+    out.vote = r.get<uint8_t>();
+    out.snap = r.get<uint32_t>();
+    const uint8_t flags = r.get<uint8_t>();
+    if (!r.ok || (flags & ~3u)) return false;
+    out.final    = (flags & 1) != 0;
+    out.has_data = (flags & 2) != 0;
+    if (out.has_data) {
+        const uint32_t sn = r.get<uint32_t>();
+        if (!r.ok || sn < 4 || sn > kMaxStorageBytes || !r.need(sn)) return false;
+        out.storage.assign(p + r.pos, p + r.pos + sn);
+        r.pos += sn;
+        const uint8_t count = r.get<uint8_t>();
+        if (!r.ok || count > kMaxTeam) return false;
+        for (uint8_t i = 0; i < count; ++i) {
+            GearCat c;
+            c.key = r.get<uint64_t>();
+            const uint32_t cn = r.get<uint32_t>();
+            if (!r.ok || c.key == 0 || cn == 0 || cn > kMaxCatBytes || !r.need(cn)) return false;
+            c.data.assign(p + r.pos, p + r.pos + cn);
+            r.pos += cn;
+            out.cats.push_back(std::move(c));
+        }
+    }
+    if (!r.ok || r.pos != n) return false;
+    m = std::move(out);
+    return true;
+}
+
+std::vector<uint8_t> team_gear_ack_encode(const GearAck& a) {
+    std::vector<uint8_t> b;
+    put<uint32_t>(b, kTeamMagic);
+    put<uint8_t>(b, kTeamFormat);
+    put<uint8_t>(b, kTeamGearAck);
+    put<uint8_t>(b, a.vote);
+    put<uint32_t>(b, a.snap);
+    put<uint8_t>(b, a.has_storage ? 1 : 0);
+    if (a.has_storage) {
+        put<uint32_t>(b, (uint32_t)a.storage.size());
+        b.insert(b.end(), a.storage.begin(), a.storage.end());
+    }
+    return b;
+}
+
+bool team_gear_ack_decode(const uint8_t* p, size_t n, GearAck& a) {
+    if (!p) return false;
+    Reader r{p, n};
+    if (r.get<uint32_t>() != kTeamMagic || r.get<uint8_t>() != kTeamFormat ||
+        r.get<uint8_t>() != kTeamGearAck)
+        return false;
+    GearAck out;
+    out.vote = r.get<uint8_t>();
+    out.snap = r.get<uint32_t>();
+    const uint8_t flags = r.get<uint8_t>();
+    if (!r.ok || flags > 1) return false;
+    out.has_storage = flags == 1;
+    if (out.has_storage) {
+        const uint32_t sn = r.get<uint32_t>();
+        if (!r.ok || sn < 4 || sn > kMaxStorageBytes || !r.need(sn)) return false;
+        out.storage.assign(p + r.pos, p + r.pos + sn);
+        r.pos += sn;
+    }
+    if (!r.ok || r.pos != n) return false;
+    a = std::move(out);
+    return true;
+}
+
 uint8_t team_kind(const uint8_t* p, size_t n) {
     if (!p) return 0;
     Reader r{p, n};
     if (r.get<uint32_t>() != kTeamMagic || r.get<uint8_t>() != kTeamFormat) return 0;
     const uint8_t kind = r.get<uint8_t>();
-    if (!r.ok || kind < kTeamDepart || kind > kTeamEmbark) return 0;
+    if (!r.ok || kind < kTeamDepart || kind > kTeamGearAck) return 0;
     return kind;
+}
+
+int team_read_storage(sqlite3* db, std::vector<uint8_t>& out) {
+    out.clear();
+    if (!db) return -1;
+    return get_row(db, "SELECT data FROM files WHERE key = ?1", "inventory_storage", 0, out);
 }
 
 // --- un chat serialise ---------------------------------------------------------
@@ -456,9 +556,11 @@ bool team_plan_keys(sqlite3* host, const std::vector<TeamCat>& cats, uint64_t mi
 // --- invite : l'etat final de ses chats dans sa save ---------------------------------
 
 bool team_apply_results(sqlite3* own, const std::vector<TeamCat>& results,
-                        const std::vector<TeamCat>* departed, TeamApplySummary& sum) {
+                        const std::vector<TeamCat>* departed, TeamApplySummary& sum,
+                        const TeamStorageChange* storage) {
     sum = TeamApplySummary{};
     if (!own || results.empty()) return false;
+    if (storage && storage->post.size() < 4) storage = nullptr;   // pas un rangement
 
     // D'abord tout preparer, sans rien ecrire.
     struct Plan { uint64_t key; std::vector<uint8_t> blob; std::string name; bool leaves; bool dead; };
@@ -510,7 +612,10 @@ bool team_apply_results(sqlite3* own, const std::vector<TeamCat>& results,
         cat_set_flags(raw, fin.flags & ~(kCatAway | kCatGuest));   // l'aventure est finie
         plans.push_back(Plan{r.own_key, cat_blob_pack(raw), fin.name, leaves, dead});
     }
-    if (plans.empty()) return true;
+    if (plans.empty()) {
+        if (storage) sum.storage = kStorageCatsKept;
+        return true;
+    }
 
     // Les morts et les perdus quittent la maison : sans house_state lisible, on
     // ne les ecrit pas du tout.
@@ -534,7 +639,37 @@ bool team_apply_results(sqlite3* own, const std::vector<TeamCat>& results,
             hs_dirty = true;
         }
     }
-    if (plans.empty()) return true;
+    if (plans.empty()) {
+        if (storage) sum.storage = kStorageCatsKept;
+        return true;
+    }
+
+    // Le rangement : seulement avec tous les chats partis (un chat laisse tel
+    // quel, ou absent des resultats, n'a pas les objets qui ont quitte le
+    // rangement), et si la save a encore celui du depart.
+    bool write_storage = false;
+    if (storage) {
+        bool all = true;
+        for (uint64_t k : storage->cats) {
+            bool planned = false;
+            for (const Plan& p : plans) planned |= p.key == k;
+            all &= planned;
+        }
+        if (!sum.changed.empty() || sum.skipped || !all) {
+            sum.storage = kStorageCatsKept;
+        } else {
+            std::vector<uint8_t> now;
+            const int f = get_row(own, "SELECT data FROM files WHERE key = ?1", "inventory_storage", 0, now);
+            if (f < 0) return false;
+            if (f == 1 && now == storage->post)
+                sum.storage = kStorageSame;
+            else if (f == 0 ? !storage->pre_disk_found
+                            : ((storage->pre_disk_found && now == storage->pre_disk) || now == storage->pre_mem))
+                write_storage = true;
+            else
+                sum.storage = kStorageChanged;
+        }
+    }
 
     if (!exec(own, "BEGIN")) return false;
     bool ok = true;
@@ -544,12 +679,17 @@ bool team_apply_results(sqlite3* own, const std::vector<TeamCat>& results,
     }
     if (ok && hs_dirty)
         ok = put_blob(own, "INSERT OR REPLACE INTO files(key, data) VALUES(?1, ?2)", "house_state", 0, hs);
+    if (ok && write_storage)
+        ok = put_blob(own, "INSERT OR REPLACE INTO files(key, data) VALUES(?1, ?2)", "inventory_storage", 0,
+                      storage->post);
     if (ok && exec(own, "COMMIT")) {
         for (const Plan& p : plans)
             (p.dead ? sum.lost : p.leaves ? sum.gone : sum.back).push_back(p.name);
+        if (write_storage) sum.storage = kStorageWritten;
         return true;
     }
     exec(own, "ROLLBACK");
+    if (storage) sum.storage = kStorageNone;
     return false;
 }
 

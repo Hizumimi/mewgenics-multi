@@ -36,16 +36,20 @@
 //      collier ? », scene « YesNoPrompt ») suit le meme chemin ; l'hote dit
 //      avec son « Valider » s'il l'aura (champ c), et si elle ne s'ouvre que
 //      chez l'invite, il y repond « oui ».
-//      Le choix des objets (« StorageItems ») : chaque clic de l'hote y est
-//      rejoue au meme bouton, l'invite regarde (ses clics sont retenus).
+//      Le choix des objets (« StorageItems », mm_gear) : chacun equipe ses
+//      chats avec son propre rangement (l'invite a charge le sien dans sa
+//      copie) ; ses confirmations du jeu sont les siennes. Seul « Valider » de
+//      l'hote est rejoue chez les invites ; juste avant, leur derniere photo
+//      (chats et rangement) part chez lui, qui l'applique sur la carte.
 //   5. L'hote arrive sur la carte et publie son aventure comme avant (fresh) :
 //      l'invite recharge celle-ci -- c'est la sienne qui fait foi. Son depart
 //      a lui n'etait qu'un miroir.
 //
 // LIMITES. Un clic que l'invite ne retrouve pas dans les 30 secondes (ou plus
-// aucun clic de l'hote pendant 5 minutes) arrete le miroir : il peut alors
+// aucun signe de l'hote pendant 5 minutes) arrete le miroir : il peut alors
 // finir les ecrans lui-meme pour rejoindre la carte (et le dit a l'hote, qui
-// peut alors choisir les colliers de ses chats). Un clic que l'hote fait
+// peut alors choisir les colliers de ses chats ; leurs objets restent a
+// l'invite, dont la derniere photo part quand il valide lui-meme). Un clic que l'hote fait
 // au clavier, hors de l'update de son bouton, peut etre mal place. Un invite
 // qui charge trop lentement (2 minutes) : l'hote part sans l'attendre, et
 // l'invite le rejoint sur la carte, comme avant. Le miroir compte comme la
@@ -74,6 +78,8 @@ enum EmbarkMsg : uint8_t {
                              //   texte = classe
     kEmbarkChooserOpen = 5,  // invite -> hote : son choix des colliers est ouvert
     kEmbarkGone        = 6,  // invite -> hote : il ne suit plus le depart
+    kEmbarkAlive       = 7,  // hote -> invites : toujours dans les ecrans du depart (toutes
+                             //   les 20 s : au choix des objets, aucun clic ne part)
 };
 
 void embark_init();          // session prete
@@ -115,6 +121,11 @@ bool embark_guest_active();
 // Le « Valider » de l'hote est deja arrive (pas encore rejoue) : le choix des
 // colliers se ferme bientot chez lui.
 bool embark_guest_close_queued();
+
+// Hote, pendant les ecrans du depart : cet invite suit le depart (il avait
+// charge la maison de l'hote, ou son « pret » est arrive juste apres), il est
+// toujours la et n'a pas dit qu'il ne suivait plus (kEmbarkGone).
+bool embark_follower_active(uint8_t peer);
 
 // --- les deux -------------------------------------------------------------------
 

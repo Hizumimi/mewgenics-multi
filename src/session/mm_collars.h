@@ -91,12 +91,6 @@ enum class CollarRole { Off, Host, Guest };
 void collars_begin(CollarRole role, uint8_t seq);
 void collars_end(const char* why);
 
-// Hote : les invites qui suivent le depart (masque des ids de joueurs) ; un
-// « pret » arrive apres le depart ; un invite qui ne suit plus.
-void collars_set_followers(uint32_t mask);
-void collars_add_follower(uint8_t peer);
-void collars_drop_follower(uint8_t peer);
-
 // Chaque image (embark_pump, au debut de l'image).
 void collars_pump();
 

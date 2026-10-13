@@ -651,6 +651,33 @@ void invsync_apply_pending(const char* why) {
     free_pending();   // frees the same buffers m borrowed; m is dead here
 }
 
+bool invsync_serialize_storage(std::vector<uint8_t>& out) {
+    out.clear();
+    ensure_state();
+    if (!g.resolved || !hooks_is_live(T_SFStoreBlob) || !hooks_is_live(T_SFLoadBlob)) return false;
+    RunInv ri{};
+    if (!run_inv(ri)) return false;
+    uint8_t* buf = nullptr;
+    uint32_t len = 0;
+    if (!serialize_bucket(ri.savefile, (uint8_t*)ri.inventory + kInv_Storage, "inventory_storage", &buf, &len))
+        return false;
+    if (buf && len) out.assign(buf, buf + len);
+    else            out.assign(4, 0);      // vide : le nombre d'objets seul (0)
+    free(buf);
+    return true;
+}
+
+bool invsync_load_storage(const std::vector<uint8_t>& bytes) {
+    ensure_state();
+    if (!g.resolved || !hooks_is_live(T_SFStoreBlob) || !hooks_is_live(T_SFLoadBlob)) return false;
+    // Au moins le nombre d'objets (u32) : un rangement vide fait 4 octets.
+    if (bytes.size() < 4 || bytes.size() > kMaxInvBytes) return false;
+    RunInv ri{};
+    if (!run_inv(ri)) return false;
+    return apply_bucket(ri.savefile, (uint8_t*)ri.inventory + kInv_Storage, "inventory_storage",
+                        bytes.data(), (uint32_t)bytes.size());
+}
+
 void invsync_drop_pending() {
     ensure_state();
     if (g.pend_have)
