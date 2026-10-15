@@ -483,6 +483,9 @@ bool publish(uint8_t to, bool fresh) {
     ensure_dir();
     if (!g.have_dir) return false;
 
+    // Hors aventure (au menu, a la maison), le fichier sur le disque est deja le
+    // bon : il n'y a pas de course en memoire a ecrire avant de l'envoyer.
+    const bool in_run  = adventure_is_loaded_impl();
     const bool flushed = flush_live_run();
     if (!flushed && !g.said_no_flush) {
         g.said_no_flush = true;
@@ -543,7 +546,7 @@ bool publish(uint8_t to, bool fresh) {
         log_line("SAVEFILE", "   (flushed the host's live run to disk first -- "
                              "this is the host's current position, not a "
                              "checkpoint)");
-    } else if (g.click_mtime && mtime != g.click_mtime) {
+    } else if (in_run && g.click_mtime && mtime != g.click_mtime) {
         log_line("SAVEFILE", "!! the host has saved progress since choosing this "
                              "file and the live run could not be flushed -- the "
                              "client gets that checkpoint, not the host's live "
@@ -729,6 +732,7 @@ void savefile_pump() {
             g.run_seen      = true;
             g.run_published = false;
             g.publish_tries = 0;
+            follow_forget_map();     // Mewgenics Multi : NODEHASH, premiere case fraiche
             log_line("SAVEFILE", "an adventure is loaded on the host -- publishing "
                                  "it as soon as the map is up");
         }
@@ -950,17 +954,17 @@ void savefile_on_message(const SaveFileMsg& m) {
                  ? "a new adventure from the host -- it replaces the previous copy"
                  : "a fresh copy of the host's adventure, asked for to join it");
 
-        // The residual limit, stated rather than hidden. autoselect only runs
-        // from SaveSelection::update and the auto-Play only from the main menu's
-        // Button::update, so a client standing inside an adventure has no screen
-        // either of them can act on. The blob is kept and applies the moment the
-        // player gets back to the menu -- but nothing can drag them there, so
-        // this has to be said out loud.
+        // autoselect only runs from SaveSelection::update and the auto-Play
+        // only from the main menu's Button::update, so a client standing inside
+        // an adventure has no screen either of them can act on. The blob is
+        // kept and applies the moment the player gets back to the menu.
+        // Mewgenics Multi : et mm_menu l'y emmene (Echap, puis « Quitter vers
+        // le menu » ; s'il n'y arrive pas, il le dit au joueur dans le jeu).
         if (g.in_coop && adventure_is_loaded_impl())
-            log_line_lvl(LogLevel::Error, "SAVEFILE",
-                     "!! this peer is INSIDE a run and a save can only be applied "
-                     "from the save-selection screen -- quit to the main menu and "
-                     "the host's new run will load on its own");
+            log_line("SAVEFILE",
+                     "this peer is inside a run: the host's new one loads from the "
+                     "save-selection screen, and Mewgenics Multi takes this player "
+                     "to the main menu for it");
     }
 
     if (g.blob) free(g.blob);
@@ -1136,6 +1140,7 @@ int savefile_autoselect(void* ss) {
     g.redirect_name.cap  = 15;                 // SSO: the text is inline, no heap
     g.redirect_armed     = true;
 
+    follow_forget_map();         // Mewgenics Multi : NODEHASH, premiere case fraiche
     log_line("SAVEFILE", "wrote the host's save to %ls (%u bytes) -- clicking slot "
                          "%d ('%s') and redirecting the load to '%s'; the local "
                          "save files are not touched",

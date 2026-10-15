@@ -172,8 +172,9 @@ int main() {
         const Config& c = load(R"({ "ui": { "enabled": true } })");
         check(c.hook[T_FrameBegin],
               "the panel alone forces it too -- its connect buttons open a socket");
-        check(!c.hook[T_RandInt],
-              "but the RNG hooks stay off without debug.record");
+        // Mewgenics Multi : the flight recorder keeps them in (mgmp_tuning.h).
+        check(c.hook[T_RandInt] == tune::kRngFlight,
+              "and the RNG hooks follow the flight recorder without debug.record");
     }
     {
         const Config& c = load(R"({ "debug": { "record": true } })");

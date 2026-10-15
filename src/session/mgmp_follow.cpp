@@ -36,6 +36,13 @@ constexpr uintptr_t kMap_NodeData  = 128;
 constexpr uintptr_t kNode_Seed = 0x118;
 constexpr uintptr_t kNode_Type = 0x138;
 
+// Mewgenics Multi : la maison (MapNodeType 4), et MapScreen+0x1E7 -- la maison
+// prise avant la fin de la carte (voir kEnterEarlyHome dans mgmp_proto.h).
+// Pose a 1 par la confirmation POPUP_TRY_RETURN_HOME_EARLY (0x140228341), a 0
+// par le clic ordinaire (0x140228875), lu par EnterNode (0x1403927E3).
+constexpr uint32_t  kNodeType_Home = 4;
+constexpr uintptr_t kMap_EarlyHome = 0x1E7;
+
 // MapNode::str_to_type, in enum order. 1 and 18 are three-character names whose
 // string constants IDA did not render; they are not battle types and nothing
 // here depends on knowing them.
@@ -83,6 +90,7 @@ struct State {
         uint64_t seed  = 0;
         uint64_t at    = 0;         // tick the host's choice arrived
         bool     held  = false;     // ...and whether we have said we are holding
+        uint8_t  flags = 0;         // EnterNodeMsg::flags (kEnterEarlyHome)
     };
     PendingNode pending_q[kMaxPendingNodes];
     uint32_t    pending_head  = 0;
@@ -114,6 +122,14 @@ struct State {
     uint32_t here_count     = 0;
     uint32_t here_type      = 0;
     uint64_t here_seed      = 0;
+
+    // Mewgenics Multi : la prochaine case est la premiere depuis qu'une
+    // aventure a ete chargee chez ce joueur (kNodeHashRngFresh) -- pose au
+    // debut d'une session, quand une aventure commence chez l'hote et quand
+    // une copie arrive chez l'invite (follow_forget_map). Pas a chaque
+    // nouvelle carte : apres une sortie (chapitre suivant), les deux flux
+    // viennent de la graine de la case de sortie et doivent s'accorder.
+    bool     next_fresh     = true;
 
     uint32_t entered        = 0;         // nodes followed, for the shutdown line
     uint32_t published      = 0;
@@ -200,6 +216,7 @@ void follow_init() {
     g.on        = config().net_follow;
     g.is_client = (net_role() == NetRole::Client);
     g.map       = nullptr;
+    g.next_fresh = true;         // Mewgenics Multi : la premiere case de la session
     pending_clear();
     if (!g.on) { log_line("FOLLOW", "map following disabled by net_follow = 0"); return; }
     log_line_lvl(LogLevel::Trace, "FOLLOW", "armed -- %s",
@@ -260,7 +277,15 @@ void remember_node(uint32_t index, uint32_t count, uint32_t type, uint64_t seed)
     // comparable: the host describes the run it is about to push, and the
     // client -- which applied that push when it popped, ahead of its own map
     // tick -- describes the same bytes.
-    if (moved) nodehash_on_node(seed, index);
+    //
+    // Mewgenics Multi : la premiere case d'une carte qui vient d'etre chargee
+    // chez ce joueur (une aventure qui commence, la copie de l'invite, une
+    // reprise) ne compare pas le flux : il vient du chargement, pas d'une case.
+    if (moved) {
+        const bool fresh = g.next_fresh;
+        g.next_fresh = false;
+        nodehash_on_node(seed, index, fresh);
+    }
 }
 
 bool follow_on_enter_node(void* map_screen, void* node, bool* sent) {
@@ -336,11 +361,17 @@ bool follow_on_enter_node(void* map_screen, void* node, bool* sent) {
     m.node_count = count;
     m.type       = type;
     m.seed0      = seed;
+    // Mewgenics Multi : la maison prise avant la fin de la carte (kEnterEarlyHome).
+    uint8_t early = 0;
+    if (type == kNodeType_Home &&
+        mem_read((const uint8_t*)map_screen + kMap_EarlyHome, &early, sizeof(early)) && early)
+        m.flags |= kEnterEarlyHome;
     if (net_send_enter_node(m)) {
         ++g.published;
         if (sent) *sent = true;
-        log_line("FOLLOW", "-> node %u/%u (%s) seed0=%016llx",
-                 index, count, node_type_name(type), (unsigned long long)m.seed0);
+        log_line("FOLLOW", "-> node %u/%u (%s) seed0=%016llx%s",
+                 index, count, node_type_name(type), (unsigned long long)m.seed0,
+                 (m.flags & kEnterEarlyHome) ? " (retour anticipe)" : "");
     }
     return true;
 }
@@ -474,6 +505,12 @@ void follow_drop_pending() {
                            "just arrived -- that save already has them",
                  g.pending_count);
     pending_clear();
+    g.next_fresh = true;         // une copie neuve : sa premiere case est fraiche
+}
+
+void follow_forget_map() {
+    Guard guard;
+    g.next_fresh = true;
 }
 
 void follow_on_message(const EnterNodeMsg& m) {
@@ -514,6 +551,7 @@ void follow_on_message(const EnterNodeMsg& m) {
     p.type  = m.type;
     p.count = m.node_count;
     p.seed  = m.seed0;
+    p.flags = m.flags;
     // Timed from ARRIVAL, not from the first map update that sees it: the point
     // of the delay is to put a known gap between the host entering a node and
     // this peer entering it, and the map screen may not be ready for a while
@@ -657,6 +695,7 @@ void* follow_map_update(void* map_screen) {
                  p.index, node_type_name(type), node_type_name(p.type));
 
     const uint32_t entering = p.index;
+    const uint8_t  flags    = p.flags;
     pending_pop();
     ++g.entered;
     log_line("FOLLOW", "following host into node %u (%s)%s",
@@ -708,6 +747,15 @@ void* follow_map_update(void* map_screen) {
     // comme a la fin d'une marche : sinon la fin de case marquerait visitee la
     // case ou il est reste, et sa carte n'avancerait plus (mgmp_marker.h).
     marker_arrive(map_screen, node);
+
+    // Mewgenics Multi : la maison, comme chez l'hote -- prise avant la fin de la
+    // carte ou non (MapScreen+0x1E7, que seul le clic ou la confirmation de
+    // l'hote posent ; EnterNode le lit dans la branche de la maison).
+    if (type == kNodeType_Home) {
+        const uint8_t early = (flags & kEnterEarlyHome) ? 1 : 0;
+        mem_write((uint8_t*)map_screen + kMap_EarlyHome, &early, sizeof(early));
+        if (early) log_line("FOLLOW", "retour anticipe a la maison, comme chez l'hote");
+    }
 
     return node;
 }

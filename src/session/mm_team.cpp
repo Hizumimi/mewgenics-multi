@@ -960,7 +960,13 @@ bool __fastcall h_ButchDepart(void* box) {
     // nuit. Personne ne part, et les invites qui attendaient l'aventure en sont
     // liberes.
     if (read && keys.empty()) {
-        log_line("TEAM", "!! boite de l'hote vide et aucun chat d'invite : personne ne part");
+        // Une nuit ou personne n'a mis de chat : la journee passe, c'est tout.
+        // L'alerte n'est que pour des chats d'invite qui n'ont pas pu venir.
+        if (brought)
+            log_line("TEAM", "!! boite de l'hote vide et les chats des invites n'ont pas pu "
+                             "venir : personne ne part");
+        else
+            log_line("TEAM", "boite de l'hote vide et aucun chat d'invite : pas de depart");
         mm_depart_called_off();
         say(brought ? u8"Départ en aventure\n\n"
                       u8"Les chats des autres joueurs n'ont pas pu partir\n"

@@ -60,8 +60,9 @@ void nodehash_init();
 void nodehash_shutdown();
 
 // Called by mgmp_follow from both peers' paths into a node, immediately before
-// EnterNode runs. See kNodePointEnter.
-void nodehash_on_node(uint64_t node_seed, uint32_t node_index);
+// EnterNode runs. See kNodePointEnter. `rng_fresh` : the first node this peer
+// enters on this map since it was loaded (Mewgenics Multi, kNodeHashRngFresh).
+void nodehash_on_node(uint64_t node_seed, uint32_t node_index, bool rng_fresh = false);
 
 // Called from the WorldEvent::update hook. Samples once per screen, on the
 // first tick at which the event's name can be read.

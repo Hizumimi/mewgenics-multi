@@ -159,6 +159,22 @@ struct TaDump {
     }
 };
 
+// Mewgenics Multi : " rng=<premier mot du flux de la simulation>" au moment de
+// la ligne, en combat en commun seulement. Le hash d'un tour dit QUE les flux
+// se sont separes ; les lignes APPLY/DOACTION/TRIGGER/ENDTURN des deux
+// journaux, cote a cote, disent entre quelles deux lignes -- la divergence du
+// 12 octobre (memes actions, memes chats, flux differents au tour 9) ne
+// pouvait pas en dire plus.
+struct RngTag {
+    char text[28] = {};
+    RngTag() {
+        if (!lockstep_active()) return;
+        if (const uint64_t* s = rng_global_stream())
+            _snprintf_s(text, sizeof(text), _TRUNCATE, " rng=%016llx",
+                        (unsigned long long)s[0]);
+    }
+};
+
 // ---- hooks ---------------------------------------------------------------
 
 void __fastcall h_InitSystems(void* self) {
@@ -257,14 +273,16 @@ void* __fastcall h_GetChoice(void* self, void* out) {
 void __fastcall h_DoAction(void* self, void* ta, unsigned char flag) {
     Who    w(self, "char");
     TaDump d(ta);
-    log_line("DOACTION", "%s flag=%u %s", w.text, (unsigned)flag, d.text);
+    RngTag r;
+    log_line("DOACTION", "%s flag=%u %s%s", w.text, (unsigned)flag, d.text, r.text);
     o_DoAction(self, ta, flag);
 }
 
 void __fastcall h_Trigger(void* self, void* ta) {
     Who    w(self, "abil");
     TaDump d(ta);
-    log_line("TRIGGER", "%s %s", w.text, d.text);
+    RngTag r;
+    log_line("TRIGGER", "%s %s%s", w.text, d.text, r.text);
     o_Trigger(self, ta);
 }
 
@@ -276,13 +294,15 @@ void __fastcall h_BeginTurn(void* self, int arg) {
 
 void __fastcall h_EndTurn(void* self) {
     Who w(self, "char");
-    log_line("ENDTURN", "%s", w.text);
+    RngTag r;
+    log_line("ENDTURN", "%s%s", w.text, r.text);
     o_EndTurn(self);
 }
 
 void __fastcall h_ApplyAction(void* self, void* ta) {
     TaDump d(ta);
-    log_line("APPLY", "%s", d.text);
+    RngTag r;
+    log_line("APPLY", "%s%s", d.text, r.text);
 
     if (record_active()) {
         TurnAction a{};

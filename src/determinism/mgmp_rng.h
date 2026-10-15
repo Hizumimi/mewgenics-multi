@@ -58,7 +58,26 @@ void** rng_original_rollchance();
 
 // Total draws seen, and of those, how many were on the global stream. Logged at
 // each turn so the trace shows the recorder is alive even when the diff is
-// empty.
+// empty. Mewgenics Multi : counted only while something listens (a recording,
+// or the flight recorder below).
 void rng_counters(uint64_t* total, uint64_t* global);
+
+// Mewgenics Multi : THE FLIGHT RECORDER. While armed, every call-based draw on
+// the simulation stream made by the arming thread is kept in a ring (4096
+// draws); lockstep marks the ring at each turn hash and, when a turn's rng half
+// disagrees, prints that turn's draws on each peer -- two lists to diff, whose
+// first difference names the call site. Blind to inlined xoshiro steps, like
+// the recorder above.
+// From the game thread (node entry, turn boundary). True if it was not armed
+// on this thread until now -- the draws before are not in the ring.
+bool     rng_flight_arm();
+void     rng_flight_disarm();
+uint32_t rng_flight_mark();      // the number the next draw will get
+// The draws since `mark` did not happen: the caller put the stream back (the
+// aim preview's pinned calls). Same thread as the draws.
+void     rng_flight_rewind(uint32_t mark);
+bool     rng_flight_live();      // armed (the four hooks: hooks_is_live)
+// Logs draws [from, to) that are still in the ring. `what` heads the block.
+void     rng_flight_dump(uint32_t from, uint32_t to, const char* what);
 
 } // namespace mgmp

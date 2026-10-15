@@ -31,6 +31,7 @@
 #include "mgmp_split.h"
 #include "mgmp_rtti.h"
 #include "mgmp_rng.h"
+#include "mgmp_hooks.h"      // hooks_is_live (Mewgenics Multi : l'enregistreur de vol)
 #include "mgmp_log.h"
 
 #include <windows.h>
@@ -290,11 +291,65 @@ struct State {
     uint32_t barrier_waits     = 0;      // GetChoice polls parked in this battle
     bool     barrier_said_open = false;  // ...and whether we have said it lifted
 
+    // Mewgenics Multi : l'enregistreur de vol (mgmp_rng.h). Ou en etait l'anneau
+    // des tirages a chaque empreinte de tour : les tirages du tour T sont entre
+    // la marque de T-1 (ou le debut du combat) et celle de T. Un joueur peut
+    // apprendre la divergence plusieurs tours apres (le message de l'autre
+    // arrive en retard) : les dernieres marques sont gardees.
+    // L'enregistreur est arme a l'entree dans la case (lockstep_enter_battle,
+    // avant EnterNode : les tirages de la mise en place du combat, que couvre
+    // l'empreinte du tour 0, en font partie) ; s'il ne l'a ete qu'au premier
+    // tour (un combat rejoint en cours, une reconnexion), le debut manque et
+    // le journal le dit (`flight_partial`).
+    struct FlightMark { uint32_t turn = 0; uint32_t seq = 0; bool valid = false; };
+    static constexpr uint32_t kFlightTurns = 64;
+    FlightMark flight[kFlightTurns]{};
+    uint32_t   flight_start   = 0;
+    uint64_t   flight_battle  = 0;      // la case ou il a ete arme
+    bool       flight_partial = false;
+    bool       flight_dumped  = false;  // un tour deja ecrit (4 joueurs : une
+    uint32_t   flight_dumped_turn = 0;  // divergence par pair, un seul tour)
+
     CRITICAL_SECTION cs;
     bool cs_ready = false;
 };
 
 State g;
+
+// Mewgenics Multi : les tirages du tour `turn` sur ce joueur, dans le journal.
+void flight_dump_turn(uint32_t turn) {
+    if (g.flight_dumped && g.flight_dumped_turn == turn) return;
+    g.flight_dumped      = true;
+    g.flight_dumped_turn = turn;
+
+    char what[96];
+    _snprintf_s(what, sizeof(what), _TRUNCATE, "turn %u draws", turn);
+    if (!(hooks_is_live(T_RandInt) && hooks_is_live(T_RandFloat) &&
+          hooks_is_live(T_Rand2)   && hooks_is_live(T_RollChance))) {
+        log_line("RNG", "%s: no draw record (the rng hooks are not all installed)", what);
+        return;
+    }
+    const State::FlightMark& end = g.flight[turn % State::kFlightTurns];
+    if (!end.valid || end.turn != turn) {
+        log_line("RNG", "%s: no mark for that turn (too old, or before this "
+                        "peer's first hash)", what);
+        return;
+    }
+    uint32_t from = g.flight_start;
+    bool     from_start = true;
+    if (turn > 0) {
+        const State::FlightMark& prev = g.flight[(turn - 1) % State::kFlightTurns];
+        if (prev.valid && prev.turn == turn - 1) { from = prev.seq; from_start = false; }
+    }
+    // Arme seulement a la fin de ce tour (combat rejoint en cours,
+    // reconnexion) : rien de ce tour n'est dans l'anneau.
+    if (from_start && g.flight_partial) {
+        log_line("RNG", "%s: not recorded (the flight recorder was armed at the "
+                        "end of that turn)", what);
+        return;
+    }
+    rng_flight_dump(from, end.seq, what);
+}
 
 struct Guard {
     Guard()  { if (g.cs_ready) EnterCriticalSection(&g.cs); }
@@ -814,6 +869,17 @@ void snapshot_cats(void* turn_control) {
     }
     g.snapped      = true;
     g.snapped_list = list;
+
+    // Mewgenics Multi : un nouveau combat -- ses marques repartent de zero.
+    // L'enregistreur a ete arme a l'entree dans la case ; sinon (pas d'entree
+    // vue pour ce combat), il l'est ici et le debut manque.
+    g.flight_partial = (g.flight_battle != g.battles.current);
+    if (g.flight_partial) {
+        rng_flight_arm();
+        g.flight_start = rng_flight_mark();
+    }
+    for (State::FlightMark& fm : g.flight) fm = State::FlightMark{};
+    g.flight_dumped = false;
 
     // A new roster invalidates the table the last hash was taken over, and
     // re-arms the one-shot desync dump for this battle.
@@ -1729,6 +1795,11 @@ void compare_hash(const HashMsg& mine, const HashMsg& theirs) {
     // free here: it is sent once, after the run is already lost.
     send_state_dump(mine.turn);
 
+    // Mewgenics Multi : les streams se sont separes -- les tirages du tour,
+    // que l'autre joueur ecrit aussi de son cote (les deux premieres fois
+    // seulement : apres, c'est la meme divergence qui continue).
+    if (!rng_ok && g.mismatches <= 2) flight_dump_turn(mine.turn);
+
     // --- halting (the default) ------------------------------------------
     if (config().net_desync_halt) {
         if (rng_ok && queue_ok) dump_cat_states("state-only mismatch");
@@ -1947,6 +2018,7 @@ void lockstep_shutdown() {
         log_line_lvl(s.desyncs ? LogLevel::Error : LogLevel::Trace, "LOCKSTEP",
                  "   %u turn hash(es) compared and agreed", g.agreements);
     g.active = false;
+    rng_flight_disarm();
     if (g.cs_ready) { DeleteCriticalSection(&g.cs); g.cs_ready = false; }
 }
 
@@ -2064,12 +2136,25 @@ struct StateFence {
 
 StateFence g_sf;
 
+// ONLY THE CATS STILL IN THE BATTLE. A snapshot entry the battle has dropped
+// is a pointer to a Character that may already be freed: reading it costs the
+// get_affecting_elements CALL (a torn object faults inside the game -- measured
+// on 2026-10-13, four first-chance access violations per peer at
+// Mewgenics.exe+0x125C71, all from this fence), and the end of the fence WRITES
+// its facing back, which on reused memory is a write into somebody else's
+// object. Membership by pointer, the same test the per-turn hash uses; a list
+// that cannot be read leaves every cat out (nothing fenced is better than a
+// guess). Asked again at the end: the wrapped call is not supposed to remove
+// anyone, and if it ever does, the removed cat is not written either.
 void lockstep_state_fence_begin() {
     g_sf.armed = false;
     if (!g.active || !g.snapped || g.halted) return;
     g_sf.count = g.cat_count > kMaxCats ? kMaxCats : g.cat_count;
+    uint32_t live = 0, appeared = 0;
+    bool still_in[kMaxCats];
+    const bool have = snapshot_membership(g.snapped_list, live, still_in, appeared);
     for (uint32_t i = 0; i < g_sf.count; ++i)
-        g_sf.got[i] = read_cat_state(g.cats[i], g_sf.snap[i]);
+        g_sf.got[i] = have && still_in[i] && read_cat_state(g.cats[i], g_sf.snap[i], true);
     g_sf.armed = true;
 }
 
@@ -2077,11 +2162,15 @@ uint32_t lockstep_state_fence_end(const char* what) {
     if (!g_sf.armed) return 0;
     g_sf.armed = false;
 
+    uint32_t live = 0, appeared = 0;
+    bool still_in[kMaxCats];
+    if (!snapshot_membership(g.snapped_list, live, still_in, appeared)) return 0;
+
     uint32_t moved = 0;
     for (uint32_t i = 0; i < g_sf.count; ++i) {
-        if (!g_sf.got[i]) continue;
+        if (!g_sf.got[i] || !still_in[i]) continue;
         CatState now{};
-        if (!read_cat_state(g.cats[i], now)) continue;
+        if (!read_cat_state(g.cats[i], now, true)) continue;
 
         const CatState& was = g_sf.snap[i];
         const bool face_moved = (now.fx != was.fx || now.fy != was.fy);
@@ -2662,7 +2751,20 @@ void lockstep_turn_boundary(void* turn_control) {
     if (!g.snapped || g.halted) return;
 
     Guard guard;
+    // Mewgenics Multi : desarme depuis (une reconnexion passe par
+    // lockstep_shutdown) -- ce qui precede n'est plus dans l'anneau.
+    if (rng_flight_arm()) {
+        g.flight_start   = rng_flight_mark();
+        g.flight_partial = true;
+        for (State::FlightMark& fm : g.flight) fm = State::FlightMark{};
+    }
     HashMsg mine = build_hash(turn_control);
+    {
+        State::FlightMark& fm = g.flight[mine.turn % State::kFlightTurns];
+        fm.turn  = mine.turn;
+        fm.seq   = rng_flight_mark();
+        fm.valid = true;
+    }
     net_send_hash(mine);
 
     // Log every turn's hash, not only mismatches. A log that goes quiet when
@@ -2762,6 +2864,14 @@ void lockstep_enter_battle(uint64_t seed0) {
 
     const uint64_t left = g.battles.current;
     g.battles.enter(seed0);
+
+    // Mewgenics Multi : l'enregistreur de vol part d'ici, avant EnterNode (qui
+    // recharge le flux depuis la graine de la case) : les tirages de la mise en
+    // place du combat sont dans le tour 0. Ce fil est celui du jeu, sur les deux
+    // joueurs (l'hote dans follow_on_enter_node, l'invite dans follow_map_update).
+    rng_flight_arm();
+    g.flight_start  = rng_flight_mark();
+    g.flight_battle = seed0;
 
     // The log describes the battle we just left, and nothing in it can be
     // replayed into the new one.

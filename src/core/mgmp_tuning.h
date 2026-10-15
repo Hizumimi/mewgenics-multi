@@ -56,6 +56,10 @@ constexpr bool     kRngGlobalOnly = false;
 // Put EV_FRAME records in the stream. Only run D needed them -- a starved run
 // has fewer frames by construction, so frames are excluded from the diff.
 constexpr bool     kRecordFrames  = false;
+// Mewgenics Multi : the four draw hooks stay in for the whole process, so a
+// shared battle can keep its flight recorder (mgmp_rng.h). Outside a recording
+// and a shared battle each detour is one load and a branch.
+constexpr bool     kRngFlight     = true;
 
 // Which brains a decision may be injected into, and -- the load-bearing use --
 // which cats count as HUMAN when the control split is derived. Substring match

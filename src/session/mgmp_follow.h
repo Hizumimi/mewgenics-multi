@@ -77,6 +77,12 @@ void follow_catchup(uint8_t peer);
 // a jour, les cases d'avant sont deja dedans.
 void follow_drop_pending();
 
+// Mewgenics Multi : une aventure commence chez l'hote, ou une copie se charge
+// chez un invite -- la prochaine case est la premiere d'une carte chargee
+// (NODEHASH kNodeHashRngFresh), meme si le MapScreen neuf est a l'adresse de
+// l'ancien.
+void follow_forget_map();
+
 // Mewgenics Multi (hote) : l'hote est dans une case en ce moment (combat,
 // evenement, boutique...), pas sur la carte. Sur la carte, la case d'avant est
 // finie : la renvoyer a un arrivant le ferait rentrer dans une case resolue.

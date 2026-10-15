@@ -291,7 +291,21 @@ int main() {
         check(o.index == 12 && o.node_count == 40, "index and map size");
         check(o.type == 5, "node type (5 = battle)");
         check(o.seed0 == 0xF7E6D5C4B3A29180ULL, "seed survives the high bit");
+        check(o.flags == 0, "no flag unless set (an ordinary entry)");
         check(r.pos == r.len, "consumed exactly the frame");
+    }
+    {
+        // Mewgenics Multi (41) : la maison prise avant la fin de la carte.
+        EnterNodeMsg m{};
+        m.index = 0; m.node_count = 22; m.type = 4; m.seed0 = 9;
+        m.flags = kEnterEarlyHome;
+        uint32_t n = enc_enter_node(buf, sizeof(buf), m);
+        Reader r(buf, n);
+        check(r.u8v() == MSG_ENTERNODE, "early home: message type");
+        EnterNodeMsg o{};
+        check(dec_enter_node(r, o), "early home: decodes");
+        check(o.type == 4 && (o.flags & kEnterEarlyHome), "early home: the flag survives");
+        check(r.pos == r.len, "early home: consumed exactly the frame");
     }
     {
         EnterNodeMsg m{}; m.index = 1; m.seed0 = 1;
@@ -384,6 +398,7 @@ int main() {
         check(dec_nodehash(r, o), "decodes");
         check(o.node_seed == m.node_seed, "the node seed is the identity");
         check(o.point == kNodePointEvent, "the sample point");
+        check(o.flags == 0, "no flag unless set");
         // All four words, not just the first: the log prints rng[0] but the
         // COMPARISON is over the whole 32-byte state, so a codec that carried
         // one word would agree on streams that had genuinely diverged.
@@ -404,6 +419,26 @@ int main() {
             dec_nodehash(r, o);
         }
         check(true, "truncated NODEHASH frames parse without faulting");
+    }
+    {
+        // Mewgenics Multi (41) : la premiere case d'une carte chargee -- un
+        // drapeau a part, pas dans `point` (qui sert de cle a l'anneau : les
+        // deux moities d'une meme case peuvent porter des drapeaux differents).
+        NodeHashMsg m{}; m.node_seed = 7; m.point = kNodePointEnter;
+        m.flags = kNodeHashRngFresh; m.rng[3] = 0xDEADBEEFull;
+        strcpy_s(m.event, "");
+        uint32_t n = enc_nodehash(buf, sizeof(buf), m);
+        Reader r(buf, n);
+        check(r.u8v() == MSG_NODEHASH, "fresh map: message type");
+        NodeHashMsg o{};
+        check(dec_nodehash(r, o), "fresh map: decodes");
+        check(o.point == kNodePointEnter, "fresh map: the point is untouched");
+        check(o.flags == kNodeHashRngFresh, "fresh map: the flag survives");
+        check(o.rng[3] == 0xDEADBEEFull, "fresh map: the stream after it is in place");
+        check(r.pos == r.len, "fresh map: consumed exactly the frame");
+        Reader r2(buf, n - 1); r2.u8v();
+        NodeHashMsg o2{};
+        check(!dec_nodehash(r2, o2), "fresh map: one byte short is rejected");
     }
 
     printf("\n-- RunHistMsg: the used-event list --\n");

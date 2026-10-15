@@ -167,10 +167,13 @@ void hook_defaults() {
 
     // The hottest things in the harness and pure overhead unless a recording is
     // being taken, so they follow debug.record rather than standing alone.
-    g_cfg.hook[T_RandInt]    = false;
-    g_cfg.hook[T_RandFloat]  = false;
-    g_cfg.hook[T_Rand2]      = false;
-    g_cfg.hook[T_RollChance] = false;
+    // Mewgenics Multi : and the flight recorder, which needs them in from the
+    // start -- a hook added once the game runs is not reliable (see
+    // config_load) -- and costs one branch per draw when it is not armed.
+    g_cfg.hook[T_RandInt]    = tune::kRngFlight;
+    g_cfg.hook[T_RandFloat]  = tune::kRngFlight;
+    g_cfg.hook[T_Rand2]      = tune::kRngFlight;
+    g_cfg.hook[T_RollChance] = tune::kRngFlight;
 
     // The two that MODIFY the game -- see mgmp_tuning.h.
     g_cfg.hook[T_SaveScumPenalty] = tune::kHookSaveScum;

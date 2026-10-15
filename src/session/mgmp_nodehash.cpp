@@ -169,7 +169,12 @@ bool read_game_string(const void* str, char* out, uint32_t cap) {
 // --- comparison -------------------------------------------------------------
 
 void report(uint8_t from, const NodeHashMsg& a, const NodeHashMsg& b) {
-    const bool rng_same  = memcmp(a.rng, b.rng, sizeof(a.rng)) == 0;
+    // Mewgenics Multi : la premiere case d'une carte chargee chez l'un des deux.
+    // Le flux d'avant l'entree vient du chargement, pas d'une case (voir
+    // kNodeHashRngFresh) : le comparer signalait une difference a chaque
+    // aventure, a la premiere case, sans que rien en depende.
+    const bool rng_skipped = ((a.flags | b.flags) & kNodeHashRngFresh) != 0;
+    const bool rng_same  = rng_skipped || memcmp(a.rng, b.rng, sizeof(a.rng)) == 0;
     const bool hist_same = a.hist_hash == b.hist_hash;
     const bool cats_same = a.cats_hash == b.cats_hash && a.cat_count == b.cat_count;
     const bool inv_same  = a.inv_hash  == b.inv_hash;
@@ -187,9 +192,12 @@ void report(uint8_t from, const NodeHashMsg& a, const NodeHashMsg& b) {
         if (!a.cats_hash) strcat_s(missing, " cats");
         if (!a.inv_hash)  strcat_s(missing, " inventory");
         log_line("NODEHASH", "node %016llx at %s AGREES with peer %u "
-                             "(rng+history+cats+inventory)%s%s",
+                             "(%s)%s%s",
                  (unsigned long long)a.node_seed, point_name(a.point),
                  (unsigned)from,
+                 rng_skipped ? "history+cats+inventory; rng not compared, first "
+                               "node of a freshly loaded map"
+                             : "rng+history+cats+inventory",
                  missing[0] ? " -- BUT NOT MEASURED:" : "", missing);
         return;
     }
@@ -316,7 +324,7 @@ void nodehash_shutdown() {
                      g.sent, g.agreed, g.mismatched);
 }
 
-void nodehash_on_node(uint64_t node_seed, uint32_t node_index) {
+void nodehash_on_node(uint64_t node_seed, uint32_t node_index, bool rng_fresh) {
     if (!g.on || !net_active() || !node_seed) return;
     Guard guard;
 
@@ -328,6 +336,7 @@ void nodehash_on_node(uint64_t node_seed, uint32_t node_index) {
     m.node_seed  = node_seed;
     m.node_index = node_index;
     m.point      = kNodePointEnter;
+    m.flags      = rng_fresh ? kNodeHashRngFresh : 0;
     fill(m);
     publish(m);
 }

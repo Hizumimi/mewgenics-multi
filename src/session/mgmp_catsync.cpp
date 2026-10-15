@@ -326,8 +326,15 @@ void catsync_publish(const char* why) {
 
     RunCats rc{};
     if (!run_cats(rc)) {
-        log_line("CATSYNC", "!! could not read the run's cat list -- nothing "
-                            "published (%s)", why);
+        // Mewgenics Multi : hors aventure (a la maison, au menu), il n'y a pas
+        // de liste a lire -- un invite qui se connecte pendant que l'hote est
+        // chez lui tombe ici a chaque fois, et ce n'est pas une panne.
+        if (!savefile_adventure_is_loaded())
+            log_line_lvl(LogLevel::Trace, "CATSYNC",
+                         "no run loaded -- nothing to publish (%s)", why);
+        else
+            log_line("CATSYNC", "!! could not read the run's cat list -- nothing "
+                                "published (%s)", why);
         return;
     }
 

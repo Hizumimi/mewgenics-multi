@@ -291,6 +291,10 @@ void highlight_fenced(void* brain, void* self, void* ability, uint8_t slot_kind,
     uint64_t  before[4] = {};
     const bool pinned = (s != nullptr);
     if (pinned) memcpy(before, s, sizeof(before));
+    // Mewgenics Multi : les tirages de cet apercu ne comptent pas -- le flux est
+    // remis comme avant ci-dessous, et l'enregistreur de vol (mgmp_rng.h) ne
+    // doit pas les montrer comme des tirages de la simulation.
+    const uint32_t flight = rng_flight_mark();
 
     g.suppress = true;
     __try { g.highlight(brain, ability, kHighlightMode); }
@@ -304,6 +308,7 @@ void highlight_fenced(void* brain, void* self, void* ability, uint8_t slot_kind,
 
     if (pinned && memcmp(before, s, sizeof(before)) != 0) {
         memcpy(s, before, sizeof(before));
+        rng_flight_rewind(flight);
         log_line("AIM", "!! the ability highlight moved the simulation stream and "
                         "it was put back -- '%s'", g.held.gon);
     }
@@ -318,11 +323,13 @@ bool draw_fenced(void* brain, void* ability, iVec2D t, iVec2D d, int layer) {
     uint64_t  before[4] = {};
     const bool pinned = (s != nullptr);
     if (pinned) memcpy(before, s, sizeof(before));
+    const uint32_t flight = rng_flight_mark();     // voir highlight_fenced
 
     const bool ok = safe_draw(brain, ability, t, d, layer);
 
     if (pinned && memcmp(before, s, sizeof(before)) != 0) {
         memcpy(s, before, sizeof(before));
+        rng_flight_rewind(flight);
         // Worth a line every time it happens, not once: this would mean the
         // peer's preview reached the simulation stream, which is the one thing
         // this module promised it could not do.
