@@ -45,6 +45,7 @@
 #include "mm_team.h"   // Mewgenics Multi : l'equipe mixte (team_binding)
 #include "mm_collars.h" // Mewgenics Multi : le choix des colliers (collars_binding)
 #include "mm_gear.h"    // Mewgenics Multi : le choix des objets (gear_binding)
+#include "mm_vote.h"    // Mewgenics Multi : le vote du chemin (vote_binding)
 #include "mgmp_log.h"
 #include "mgmp_mem.h"
 #include "mgmp_record.h"
@@ -474,19 +475,28 @@ void __fastcall h_EnterNode(void* self, void* node) {
     // o_EnterNode, the MinHook trampoline, which bypasses this detour outright.
     bool sent = false;
     if (!follow_on_enter_node(self, node, &sent)) return;
+    // Mewgenics Multi : le vote du chemin est fini (apres ENTERNODE, que les
+    // invites recoivent donc avant la fin du tour).
+    vote_on_enter_node();
     o_EnterNode(self, node);
 }
 
 void __fastcall h_MapUpdate(void* self) {
     o_MapUpdate(self);
 
+    // Mewgenics Multi : le vote du chemin -- la carte tourne (presence), et
+    // l'hote rejoue ici le clic sur la case gagnante, carte a jour.
+    vote_map_update(self);
+
     // After the original, not before: the node the host chose should be entered
     // from a map screen that has already finished this frame's update, which is
     // as close as we can get to the native call site (a UI callback fired from
     // inside this same function).
     if (!o_EnterNode) return;
-    if (void* node = follow_map_update(self))
+    if (void* node = follow_map_update(self)) {
+        vote_on_enter_node();
         o_EnterNode(self, node);
+    }
 }
 
 // --- the decision screens --------------------------------------------------
@@ -775,6 +785,10 @@ const Binding kBindings[] = {
     // Mewgenics Multi : le choix des objets, detour dans src/session/mm_gear.cpp
     // (gear_binding).
     { T_InvItemUpdate,  nullptr, nullptr },
+    // Mewgenics Multi : le vote du chemin, detour dans src/session/mm_vote.cpp
+    // (vote_binding).
+    { T_MapNodeClick,   nullptr, nullptr },
+    { T_TickNemesis,    nullptr, nullptr },
 };
 
 // Resolves the three RNG bindings, which are not static initialisers because
@@ -825,6 +839,7 @@ bool install_one(const Binding& b, bool announce_off) {
     team_binding(b.target, &detour, &original);
     collars_binding(b.target, &detour, &original);
     gear_binding(b.target, &detour, &original);
+    vote_binding(b.target, &detour, &original);
     if (!detour || !original) {
         log_raw("  [!] %-9s no detour bound", t.name);
         return false;

@@ -6,6 +6,7 @@
 #include "mgmp_nodehash.h"
 #include "mgmp_runhist.h"
 #include "mgmp_follow.h"
+#include "mgmp_marker.h"     // Mewgenics Multi : le pion arrive sur la case suivie
 #include "mgmp_savefile.h"   // savefile_in_coop (Mewgenics Multi)
 #include "mgmp_lockstep.h"
 #include "mgmp_net.h"
@@ -460,6 +461,12 @@ void follow_catchup(uint8_t peer) {
 
 bool follow_inside_node() { return g.inside; }
 
+uint32_t follow_pending_count() {
+    if (!g.on) return 0;
+    Guard guard;
+    return g.pending_count;
+}
+
 void follow_drop_pending() {
     Guard guard;
     if (g.pending_count)
@@ -564,6 +571,9 @@ void* follow_map_update(void* map_screen) {
         // property the follow path relies on in the other direction.
         bool sent = false;
         if (!follow_on_enter_node(map_screen, node, &sent)) return nullptr;
+        // Mewgenics Multi : sans marche, le pion doit arriver sur la case pour
+        // que la fin de case la marque visitee (voir mgmp_marker.h).
+        marker_arrive(map_screen, node);
         return node;
     }
 
@@ -692,6 +702,12 @@ void* follow_map_update(void* map_screen) {
     if (GetAsyncKeyState(VK_SHIFT) & 0x8000)
         log_line("FOLLOW", "!! LEFT SHIFT is down -- EnterNode branches on it and"
                            " this peer will not take the host's path");
+
+    // Mewgenics Multi : le pion de ce joueur n'a pas marche jusqu'a la case
+    // (ses clics sont des votes, ou il n'a pas clique). Il y arrive maintenant,
+    // comme a la fin d'une marche : sinon la fin de case marquerait visitee la
+    // case ou il est reste, et sa carte n'avancerait plus (mgmp_marker.h).
+    marker_arrive(map_screen, node);
 
     return node;
 }

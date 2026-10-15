@@ -65,6 +65,13 @@ target_link_libraries(test_team_merge PRIVATE mm_sqlite)
 target_compile_options(test_team_merge PRIVATE /utf-8)
 add_test(NAME test_team_merge COMMAND test_team_merge)
 
-foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_battleid test_config test_world_merge test_team_merge)
+# Mewgenics Multi : le vote du chemin -- le tour (30 s, absents, egalite), le
+# message MM_VOTE, la fenetre de chaque joueur et son texte.
+add_executable(test_vote test_vote.cpp ${CMAKE_SOURCE_DIR}/src/session/mm_vote_core.cpp)
+target_include_directories(test_vote PRIVATE ${CMAKE_SOURCE_DIR}/src/session ${CMAKE_SOURCE_DIR}/src/net)
+target_compile_options(test_vote PRIVATE /utf-8)
+add_test(NAME test_vote COMMAND test_vote)
+
+foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_battleid test_config test_world_merge test_team_merge test_vote)
     target_compile_options(${t} PRIVATE /W3)
 endforeach()

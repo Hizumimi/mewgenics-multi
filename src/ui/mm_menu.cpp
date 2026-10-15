@@ -40,6 +40,7 @@
 #include "mm_world.h"        // world_have_host : le monde de l'hote est arrive
 #include "mm_team.h"
 #include "mm_embark.h"         // l'equipe mixte : chacun amene ses chats
+#include "mm_vote.h"           // le vote du chemin
 
 #include <winsock2.h>   // avant windows.h : types reseau d'iphlpapi
 #include <ws2tcpip.h>
@@ -418,14 +419,19 @@ char g_peer_names[8][64] = {};
 
 enum class Screen { None, Choice, HostLobby, JoinEntry, ClientLobby, BadAddress, NightWait,
                     NightNotice, DepartWait, EmbarkWait, ArrivalWait, DepartOffer, RunOffer, JoinWait,
-                    HomeOffer, Info };
+                    HomeOffer, Info, Vote };
 
 // Les demandes posees par les clics et par le clavier, traitees au debut de
 // l'image suivante. Un seul emplacement : il n'y a jamais deux clics a la fois.
 enum class Action { None, OpenAuto, StartHost, OpenJoin, DoJoin, ClickPlay, StopSession, OpenBadAddress,
                     CancelNight, NightReadyNow, DepartCancel, DepartYes, DepartNo, RunJoin, RunLater,
-                    GoHome, JoinCancel, ArrivalDismiss, EmbarkNoWait };
+                    GoHome, JoinCancel, ArrivalDismiss, EmbarkNoWait, VoteYes, VoteNo };
 Action g_action = Action::None;
+
+// La fenetre du vote du chemin ouverte (mm_vote) : ses boutons, d'apres
+// vote_popup. Garde jusqu'a l'action de ses boutons, qui vient apres sa
+// fermeture.
+uint32_t g_vote_layout = 0;
 
 // Images depuis le lancement (mm_menu_pump), pour les delais.
 uint32_t g_frame = 0;
@@ -1934,6 +1940,16 @@ void adventure_popups() {
             g_info_wanted = false;
         return;
     }
+    // Le vote du chemin, sur la carte (hote et invites).
+    {
+        VotePopup vp;
+        if (vote_popup(vp)) {
+            if (open_popup(Screen::Vote, vp.text, vp.yes, vp.no, vp.no == nullptr,
+                           Action::VoteYes, Action::VoteNo))
+                g_vote_layout = vp.layout;
+            return;
+        }
+    }
     if (host && g_dep_wait_wanted && g_dep_active && !g_dep_go && !g_dep_embark) {
         if (open_depart_wait()) g_dep_wait_wanted = false;
         return;
@@ -2014,6 +2030,14 @@ void adventure_live() {
             if (!g_home_due) close_silently();       // une nouvelle aventure, ou deja en route
             else popup_set_text(home_offer_text());
             break;
+        case Screen::Vote: {
+            // Ses boutons ne changent pas une fois ouverte : d'autres boutons (un
+            // vote fait, le resultat), on la referme et la suivante s'ouvre.
+            VotePopup vp;
+            if (!vote_popup(vp, g_vote_layout) || vp.layout != g_vote_layout) close_silently();
+            else popup_set_text(vp.text);
+            break;
+        }
         case Screen::JoinWait:
             if (savefile_client_waiting_to_load() || !savefile_join_armed() || savefile_in_coop()) {
                 if (savefile_client_waiting_to_load())
@@ -2299,6 +2323,18 @@ int mm_game_prompt_button(void* button) {
 
 bool mm_game_prompt_open() { return game_prompt_alive(); }
 
+bool mm_vote_popup_open() { return g_live.alive && g_live.screen == Screen::Vote; }
+
+uint32_t mm_run_peers_mask() {
+    if (net_role() != NetRole::Host || !session_has_others()) return 0;
+    return peer_run_mask() & peers_mask_others();
+}
+
+bool mm_guest_in_run() {
+    return net_role() == NetRole::Client && session_has_others() && savefile_in_coop() &&
+           savefile_adventure_is_loaded() && g_host_in_run;
+}
+
 std::string mm_peer_name(uint8_t id) { return peer_name(id); }
 
 int mm_sign_click_kind() { return g_sign_click_at == g_frame ? g_sign_click : 0; }
@@ -2440,10 +2476,17 @@ void mm_menu_pump() {
         case Action::EmbarkNoWait:
             embark_no_wait();
             break;
+        case Action::VoteYes:
+            vote_popup_button(g_vote_layout, true);
+            break;
+        case Action::VoteNo:
+            vote_popup_button(g_vote_layout, false);
+            break;
     }
 
     host_adventure_pump();
     client_adventure_pump();
+    vote_pump();                    // Mewgenics Multi : le vote du chemin
     team_ui_pump();                 // Mewgenics Multi : fenetres de l'equipe mixte
     trip_pump();
     night_pump();
@@ -2693,6 +2736,9 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
             break;
         case MM_EMBARK:
             embark_on_mm(from, m);
+            break;
+        case MM_VOTE:
+            vote_on_mm(from, m);
             break;
         case MM_DEPART_READY:
             if (net_role() != NetRole::Host || from >= 8) break;

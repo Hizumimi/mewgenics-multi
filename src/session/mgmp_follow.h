@@ -82,6 +82,11 @@ void follow_drop_pending();
 // finie : la renvoyer a un arrivant le ferait rentrer dans une case resolue.
 bool follow_inside_node();
 
+// Mewgenics Multi (invite) : les cases ou l'hote est entre et que ce joueur n'a
+// pas encore suivies. Tant qu'il y en a, il va y etre emmene : plus de vote sur
+// la carte (mm_vote).
+uint32_t follow_pending_count();
+
 // --- "are we standing ON the map, or inside a node?" -------------------------
 //
 // True only while MapScreen::update is actually ticking, i.e. the map is on

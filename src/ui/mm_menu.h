@@ -98,6 +98,11 @@ bool mm_info_busy();
 // distingue, releve quand le jeu construit la boite (h_ConfirmBuild).
 int  mm_game_prompt_button(void* button);
 bool mm_game_prompt_open();
+// Le vote du chemin (mm_vote) : sa fenetre est ouverte ; hote, les autres
+// joueurs dans l'aventure (connectes) ; invite, il est dans l'aventure de l'hote.
+bool     mm_vote_popup_open();
+uint32_t mm_run_peers_mask();
+bool     mm_guest_in_run();
 // Le nom d'un joueur de la session (pseudo Steam, « Joueur N » a defaut).
 std::string mm_peer_name(uint8_t id);
 

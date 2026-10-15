@@ -92,6 +92,9 @@ enum Target : int {
     T_ClassTagUpdate,    // sub_1401402A0 -- ClassTagBox::update, un collier du choix
     // --- Mewgenics Multi : le choix des objets (src/session/mm_gear.cpp) -----
     T_InvItemUpdate,     // sub_14034E280 -- InventoryItemBox::update, un objet de l'ecran
+    // --- Mewgenics Multi : le vote du chemin (src/session/mm_vote.cpp) -------
+    T_MapNodeClick,      // sub_140228700 -- le clic sur une case de la carte (lambda du bouton)
+    T_TickNemesis,       // sub_140393590 -- MapScreen::TickNemesis, apres un combat de la carte
     T_COUNT
 };
 
@@ -555,6 +558,21 @@ static const TargetDesc kTargets[T_COUNT] = {
     // l'ecran ne retrouve plus son objet. Mewgenics Multi : apres lui, grise
     // aussi ceux du chat montre quand il n'est pas a ce joueur (mm_gear).
     { 0x0034E280, "INVITEM",   "InventoryItemBox::update (sub_14034E280, vtable slot 11)" },
+    // Le clic sur une case de la carte : _Do_call du lambda que 0x140228370
+    // donne au bouton de chaque case (vtable 0x140F00610, sa seule reference),
+    // capture +8 = la MapNode. Il pose la case comme destination du pion
+    // (MapScreen+0xA0 -> +0x60), ou ouvre la confirmation du retour a la maison.
+    // Mewgenics Multi : en aventure ensemble, le clic devient un vote ; l'hote
+    // rejoue l'original sur la case gagnante (mm_vote).
+    { 0x00228700, "MAPCLICK",  "MapNode click lambda (sub_140228700)" },
+    // MapScreen::TickNemesis : appele par la seule fin de case (0x140392FC0)
+    // apres un combat (types 5 a 9). Compte les combats (MapScreen+0x218), fait
+    // apparaitre la Nemesis sur une case tiree du flux de la simulation, puis la
+    // rapproche du pion ; sur la case du pion, elle lance son combat sans
+    // EnterNode (0x140392ED0). Rien de cela n'est sauve avec la carte.
+    // Mewgenics Multi : rien chez un invite dans la copie de l'aventure -- sa
+    // Nemesis a lui, partie d'un autre compte, l'emmenerait seul en combat.
+    { 0x00393590, "NEMESIS",   "MapScreen::TickNemesis (sub_140393590)" },
 };
 
 // Coarse module guard, checked before the per-target signatures.

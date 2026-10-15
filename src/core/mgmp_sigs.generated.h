@@ -95,6 +95,10 @@ static const SigTargetDesc kTargetSigs[] = {
       "48 89 74 24 20 57 48 83 EC 50 48 8B 41 18" },
     { 0x0034E280, "INVITEM",
       "48 89 5C 24 20 55 56 57 41 54 41 55 41 56 41 57 48 8D 6C 24 D9 48 81 EC 90 00 00 00 0F 29 B4 24 80 00 00 00 4C 8B E9" },
+    { 0x00228700, "MAPCLICK",
+      "48 89 5C 24 20 55 56 57 41 56 41 57 48 81 EC C0 00 00 00" },
+    { 0x00393590, "NEMESIS",
+      "48 89 5C 24 18 55 56 57 41 54 41 55 41 56 41 57 48 8D 6C 24 C0 48 81 EC 40 01 00 00 0F 29 B4 24 30 01 00 00 48 8B F1 45 33 ED" },
 };
 
 // INDEXED BY enum Call -- order is load-bearing.
