@@ -93,6 +93,33 @@ bool follow_inside_node();
 // la carte (mm_vote).
 uint32_t follow_pending_count();
 
+// Mewgenics Multi (invite) : le nombre d'ENTERNODE recus de l'hote depuis le
+// lancement. Une poussee gardee (mgmp_catsync, mgmp_invsync, mgmp_runhist) note
+// cette valeur a son arrivee, P : l'hote l'a envoyee apres P ENTERNODE et avant
+// le suivant. Avant d'entrer dans la case de rang E, seules celles ou P < E
+// s'appliquent ; les autres sont l'etat d'apres cette case.
+uint32_t follow_epoch();
+
+// Mewgenics Multi (invite) : la borne pour appliquer les poussees gardees
+// MAINTENANT -- le rang de la premiere case recue et pas encore suivie, ou
+// UINT32_MAX s'il n'y en a pas (tout s'applique).
+uint32_t follow_apply_bound();
+
+// Mewgenics Multi : ce joueur joue une case en ce moment (l'hote : celle ou il
+// est entre ; l'invite : celle ou il a suivi), de son EnterNode a la premiere
+// image de carte apres sa fin de case. Plus large que !follow_on_map : la carte
+// tourne encore pendant la transition d'entree. Rien de l'etat d'apres cette
+// case ne doit s'appliquer avant.
+bool follow_node_live();
+
+// Mewgenics Multi : la fin de case du jeu vient de passer (T_NodeEnd, 0x140392FC0).
+void follow_on_node_end();
+
+// Mewgenics Multi : h_MapUpdate, juste avant (true) et juste apres (false)
+// l'original de MapScreen::update -- une fin de case appelee de l'interieur
+// n'est pas celle de la case en cours (voir follow_on_node_end).
+void follow_note_map_update(bool inside_original);
+
 // --- "are we standing ON the map, or inside a node?" -------------------------
 //
 // True only while MapScreen::update is actually ticking, i.e. the map is on

@@ -4,6 +4,7 @@
 #include "mm_team_merge.h"
 #include "mm_embark.h"
 #include "mm_gear.h"
+#include "mm_rungear.h"
 #include "mm_world.h"
 
 #include "mgmp_addresses.h"
@@ -1416,6 +1417,8 @@ void team_on_message(uint8_t from, const SaveFileMsg& m) {
         case kTeamEmbark: on_embark(from, m); break;
         case kTeamGear:
         case kTeamGearAck: gear_on_team(from, m.data, m.size); break;
+        case kTeamRunGear:
+        case kTeamRunGearAck: rungear_on_team(from, m.data, m.size); break;
         default:
             log_line("TEAM", "!! message d'equipe inconnu (%u octets) -- ignore", m.size);
             break;

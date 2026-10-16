@@ -378,6 +378,54 @@ int main() {
         check(!dec_choice(r, o), "one byte short is rejected");
     }
 
+    printf("\n-- MmMsg: text carries bytes, not just a string (42) --\n");
+    {
+        MmMsg m{};
+        m.kind = 9; m.a = 3; m.b = 7; m.c = 2; m.x = 0x11223344; m.y = 0x55667788;
+        // Binary payload with zeros inside, the shape MM_VOTE's state has.
+        uint8_t* t = (uint8_t*)m.text;
+        t[0] = 7; t[1] = 0; t[2] = 0; t[3] = 0; t[24] = 0x2C; t[25] = 1; t[41] = 3;
+        uint32_t n = enc_mm(buf, sizeof(buf), m);
+        check(n > 0, "encodes");
+        Reader r(buf, n);
+        check(r.u8v() == MSG_MM, "message type is MM");
+        MmMsg o{};
+        check(dec_mm(r, o), "decodes");
+        check(memcmp(o.text, m.text, sizeof(m.text)) == 0, "every byte survives, zeros included");
+        check(o.x == 0x11223344 && o.y == 0x55667788 && o.c == 2, "the header fields");
+        check(r.pos == r.len, "consumed exactly the frame");
+    }
+    {
+        MmMsg m{};
+        strcpy_s(m.text, "Murdock");
+        uint32_t n = enc_mm(buf, sizeof(buf), m);
+        check(n == 1 + 4 + 8 + 1 + 7, "a string costs what it did: its length, no padding");
+        Reader r(buf, n); r.u8v();
+        MmMsg o{};
+        check(dec_mm(r, o) && strcmp(o.text, "Murdock") == 0, "a string comes back as a string");
+    }
+    {
+        MmMsg m{};
+        memset(m.text, 'A', sizeof(m.text));          // no terminator at all
+        uint32_t n = enc_mm(buf, sizeof(buf), m);
+        Reader r(buf, n); r.u8v();
+        MmMsg o{};
+        check(dec_mm(r, o), "a full buffer still decodes");
+        check(o.text[sizeof(o.text) - 1] == 0 && strlen(o.text) == sizeof(o.text) - 1,
+              "and the receiver's text is always terminated");
+        // A forged length past 63 is refused, not trusted.
+        uint8_t forged[64] = { MSG_MM, 0,0,0,0, 0,0,0,0, 0,0,0,0, 64 };
+        Reader f(forged, sizeof(forged)); f.u8v();
+        MmMsg x{};
+        check(!dec_mm(f, x), "a text length over 63 is rejected");
+        for (uint32_t cut = 1; cut < n; ++cut) {
+            Reader c(buf, cut); c.u8v();
+            MmMsg y{};
+            dec_mm(c, y);
+        }
+        check(true, "truncated MM frames parse without faulting");
+    }
+
     printf("\n-- NodeHashMsg: the meta layer's per-node check --\n");
     {
         NodeHashMsg m{};

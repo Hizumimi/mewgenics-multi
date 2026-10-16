@@ -4,6 +4,7 @@
 #include "mm_gear.h"
 #include "mm_embark.h"
 #include "mm_menu.h"
+#include "mm_rungear.h"
 #include "mm_team.h"
 #include "mm_team_merge.h"
 
@@ -383,11 +384,11 @@ struct Applied {
 // doit etre dans l'equipe, a lui, le meme (id) et garder sa classe (son
 // collier, choisi ensemble) ; au moindre ecart, tous reprennent leur etat
 // d'avant.
-bool apply_photo(uint8_t from, const GearMsg& m, std::string& why) {
+bool apply_cats(uint8_t from, const std::vector<GearCat>& cats, std::string& why) {
     std::vector<uint64_t> keys;
     if (!run_keys(keys)) { why = "equipe illisible"; return false; }
     std::vector<Applied> items;
-    for (const GearCat& c : m.cats) {
+    for (const GearCat& c : cats) {
         bool in_run = false, twice = false;
         for (uint64_t k : keys) in_run |= k == c.key;
         for (const Applied& a : items) twice |= a.in->key == c.key;
@@ -434,6 +435,10 @@ bool apply_photo(uint8_t from, const GearMsg& m, std::string& why) {
             log_line("OBJETS", "!! chat %llu : son etat d'avant n'a pas pu etre remis",
                      (unsigned long long)items[j].in->key);
     return false;
+}
+
+bool apply_photo(uint8_t from, const GearMsg& m, std::string& why) {
+    return apply_cats(from, m.cats, why);
 }
 
 void send_ack(uint8_t peer, uint32_t snap, const std::vector<uint8_t>* storage) {
@@ -505,11 +510,16 @@ void host_pump() {
 
 // `count` : le nombre de boites de l'ecran avant l'update du jeu.
 void after_item_update(void* screen, void* button, uint32_t count) {
-    int32_t mode = 0;
-    if (!mem_read((const char*)screen + kScr_Mode, &mode, sizeof(mode)) || mode != kModeStorage) return;
-    g.screen       = screen;
-    g.screen_frame = g.frame;
-    if (act_ok(screen)) return;
+    if (g.role == GearRole::Off) {
+        // Mewgenics Multi : en aventure ensemble (mm_rungear), quel que soit le mode.
+        if (rungear_can_touch(screen)) return;
+    } else {
+        int32_t mode = 0;
+        if (!mem_read((const char*)screen + kScr_Mode, &mode, sizeof(mode)) || mode != kModeStorage) return;
+        g.screen       = screen;
+        g.screen_frame = g.frame;
+        if (act_ok(screen)) return;
+    }
     // Pas son chat : ses objets grises, comme le jeu grise ceux des autres
     // chats (Button::update n'envoie aucun clic dans cet etat). L'update ne
     // retire jamais que sa propre boite : une de moins, c'est elle -- detruite.
@@ -526,7 +536,7 @@ void __fastcall h_ItemUpdate(void* box) {
     void* screen = nullptr;
     void* button = nullptr;
     uint32_t count = 0;
-    const bool on = g.role != GearRole::Off && box &&
+    const bool on = (g.role != GearRole::Off || rungear_active()) && box &&
                     mem_read((const char*)box + kItem_Screen, &screen, sizeof(screen)) && screen &&
                     mem_read((const char*)box + kItem_Button, &button, sizeof(button)) &&
                     mem_read((const char*)screen + kScr_BoxCount, &count, sizeof(count));
@@ -575,6 +585,12 @@ void gear_pump() {
     if (g.role != GearRole::Off && g.screen && g.screen != g.shown && g.screen_frame + 1 >= g.frame &&
         mm_scene_alive(kScene))
         show_own_cat(g.screen);
+}
+
+bool gear_role_active() { return g.role != GearRole::Off; }
+
+bool gear_apply_cats(uint8_t from, const std::vector<GearCat>& cats, std::string& why) {
+    return apply_cats(from, cats, why);
 }
 
 bool gear_on_click(void* button, const char* name) {

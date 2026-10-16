@@ -457,7 +457,17 @@ bool choice_on_event_commit(void* cap) {
     return true;
 }
 
+// Mewgenics Multi : la derniere image ou un ecran de choix a tourne (sans le
+// verrou : un horodatage, lu par mm_rungear sur le meme thread).
+static volatile uint64_t s_screen_tick = 0;
+
+bool choice_screen_recent(uint64_t within_ms) {
+    const uint64_t t = s_screen_tick;
+    return t && GetTickCount64() - t < within_ms;
+}
+
 void choice_on_event_update(void* world_event) {
+    if (world_event) s_screen_tick = GetTickCount64();
     if (!g.on || !world_event) return;
     if (g.is_client && !savefile_in_coop()) return;   // Mewgenics Multi : sa propre save
     Guard guard;
@@ -529,6 +539,7 @@ bool choice_on_level_select(void* screen, void* opt) {
 }
 
 void choice_on_level_update(void* level_screen) {
+    if (level_screen) s_screen_tick = GetTickCount64();
     if (!g.on || !level_screen) return;
     if (g.is_client && !savefile_in_coop()) return;   // Mewgenics Multi : sa propre save
     Guard guard;

@@ -355,6 +355,65 @@ void test_gear() {
     CHECK(!mgmp::team_embark_decode(w.data(), w.size(), seq, keys));
 }
 
+void test_rungear() {
+    std::printf("objets en aventure : photo et reponse\n");
+    mgmp::RunGearMsg m;
+    m.seq = 4; m.base = 17;
+    m.backpack = Bytes{ 1, 0, 0, 0, 0x10, 0x20 };
+    m.trash    = Bytes{ 0, 0, 0, 0 };
+    m.cats.resize(2);
+    m.cats[0].key = 47; m.cats[0].data = cat(0xB1, "Garry", 0x3);
+    m.cats[1].key = 48; m.cats[1].data = cat(0xB2, "Eden", 0x3);
+    const Bytes w = mgmp::team_rungear_encode(m);
+    CHECK(mgmp::team_kind(w.data(), w.size()) == mgmp::kTeamRunGear);
+    mgmp::RunGearMsg back;
+    CHECK(mgmp::team_rungear_decode(w.data(), w.size(), back));
+    CHECK(back.seq == 4 && back.base == 17 && back.backpack == m.backpack && back.trash == m.trash);
+    CHECK(back.cats.size() == 2 && back.cats[0].key == 47 && back.cats[1].data == m.cats[1].data);
+    Bytes more = w; more.push_back(0);
+    CHECK(!mgmp::team_rungear_decode(more.data(), more.size(), back));
+    CHECK(!mgmp::team_rungear_decode(w.data(), w.size() - 1, back));
+    // Un sac plus court que son nombre d'objets, une cle nulle : refuses.
+    mgmp::RunGearMsg bad = m;
+    bad.trash = Bytes{ 0, 0 };
+    const Bytes b1 = mgmp::team_rungear_encode(bad);
+    CHECK(!mgmp::team_rungear_decode(b1.data(), b1.size(), back));
+    bad = m;
+    bad.cats[1].key = 0;
+    const Bytes b2 = mgmp::team_rungear_encode(bad);
+    CHECK(!mgmp::team_rungear_decode(b2.data(), b2.size(), back));
+    // Sans chat (il n'a touche qu'au sac) : permis.
+    mgmp::RunGearMsg bag = m;
+    bag.cats.clear();
+    const Bytes b3 = mgmp::team_rungear_encode(bag);
+    CHECK(mgmp::team_rungear_decode(b3.data(), b3.size(), back) && back.cats.empty());
+    // La reponse.
+    mgmp::RunGearAck a;
+    a.seq = 4; a.result = mgmp::kRunGearStale; a.rev = 19;
+    const Bytes aw = mgmp::team_rungear_ack_encode(a);
+    CHECK(mgmp::team_kind(aw.data(), aw.size()) == mgmp::kTeamRunGearAck);
+    mgmp::RunGearAck ab;
+    CHECK(mgmp::team_rungear_ack_decode(aw.data(), aw.size(), ab));
+    CHECK(ab.seq == 4 && ab.result == mgmp::kRunGearStale && ab.rev == 19);
+    mgmp::RunGearAck z = a; z.result = 0;
+    const Bytes zw = mgmp::team_rungear_ack_encode(z);
+    CHECK(!mgmp::team_rungear_ack_decode(zw.data(), zw.size(), ab));
+    // Refusee par une case : le dernier code connu ; au-dela, illisible.
+    mgmp::RunGearAck nd = a; nd.result = mgmp::kRunGearNode;
+    const Bytes ndw = mgmp::team_rungear_ack_encode(nd);
+    CHECK(mgmp::team_rungear_ack_decode(ndw.data(), ndw.size(), ab) && ab.result == mgmp::kRunGearNode);
+    mgmp::RunGearAck over = a; over.result = mgmp::kRunGearNode + 1;
+    const Bytes ow = mgmp::team_rungear_ack_encode(over);
+    CHECK(!mgmp::team_rungear_ack_decode(ow.data(), ow.size(), ab));
+    Bytes amore = aw; amore.push_back(1);
+    CHECK(!mgmp::team_rungear_ack_decode(amore.data(), amore.size(), ab));
+    // Les decodeurs ne se melangent pas.
+    CHECK(!mgmp::team_rungear_ack_decode(w.data(), w.size(), ab));
+    CHECK(!mgmp::team_rungear_decode(aw.data(), aw.size(), back));
+    mgmp::GearMsg g;
+    CHECK(!mgmp::team_gear_decode(w.data(), w.size(), g));
+}
+
 void test_plan_keys() {
     std::printf("cles des chats de l'invite chez l'hote\n");
     sqlite3* h = new_save();
@@ -605,6 +664,7 @@ int main() {
     test_owners();
     test_embark();
     test_gear();
+    test_rungear();
     test_plan_keys();
     test_guest_apply();
     test_storage();

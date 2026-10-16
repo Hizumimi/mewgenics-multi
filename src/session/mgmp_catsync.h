@@ -77,8 +77,8 @@ void catsync_shutdown();
 // the last push. Called where the host enters a map node -- the point both peers
 // already synchronize on, and the last moment before a battle can be built out
 // of a stale cat. Cheap and idempotent: unchanged cats cost a serialize and a
-// hash compare, and send nothing.
-void catsync_publish(const char* why);
+// hash compare, and send nothing. Mewgenics Multi : returns how many were sent.
+uint32_t catsync_publish(const char* why);
 
 // HOST: forget what was already sent, so the next catsync_publish is a FULL
 // push. For a reconnecting peer -- see the comment on the definition.
@@ -98,10 +98,19 @@ void catsync_on_message(const CatDataMsg& m);
 // battle screen, and it is still in time for whatever the node opens.
 void catsync_apply_pending(const char* why);
 
+// Mewgenics Multi (invite) : seulement les chats arrives avant l'ENTERNODE de
+// rang `bound` (follow_epoch) ; les autres restent gardes, dans l'ordre.
+// catsync_apply_pending prend la borne de follow_apply_bound.
+void catsync_apply_pending_before(uint32_t bound, const char* why);
+
 
 // Mewgenics Multi : jette les poussees gardees (une save a jour de l'aventure de
 // l'hote vient d'arriver chez un invite qui la rejoint ; elle les contient).
 void catsync_drop_pending();
+
+// Mewgenics Multi (mm_rungear) : les chats recus de l'hote et pas encore
+// appliques chez cet invite.
+uint32_t catsync_pending_count();
 
 // Mewgenics Multi (equipe mixte). Le chat du registre du jeu a cette cle de save
 // (CatData*, charge depuis la table cats s'il ne l'est pas encore ; nul s'il

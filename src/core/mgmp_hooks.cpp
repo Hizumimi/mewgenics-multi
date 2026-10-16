@@ -46,6 +46,7 @@
 #include "mm_collars.h" // Mewgenics Multi : le choix des colliers (collars_binding)
 #include "mm_gear.h"    // Mewgenics Multi : le choix des objets (gear_binding)
 #include "mm_vote.h"    // Mewgenics Multi : le vote du chemin (vote_binding)
+#include "mm_rungear.h" // Mewgenics Multi : les objets en aventure (rungear_binding)
 #include "mgmp_log.h"
 #include "mgmp_mem.h"
 #include "mgmp_record.h"
@@ -502,7 +503,11 @@ void __fastcall h_EnterNode(void* self, void* node) {
 }
 
 void __fastcall h_MapUpdate(void* self) {
+    // Mewgenics Multi : une fin de case appelee par l'original lui-meme (Espace)
+    // n'est pas la fin de la case ou ce joueur entre (mgmp_follow).
+    follow_note_map_update(true);
     o_MapUpdate(self);
+    follow_note_map_update(false);
 
     // Mewgenics Multi : le vote du chemin -- la carte tourne (presence), et
     // l'hote rejoue ici le clic sur la case gagnante, carte a jour.
@@ -809,6 +814,11 @@ const Binding kBindings[] = {
     // (vote_binding).
     { T_MapNodeClick,   nullptr, nullptr },
     { T_TickNemesis,    nullptr, nullptr },
+    // Mewgenics Multi : les objets en aventure, detours dans
+    // src/session/mm_rungear.cpp (rungear_binding).
+    { T_InvScreenUpdate, nullptr, nullptr },
+    { T_InvScreenDtor,   nullptr, nullptr },
+    { T_NodeEnd,         nullptr, nullptr },
 };
 
 // Resolves the three RNG bindings, which are not static initialisers because
@@ -860,6 +870,7 @@ bool install_one(const Binding& b, bool announce_off) {
     collars_binding(b.target, &detour, &original);
     gear_binding(b.target, &detour, &original);
     vote_binding(b.target, &detour, &original);
+    rungear_binding(b.target, &detour, &original);
     if (!detour || !original) {
         log_raw("  [!] %-9s no detour bound", t.name);
         return false;

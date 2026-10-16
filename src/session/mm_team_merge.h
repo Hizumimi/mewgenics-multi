@@ -66,6 +66,8 @@ enum : uint8_t {
     kTeamEmbark = 4,    // hote -> invites : il part, voici l'equipe (mm_embark)
     kTeamGear   = 5,    // invite -> hote : l'equipement de ses chats et son rangement (mm_gear)
     kTeamGearAck = 6,   // hote -> invite : la photo de son equipement que l'hote a prise
+    kTeamRunGear = 7,   // invite -> hote : en aventure, ses chats et le sac apres qu'il les a equipes (mm_rungear)
+    kTeamRunGearAck = 8,// hote -> invite : prise ou refusee
 };
 
 // Le message MSG_TEAM : des chats (kTeamDepart, kTeamResult)...
@@ -127,6 +129,36 @@ struct GearAck {
 };
 std::vector<uint8_t> team_gear_ack_encode(const GearAck& a);
 bool team_gear_ack_decode(const uint8_t* p, size_t n, GearAck& a);
+
+// ... ou, pendant l'aventure, ce qu'un invite a change en equipant ses chats
+// (kTeamRunGear) : sa photo numerotee, la revision de l'aventure de l'hote sur
+// laquelle il l'a faite (MM_RUNREV), le sac et la poubelle de l'aventure (blocs
+// inventory_backpack et inventory_trash, tels que le jeu les ecrit) et ses
+// chats (cle, chat serialise).
+struct RunGearMsg {
+    uint32_t             seq  = 0;
+    uint32_t             base = 0;
+    std::vector<uint8_t> backpack;
+    std::vector<uint8_t> trash;
+    std::vector<GearCat> cats;
+};
+std::vector<uint8_t> team_rungear_encode(const RunGearMsg& m);
+bool team_rungear_decode(const uint8_t* p, size_t n, RunGearMsg& m);
+// ... et la reponse de l'hote (kTeamRunGearAck) : cette photo prise ou non, et
+// la revision de son aventure apres.
+enum : uint8_t {
+    kRunGearApplied = 1,    // prise : l'aventure de l'hote est celle de la photo
+    kRunGearStale   = 2,    // refusee : l'aventure a change depuis la revision de la photo
+    kRunGearInvalid = 3,    // refusee : un chat qui n'est pas a lui, illisible...
+    kRunGearNode    = 4,    // refusee : l'hote est entre dans une case avant de la prendre
+};
+struct RunGearAck {
+    uint32_t seq    = 0;
+    uint8_t  result = 0;
+    uint32_t rev    = 0;
+};
+std::vector<uint8_t> team_rungear_ack_encode(const RunGearAck& a);
+bool team_rungear_ack_decode(const uint8_t* p, size_t n, RunGearAck& a);
 
 // Le genre d'un message MSG_TEAM, 0 si ce n'en est pas un.
 uint8_t team_kind(const uint8_t* p, size_t n);

@@ -7,6 +7,7 @@
 #include "mgmp_runhist.h"
 #include "mgmp_follow.h"
 #include "mgmp_marker.h"     // Mewgenics Multi : le pion arrive sur la case suivie
+#include "mm_rungear.h"      // Mewgenics Multi : les objets en aventure
 #include "mgmp_savefile.h"   // savefile_in_coop (Mewgenics Multi)
 #include "mgmp_lockstep.h"
 #include "mgmp_net.h"
@@ -14,6 +15,8 @@
 #include "mgmp_tuning.h"
 #include "mgmp_mem.h"
 #include "mgmp_log.h"
+#include "mgmp_addresses.h"  // T_NodeEnd (Mewgenics Multi)
+#include "mgmp_hooks.h"      // hooks_is_live (Mewgenics Multi : la fin de case)
 
 #include <windows.h>
 #include <cstdio>
@@ -91,10 +94,18 @@ struct State {
         uint64_t at    = 0;         // tick the host's choice arrived
         bool     held  = false;     // ...and whether we have said we are holding
         uint8_t  flags = 0;         // EnterNodeMsg::flags (kEnterEarlyHome)
+        uint32_t epoch = 0;         // Mewgenics Multi : son rang parmi les ENTERNODE recus (follow_epoch)
     };
     PendingNode pending_q[kMaxPendingNodes];
     uint32_t    pending_head  = 0;
     uint32_t    pending_count = 0;
+
+    // Mewgenics Multi (invite) : les ENTERNODE recus depuis le lancement, gardes
+    // ou refuses. Une poussee gardee (chats, sac, historique) porte la valeur
+    // qu'il avait a son arrivee : arrivee avant l'ENTERNODE de rang E, elle est
+    // de l'etat d'avant cette case ; arrivee apres, de l'etat d'apres -- voir
+    // follow_epoch.
+    uint32_t    epoch = 0;
 
     // The node this peer is standing in, remembered so a peer that connects
     // afterwards can be told where the run is. ENTERNODE used to be published
@@ -114,6 +125,32 @@ struct State {
     // transition). have_here, lui, reste sur la derniere case pour toujours.
     bool     inside         = false;
     uint64_t inside_at      = 0;
+
+    // Mewgenics Multi : la case que CE joueur joue en ce moment (l'hote : celle
+    // ou il est entre ; l'invite : celle ou il a suivi), de l'EnterNode a la fin
+    // de case (0x140392FC0, T_NodeEnd) puis l'image de carte suivante. La carte
+    // tourne encore pendant la transition d'entree (« EventInTransition »,
+    // 0.25 s, puis le rappel qui l'arrete et cree la scene de la case), et par
+    // moments pendant un evenement : follow_on_map n'y voit pas une case. Rien
+    // de l'etat d'APRES la case ne doit s'appliquer avant sa fin ici --
+    // l'evenement rejoue le choix de l'hote par-dessus.
+    //   Les cases 5 a 15 (combats, evenements, boutique, tresor, boites)
+    // passent toutes par la fin de case ; les autres (sortie vers le chapitre
+    // suivant, maison...) jamais : pour elles, et sans le crochet, la premiere
+    // image de carte plus d'une seconde apres l'entree. La fin de case que
+    // MapScreen::update appelle lui-meme (Espace sur un pion au repos,
+    // 0x14038F4EC) ne compte pas, sauf dans l'image de l'entree.
+    bool     live           = false;
+    bool     live_ended     = false;
+    bool     live_waits_end = false;  // une case 5 a 15, crochet de fin de case en place
+    uint32_t live_epoch     = 0;      // invite : le rang de son ENTERNODE
+    uint64_t live_at        = 0;
+    uint32_t live_end_ticks = 0;
+    uint32_t live_entry_seq = 0;      // l'appel de MapScreen::update ou elle a commence
+    uint32_t map_ticks      = 0;      // les images de carte, comptees
+    uint32_t map_update_seq = 0;      // les appels de MapScreen::update (h_MapUpdate)
+    bool     in_map_update  = false;  // ... dans l'original en ce moment
+    uint64_t map_gap_at     = 0;      // la derniere image de carte apres un arret
 
     // A jump asked for by the debug panel, applied at the tail of the next
     // MapScreen::update -- the same site the follow path enters nodes from.
@@ -288,6 +325,16 @@ void remember_node(uint32_t index, uint32_t count, uint32_t type, uint64_t seed)
     }
 }
 
+// Mewgenics Multi : ce joueur entre dans une case de ce type (voir `live`).
+static void start_live(uint32_t type, uint32_t epoch) {
+    g.live           = true;
+    g.live_ended     = false;
+    g.live_epoch     = epoch;
+    g.live_at        = GetTickCount64();
+    g.live_entry_seq = g.map_update_seq;
+    g.live_waits_end = type >= 5 && type <= 15 && hooks_is_live(T_NodeEnd);
+}
+
 bool follow_on_enter_node(void* map_screen, void* node, bool* sent) {
     if (sent) *sent = false;
     if (!g.on || !net_active() || !map_screen || !node) return true;
@@ -338,6 +385,7 @@ bool follow_on_enter_node(void* map_screen, void* node, bool* sent) {
     remember_node(index, count, type, seed);
     g.inside    = true;
     g.inside_at = GetTickCount64();
+    start_live(type, 0);
 
     // Cats FIRST, node second. TCP is ordered and the client applies a CATDATA
     // the moment it pops, while it defers the node entry to the tail of
@@ -355,6 +403,9 @@ bool follow_on_enter_node(void* map_screen, void* node, bool* sent) {
     // one nothing pushed until now. Same ordering requirement as the other two:
     // BEFORE the node, because it is what the next event will be rolled from.
     runhist_publish("entering a node");
+    // Mewgenics Multi : la revision de l'aventure avance (les objets en
+    // aventure, mm_rungear) -- apres les poussees qu'elle couvre, avant la case.
+    rungear_on_node_entered(seed);
 
     EnterNodeMsg m{};
     m.index      = index;
@@ -492,6 +543,20 @@ void follow_catchup(uint8_t peer) {
 
 bool follow_inside_node() { return g.inside; }
 
+uint32_t follow_epoch() {
+    Guard guard;
+    return g.epoch;
+}
+
+uint32_t follow_apply_bound() {
+    if (!g.on) return UINT32_MAX;
+    Guard guard;
+    if (g.pending_count) return pending_front().epoch;
+    // Dans la case suivie : ce qui est arrive apres son ENTERNODE attend sa fin.
+    if (g.live && g.is_client) return g.live_epoch;
+    return UINT32_MAX;
+}
+
 uint32_t follow_pending_count() {
     if (!g.on) return 0;
     Guard guard;
@@ -506,11 +571,42 @@ void follow_drop_pending() {
                  g.pending_count);
     pending_clear();
     g.next_fresh = true;         // une copie neuve : sa premiere case est fraiche
+    g.live       = false;
 }
 
 void follow_forget_map() {
     Guard guard;
     g.next_fresh = true;
+    g.live       = false;
+}
+
+void follow_on_node_end() {
+    Guard guard;
+    if (!g.live) return;
+    // Appelee par MapScreen::update lui-meme (Espace sur un pion au repos) apres
+    // l'image de l'entree : ce n'est pas la fin de cette case.
+    if (g.in_map_update && g.map_update_seq != g.live_entry_seq) {
+        static bool said = false;
+        if (!said) {
+            said = true;
+            log_line("FOLLOW", "end of node called from the map's own update (Space?) while a node "
+                               "is still being entered -- not taken as its end");
+        }
+        return;
+    }
+    g.live_ended     = true;
+    g.live_end_ticks = g.map_ticks;
+}
+
+void follow_note_map_update(bool inside_original) {
+    Guard guard;
+    if (inside_original) ++g.map_update_seq;
+    g.in_map_update = inside_original;
+}
+
+bool follow_node_live() {
+    Guard guard;
+    return g.live;
 }
 
 void follow_on_message(const EnterNodeMsg& m) {
@@ -534,6 +630,7 @@ void follow_on_message(const EnterNodeMsg& m) {
     // node without a line in the log. Dropping the newest rather than the
     // oldest keeps the queue contiguous, the same rule the peer-hash ring
     // follows for the same reason.
+    ++g.epoch;
     if (g.pending_count >= State::kMaxPendingNodes) {
         log_line("FOLLOW", "!! %u nodes already queued and the host entered another"
                            " (node %u) -- REFUSING it. This peer is too far behind"
@@ -552,6 +649,7 @@ void follow_on_message(const EnterNodeMsg& m) {
     p.count = m.node_count;
     p.seed  = m.seed0;
     p.flags = m.flags;
+    p.epoch = g.epoch;
     // Timed from ARRIVAL, not from the first map update that sees it: the point
     // of the delay is to put a known gap between the host entering a node and
     // this peer entering it, and the map screen may not be ready for a while
@@ -572,8 +670,28 @@ void* follow_map_update(void* map_screen) {
 
     // The map is ticking, so the run is BETWEEN nodes. This is the stamp the
     // save flush reads -- see follow_on_map.
+    const uint64_t prev_tick = g.map_tick;
     g.map_tick = GetTickCount64();
     if (g.inside && g.map_tick - g.inside_at > 1000) g.inside = false;
+    // Mewgenics Multi : la case de ce joueur est finie a la premiere image de
+    // carte apres sa fin de case (cases 5 a 15) ; pour les autres, plus d'une
+    // seconde apres l'entree. Filet : une carte qui tourne sans arret depuis
+    // 10 s (aucune scene de case n'en fait autant) sans fin de case vue.
+    if (!prev_tick || g.map_tick - prev_tick > 200) g.map_gap_at = g.map_tick;
+    ++g.map_ticks;
+    if (g.live) {
+        bool done = false;
+        if (!g.live_waits_end) {
+            done = g.map_tick - g.live_at > 1000;
+        } else if (g.live_ended && g.map_ticks > g.live_end_ticks) {
+            done = true;
+        } else if (g.map_tick - g.live_at >= 10000 && g.map_tick - g.map_gap_at >= 10000) {
+            done = true;
+            log_line("FOLLOW", "!! no end of node seen, but the map has been running for 10 s -- "
+                               "taking the node as finished");
+        }
+        if (done) g.live = false;
+    }
 
     // --- a jump asked for by the debug panel --------------------------------
     //
@@ -619,6 +737,10 @@ void* follow_map_update(void* map_screen) {
     // l'hote sont celles de SA course, pas de celle-ci.
     if (g.is_client && !savefile_in_coop()) return nullptr;
     if (!pending_any()) return nullptr;
+    // Mewgenics Multi : pas tant que son ecran des objets est ouvert (ses
+    // boites tiennent les objets que la case relirait) ; et ce que l'hote ne
+    // prendra jamais revient comme avant, ici, avant de suivre (mm_rungear).
+    if (g.is_client && rungear_hold_follow()) return nullptr;
     State::PendingNode& p = pending_front();
 
     // --- the deliberate late-join delay (test knob) -------------------------
@@ -696,7 +818,9 @@ void* follow_map_update(void* map_screen) {
 
     const uint32_t entering = p.index;
     const uint8_t  flags    = p.flags;
+    const uint32_t epoch    = p.epoch;
     pending_pop();
+    start_live(type, epoch);
     ++g.entered;
     log_line("FOLLOW", "following host into node %u (%s)%s",
              entering, node_type_name(type),
@@ -727,9 +851,17 @@ void* follow_map_update(void* map_screen) {
     // exactly the "a hash whose two halves are computed at different points in
     // the frame compares two different things" failure remember_node's own
     // comment warns about.
-    invsync_apply_pending("about to follow the host into a node");
-    catsync_apply_pending("about to follow the host into a node");
-    runhist_apply_pending("about to follow the host into a node");
+    //
+    // Mewgenics Multi : seulement ce qui est arrive AVANT l'ENTERNODE de cette
+    // case (rang `epoch`). Ce que l'hote a pousse apres -- de retour sur la
+    // carte, ou en entrant dans la case suivante pendant que ce joueur etait
+    // en retard -- est l'etat d'APRES cette case : applique avant elle, la case
+    // le referait par-dessus (un evenement rejoue chez ce joueur donnerait deux
+    // fois). Il reste garde jusqu'apres la case.
+    invsync_apply_pending_before(epoch, "about to follow the host into a node");
+    catsync_apply_pending_before(epoch, "about to follow the host into a node");
+    runhist_apply_pending_before(epoch, "about to follow the host into a node");
+    rungear_on_followed(seed);
 
     remember_node(entering, count, type, seed);
 

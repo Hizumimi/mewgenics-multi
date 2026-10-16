@@ -41,6 +41,7 @@
 #include "mm_team.h"
 #include "mm_embark.h"         // l'equipe mixte : chacun amene ses chats
 #include "mm_vote.h"           // le vote du chemin
+#include "mm_rungear.h"        // les objets en aventure
 
 #include <winsock2.h>   // avant windows.h : types reseau d'iphlpapi
 #include <ws2tcpip.h>
@@ -1369,6 +1370,9 @@ int      g_peer_run_sent   = -1;      // dernier MM_PEER_RUN envoye
 // --- un message simple, un seul bouton ---
 bool        g_info_wanted = false;
 std::string g_info_text;
+bool        g_info_yield  = false;   // kInfoYieldToFollow, pour celle qui attend
+bool        g_info_live_yield = false;   // ... et pour celle qui est ouverte
+std::string g_info_live_text;
 
 // --- aller au menu principal depuis la maison (ou la carte) ---
 //
@@ -1411,9 +1415,17 @@ bool battle_popups_ok() {
 
 constexpr uint32_t kOfferAgain  = 30 * 60;   // 30 s avant de re-proposer
 
-void show_info(const std::string& text) {
+void show_info(const std::string& text, int flags = 0) {
     g_info_text   = text;
     g_info_wanted = true;
+    g_info_yield  = (flags & kInfoYieldToFollow) != 0;
+}
+
+// Un invite que l'hote emmene dans une case, ou qui n'est pas sur la carte de
+// l'aventure : une fenetre arreterait sa carte (kInfoYieldToFollow).
+bool guest_follow_busy() {
+    return net_role() == NetRole::Client && savefile_in_coop() &&
+           (follow_pending_count() != 0 || follow_node_live() || !follow_on_map());
 }
 
 bool at_main_menu() {
@@ -1934,10 +1946,13 @@ void adventure_popups() {
     if (find_scene("Battle") && !battle_popups_ok()) return;
     const bool host = net_role() == NetRole::Host;
 
-    if (g_info_wanted) {
+    if (g_info_wanted && !(g_info_yield && guest_follow_busy())) {
         if (open_popup(Screen::Info, g_info_text, u8"D'accord", nullptr, true,
-                       Action::None, Action::None))
-            g_info_wanted = false;
+                       Action::None, Action::None)) {
+            g_info_wanted     = false;
+            g_info_live_yield = g_info_yield;
+            g_info_live_text  = g_info_text;
+        }
         return;
     }
     // Le vote du chemin, sur la carte (hote et invites).
@@ -2038,6 +2053,20 @@ void adventure_live() {
             else popup_set_text(vp.text);
             break;
         }
+        case Screen::Info:
+            // kInfoYieldToFollow : l'hote est entre dans une case, la fenetre se
+            // referme pour que la carte de ce joueur le suive ; elle reviendra.
+            if (g_info_live_yield && net_role() == NetRole::Client && savefile_in_coop() &&
+                follow_pending_count() != 0) {
+                if (!g_info_wanted) {
+                    g_info_text   = g_info_live_text;
+                    g_info_wanted = true;
+                    g_info_yield  = true;
+                }
+                g_info_live_yield = false;
+                close_silently();
+            }
+            break;
         case Screen::JoinWait:
             if (savefile_client_waiting_to_load() || !savefile_join_armed() || savefile_in_coop()) {
                 if (savefile_client_waiting_to_load())
@@ -2310,7 +2339,7 @@ void* mm_house() {
     return g_house;
 }
 
-void mm_show_info(const std::string& text_utf8) { show_info(text_utf8); }
+void mm_show_info(const std::string& text_utf8, int flags) { show_info(text_utf8, flags); }
 
 bool mm_info_busy() { return g_info_wanted || (g_live.alive && g_live.screen == Screen::Info); }
 
@@ -2487,6 +2516,7 @@ void mm_menu_pump() {
     host_adventure_pump();
     client_adventure_pump();
     vote_pump();                    // Mewgenics Multi : le vote du chemin
+    rungear_pump();                 // Mewgenics Multi : les objets en aventure
     team_ui_pump();                 // Mewgenics Multi : fenetres de l'equipe mixte
     trip_pump();
     night_pump();
@@ -2740,6 +2770,9 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
         case MM_VOTE:
             vote_on_mm(from, m);
             break;
+        case MM_RUNREV:
+            rungear_on_mm(from, m);
+            break;
         case MM_DEPART_READY:
             if (net_role() != NetRole::Host || from >= 8) break;
             if (m.b != g_dep_seq) {                 // la reponse a un vote d'avant
@@ -2816,6 +2849,8 @@ bool mm_on_button_click(void* button) {
     // des objets partent chez l'equipe ; chez un invite qui regarde, les siens
     // sont retenus.
     if (embark_on_button_click(button)) return true;
+    // Les objets en aventure : seul le proprietaire d'un chat change les siens.
+    if (rungear_on_click(button)) return true;
     const int kind = sign_kind(button);
     if (!kind) return false;
     // Le panneau clique, pour l'action qu'il declenche pendant ce meme clic

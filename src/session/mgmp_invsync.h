@@ -123,7 +123,8 @@ void invsync_shutdown();
 // anything changed since the last push. Called from the same place as
 // catsync_publish -- the map node entry both peers already synchronize on, and
 // the last moment before a battle can be built out of a stale run.
-void invsync_publish(const char* why);
+// Mewgenics Multi : true if an inventory was sent.
+bool invsync_publish(const char* why);
 
 // HOST: forget the last-pushed hash, so the next invsync_publish sends the
 // inventory whether or not it changed. For a reconnecting peer.
@@ -144,6 +145,11 @@ void invsync_on_message(const InventoryMsg& m);
 // nothing that consumes the inventory -- a battle, a shop -- can have run
 // between the host's push and this peer applying it.
 void invsync_apply_pending(const char* why);
+
+// Mewgenics Multi (invite) : le plus recent des inventaires arrives avant
+// l'ENTERNODE de rang `bound` (follow_epoch) ; ceux arrives apres restent
+// gardes. invsync_apply_pending prend la borne de follow_apply_bound.
+void invsync_apply_pending_before(uint32_t bound, const char* why);
 
 // --- the two hook bodies ----------------------------------------------------
 //
@@ -177,5 +183,18 @@ void invsync_drop_pending();
 // tiennent les objets du rangement).
 bool invsync_serialize_storage(std::vector<uint8_t>& out);
 bool invsync_load_storage(const std::vector<uint8_t>& bytes);
+
+// Mewgenics Multi (mm_rungear) : n'importe lequel des trois blocs, de la meme
+// facon (le sac et la poubelle de l'aventure, pour l'invite qui y equipe ses
+// chats). Memes conditions que ci-dessus.
+constexpr uint32_t kInvBucketBackpack = 0;
+constexpr uint32_t kInvBucketStorage  = 1;
+constexpr uint32_t kInvBucketTrash    = 2;
+bool invsync_serialize_bucket(uint32_t bucket, std::vector<uint8_t>& out);
+bool invsync_load_bucket(uint32_t bucket, const std::vector<uint8_t>& bytes);
+
+// Mewgenics Multi (mm_rungear) : un inventaire de l'hote recu et pas encore
+// applique chez cet invite.
+bool invsync_has_pending();
 
 } // namespace mgmp

@@ -95,6 +95,10 @@ enum Target : int {
     // --- Mewgenics Multi : le vote du chemin (src/session/mm_vote.cpp) -------
     T_MapNodeClick,      // sub_140228700 -- le clic sur une case de la carte (lambda du bouton)
     T_TickNemesis,       // sub_140393590 -- MapScreen::TickNemesis, apres un combat de la carte
+    // --- Mewgenics Multi : les objets en aventure (src/session/mm_rungear.cpp) --
+    T_InvScreenUpdate,   // sub_14034D130 -- InventoryScreen2::update, l'ecran des objets ouvert
+    T_InvScreenDtor,     // sub_140387310 -- son destructeur, l'ecran ferme
+    T_NodeEnd,           // sub_140392FC0 -- MapScreen : la fin d'une case (retour sur la carte, ou dans EnterNode)
     T_COUNT
 };
 
@@ -573,6 +577,23 @@ static const TargetDesc kTargets[T_COUNT] = {
     // Mewgenics Multi : rien chez un invite dans la copie de l'aventure -- sa
     // Nemesis a lui, partie d'un autre compte, l'emmenerait seul en combat.
     { 0x00393590, "NEMESIS",   "MapScreen::TickNemesis (sub_140393590)" },
+    // L'ecran des objets (InventoryScreen2, vtable 0x140F13D00) : son update
+    // (slot 10), a chaque image tant qu'il est la -- il recopie la cle du chat
+    // montre (CatSelector+0x88 -> +0x108) -- et son destructeur (slot 5). Entre
+    // les deux, ses boites tiennent les objets du sac et des chats.
+    // Mewgenics Multi : on sait ainsi quand ne rien relire, et quand la photo
+    // d'un invite part (mm_rungear).
+    { 0x0034D130, "INVSCRUPD", "InventoryScreen2::update (sub_14034D130, vtable slot 10)" },
+    { 0x00387310, "INVSCRDTOR","InventoryScreen2 destructor (sub_140387310, vtable slot 5)" },
+    // La fin d'une case (MapScreen*, seul argument) : appelee au retour sur la
+    // carte par 0x1403B3D60 (depuis ReturnToMap, 0x1403624A0, qui arrete la
+    // carte avant l'ecran de montee de niveau), et dans EnterNode meme pour les
+    // boites de meubles et de nourriture. Elle marque visitee la case du pion,
+    // compte son type, fait avancer la Nemesis et le boss (voir mgmp_marker.h).
+    // Mewgenics Multi : jusqu'a l'image de carte suivante, ce joueur est encore
+    // dans sa case -- l'etat d'apres la case, pousse par l'hote, attend
+    // (follow_node_live).
+    { 0x00392FC0, "NODEEND",   "MapScreen node end (sub_140392FC0)" },
 };
 
 // Coarse module guard, checked before the per-target signatures.

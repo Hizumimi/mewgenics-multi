@@ -10,6 +10,7 @@
 #include "mgmp_net.h"
 #include "mgmp_proto.h"
 #include "mgmp_savefile.h"   // savefile_in_coop (Mewgenics Multi)
+#include "mgmp_follow.h"     // follow_epoch, follow_apply_bound (Mewgenics Multi)
 
 #include <windows.h>
 #include <cstdio>
@@ -97,11 +98,20 @@ struct State {
     //
     // A copy, because the frame that carried it is released the instant the
     // dispatch switch returns. See the "why deferred" note above apply_now.
-    bool     pend_have = false;
-    int32_t  pend_coins = 0, pend_food = 0, pend_boxes = 0;
-    uint64_t pend_hash = 0;
-    uint32_t pend_size[kInvBuckets] = {};
-    uint8_t* pend_data[kInvBuckets] = {};
+    //
+    // Mewgenics Multi : one per arrival rank (follow_epoch), oldest first. The
+    // inventory before a node this peer has not entered yet must survive the
+    // inventory after it arriving -- see invsync_apply_pending_before.
+    struct Pend {
+        uint32_t epoch = 0;
+        int32_t  coins = 0, food = 0, boxes = 0;
+        uint64_t hash = 0;
+        uint32_t size[kInvBuckets] = {};
+        uint8_t* data[kInvBuckets] = {};
+    };
+    static constexpr uint32_t kMaxPend = 4;
+    Pend     pend[kMaxPend];
+    uint32_t pend_count = 0;
 
     uint32_t pushed = 0, applied = 0, skipped = 0;
     uint32_t deferred = 0, coalesced = 0;
@@ -318,9 +328,10 @@ void invsync_init() {
                            "client");
 }
 
+static void free_pending();
+
 void invsync_shutdown() {
-    for (uint32_t i = 0; i < kInvBuckets; ++i) { free(g.pend_data[i]); g.pend_data[i] = nullptr; }
-    g.pend_have = false;
+    free_pending();
     if (!g.announced) return;
     log_line_lvl(LogLevel::Trace, "INVSYNC",
              "done: %u pushed, %u applied, %u unchanged, "
@@ -433,15 +444,15 @@ void invsync_forget() {
     g.last_hash = 0;
 }
 
-void invsync_publish(const char* why) {
+bool invsync_publish(const char* why) {
     ensure_state();
-    if (!g.on || g.is_client || !net_active()) return;
+    if (!g.on || g.is_client || !net_active()) return false;
 
     RunInv ri{};
     if (!run_inv(ri)) {
         // No run yet. Not an error: the host publishes at its first map node,
         // which can be before there is anything to publish.
-        return;
+        return false;
     }
 
     InventoryMsg m{};
@@ -450,10 +461,11 @@ void invsync_publish(const char* why) {
         !mem_read((uint8_t*)ri.inventory + kInv_Boxes, &m.boxes, sizeof(m.boxes))) {
         log_line("INVSYNC", "!! could not read the inventory scalars -- nothing "
                             "published (%s)", why);
-        return;
+        return false;
     }
 
     bool failed = false;
+    bool sent   = false;
     for (uint32_t i = 0; i < kInvBuckets; ++i) {
         void* bucket = (uint8_t*)ri.inventory + kBuckets[i].off;
         if (!serialize_bucket(ri.savefile, bucket, kBuckets[i].key,
@@ -486,6 +498,7 @@ void invsync_publish(const char* why) {
             g.last_hash = h;
             g.has_last  = true;
             ++g.pushed;
+            sent = true;
             log_line("INVSYNC", "-> inventory %016llx: %u/%u/%u bytes "
                                 "(backpack/storage/trash), %d coins %d food "
                                 "%d boxes (%s)",
@@ -495,6 +508,7 @@ void invsync_publish(const char* why) {
     }
 
     for (uint32_t i = 0; i < kInvBuckets; ++i) free(m.data[i]);
+    return sent;
 }
 
 // --- client -----------------------------------------------------------------
@@ -520,31 +534,53 @@ void invsync_publish(const char* why) {
 // If a second inventory arrives before the first has been applied, the newer one
 // simply replaces it. The message is whole state, not a delta, so the older one
 // has no information the newer one lacks.
-static void free_pending() {
+static void free_one(State::Pend& p) {
     for (uint32_t i = 0; i < kInvBuckets; ++i) {
-        free(g.pend_data[i]);
-        g.pend_data[i] = nullptr;
-        g.pend_size[i] = 0;
+        free(p.data[i]);
+        p.data[i] = nullptr;
+        p.size[i] = 0;
     }
-    g.pend_have = false;
 }
 
+static void free_pending() {
+    for (uint32_t k = 0; k < g.pend_count; ++k) free_one(g.pend[k]);
+    g.pend_count = 0;
+}
+
+// Mewgenics Multi : a newer inventory replaces an older one of the SAME arrival
+// rank only. A different rank is a different moment of the run (before or
+// after a node this peer has yet to enter) and gets its own slot. Four ranks
+// held means this peer is four nodes behind; the newest then overwrites the
+// last slot, which loses an in-between inventory -- said in the log.
 static bool stash_pending(const InventoryMsg& m) {
-    if (g.pend_have) ++g.coalesced;
-    free_pending();
+    const uint32_t epoch = follow_epoch();
+    State::Pend p;
+    p.epoch = epoch;
     for (uint32_t i = 0; i < kInvBuckets; ++i) {
         if (!m.size[i] || !m.data[i]) continue;
         uint8_t* copy = (uint8_t*)malloc(m.size[i]);
-        if (!copy) { free_pending(); return false; }
+        if (!copy) { free_one(p); return false; }
         memcpy(copy, m.data[i], m.size[i]);
-        g.pend_data[i] = copy;
-        g.pend_size[i] = m.size[i];
+        p.data[i] = copy;
+        p.size[i] = m.size[i];
     }
-    g.pend_coins = m.coins;
-    g.pend_food  = m.food;
-    g.pend_boxes = m.boxes;
-    g.pend_hash  = m.hash;
-    g.pend_have  = true;
+    p.coins = m.coins;
+    p.food  = m.food;
+    p.boxes = m.boxes;
+    p.hash  = m.hash;
+    if (g.pend_count && g.pend[g.pend_count - 1].epoch == epoch) {
+        ++g.coalesced;
+        free_one(g.pend[g.pend_count - 1]);
+        g.pend[g.pend_count - 1] = p;
+    } else if (g.pend_count >= State::kMaxPend) {
+        ++g.coalesced;
+        log_line("INVSYNC", "!! %u inventories already held for nodes this peer has not "
+                            "entered -- the newest replaces the last one", g.pend_count);
+        free_one(g.pend[g.pend_count - 1]);
+        g.pend[g.pend_count - 1] = p;
+    } else {
+        g.pend[g.pend_count++] = p;
+    }
     return true;
 }
 
@@ -634,21 +670,40 @@ void invsync_on_message(const InventoryMsg& m) {
     ++g.deferred;
 }
 
-void invsync_apply_pending(const char* why) {
+void invsync_apply_pending_before(uint32_t bound, const char* why) {
     ensure_state();
-    if (!g.on || !g.pend_have) return;
+    if (!g.on || !g.pend_count) return;
 
+    // Whole state, not a delta: of everything that arrived before the
+    // ENTERNODE of rank `bound`, only the newest matters.
+    uint32_t n = 0;
+    while (n < g.pend_count && g.pend[n].epoch < bound) ++n;
+    if (!n) return;
+    State::Pend& p = g.pend[n - 1];
     InventoryMsg m{};
-    m.coins = g.pend_coins;
-    m.food  = g.pend_food;
-    m.boxes = g.pend_boxes;
-    m.hash  = g.pend_hash;
+    m.coins = p.coins;
+    m.food  = p.food;
+    m.boxes = p.boxes;
+    m.hash  = p.hash;
     for (uint32_t i = 0; i < kInvBuckets; ++i) {
-        m.size[i] = g.pend_size[i];
-        m.data[i] = g.pend_data[i];
+        m.size[i] = p.size[i];
+        m.data[i] = p.data[i];
     }
     apply_now(m, why);
-    free_pending();   // frees the same buffers m borrowed; m is dead here
+    if (n > 1) g.coalesced += n - 1;
+    for (uint32_t k = 0; k < n; ++k) free_one(g.pend[k]);   // m borrowed p's buffers; m is dead here
+    for (uint32_t k = n; k < g.pend_count; ++k) {
+        g.pend[k - n] = g.pend[k];
+        for (uint32_t i = 0; i < kInvBuckets; ++i) { g.pend[k].data[i] = nullptr; g.pend[k].size[i] = 0; }
+    }
+    g.pend_count -= n;
+    if (g.pend_count)
+        log_line("INVSYNC", "%u inventor%s from after the next node stay%s held (%s)", g.pend_count,
+                 g.pend_count > 1 ? "ies" : "y", g.pend_count > 1 ? "" : "s", why);
+}
+
+void invsync_apply_pending(const char* why) {
+    invsync_apply_pending_before(follow_apply_bound(), why);
 }
 
 bool invsync_serialize_storage(std::vector<uint8_t>& out) {
@@ -678,9 +733,43 @@ bool invsync_load_storage(const std::vector<uint8_t>& bytes) {
                         bytes.data(), (uint32_t)bytes.size());
 }
 
+bool invsync_serialize_bucket(uint32_t bucket, std::vector<uint8_t>& out) {
+    out.clear();
+    ensure_state();
+    if (bucket >= kInvBuckets) return false;
+    if (!g.resolved || !hooks_is_live(T_SFStoreBlob) || !hooks_is_live(T_SFLoadBlob)) return false;
+    RunInv ri{};
+    if (!run_inv(ri)) return false;
+    uint8_t* buf = nullptr;
+    uint32_t len = 0;
+    if (!serialize_bucket(ri.savefile, (uint8_t*)ri.inventory + kBuckets[bucket].off, kBuckets[bucket].key,
+                          &buf, &len))
+        return false;
+    if (buf && len) out.assign(buf, buf + len);
+    else            out.assign(4, 0);      // vide : le nombre d'objets seul (0)
+    free(buf);
+    return true;
+}
+
+bool invsync_load_bucket(uint32_t bucket, const std::vector<uint8_t>& bytes) {
+    ensure_state();
+    if (bucket >= kInvBuckets) return false;
+    if (!g.resolved || !hooks_is_live(T_SFStoreBlob) || !hooks_is_live(T_SFLoadBlob)) return false;
+    if (bytes.size() < 4 || bytes.size() > kMaxInvBytes) return false;
+    RunInv ri{};
+    if (!run_inv(ri)) return false;
+    return apply_bucket(ri.savefile, (uint8_t*)ri.inventory + kBuckets[bucket].off, kBuckets[bucket].key,
+                        bytes.data(), (uint32_t)bytes.size());
+}
+
+bool invsync_has_pending() {
+    ensure_state();
+    return g.pend_count != 0;
+}
+
 void invsync_drop_pending() {
     ensure_state();
-    if (g.pend_have)
+    if (g.pend_count)
         log_line("INVSYNC", "dropped a held inventory from before the host's save "
                             "that just arrived");
     free_pending();

@@ -83,6 +83,11 @@ void runhist_on_message(const RunHistMsg& m);
 // entered -- the same point invsync_apply_pending and catsync_apply_pending use.
 void runhist_apply_pending(const char* why);
 
+// Mewgenics Multi (invite) : le plus recent des historiques arrives avant
+// l'ENTERNODE de rang `bound` (follow_epoch) ; ceux arrives apres restent
+// gardes. runhist_apply_pending prend la borne de follow_apply_bound.
+void runhist_apply_pending_before(uint32_t bound, const char* why);
+
 // FNV-1a over this peer's own serialized run history, or 0 if it cannot be
 // read. Used by mgmp_nodehash; costs one serialize, so it is called at node
 // boundaries and nowhere else.

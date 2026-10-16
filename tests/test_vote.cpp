@@ -259,6 +259,27 @@ void test_message() {
     check(d.ballot[2].node == 300 && d.ballot[2].type == 5, "vote 2");
     check(d.winner.node == 300 && d.tied_count == 2 && d.tied[1].node == 300, "resultat");
     check(d.refused_slot == 2 && d.refused_reason == kRefuseBlocked, "vote refuse");
+
+    // Par le VRAI codec du reseau, pas seulement la structure : l'etat est
+    // binaire, et passe en chaine il etait coupe au premier octet nul (le vote
+    // 0 a la case 7 s'ecrit 07 00 -- tout le reste arrivait a zero chez
+    // l'invite, 15 octobre).
+    {
+        uint8_t wire[256];
+        const uint32_t n = enc_mm(wire, sizeof(wire), m);
+        check(n > 0, "reseau : encode");
+        Reader r(wire, n);
+        check(r.u8v() == MSG_MM, "reseau : type");
+        MmMsg back;
+        check(dec_mm(r, back) && r.pos == r.len, "reseau : decode, tout lu");
+        VoteState w;
+        check(vote_decode_state(back, w), "reseau : etat decode");
+        check(w.ballot[0].node == 7 && w.ballot[2].node == 300 && w.ballot[2].type == 5,
+              "reseau : les votes apres un octet nul arrivent");
+        check(w.winner.node == 300 && w.winner.type == 5 && w.tied_count == 2 && w.tied[1].node == 300,
+              "reseau : le gagnant et l'egalite arrivent");
+        check(w.refused_slot == 2 && w.refused_reason == kRefuseBlocked, "reseau : le refus arrive");
+    }
     VoteState none;
     vote_encode_state(none, m);
     vote_decode_state(m, d);

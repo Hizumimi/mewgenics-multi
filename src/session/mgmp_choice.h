@@ -164,6 +164,12 @@ bool choice_made_in_node();
 
 // Mewgenics Multi : oublie les ecrans retenus (une autre partie se charge).
 void choice_forget_screens();
+
+// Mewgenics Multi (mm_rungear) : un ecran d'evenement ou de montee de niveau a
+// tourne chez ce joueur dans les `within_ms` dernieres millisecondes. Tant qu'il
+// est la, un choix de l'hote peut encore s'y appliquer : on ne relit pas les
+// chats par-dessus.
+bool choice_screen_recent(uint64_t within_ms);
 // Mewgenics Multi : oublie aussi les choix retenus et la case actuelle (une
 // copie a jour de l'aventure de l'hote vient d'arriver, elle les contient).
 void choice_forget();

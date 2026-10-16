@@ -322,12 +322,100 @@ bool team_gear_ack_decode(const uint8_t* p, size_t n, GearAck& a) {
     return true;
 }
 
+namespace {
+
+void put_blob(std::vector<uint8_t>& b, const std::vector<uint8_t>& blob) {
+    put<uint32_t>(b, (uint32_t)blob.size());
+    b.insert(b.end(), blob.begin(), blob.end());
+}
+
+// Un bloc d'inventaire : au moins le nombre d'objets (u32), un rangement vide
+// fait 4 octets.
+bool get_blob(Reader& r, const uint8_t* p, std::vector<uint8_t>& out) {
+    const uint32_t n = r.get<uint32_t>();
+    if (!r.ok || n < 4 || n > kMaxStorageBytes || !r.need(n)) return false;
+    out.assign(p + r.pos, p + r.pos + n);
+    r.pos += n;
+    return true;
+}
+
+} // namespace
+
+std::vector<uint8_t> team_rungear_encode(const RunGearMsg& m) {
+    std::vector<uint8_t> b;
+    put<uint32_t>(b, kTeamMagic);
+    put<uint8_t>(b, kTeamFormat);
+    put<uint8_t>(b, kTeamRunGear);
+    put<uint32_t>(b, m.seq);
+    put<uint32_t>(b, m.base);
+    put_blob(b, m.backpack);
+    put_blob(b, m.trash);
+    put<uint8_t>(b, (uint8_t)std::min(m.cats.size(), kMaxTeam));
+    for (size_t i = 0; i < m.cats.size() && i < kMaxTeam; ++i) {
+        put<uint64_t>(b, m.cats[i].key);
+        put_blob(b, m.cats[i].data);
+    }
+    return b;
+}
+
+bool team_rungear_decode(const uint8_t* p, size_t n, RunGearMsg& m) {
+    if (!p) return false;
+    Reader r{p, n};
+    if (r.get<uint32_t>() != kTeamMagic || r.get<uint8_t>() != kTeamFormat ||
+        r.get<uint8_t>() != kTeamRunGear)
+        return false;
+    RunGearMsg out;
+    out.seq  = r.get<uint32_t>();
+    out.base = r.get<uint32_t>();
+    if (!r.ok || !get_blob(r, p, out.backpack) || !get_blob(r, p, out.trash)) return false;
+    const uint8_t count = r.get<uint8_t>();
+    if (!r.ok || count > kMaxTeam) return false;
+    for (uint8_t i = 0; i < count; ++i) {
+        GearCat c;
+        c.key = r.get<uint64_t>();
+        const uint32_t cn = r.get<uint32_t>();
+        if (!r.ok || c.key == 0 || cn == 0 || cn > kMaxCatBytes || !r.need(cn)) return false;
+        c.data.assign(p + r.pos, p + r.pos + cn);
+        r.pos += cn;
+        out.cats.push_back(std::move(c));
+    }
+    if (!r.ok || r.pos != n) return false;
+    m = std::move(out);
+    return true;
+}
+
+std::vector<uint8_t> team_rungear_ack_encode(const RunGearAck& a) {
+    std::vector<uint8_t> b;
+    put<uint32_t>(b, kTeamMagic);
+    put<uint8_t>(b, kTeamFormat);
+    put<uint8_t>(b, kTeamRunGearAck);
+    put<uint32_t>(b, a.seq);
+    put<uint8_t>(b, a.result);
+    put<uint32_t>(b, a.rev);
+    return b;
+}
+
+bool team_rungear_ack_decode(const uint8_t* p, size_t n, RunGearAck& a) {
+    if (!p) return false;
+    Reader r{p, n};
+    if (r.get<uint32_t>() != kTeamMagic || r.get<uint8_t>() != kTeamFormat ||
+        r.get<uint8_t>() != kTeamRunGearAck)
+        return false;
+    RunGearAck out;
+    out.seq    = r.get<uint32_t>();
+    out.result = r.get<uint8_t>();
+    out.rev    = r.get<uint32_t>();
+    if (!r.ok || r.pos != n || out.result < kRunGearApplied || out.result > kRunGearNode) return false;
+    a = out;
+    return true;
+}
+
 uint8_t team_kind(const uint8_t* p, size_t n) {
     if (!p) return 0;
     Reader r{p, n};
     if (r.get<uint32_t>() != kTeamMagic || r.get<uint8_t>() != kTeamFormat) return 0;
     const uint8_t kind = r.get<uint8_t>();
-    if (!r.ok || kind < kTeamDepart || kind > kTeamGearAck) return 0;
+    if (!r.ok || kind < kTeamDepart || kind > kTeamRunGearAck) return 0;
     return kind;
 }
 

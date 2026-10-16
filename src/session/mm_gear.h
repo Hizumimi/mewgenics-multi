@@ -77,11 +77,13 @@
 // aussi. Sans reponse de l'hote (session coupee juste apres), de meme.
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace mgmp {
 
 enum Target : int;
+struct GearCat;
 
 enum class GearRole { Off, Host, Guest };
 
@@ -112,7 +114,16 @@ bool gear_hold_publish();
 // MSG_TEAM kTeamGear (hote) / kTeamGearAck (invite).
 void gear_on_team(uint8_t from, const uint8_t* data, size_t size);
 
-// Detour et original de T_InvItemUpdate.
+// Detour et original de T_InvItemUpdate. Hors du depart, le meme detour grise
+// les objets en aventure (mm_rungear).
 bool gear_binding(Target t, void** detour, void*** original);
+
+// Le choix des objets du depart est en cours (hote ou invite).
+bool gear_role_active();
+
+// Hote : les chats `cats` (cle de l'equipe, chat serialise) de l'invite `from`
+// relus dans l'aventure -- chacun dans l'equipe, a lui, le meme (id) et
+// gardant sa classe ; tout ou rien (ceux deja relus sont remis). Faux : `why`.
+bool gear_apply_cats(uint8_t from, const std::vector<GearCat>& cats, std::string& why);
 
 } // namespace mgmp

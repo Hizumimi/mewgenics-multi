@@ -88,7 +88,12 @@ std::string mm_scene_list();
 void* mm_house();
 // Une fenetre d'information du jeu (« D'accord »), des qu'une fenetre peut
 // s'ouvrir. Texte UTF-8, en francais.
-void mm_show_info(const std::string& text_utf8);
+// kInfoYieldToFollow : chez un invite, la fenetre ne s'ouvre pas tant qu'il a
+// une case de l'hote a suivre ou qu'il n'est pas sur la carte, et se referme
+// (pour revenir apres) si l'hote entre dans une case pendant qu'elle est
+// ouverte -- elle arreterait sa carte, et l'hote l'attendrait.
+constexpr int kInfoYieldToFollow = 1;
+void mm_show_info(const std::string& text_utf8, int flags = 0);
 // Une fenetre d'information attend ou est ouverte : la suivante attendra.
 bool mm_info_busy();
 // La derniere confirmation du jeu lui-meme (boite YesNoPrompt qui n'est pas

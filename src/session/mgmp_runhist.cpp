@@ -8,6 +8,7 @@
 #include "mgmp_tuning.h"
 #include "mgmp_lockstep.h"   // lockstep_in_battle
 #include "mgmp_savefile.h"   // savefile_in_coop (Mewgenics Multi)
+#include "mgmp_follow.h"     // follow_epoch, follow_apply_bound (Mewgenics Multi)
 #include "mgmp_log.h"
 #include "mgmp_mem.h"
 #include "mgmp_net.h"
@@ -43,9 +44,18 @@ struct State {
 
     // A history that arrived at a moment this peer must not write it. Whole
     // state, not a delta, so a newer one simply replaces the older.
-    uint8_t* pend_data = nullptr;
-    uint32_t pend_size = 0;
-    uint64_t pend_hash = 0;
+    // Mewgenics Multi : of the same arrival rank (follow_epoch) only -- the
+    // history before a node this peer has not entered yet is what that node
+    // rolls its event from, and the one after it must not replace it.
+    struct Pend {
+        uint32_t epoch = 0;
+        uint8_t* data  = nullptr;
+        uint32_t size  = 0;
+        uint64_t hash  = 0;
+    };
+    static constexpr uint32_t kMaxPend = 4;
+    Pend     pend[kMaxPend];
+    uint32_t pend_count = 0;
 
     uint32_t pushed = 0, applied = 0, skipped = 0, deferred = 0, coalesced = 0;
 };
@@ -189,7 +199,7 @@ void runhist_init() {
 }
 
 void runhist_shutdown() {
-    const bool stranded = g.pend_data != nullptr;
+    const bool stranded = g.pend_count != 0;
     free_pending();
     if (!g.announced) return;
     log_line_lvl(stranded ? LogLevel::Warn : LogLevel::Trace, "RUNHIST",
@@ -304,21 +314,35 @@ static void apply_now(const RunHistMsg& m, const char* when) {
 }
 
 static void free_pending() {
-    free(g.pend_data);
-    g.pend_data = nullptr;
-    g.pend_size = 0;
-    g.pend_hash = 0;
+    for (uint32_t k = 0; k < g.pend_count; ++k) {
+        free(g.pend[k].data);
+        g.pend[k] = State::Pend{};
+    }
+    g.pend_count = 0;
 }
 
 static bool stash_pending(const RunHistMsg& m) {
     uint8_t* copy = (uint8_t*)malloc(m.size);
     if (!copy) return false;
     memcpy(copy, m.data, m.size);
-    if (g.pend_data) ++g.coalesced;
-    free(g.pend_data);
-    g.pend_data = copy;
-    g.pend_size = m.size;
-    g.pend_hash = m.hash;
+    State::Pend p;
+    p.epoch = follow_epoch();
+    p.data  = copy;
+    p.size  = m.size;
+    p.hash  = m.hash;
+    if (g.pend_count && g.pend[g.pend_count - 1].epoch == p.epoch) {
+        ++g.coalesced;
+        free(g.pend[g.pend_count - 1].data);
+        g.pend[g.pend_count - 1] = p;
+    } else if (g.pend_count >= State::kMaxPend) {
+        ++g.coalesced;
+        log_line("RUNHIST", "!! %u histories already held for nodes this peer has not "
+                            "entered -- the newest replaces the last one", g.pend_count);
+        free(g.pend[g.pend_count - 1].data);
+        g.pend[g.pend_count - 1] = p;
+    } else {
+        g.pend[g.pend_count++] = p;
+    }
     return true;
 }
 
@@ -326,17 +350,34 @@ static bool stash_pending(const RunHistMsg& m) {
 // while the client's map-follow tick is guaranteed to drain the queue.
 static bool defer_applies() { return g.is_client && config().net_follow; }
 
-void runhist_apply_pending(const char* why) {
+void runhist_apply_pending_before(uint32_t bound, const char* why) {
     ensure_state();
-    if (!g.on || !g.pend_data) return;
+    if (!g.on || !g.pend_count) return;
 
+    // Of everything that arrived before the ENTERNODE of rank `bound`, the
+    // newest; the rest of it is superseded, what came after stays held.
+    uint32_t n = 0;
+    while (n < g.pend_count && g.pend[n].epoch < bound) ++n;
+    if (!n) return;
     RunHistMsg m{};
-    m.size = g.pend_size;
-    m.hash = g.pend_hash;
-    m.data = g.pend_data;
+    m.size = g.pend[n - 1].size;
+    m.hash = g.pend[n - 1].hash;
+    m.data = g.pend[n - 1].data;
     apply_now(m, why);
-    free_pending();
-    g.held_in_battle = false;   // re-arms the line for the next battle
+    if (n > 1) g.coalesced += n - 1;
+    for (uint32_t k = 0; k < n; ++k) free(g.pend[k].data);
+    for (uint32_t k = n; k < g.pend_count; ++k) g.pend[k - n] = g.pend[k];
+    for (uint32_t k = g.pend_count - n; k < g.pend_count; ++k) g.pend[k] = State::Pend{};
+    g.pend_count -= n;
+    if (g.pend_count)
+        log_line("RUNHIST", "%u run histor%s from after the next node stay%s held (%s)", g.pend_count,
+                 g.pend_count > 1 ? "ies" : "y", g.pend_count > 1 ? "" : "s", why);
+    else
+        g.held_in_battle = false;   // re-arms the line for the next battle
+}
+
+void runhist_apply_pending(const char* why) {
+    runhist_apply_pending_before(follow_apply_bound(), why);
 }
 
 void runhist_on_message(const RunHistMsg& m) {
@@ -410,15 +451,26 @@ void runhist_on_message(const RunHistMsg& m) {
         return;
     }
 
+    // Mewgenics Multi : ni hors de la carte (dans une case), ni quand l'hote est
+    // entre dans une case que ce joueur n'a pas encore suivie -- l'historique
+    // d'apres cette case remplacerait celui dont elle tire son evenement. Gardee
+    // (voir catsync_on_message), appliquee avant la case suivante.
+    if (defer_applies() && savefile_in_coop() &&
+        (follow_pending_count() || follow_node_live() || !follow_on_map())) {
+        if (stash_pending(m)) { ++g.deferred; return; }
+        log_line("RUNHIST", "!! could not hold the run history (inside a node or a node "
+                            "still to follow) -- applying it now");
+    }
+
     // Mewgenics Multi : une poussee gardee pendant que le joueur rejoignait
     // est plus ancienne que celle-ci, qui la remplace entierement.
-    if (g.pend_data) free_pending();
+    if (g.pend_count) free_pending();
     apply_now(m, "on arrival");
 }
 
 void runhist_drop_pending() {
     ensure_state();
-    if (g.pend_data)
+    if (g.pend_count)
         log_line("RUNHIST", "dropped a held run history from before the host's save "
                             "that just arrived");
     free_pending();

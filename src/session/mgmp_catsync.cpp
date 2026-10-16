@@ -11,6 +11,8 @@
 #include "mgmp_proto.h"
 #include "mgmp_lockstep.h"   // lockstep_in_battle
 #include "mgmp_savefile.h"   // savefile_in_coop (Mewgenics Multi)
+#include "mm_rungear.h"      // rungear_hold_pushes (Mewgenics Multi)
+#include "mgmp_follow.h"     // follow_epoch, follow_apply_bound (Mewgenics Multi)
 
 #include <windows.h>
 #include <cstdio>
@@ -59,10 +61,14 @@ struct State {
     // Cats that arrived at a moment this peer must not write them, held until
     // the map-follow tick. Coalesced by id -- a CATDATA is whole state, not a
     // delta, so a newer one for the same cat makes the older one worthless.
+    // Mewgenics Multi : coalesced by id AND arrival rank (follow_epoch) -- the
+    // state before a node the peer has not entered yet is not worthless just
+    // because the state after it has arrived too. In arrival order.
     uint64_t pend_id[kMaxCats]   = {};
     uint64_t pend_hash[kMaxCats] = {};
     uint8_t* pend_data[kMaxCats] = {};
     uint32_t pend_size[kMaxCats] = {};
+    uint32_t pend_epoch[kMaxCats] = {};
     uint32_t pend_count = 0;
 
     uint32_t pushed = 0, applied = 0, skipped = 0, deferred = 0, coalesced = 0;
@@ -320,9 +326,9 @@ void catsync_forget() {
     memset(g.sent_hash, 0, sizeof(g.sent_hash));
 }
 
-void catsync_publish(const char* why) {
+uint32_t catsync_publish(const char* why) {
     ensure_state();
-    if (!g.on || g.is_client || !net_active()) return;
+    if (!g.on || g.is_client || !net_active()) return 0;
 
     RunCats rc{};
     if (!run_cats(rc)) {
@@ -335,7 +341,7 @@ void catsync_publish(const char* why) {
         else
             log_line("CATSYNC", "!! could not read the run's cat list -- nothing "
                                 "published (%s)", why);
-        return;
+        return 0;
     }
 
     uint32_t sent = 0, same = 0, failed = 0;
@@ -374,6 +380,7 @@ void catsync_publish(const char* why) {
         log_line("CATSYNC", "-> %u cat(s) changed and sent, %u unchanged%s (%s)",
                  sent, same,
                  failed ? " -- SOME FAILED, see above" : "", why);
+    return sent;
 }
 
 // --- applying, and holding until it is safe to apply ------------------------
@@ -437,8 +444,9 @@ static bool stash_pending(const CatDataMsg& m) {
     if (!copy) return false;
     memcpy(copy, m.data, m.size);
 
+    const uint32_t epoch = follow_epoch();
     for (uint32_t i = 0; i < g.pend_count; ++i) {
-        if (g.pend_id[i] != m.id) continue;
+        if (g.pend_id[i] != m.id || g.pend_epoch[i] != epoch) continue;
         free(g.pend_data[i]);
         g.pend_data[i] = copy;
         g.pend_size[i] = m.size;
@@ -448,10 +456,11 @@ static bool stash_pending(const CatDataMsg& m) {
     }
     if (g.pend_count >= State::kMaxCats) { free(copy); return false; }
 
-    g.pend_id[g.pend_count]   = m.id;
-    g.pend_hash[g.pend_count] = m.hash;
-    g.pend_data[g.pend_count] = copy;
-    g.pend_size[g.pend_count] = m.size;
+    g.pend_id[g.pend_count]    = m.id;
+    g.pend_hash[g.pend_count]  = m.hash;
+    g.pend_data[g.pend_count]  = copy;
+    g.pend_size[g.pend_count]  = m.size;
+    g.pend_epoch[g.pend_count] = epoch;
     ++g.pend_count;
     return true;
 }
@@ -461,21 +470,43 @@ static bool stash_pending(const CatDataMsg& m) {
 // same helper shape as mgmp_invsync.
 static bool defer_applies() { return g.is_client && config().net_follow; }
 
-void catsync_apply_pending(const char* why) {
+void catsync_apply_pending_before(uint32_t bound, const char* why) {
     ensure_state();
     if (!g.on || !g.pend_count) return;
 
+    // In arrival order: the same cat held twice (before and after a node) is
+    // applied oldest first. What arrived after the ENTERNODE of rank `bound`
+    // stays, still in order.
     const uint32_t n = g.pend_count;
+    uint32_t kept = 0;
     for (uint32_t i = 0; i < n; ++i) {
+        if (g.pend_epoch[i] >= bound) {
+            g.pend_id[kept]    = g.pend_id[i];
+            g.pend_hash[kept]  = g.pend_hash[i];
+            g.pend_data[kept]  = g.pend_data[i];
+            g.pend_size[kept]  = g.pend_size[i];
+            g.pend_epoch[kept] = g.pend_epoch[i];
+            ++kept;
+            continue;
+        }
         CatDataMsg m{};
         m.id   = g.pend_id[i];
         m.hash = g.pend_hash[i];
         m.size = g.pend_size[i];
         m.data = g.pend_data[i];
         apply_now(m, why);
+        free(g.pend_data[i]);
     }
-    free_pending();
-    g.held_in_battle = false;   // re-arms the line for the next battle
+    for (uint32_t i = kept; i < n; ++i) { g.pend_data[i] = nullptr; g.pend_size[i] = 0; }
+    g.pend_count = kept;
+    if (kept)
+        log_line("CATSYNC", "%u cat push(es) from after the next node stay held (%s)", kept, why);
+    else
+        g.held_in_battle = false;   // re-arms the line for the next battle
+}
+
+void catsync_apply_pending(const char* why) {
+    catsync_apply_pending_before(follow_apply_bound(), why);
 }
 
 void catsync_on_message(const CatDataMsg& m) {
@@ -579,11 +610,37 @@ void catsync_on_message(const CatDataMsg& m) {
         return;
     }
 
+    // Mewgenics Multi : pas pendant qu'un ecran des objets est ouvert chez ce
+    // joueur -- ses boites tiennent les objets de ses chats, que la relecture
+    // remplace. Gardee, appliquee des qu'il le ferme (mm_rungear).
+    //
+    // Ni pendant qu'une photo de ce joueur attend sa reponse (ses objets
+    // pourraient encore revenir comme a l'ouverture, par-dessus). Ni hors de
+    // la carte, ni dans la case qu'il joue (follow_node_live : la carte tourne
+    // encore pendant la transition d'entree -- un evenement que l'hote a deja
+    // fini, et dont il pousse l'etat d'apres, n'est pas encore rejoue ici), ni
+    // quand l'hote est entre dans une case que ce joueur n'a pas encore
+    // suivie : c'est alors l'etat d'apres cette case, applique avant elle,
+    // elle le referait par-dessus. Gardee, appliquee sur la carte
+    // (mm_rungear) ou apres la case (follow_map_update).
+    if (defer_applies() && (rungear_hold_pushes() || follow_pending_count() || follow_node_live() ||
+                            !follow_on_map())) {
+        if (stash_pending(m)) { ++g.deferred; return; }
+        log_line("CATSYNC", "!! could not hold cat %016llx (inventory screen open, inside "
+                            "a node or a node still to follow) -- applying it now",
+                 (unsigned long long)m.id);
+    }
+
     // Mewgenics Multi : jamais une poussee plus recente avant une plus ancienne
     // encore gardee (celles recues pendant que le joueur rejoignait) -- sinon
     // l'ancienne, appliquee plus tard, ecraserait la nouvelle.
     if (g.pend_count) catsync_apply_pending("an older push was still held");
     apply_now(m, "on arrival");
+}
+
+uint32_t catsync_pending_count() {
+    ensure_state();
+    return g.pend_count;
 }
 
 void catsync_drop_pending() {
