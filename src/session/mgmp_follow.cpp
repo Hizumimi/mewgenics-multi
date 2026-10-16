@@ -392,6 +392,9 @@ bool follow_on_enter_node(void* map_screen, void* node, bool* sent) {
     // MapScreen::update -- so sending in this order is what guarantees the
     // battle is built from the host's cats rather than from the client's stale
     // ones. Reversing these two lines reintroduces the bug this closes.
+    // Mewgenics Multi : en aventure ensemble, la poussee d'entree est entiere
+    // (mm_rungear) -- ce qu'un invite aurait de different est remis avant la case.
+    rungear_before_node_push();
     catsync_publish("entering a node");
     // ...and the other half of the same equip. Order between these two does not
     // matter the way it does against ENTERNODE -- an equip has already moved
@@ -546,6 +549,13 @@ bool follow_inside_node() { return g.inside; }
 uint32_t follow_epoch() {
     Guard guard;
     return g.epoch;
+}
+
+uint32_t follow_note_arrival() {
+    // Le thread du jeu seulement (la boucle des messages, mgmp_lockstep) ; le
+    // verrou ne coute rien et garde le compteur juste si cela changeait.
+    static volatile LONG s_arrival = 0;
+    return (uint32_t)InterlockedIncrement(&s_arrival);
 }
 
 uint32_t follow_apply_bound() {

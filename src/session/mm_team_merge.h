@@ -66,8 +66,12 @@ enum : uint8_t {
     kTeamEmbark = 4,    // hote -> invites : il part, voici l'equipe (mm_embark)
     kTeamGear   = 5,    // invite -> hote : l'equipement de ses chats et son rangement (mm_gear)
     kTeamGearAck = 6,   // hote -> invite : la photo de son equipement que l'hote a prise
-    kTeamRunGear = 7,   // invite -> hote : en aventure, ses chats et le sac apres qu'il les a equipes (mm_rungear)
-    kTeamRunGearAck = 8,// hote -> invite : prise ou refusee
+    kTeamRunGear = 7,   // (protocole 42-43, plus envoye) invite -> hote : sa photo d'objets en aventure
+    kTeamRunGearAck = 8,// (protocole 42-43, plus envoye) hote -> invite : prise ou refusee
+    kTeamItemOp  = 9,   // les deux sens : un mouvement d'objet en aventure (mm_rungear)
+    kTeamItemAck = 10,  // hote -> invite : son mouvement pris ou refuse
+    kTeamItemSync = 11, // hote -> invite : le sac, la poubelle et les chats de l'aventure, pour repartir juste
+    kTeamItemSyncReq = 12, // invite -> hote : demande kTeamItemSync (apres ses mouvements numerotes jusqu'a seq)
 };
 
 // Le message MSG_TEAM : des chats (kTeamDepart, kTeamResult)...
@@ -159,6 +163,64 @@ struct RunGearAck {
 };
 std::vector<uint8_t> team_rungear_ack_encode(const RunGearAck& a);
 bool team_rungear_ack_decode(const uint8_t* p, size_t n, RunGearAck& a);
+
+// ... ou, en aventure (protocole 44), un mouvement d'objet (kTeamItemOp), fait
+// par `origin` -- l'invite qui l'a fait, ou l'hote -- et numerote par lui (seq) :
+// equiper un objet du sac (son empreinte `item`, l'emplacement `slot` ou il va,
+// l'empreinte `prev` de ce que l'emplacement tenait, 0 : rien), rendre au sac
+// l'objet porte a `slot` (empreinte `item`), ou un livre lu (le chat tel qu'il
+// est apres, serialise par le jeu, et l'empreinte du livre retire du sac, 0 :
+// aucun). Le chat : sa cle dans l'aventure (MewDirector+1472) et son id
+// (CatData+0x00). `name` : le nom GON de l'objet, pour le journal.
+enum : uint8_t { kItemEquip = 1, kItemUnequip = 2, kItemLearn = 3 };
+constexpr uint8_t kItemSlots = 5;
+struct ItemOp {
+    uint32_t             seq     = 0;
+    uint8_t              origin  = 0;
+    uint8_t              op      = 0;
+    uint8_t              slot    = 0;
+    uint64_t             cat_key = 0;
+    uint64_t             cat_id  = 0;
+    uint64_t             item    = 0;
+    uint64_t             prev    = 0;
+    std::string          name;
+    std::vector<uint8_t> cat;
+};
+std::vector<uint8_t> team_item_op_encode(const ItemOp& m);
+bool team_item_op_decode(const uint8_t* p, size_t n, ItemOp& m);
+// ... la reponse de l'hote a l'invite qui l'a fait (kTeamItemAck).
+enum : uint8_t {
+    kItemOk       = 1,   // pris, et parti chez les autres
+    kItemConflict = 2,   // refuse : l'objet n'est plus la (un autre l'a pris avant)
+    kItemInvalid  = 3,   // refuse : pas son chat, illisible, refuse par le jeu
+    kItemNode     = 4,   // refuse : l'hote est dans une case (sa poussee d'entree le remet)
+};
+struct ItemAck {
+    uint32_t seq    = 0;
+    uint8_t  result = 0;
+};
+std::vector<uint8_t> team_item_ack_encode(const ItemAck& a);
+bool team_item_ack_decode(const uint8_t* p, size_t n, ItemAck& a);
+// ... la demande d'un invite qui doit repartir juste (kTeamItemSyncReq) : ses
+// mouvements jusqu'a `seq` sont partis avant elle -- l'hote les a traites quand il
+// la lit ; et la reponse (kTeamItemSync) : seq, la revision de l'hote (base), le
+// sac, la poubelle et les chats de l'aventure.
+std::vector<uint8_t> team_item_sync_req_encode(uint32_t seq);
+bool team_item_sync_req_decode(const uint8_t* p, size_t n, uint32_t& seq);
+std::vector<uint8_t> team_item_sync_encode(const RunGearMsg& m);
+bool team_item_sync_decode(const uint8_t* p, size_t n, RunGearMsg& m);
+
+// L'empreinte d'un objet d'un joueur a l'autre : les champs que le jeu sauve
+// (serialiseur 0x14022D640, version 5), pas son id (un compteur propre a chaque
+// processus). Jamais 0.
+struct ItemFields {
+    std::string name;            // Equipment+0x08, la cle GON
+    std::string text;            // +0x28 (un livre : la capacite qu'il apprend)
+    uint32_t    a = 0, b = 0, c = 0, d = 0;   // +0x48, +0x4C, +0x50, +0x54
+    uint8_t     e = 0;           // +0x58
+    uint32_t    f = 0;           // +0x5C
+};
+uint64_t item_digest(const ItemFields& it);
 
 // Le genre d'un message MSG_TEAM, 0 si ce n'en est pas un.
 uint8_t team_kind(const uint8_t* p, size_t n);

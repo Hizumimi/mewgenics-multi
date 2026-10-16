@@ -69,6 +69,11 @@ struct State {
     uint8_t* pend_data[kMaxCats] = {};
     uint32_t pend_size[kMaxCats] = {};
     uint32_t pend_epoch[kMaxCats] = {};
+    // Mewgenics Multi : le numero d'arrivee (follow_note_arrival) de chacune, et
+    // le plus grand de celles deja appliquees ou laissees parce qu'identiques
+    // (mm_rungear : une operation d'objet arrivee avant est deja dedans).
+    uint32_t pend_arrival[kMaxCats] = {};
+    uint32_t last_arrival = 0;
     uint32_t pend_count = 0;
 
     uint32_t pushed = 0, applied = 0, skipped = 0, deferred = 0, coalesced = 0;
@@ -115,6 +120,54 @@ bool bs_construct(uint8_t* bs) {
     // This is the element-size cap that guards the swap it will not do.
     *(uint32_t*)(bs + kBS_SwapElem) = 8;
     return true;
+}
+
+// --- Mewgenics Multi : les emplacements d'objet avant une relecture ---------
+//
+// LE BOGUE DE LA DUPLICATION. SerializeCatData lit les cinq emplacements d'objet
+// du chat (CatData+0x9B0, pas de 0x60) par sub_14022D2A0 : un octet « present »,
+// puis l'objet. En lecture, un objet ABSENT fait revenir la fonction sans toucher
+// a l'emplacement (« if (!present) return » apres la lecture de l'octet). Relu
+// par-dessus un chat vivant, un emplacement que le flux dit vide garde donc
+// l'objet qu'il avait : un objet rendu au sac chez l'un restait porte chez
+// l'autre, ET revenait dans son sac avec la poussee du sac. Le jeu ne lit un chat
+// que dans un objet neuf, il ne le voit jamais ; nous relisons des chats vivants.
+//
+// D'ou : avant toute relecture, chaque emplacement est vide comme le jeu le teste
+// (id -1, nom vide -- std::string::clear sur le nom et sur le texte, +0x08 et
+// +0x28 : taille 0 et premier caractere nul, le tampon reste a sa place). Ceux que
+// le flux dit presents sont reecrits en entier, les autres restent vides.
+constexpr uintptr_t kCat_Slots     = 0x9B0;
+constexpr uintptr_t kSlot_Stride   = 0x60;
+constexpr uint32_t  kSlot_Count    = 5;
+constexpr uintptr_t kEq_NameField  = 0x08;
+constexpr uintptr_t kEq_TextField  = 0x28;
+constexpr uintptr_t kStr_Size      = 0x10;
+constexpr uintptr_t kStr_Cap       = 0x18;
+
+bool clear_game_string(uint8_t* str) {
+    uint64_t cap = 0;
+    if (!mem_read(str + kStr_Cap, &cap, sizeof(cap))) return false;
+    uint8_t* chars = str;
+    if (cap > 15) {
+        if (!mem_read(str, &chars, sizeof(chars)) || !chars) return false;
+    }
+    const uint64_t zero = 0;
+    const char nul = 0;
+    return mem_write(str + kStr_Size, &zero, sizeof(zero)) && mem_write(chars, &nul, 1);
+}
+
+bool clear_equipment(void* cat) {
+    if (!cat) return false;
+    bool ok = true;
+    for (uint32_t k = 0; k < kSlot_Count; ++k) {
+        uint8_t* slot = (uint8_t*)cat + kCat_Slots + k * kSlot_Stride;
+        const int64_t none = -1;
+        ok = mem_write(slot, &none, sizeof(none)) && ok;
+        ok = clear_game_string(slot + kEq_NameField) && ok;
+        ok = clear_game_string(slot + kEq_TextField) && ok;
+    }
+    return ok;
 }
 
 // --- the run's cats ---------------------------------------------------------
@@ -285,6 +338,9 @@ bool catsync_deserialize_cat(void* cat, const std::vector<uint8_t>& bytes) {
     *(uint8_t*)(bs + kBS_ReadOwns)    = 0;
     *(uint32_t*)(bs + kBS_ReadLen)    = (uint32_t)bytes.size();
     *(uint32_t*)(bs + kBS_ReadPos)    = 0;
+    if (!clear_equipment(cat))
+        log_line("CATSYNC", "!! could not empty a cat's item slots before reading it -- an item it no "
+                            "longer has may stay on it");
     const bool ok = safe_serialize(cat, bs);
     safe_bs_dtor(bs);
     return ok;
@@ -416,6 +472,11 @@ static void apply_now(const CatDataMsg& m, const char* when) {
     *(uint32_t*)(bs + kBS_ReadLen) = m.size;
     *(uint32_t*)(bs + kBS_ReadPos) = 0;
 
+    // Mewgenics Multi : les emplacements d'objet d'abord (voir clear_equipment).
+    if (!clear_equipment(cat))
+        log_line("CATSYNC", "!! could not empty cat %016llx's item slots before reading it -- an item "
+                            "it no longer has may stay on it", (unsigned long long)m.id);
+
     bool ok = safe_serialize(cat, bs);
     safe_bs_dtor(bs);
 
@@ -444,25 +505,32 @@ static bool stash_pending(const CatDataMsg& m) {
     if (!copy) return false;
     memcpy(copy, m.data, m.size);
 
-    const uint32_t epoch = follow_epoch();
+    const uint32_t epoch   = follow_epoch();
+    const uint32_t arrival = follow_note_arrival();
     for (uint32_t i = 0; i < g.pend_count; ++i) {
         if (g.pend_id[i] != m.id || g.pend_epoch[i] != epoch) continue;
         free(g.pend_data[i]);
-        g.pend_data[i] = copy;
-        g.pend_size[i] = m.size;
-        g.pend_hash[i] = m.hash;
+        g.pend_data[i]    = copy;
+        g.pend_size[i]    = m.size;
+        g.pend_hash[i]    = m.hash;
+        g.pend_arrival[i] = arrival;
         ++g.coalesced;
         return true;
     }
     if (g.pend_count >= State::kMaxCats) { free(copy); return false; }
 
-    g.pend_id[g.pend_count]    = m.id;
-    g.pend_hash[g.pend_count]  = m.hash;
-    g.pend_data[g.pend_count]  = copy;
-    g.pend_size[g.pend_count]  = m.size;
-    g.pend_epoch[g.pend_count] = epoch;
+    g.pend_id[g.pend_count]      = m.id;
+    g.pend_hash[g.pend_count]    = m.hash;
+    g.pend_data[g.pend_count]    = copy;
+    g.pend_size[g.pend_count]    = m.size;
+    g.pend_epoch[g.pend_count]   = epoch;
+    g.pend_arrival[g.pend_count] = arrival;
     ++g.pend_count;
     return true;
+}
+
+static void note_applied(uint32_t arrival) {
+    if (arrival > g.last_arrival) g.last_arrival = arrival;
 }
 
 // Deferral is only correct while something is guaranteed to drain the queue,
@@ -470,22 +538,24 @@ static bool stash_pending(const CatDataMsg& m) {
 // same helper shape as mgmp_invsync.
 static bool defer_applies() { return g.is_client && config().net_follow; }
 
-void catsync_apply_pending_before(uint32_t bound, const char* why) {
+static void apply_pending_where(uint32_t bound, uint32_t arrival_limit, const char* why) {
     ensure_state();
     if (!g.on || !g.pend_count) return;
 
     // In arrival order: the same cat held twice (before and after a node) is
     // applied oldest first. What arrived after the ENTERNODE of rank `bound`
-    // stays, still in order.
+    // stays, still in order. Mewgenics Multi : et ce qui est arrive apres le
+    // numero `arrival_limit` (mm_rungear : un etat de l'hote plus recent).
     const uint32_t n = g.pend_count;
     uint32_t kept = 0;
     for (uint32_t i = 0; i < n; ++i) {
-        if (g.pend_epoch[i] >= bound) {
-            g.pend_id[kept]    = g.pend_id[i];
-            g.pend_hash[kept]  = g.pend_hash[i];
-            g.pend_data[kept]  = g.pend_data[i];
-            g.pend_size[kept]  = g.pend_size[i];
-            g.pend_epoch[kept] = g.pend_epoch[i];
+        if (g.pend_epoch[i] >= bound || g.pend_arrival[i] >= arrival_limit) {
+            g.pend_id[kept]      = g.pend_id[i];
+            g.pend_hash[kept]    = g.pend_hash[i];
+            g.pend_data[kept]    = g.pend_data[i];
+            g.pend_size[kept]    = g.pend_size[i];
+            g.pend_epoch[kept]   = g.pend_epoch[i];
+            g.pend_arrival[kept] = g.pend_arrival[i];
             ++kept;
             continue;
         }
@@ -495,6 +565,7 @@ void catsync_apply_pending_before(uint32_t bound, const char* why) {
         m.size = g.pend_size[i];
         m.data = g.pend_data[i];
         apply_now(m, why);
+        note_applied(g.pend_arrival[i]);
         free(g.pend_data[i]);
     }
     for (uint32_t i = kept; i < n; ++i) { g.pend_data[i] = nullptr; g.pend_size[i] = 0; }
@@ -503,6 +574,14 @@ void catsync_apply_pending_before(uint32_t bound, const char* why) {
         log_line("CATSYNC", "%u cat push(es) from after the next node stay held (%s)", kept, why);
     else
         g.held_in_battle = false;   // re-arms the line for the next battle
+}
+
+void catsync_apply_pending_before(uint32_t bound, const char* why) {
+    apply_pending_where(bound, UINT32_MAX, why);
+}
+
+void catsync_apply_pending_before_arrival(uint32_t arrival_limit, const char* why) {
+    apply_pending_where(follow_apply_bound(), arrival_limit, why);
 }
 
 void catsync_apply_pending(const char* why) {
@@ -635,7 +714,9 @@ void catsync_on_message(const CatDataMsg& m) {
     // encore gardee (celles recues pendant que le joueur rejoignait) -- sinon
     // l'ancienne, appliquee plus tard, ecraserait la nouvelle.
     if (g.pend_count) catsync_apply_pending("an older push was still held");
+    const uint32_t arrival = follow_note_arrival();
     apply_now(m, "on arrival");
+    note_applied(arrival);
 }
 
 uint32_t catsync_pending_count() {
@@ -649,6 +730,60 @@ void catsync_drop_pending() {
         log_line("CATSYNC", "dropped %u held cat push(es) from before the host's save "
                             "that just arrived", g.pend_count);
     free_pending();
+    note_applied(follow_note_arrival());   // Mewgenics Multi : la save les contient
+}
+
+uint32_t catsync_last_applied_arrival() {
+    return g.last_arrival;
+}
+
+uint32_t catsync_drop_identical(const char* why) {
+    ensure_state();
+    if (!g.on || !g.is_client || !g.pend_count) return g.pend_count;
+    RunCats rc{};
+    if (!run_cats(rc)) return g.pend_count;
+
+    // Seulement celles qui s'appliqueraient maintenant (d'avant la prochaine case
+    // a suivre), dans l'ordre : une poussee d'un chat n'est comparee que si aucune
+    // plus ancienne du meme chat n'attend encore (sinon la comparer a l'etat
+    // actuel ne dirait rien).
+    const uint32_t bound = follow_apply_bound();
+    const uint32_t n = g.pend_count;
+    uint32_t kept = 0, dropped = 0;
+    for (uint32_t i = 0; i < n; ++i) {
+        bool older_kept = false;
+        for (uint32_t k = 0; k < kept; ++k)
+            if (g.pend_id[k] == g.pend_id[i]) { older_kept = true; break; }
+        bool same = false;
+        if (g.pend_epoch[i] < bound && !older_kept) {
+            void* cat = nullptr;
+            uint8_t* bytes = nullptr;
+            uint32_t len = 0;
+            if (safe_by_id((void*)rc.registry, g.pend_id[i], &cat) && cat)
+                len = serialize_cat(cat, &bytes);
+            same = len && len == g.pend_size[i] && memcmp(bytes, g.pend_data[i], len) == 0;
+            free(bytes);
+        }
+        if (same) {
+            note_applied(g.pend_arrival[i]);
+            free(g.pend_data[i]);
+            ++dropped;
+            continue;
+        }
+        g.pend_id[kept]      = g.pend_id[i];
+        g.pend_hash[kept]    = g.pend_hash[i];
+        g.pend_data[kept]    = g.pend_data[i];
+        g.pend_size[kept]    = g.pend_size[i];
+        g.pend_epoch[kept]   = g.pend_epoch[i];
+        g.pend_arrival[kept] = g.pend_arrival[i];
+        ++kept;
+    }
+    for (uint32_t i = kept; i < n; ++i) { g.pend_data[i] = nullptr; g.pend_size[i] = 0; }
+    g.pend_count = kept;
+    if (dropped)
+        log_line("CATSYNC", "%u held cat push(es) identical to this peer's cats -- nothing to apply (%s)",
+                 dropped, why);
+    return kept;
 }
 
 } // namespace mgmp

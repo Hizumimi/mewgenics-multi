@@ -197,4 +197,16 @@ bool invsync_load_bucket(uint32_t bucket, const std::vector<uint8_t>& bytes);
 // applique chez cet invite.
 bool invsync_has_pending();
 
+// Mewgenics Multi (mm_rungear, invite) : le plus grand numero d'arrivee
+// (follow_note_arrival) des inventaires appliques ou laisses parce qu'identiques.
+uint32_t invsync_last_applied_arrival();
+// Mewgenics Multi (mm_rungear, invite) : seulement les inventaires arrives avant
+// le numero `arrival_limit` (et d'avant la prochaine case a suivre).
+void invsync_apply_pending_before_arrival(uint32_t arrival_limit, const char* why);
+// Mewgenics Multi (mm_rungear, invite) : laisse les inventaires gardes qui
+// s'appliqueraient maintenant si le plus recent est identique a celui de ce
+// joueur (sac, poubelle, pieces, nourriture, boites) -- rien a relire, meme sous un
+// ecran des objets ouvert. Vrai s'il en reste.
+bool invsync_drop_identical(const char* why);
+
 } // namespace mgmp

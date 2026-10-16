@@ -829,6 +829,19 @@ const Binding kBindings[] = {
     { T_UnitGainCoins,   nullptr, nullptr },
     { T_PickupFood,  nullptr, nullptr },
     { T_BonusFoodPassive,nullptr, nullptr },
+    // Mewgenics Multi : chacun choisit pour ses chats, detours dans
+    // src/session/mgmp_choice.cpp (choice_binding).
+    { T_LevelReroll,     nullptr, nullptr },
+    { T_AbilityInit,     nullptr, nullptr },
+    { T_AbilityPick,     nullptr, nullptr },
+    { T_AbilityUpdate,   nullptr, nullptr },
+    // Mewgenics Multi : les objets en direct, detours dans
+    // src/session/mm_rungear.cpp (rungear_binding).
+    { T_InvItemAct,      nullptr, nullptr },
+    { T_InvLearnActive,  nullptr, nullptr },
+    { T_InvLearnPassive, nullptr, nullptr },
+    { T_CatEquip,        nullptr, nullptr },
+    { T_CatUnequip,      nullptr, nullptr },
 };
 
 // Resolves the three RNG bindings, which are not static initialisers because
@@ -882,6 +895,7 @@ bool install_one(const Binding& b, bool announce_off) {
     vote_binding(b.target, &detour, &original);
     rungear_binding(b.target, &detour, &original);
     purse_binding(b.target, &detour, &original);
+    choice_binding(b.target, &detour, &original);
     if (!detour || !original) {
         log_raw("  [!] %-9s no detour bound", t.name);
         return false;

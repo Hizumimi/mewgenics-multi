@@ -104,6 +104,7 @@ struct State {
     // inventory after it arriving -- see invsync_apply_pending_before.
     struct Pend {
         uint32_t epoch = 0;
+        uint32_t arrival = 0;   // Mewgenics Multi : follow_note_arrival a son arrivee
         int32_t  coins = 0, food = 0, boxes = 0;
         uint64_t hash = 0;
         uint32_t size[kInvBuckets] = {};
@@ -112,6 +113,9 @@ struct State {
     static constexpr uint32_t kMaxPend = 4;
     Pend     pend[kMaxPend];
     uint32_t pend_count = 0;
+    // Mewgenics Multi : le plus grand numero d'arrivee des inventaires appliques
+    // ou laisses parce qu'identiques (mm_rungear).
+    uint32_t last_arrival = 0;
 
     uint32_t pushed = 0, applied = 0, skipped = 0;
     uint32_t deferred = 0, coalesced = 0;
@@ -555,7 +559,8 @@ static void free_pending() {
 static bool stash_pending(const InventoryMsg& m) {
     const uint32_t epoch = follow_epoch();
     State::Pend p;
-    p.epoch = epoch;
+    p.epoch   = epoch;
+    p.arrival = follow_note_arrival();
     for (uint32_t i = 0; i < kInvBuckets; ++i) {
         if (!m.size[i] || !m.data[i]) continue;
         uint8_t* copy = (uint8_t*)malloc(m.size[i]);
@@ -670,14 +675,16 @@ void invsync_on_message(const InventoryMsg& m) {
     ++g.deferred;
 }
 
-void invsync_apply_pending_before(uint32_t bound, const char* why) {
+static void apply_pending_where(uint32_t bound, uint32_t arrival_limit, const char* why) {
     ensure_state();
     if (!g.on || !g.pend_count) return;
 
     // Whole state, not a delta: of everything that arrived before the
-    // ENTERNODE of rank `bound`, only the newest matters.
+    // ENTERNODE of rank `bound`, only the newest matters. Mewgenics Multi : et
+    // avant le numero d'arrivee `arrival_limit` (les deux bornes prennent un debut
+    // de la file, qui est dans l'ordre d'arrivee).
     uint32_t n = 0;
-    while (n < g.pend_count && g.pend[n].epoch < bound) ++n;
+    while (n < g.pend_count && g.pend[n].epoch < bound && g.pend[n].arrival < arrival_limit) ++n;
     if (!n) return;
     State::Pend& p = g.pend[n - 1];
     InventoryMsg m{};
@@ -690,6 +697,7 @@ void invsync_apply_pending_before(uint32_t bound, const char* why) {
         m.data[i] = p.data[i];
     }
     apply_now(m, why);
+    if (p.arrival > g.last_arrival) g.last_arrival = p.arrival;   // Mewgenics Multi
     if (n > 1) g.coalesced += n - 1;
     for (uint32_t k = 0; k < n; ++k) free_one(g.pend[k]);   // m borrowed p's buffers; m is dead here
     for (uint32_t k = n; k < g.pend_count; ++k) {
@@ -700,6 +708,14 @@ void invsync_apply_pending_before(uint32_t bound, const char* why) {
     if (g.pend_count)
         log_line("INVSYNC", "%u inventor%s from after the next node stay%s held (%s)", g.pend_count,
                  g.pend_count > 1 ? "ies" : "y", g.pend_count > 1 ? "" : "s", why);
+}
+
+void invsync_apply_pending_before(uint32_t bound, const char* why) {
+    apply_pending_where(bound, UINT32_MAX, why);
+}
+
+void invsync_apply_pending_before_arrival(uint32_t arrival_limit, const char* why) {
+    apply_pending_where(follow_apply_bound(), arrival_limit, why);
 }
 
 void invsync_apply_pending(const char* why) {
@@ -773,6 +789,56 @@ void invsync_drop_pending() {
         log_line("INVSYNC", "dropped a held inventory from before the host's save "
                             "that just arrived");
     free_pending();
+    const uint32_t a = follow_note_arrival();   // Mewgenics Multi : la save les contient
+    if (a > g.last_arrival) g.last_arrival = a;
+}
+
+uint32_t invsync_last_applied_arrival() {
+    return g.last_arrival;
+}
+
+bool invsync_drop_identical(const char* why) {
+    ensure_state();
+    if (!g.on || !g.is_client || !g.pend_count) return g.pend_count != 0;
+    if (!g.resolved || !hooks_is_live(T_SFStoreBlob) || !hooks_is_live(T_SFLoadBlob)) return true;
+    const uint32_t bound = follow_apply_bound();
+    uint32_t n = 0;
+    while (n < g.pend_count && g.pend[n].epoch < bound) ++n;
+    if (!n) return true;
+    const State::Pend& p = g.pend[n - 1];          // le plus recent : c'est lui qui s'appliquerait
+
+    RunInv ri{};
+    if (!run_inv(ri)) return true;
+    int32_t coins = 0, food = 0, boxes = 0;
+    if (!mem_read((uint8_t*)ri.inventory + kInv_Coins, &coins, sizeof(coins)) ||
+        !mem_read((uint8_t*)ri.inventory + kInv_Food,  &food,  sizeof(food))  ||
+        !mem_read((uint8_t*)ri.inventory + kInv_Boxes, &boxes, sizeof(boxes)))
+        return true;
+    if (coins != p.coins || food != p.food || boxes != p.boxes) return true;
+    // Le sac et la poubelle. Pas le rangement : celui de la copie d'un invite est
+    // le sien depuis le depart (mm_gear), il differe toujours de celui de l'hote
+    // et ne sert a rien pendant l'aventure.
+    static const uint32_t kCompared[] = { 0, 2 };
+    for (uint32_t i : kCompared) {
+        uint8_t* buf = nullptr;
+        uint32_t len = 0;
+        if (!serialize_bucket(ri.savefile, (uint8_t*)ri.inventory + kBuckets[i].off, kBuckets[i].key,
+                              &buf, &len))
+            return true;
+        const bool same = len == p.size[i] && (len == 0 || memcmp(buf, p.data[i], len) == 0);
+        free(buf);
+        if (!same) return true;
+    }
+    if (p.arrival > g.last_arrival) g.last_arrival = p.arrival;
+    for (uint32_t k = 0; k < n; ++k) free_one(g.pend[k]);
+    for (uint32_t k = n; k < g.pend_count; ++k) {
+        g.pend[k - n] = g.pend[k];
+        for (uint32_t i = 0; i < kInvBuckets; ++i) { g.pend[k].data[i] = nullptr; g.pend[k].size[i] = 0; }
+    }
+    g.pend_count -= n;
+    log_line("INVSYNC", "held inventory identical to this peer's (backpack, trash, coins, food) -- "
+                        "nothing to apply (%s)", why);
+    return g.pend_count != 0;
 }
 
 } // namespace mgmp

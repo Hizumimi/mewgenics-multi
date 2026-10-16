@@ -105,6 +105,12 @@ uint32_t follow_epoch();
 // UINT32_MAX s'il n'y en a pas (tout s'applique).
 uint32_t follow_apply_bound();
 
+// Mewgenics Multi (invite) : un numero d'arrivee, commun a toutes les poussees de
+// l'hote (mgmp_catsync, mgmp_invsync) et aux operations d'objets (mm_rungear) --
+// +1 a chaque appel. Une poussee appliquee contient tout ce que l'hote avait fait
+// avant de l'envoyer : une operation arrivee avant elle est deja dedans.
+uint32_t follow_note_arrival();
+
 // Mewgenics Multi : ce joueur joue une case en ce moment (l'hote : celle ou il
 // est entre ; l'invite : celle ou il a suivi), de son EnterNode a la premiere
 // image de carte apres sa fin de case. Plus large que !follow_on_map : la carte

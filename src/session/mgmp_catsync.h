@@ -112,6 +112,17 @@ void catsync_drop_pending();
 // appliques chez cet invite.
 uint32_t catsync_pending_count();
 
+// Mewgenics Multi (mm_rungear, invite) : le plus grand numero d'arrivee
+// (follow_note_arrival) des poussees appliquees ou laissees parce qu'identiques.
+uint32_t catsync_last_applied_arrival();
+// Mewgenics Multi (mm_rungear, invite) : seulement les poussees arrivees avant le
+// numero `arrival_limit` (et d'avant la prochaine case a suivre).
+void catsync_apply_pending_before_arrival(uint32_t arrival_limit, const char* why);
+// Mewgenics Multi (mm_rungear, invite) : laisse les poussees gardees qui
+// s'appliqueraient maintenant et qui sont identiques au chat de ce joueur (rien a
+// relire, meme sous un ecran des objets ouvert). Renvoie celles qui restent.
+uint32_t catsync_drop_identical(const char* why);
+
 // Mewgenics Multi (equipe mixte). Le chat du registre du jeu a cette cle de save
 // (CatData*, charge depuis la table cats s'il ne l'est pas encore ; nul s'il
 // n'existe pas), et ses octets tels que SerializeCatData les ecrit -- ceux de la

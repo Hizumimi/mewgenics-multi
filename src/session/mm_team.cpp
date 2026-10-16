@@ -1464,7 +1464,11 @@ void team_on_message(uint8_t from, const SaveFileMsg& m) {
         case kTeamGear:
         case kTeamGearAck: gear_on_team(from, m.data, m.size); break;
         case kTeamRunGear:
-        case kTeamRunGearAck: rungear_on_team(from, m.data, m.size); break;
+        case kTeamRunGearAck:
+        case kTeamItemOp:
+        case kTeamItemAck:
+        case kTeamItemSync:
+        case kTeamItemSyncReq: rungear_on_team(from, m.data, m.size); break;
         default:
             log_line("TEAM", "!! message d'equipe inconnu (%u octets) -- ignore", m.size);
             break;

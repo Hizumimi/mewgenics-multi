@@ -2367,6 +2367,24 @@ bool mm_guest_in_run() {
 
 std::string mm_peer_name(uint8_t id) { return peer_name(id); }
 
+bool mm_panel_set_text(void* panel, const char* child, const std::string& text_utf8) {
+    if (!panel || !child || strlen(child) > 15) return false;
+    auto find = call_target<FnFindChild>(C_SwfFindChild);
+    auto set  = call_target<FnSetText>(C_SwfSetText);
+    if (!find || !set) return false;
+    void* clip = nullptr;
+    if (!mem_read((char*)panel + kPanel_Clip, &clip, sizeof(clip)) || !clip) return false;
+    // Ce que fait MenuPanel::set_text (0x14097C6F0) : le champ du clip a ce nom,
+    // puis le texte passe par valeur (le jeu le copie et libere ce tampon).
+    GameString n = small_string(child);
+    void* field = find(clip, &n);
+    if (!field) return false;
+    GameWString tmp;
+    if (!make_game_wstring(tmp, utf8_to_wide(text_utf8.c_str()))) return false;
+    set(field, &tmp, false, true);
+    return true;
+}
+
 int mm_sign_click_kind() { return g_sign_click_at == g_frame ? g_sign_click : 0; }
 
 void mm_depart_called_off() {

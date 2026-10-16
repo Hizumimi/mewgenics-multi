@@ -410,12 +410,148 @@ bool team_rungear_ack_decode(const uint8_t* p, size_t n, RunGearAck& a) {
     return true;
 }
 
+// --- les objets en direct (protocole 44) ---------------------------------------
+
+namespace {
+
+void put_head(std::vector<uint8_t>& b, uint8_t kind) {
+    put<uint32_t>(b, kTeamMagic);
+    put<uint8_t>(b, kTeamFormat);
+    put<uint8_t>(b, kind);
+}
+
+bool get_head(Reader& r, uint8_t kind) {
+    return r.get<uint32_t>() == kTeamMagic && r.get<uint8_t>() == kTeamFormat && r.get<uint8_t>() == kind && r.ok;
+}
+
+constexpr size_t kMaxItemName = 63;
+
+void fnv_bytes(uint64_t& h, const void* p, size_t n) {
+    const uint8_t* b = (const uint8_t*)p;
+    for (size_t i = 0; i < n; ++i) { h ^= b[i]; h *= 0x100000001B3ull; }
+}
+
+} // namespace
+
+std::vector<uint8_t> team_item_op_encode(const ItemOp& m) {
+    std::vector<uint8_t> b;
+    put_head(b, kTeamItemOp);
+    put<uint32_t>(b, m.seq);
+    put<uint8_t>(b, m.origin);
+    put<uint8_t>(b, m.op);
+    put<uint8_t>(b, m.slot);
+    put<uint64_t>(b, m.cat_key);
+    put<uint64_t>(b, m.cat_id);
+    put<uint64_t>(b, m.item);
+    put<uint64_t>(b, m.prev);
+    const size_t nl = std::min(m.name.size(), kMaxItemName);
+    put<uint8_t>(b, (uint8_t)nl);
+    b.insert(b.end(), m.name.begin(), m.name.begin() + nl);
+    put_blob(b, m.cat);
+    return b;
+}
+
+bool team_item_op_decode(const uint8_t* p, size_t n, ItemOp& m) {
+    if (!p) return false;
+    Reader r{p, n};
+    if (!get_head(r, kTeamItemOp)) return false;
+    ItemOp out;
+    out.seq     = r.get<uint32_t>();
+    out.origin  = r.get<uint8_t>();
+    out.op      = r.get<uint8_t>();
+    out.slot    = r.get<uint8_t>();
+    out.cat_key = r.get<uint64_t>();
+    out.cat_id  = r.get<uint64_t>();
+    out.item    = r.get<uint64_t>();
+    out.prev    = r.get<uint64_t>();
+    const uint8_t nl = r.get<uint8_t>();
+    if (!r.ok || nl > kMaxItemName || !r.need(nl)) return false;
+    out.name.assign((const char*)p + r.pos, nl);
+    r.pos += nl;
+    const uint32_t cn = r.get<uint32_t>();
+    if (!r.ok || cn > kMaxCatBytes || !r.need(cn)) return false;
+    out.cat.assign(p + r.pos, p + r.pos + cn);
+    r.pos += cn;
+    if (!r.ok || r.pos != n) return false;
+    if (out.op < kItemEquip || out.op > kItemLearn || out.slot >= kItemSlots || !out.cat_key) return false;
+    if (out.op != kItemLearn && (!out.item || !out.cat.empty())) return false;
+    if (out.op == kItemLearn && out.cat.empty()) return false;
+    m = std::move(out);
+    return true;
+}
+
+std::vector<uint8_t> team_item_ack_encode(const ItemAck& a) {
+    std::vector<uint8_t> b;
+    put_head(b, kTeamItemAck);
+    put<uint32_t>(b, a.seq);
+    put<uint8_t>(b, a.result);
+    return b;
+}
+
+bool team_item_ack_decode(const uint8_t* p, size_t n, ItemAck& a) {
+    if (!p) return false;
+    Reader r{p, n};
+    if (!get_head(r, kTeamItemAck)) return false;
+    ItemAck out;
+    out.seq    = r.get<uint32_t>();
+    out.result = r.get<uint8_t>();
+    if (!r.ok || r.pos != n || out.result < kItemOk || out.result > kItemNode) return false;
+    a = out;
+    return true;
+}
+
+std::vector<uint8_t> team_item_sync_req_encode(uint32_t seq) {
+    std::vector<uint8_t> b;
+    put_head(b, kTeamItemSyncReq);
+    put<uint32_t>(b, seq);
+    return b;
+}
+
+bool team_item_sync_req_decode(const uint8_t* p, size_t n, uint32_t& seq) {
+    if (!p) return false;
+    Reader r{p, n};
+    if (!get_head(r, kTeamItemSyncReq)) return false;
+    const uint32_t s = r.get<uint32_t>();
+    if (!r.ok || r.pos != n) return false;
+    seq = s;
+    return true;
+}
+
+std::vector<uint8_t> team_item_sync_encode(const RunGearMsg& m) {
+    std::vector<uint8_t> b = team_rungear_encode(m);
+    if (b.size() > 5) b[5] = kTeamItemSync;     // le meme corps, sous un autre genre
+    return b;
+}
+
+bool team_item_sync_decode(const uint8_t* p, size_t n, RunGearMsg& m) {
+    if (!p || n < 6 || p[5] != kTeamItemSync) return false;
+    std::vector<uint8_t> b(p, p + n);
+    b[5] = kTeamRunGear;
+    return team_rungear_decode(b.data(), b.size(), m);
+}
+
+uint64_t item_digest(const ItemFields& it) {
+    uint64_t h = 0xCBF29CE484222325ull;
+    const uint8_t zero = 0;
+    fnv_bytes(h, it.name.data(), it.name.size());
+    fnv_bytes(h, &zero, 1);
+    fnv_bytes(h, it.text.data(), it.text.size());
+    fnv_bytes(h, &zero, 1);
+    const uint32_t ints[5] = { it.a, it.b, it.c, it.d, it.f };
+    for (uint32_t v : ints) {
+        const uint8_t le[4] = { (uint8_t)v, (uint8_t)(v >> 8), (uint8_t)(v >> 16), (uint8_t)(v >> 24) };
+        fnv_bytes(h, le, 4);
+    }
+    fnv_bytes(h, &it.e, 1);
+    return h ? h : 1;
+}
+
 uint8_t team_kind(const uint8_t* p, size_t n) {
     if (!p) return 0;
     Reader r{p, n};
     if (r.get<uint32_t>() != kTeamMagic || r.get<uint8_t>() != kTeamFormat) return 0;
     const uint8_t kind = r.get<uint8_t>();
-    if (!r.ok || kind < kTeamDepart || kind > kTeamRunGearAck) return 0;
+    if (!r.ok || kind < kTeamDepart || kind > kTeamItemSyncReq) return 0;
     return kind;
 }
 

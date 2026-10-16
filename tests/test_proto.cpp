@@ -345,7 +345,32 @@ int main() {
         // and a held one surfaces on a later node's screen -- measured live on
         // 2026-08-25, where node 6's pick landed on node 3 and corrupted a run.
         check(o.node_seed == 0x99AF76329BA60F33ull, "the node seed survives");
+        check(o.flags == 0 && o.cat_id == 0 && o.serial == 0, "flags, cat and screen number default to zero");
         check(r.pos == r.len, "consumed exactly the frame");
+    }
+    {
+        // Mewgenics Multi 44 : chacun choisit pour ses chats -- la demande d'un
+        // invite porte un drapeau et le chat ; la relance et la capacite d'un
+        // AbilityChooser sont deux genres de plus.
+        ChoiceMsg m{};
+        m.kind = kChoiceAbility; m.index = (uint32_t)-1; m.count = 0;
+        m.flags = kChoiceFlagRequest; m.cat_id = 0x0102030405060708ull; m.serial = 0x0A0B0C0Du;
+        strcpy_s(m.name, "-1");
+        uint32_t n = enc_choice(buf, sizeof(buf), m);
+        Reader r(buf, n); r.u8v();
+        ChoiceMsg o{};
+        check(dec_choice(r, o), "a request decodes");
+        check(o.kind == kChoiceAbility && (int32_t)o.index == -1, "an ability choice of -1 (cancel) survives");
+        check(o.flags == kChoiceFlagRequest, "the request flag survives");
+        check(o.cat_id == 0x0102030405060708ull, "the cat survives");
+        check(o.serial == 0x0A0B0C0Du, "the screen number survives");
+        check(r.pos == r.len, "consumed exactly the frame");
+        ChoiceMsg rr{}; rr.kind = kChoiceReroll; rr.count = 4; rr.cat_id = 9;
+        n = enc_choice(buf, sizeof(buf), rr);
+        Reader r2(buf, n); r2.u8v();
+        ChoiceMsg o2{};
+        check(dec_choice(r2, o2) && o2.kind == kChoiceReroll && o2.count == 4 && o2.cat_id == 9,
+              "a reroll round-trips");
     }
     {
         // An event choice carries the stat key rather than a type, and kind 0

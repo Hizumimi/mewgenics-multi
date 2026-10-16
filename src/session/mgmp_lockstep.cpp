@@ -2267,7 +2267,7 @@ void lockstep_pump() {
             // node, not to a battle, and the epoch counter does not advance on
             // an event node at all.
             case MSG_CHOICE:
-                choice_on_message(m.choice);
+                choice_on_message(m.from, m.choice);
                 break;
 
             case MSG_SAVEFILE:

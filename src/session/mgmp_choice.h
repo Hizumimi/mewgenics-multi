@@ -108,11 +108,68 @@
 // meta layer now needs the same and does not have it. Until it does, the
 // existing per-node CATDATA/INVENTORY pushes will paper over a divergence
 // rather than report it.
+//
+// ---------------------------------------------------------------------------
+// MEWGENICS MULTI : CHACUN CHOISIT POUR SES CHATS (protocole 44)
+// ---------------------------------------------------------------------------
+//
+// AVANT. L'hote choisissait toutes les montees de niveau, chats d'invites
+// compris ; les clics des invites etaient retenus. La relance des options
+// (LevelUpScreen::Reroll) et le choix de la capacite a remplacer (AbilityChooser,
+// ouvert par la montee de niveau, par un evenement ou par un livre d'objet)
+// n'etaient pas repliques du tout : l'hote relancait seul, puis son choix tombait
+// sur une liste plus courte chez l'invite ; chacun choisissait sa capacite.
+//
+// MAINTENANT, en aventure mixte (team_owners_active) :
+//   - Trois decisions sont celles du proprietaire du chat (LevelUpScreen+0xA0 ;
+//     pour un AbilityChooser, le chat donne a son init) : le choix d'une option de
+//     montee de niveau, la relance, et la capacite choisie (ou l'annulation) dans
+//     un AbilityChooser de montee de niveau ou d'evenement. L'hote decide pour ses
+//     chats, pour une recrue, et pour un chat dont le proprietaire n'est pas dans
+//     l'aventure. Les evenements restent a l'hote.
+//   - Chez celui qui ne decide pas, le clic est retenu, et le titre de l'ecran
+//     (« title » du panneau, ou « prompt » de l'AbilityChooser) dit qui choisit.
+//   - Un invite proprietaire ne joue pas son clic : il le demande a l'hote
+//     (ChoiceMsg, kChoiceFlagRequest, avec le chat), qui verifie que le chat est a
+//     lui, attend son propre ecran pour ce chat, y rejoue le choix par le chemin du
+//     jeu, puis le publie a tous comme un des siens -- le demandeur l'applique
+//     alors comme les autres.
+//   - Chez un invite, les choix publies forment une FILE, appliquee dans l'ordre :
+//     la tete seule, sur l'ecran de son genre (evenement, montee de niveau,
+//     AbilityChooser), quand c'est le bon (meme case, meme chat, ecran pas deja
+//     engage). Une tete qui ne va jamais sur l'ecran la (60 s) est laissee.
+//   - Un AbilityChooser ouvert par un livre de l'ecran des objets reste local :
+//     seul son proprietaire l'a (mm_rungear envoie ce qu'il change).
+//   - JAMAIS SUR L'ECRAN D'APRES. Un chat peut monter de deux niveaux de suite : une
+//     demande faite sur le premier ecran, arrivee chez l'hote apres qu'il l'a
+//     decide, attendrait le second et s'y jouerait. D'ou : (a) un clic sur un
+//     ecran deja engage (+0x318) ne publie ni ne demande rien ; (b) chez
+//     l'invite, une demande sans reponse retient les clics suivants du meme genre
+//     sur le meme ecran (3 s au plus), et une relance derriere une option ; (c)
+//     chez l'hote, une option prise laisse les autres demandes d'option et de
+//     relance de ce chat, une capacite prise les autres demandes de capacite ;
+//     (d) une relance porte l'empreinte de son ecran (le nom de sa premiere
+//     option, que les relances ne changent pas) ; (e) une demande de capacite
+//     pour un AbilityChooser de montee de niveau qui n'est pas ouvert chez l'hote
+//     (le sien s'ouvre toujours avant celui de l'invite) est laissee.
+//   - Chez l'hote, l'option demandee juste apres une relance demandee (la liste a
+//     grandi entre les deux) est prise si son nom et son type sont a leur place,
+//     et publiee avec la liste de l'hote.
+//   - Un choix d'evenement ne se joue pas sur la liste ou le precedent vient de
+//     l'etre (2 s au plus) : l'etape suivante n'est peut-etre pas encore batie.
+//   - Le delai de 60 s d'une tete de file court aussi quand elle retient un choix
+//     pour l'ecran qui est la (plus loin dans la file) ; en quittant une case, les
+//     choix de cette case qui attendent encore sont laisses.
 #include <cstdint>
 
 namespace mgmp {
 
+enum Target : int;
 struct ChoiceMsg;
+
+// Mewgenics Multi : detours et originaux de T_LevelReroll, T_AbilityInit,
+// T_AbilityPick et T_AbilityUpdate.
+bool choice_binding(Target t, void** detour, void*** original);
 
 void choice_set_base(uintptr_t base);
 void choice_init();
@@ -129,7 +186,8 @@ bool choice_on_level_select(void* screen, void* opt);
 void choice_on_event_update(void* world_event);
 void choice_on_level_update(void* level_screen);
 
-void choice_on_message(const ChoiceMsg& m);
+// `from` : l'expediteur (l'hote recoit les demandes des invites).
+void choice_on_message(uint8_t from, const ChoiceMsg& m);
 
 // This peer has ENTERED the node with this seed. Called by mgmp_follow from
 // remember_node, on both peers, whenever the node actually changes.

@@ -414,6 +414,99 @@ void test_rungear() {
     CHECK(!mgmp::team_gear_decode(w.data(), w.size(), g));
 }
 
+void test_item_ops() {
+    std::printf("objets en direct : mouvements, reponses, etat, empreintes\n");
+    mgmp::ItemOp m;
+    m.seq = 7; m.origin = 2; m.op = mgmp::kItemEquip; m.slot = 3;
+    m.cat_key = 46; m.cat_id = 0x1122334455667788ull; m.item = 0xABCDEF0123456789ull; m.prev = 0;
+    m.name = "tk_GlowingCoin";
+    const Bytes w = mgmp::team_item_op_encode(m);
+    CHECK(mgmp::team_kind(w.data(), w.size()) == mgmp::kTeamItemOp);
+    mgmp::ItemOp back;
+    CHECK(mgmp::team_item_op_decode(w.data(), w.size(), back));
+    CHECK(back.seq == 7 && back.origin == 2 && back.op == mgmp::kItemEquip && back.slot == 3);
+    CHECK(back.cat_key == 46 && back.cat_id == m.cat_id && back.item == m.item && back.prev == 0);
+    CHECK(back.name == "tk_GlowingCoin" && back.cat.empty());
+    CHECK(!mgmp::team_item_op_decode(w.data(), w.size() - 1, back));
+    Bytes more = w; more.push_back(0);
+    CHECK(!mgmp::team_item_op_decode(more.data(), more.size(), back));
+    // Rendre au sac : l'emplacement et l'empreinte.
+    mgmp::ItemOp u = m; u.op = mgmp::kItemUnequip; u.slot = 4;
+    const Bytes uw = mgmp::team_item_op_encode(u);
+    CHECK(mgmp::team_item_op_decode(uw.data(), uw.size(), back) && back.op == mgmp::kItemUnequip && back.slot == 4);
+    // Un livre : le chat apres, l'empreinte du livre (0 : aucun).
+    mgmp::ItemOp l = m; l.op = mgmp::kItemLearn; l.item = 0; l.cat = cat(0xB1, "Garry", 0x3);
+    const Bytes lw = mgmp::team_item_op_encode(l);
+    CHECK(mgmp::team_item_op_decode(lw.data(), lw.size(), back) && back.op == mgmp::kItemLearn && back.cat == l.cat &&
+          back.item == 0);
+    // Refuses : un livre sans chat, un mouvement d'objet sans empreinte ou avec un
+    // chat, un emplacement hors des cinq, une cle nulle, un genre inconnu.
+    mgmp::ItemOp bad = l; bad.cat.clear();
+    Bytes bw = mgmp::team_item_op_encode(bad);
+    CHECK(!mgmp::team_item_op_decode(bw.data(), bw.size(), back));
+    bad = m; bad.item = 0; bw = mgmp::team_item_op_encode(bad);
+    CHECK(!mgmp::team_item_op_decode(bw.data(), bw.size(), back));
+    bad = m; bad.cat = l.cat; bw = mgmp::team_item_op_encode(bad);
+    CHECK(!mgmp::team_item_op_decode(bw.data(), bw.size(), back));
+    bad = m; bad.slot = 5; bw = mgmp::team_item_op_encode(bad);
+    CHECK(!mgmp::team_item_op_decode(bw.data(), bw.size(), back));
+    bad = m; bad.cat_key = 0; bw = mgmp::team_item_op_encode(bad);
+    CHECK(!mgmp::team_item_op_decode(bw.data(), bw.size(), back));
+    bad = m; bad.op = 4; bw = mgmp::team_item_op_encode(bad);
+    CHECK(!mgmp::team_item_op_decode(bw.data(), bw.size(), back));
+    // Un nom trop long est coupe a 63 octets, et se relit.
+    mgmp::ItemOp longname = m; longname.name = std::string(100, 'x');
+    const Bytes nw = mgmp::team_item_op_encode(longname);
+    CHECK(mgmp::team_item_op_decode(nw.data(), nw.size(), back) && back.name.size() == 63);
+
+    mgmp::ItemAck a; a.seq = 9; a.result = mgmp::kItemConflict;
+    const Bytes aw = mgmp::team_item_ack_encode(a);
+    CHECK(mgmp::team_kind(aw.data(), aw.size()) == mgmp::kTeamItemAck);
+    mgmp::ItemAck ab;
+    CHECK(mgmp::team_item_ack_decode(aw.data(), aw.size(), ab) && ab.seq == 9 && ab.result == mgmp::kItemConflict);
+    a.result = 0;
+    Bytes zw = mgmp::team_item_ack_encode(a);
+    CHECK(!mgmp::team_item_ack_decode(zw.data(), zw.size(), ab));
+    a.result = mgmp::kItemNode + 1;
+    zw = mgmp::team_item_ack_encode(a);
+    CHECK(!mgmp::team_item_ack_decode(zw.data(), zw.size(), ab));
+
+    const Bytes rw = mgmp::team_item_sync_req_encode(12);
+    CHECK(mgmp::team_kind(rw.data(), rw.size()) == mgmp::kTeamItemSyncReq);
+    uint32_t seq = 0;
+    CHECK(mgmp::team_item_sync_req_decode(rw.data(), rw.size(), seq) && seq == 12);
+    CHECK(!mgmp::team_item_sync_req_decode(rw.data(), rw.size() - 1, seq));
+
+    mgmp::RunGearMsg st;
+    st.seq = 12; st.base = 40;
+    st.backpack = {2, 0, 0, 0, 9, 9}; st.trash = {0, 0, 0, 0};
+    mgmp::GearCat c; c.key = 46; c.data = cat(0xB1, "Garry", 0x3); st.cats.push_back(c);
+    const Bytes sw = mgmp::team_item_sync_encode(st);
+    CHECK(mgmp::team_kind(sw.data(), sw.size()) == mgmp::kTeamItemSync);
+    mgmp::RunGearMsg sb;
+    CHECK(mgmp::team_item_sync_decode(sw.data(), sw.size(), sb));
+    CHECK(sb.seq == 12 && sb.base == 40 && sb.backpack == st.backpack && sb.trash == st.trash &&
+          sb.cats.size() == 1 && sb.cats[0].key == 46 && sb.cats[0].data == c.data);
+    // Les decodeurs ne se melangent pas.
+    CHECK(!mgmp::team_rungear_decode(sw.data(), sw.size(), sb));
+    CHECK(!mgmp::team_item_sync_decode(w.data(), w.size(), sb));
+    CHECK(!mgmp::team_item_op_decode(aw.data(), aw.size(), back));
+    CHECK(!mgmp::team_item_ack_decode(w.data(), w.size(), ab));
+
+    // L'empreinte : les memes champs, la meme ; un champ change, une autre ;
+    // jamais 0 ; le nom et le texte ne se confondent pas.
+    mgmp::ItemFields f1; f1.name = "tk_GlowingCoin"; f1.text = ""; f1.a = 1; f1.b = 2; f1.c = 3; f1.d = 4; f1.e = 5; f1.f = 6;
+    mgmp::ItemFields f2 = f1;
+    CHECK(mgmp::item_digest(f1) == mgmp::item_digest(f2) && mgmp::item_digest(f1) != 0);
+    f2.d = 9; CHECK(mgmp::item_digest(f1) != mgmp::item_digest(f2));
+    f2 = f1; f2.e = 0; CHECK(mgmp::item_digest(f1) != mgmp::item_digest(f2));
+    f2 = f1; f2.f = 0; CHECK(mgmp::item_digest(f1) != mgmp::item_digest(f2));
+    mgmp::ItemFields n1; n1.name = "ab"; n1.text = "c";
+    mgmp::ItemFields n2; n2.name = "a";  n2.text = "bc";
+    CHECK(mgmp::item_digest(n1) != mgmp::item_digest(n2));
+    mgmp::ItemFields e1; CHECK(mgmp::item_digest(e1) != 0);
+}
+
 void test_plan_keys() {
     std::printf("cles des chats de l'invite chez l'hote\n");
     sqlite3* h = new_save();
@@ -719,6 +812,7 @@ int main() {
     test_embark();
     test_gear();
     test_rungear();
+    test_item_ops();
     test_plan_keys();
     test_guest_apply();
     test_storage();

@@ -107,6 +107,17 @@ enum Target : int {
     T_UnitGainCoins,     // sub_140114E30 -- Unit::GainCoins(Character*, int) : les pieces ramassees en combat
     T_PickupFood,        // sub_1402A12B0 -- HealthPickup (vtable slot 170) : soigne, ou garde de la nourriture
     T_BonusFoodPassive,  // 0x14033D4B0   -- passif BonusFoodEachBattle : nourriture a chaque combat
+    // --- Mewgenics Multi : chacun choisit pour ses chats (src/session/mgmp_choice.cpp) --
+    T_LevelReroll,       // sub_140383FE0 -- LevelUpScreen::Reroll : la relance des options
+    T_AbilityInit,       // sub_140052B50 -- AbilityChooser::init(Scene*, CatData*, Mode, ...)
+    T_AbilityPick,       // sub_140053D70 -- AbilityChooser : le choix d'une capacite (ou -1, annuler)
+    T_AbilityUpdate,     // sub_140053D30 -- AbilityChooser::update (vtable slot 10)
+    // --- Mewgenics Multi : les objets en direct (src/session/mm_rungear.cpp) --
+    T_InvItemAct,        // sub_14034F0A0 -- l'action d'un clic d'objet (lambda_1 d'InventoryItemBox::click)
+    T_InvLearnActive,    // sub_140352520 -- un livre de capacite : celle a remplacer choisie
+    T_InvLearnPassive,   // sub_140352430 -- un livre de passif : celui a remplacer choisi
+    T_CatEquip,          // sub_1400CA2E0 -- CatData : equiper un objet du sac
+    T_CatUnequip,        // sub_1400CA510 -- CatData : rendre un objet porte au sac
     T_COUNT
 };
 
@@ -648,6 +659,44 @@ static const TargetDesc kTargets[T_COUNT] = {
     { 0x00114E30, "UNITCOINS", "Unit::GainCoins (sub_140114E30)" },
     { 0x002A12B0, "EATFOOD",   "HealthPickup food (sub_1402A12B0)" },
     { 0x0033D4B0, "BONUSFOOD", "BonusFoodEachBattle passive (0x14033D4B0)" },
+    // La relance de la montee de niveau : LevelUpScreen+0xE4 relances restantes
+    // (rien a 0), +1 en moins, quatre options de plus au bout du tableau
+    // (+0x360/+0x368, pas de 240), tirees du xoshiro du chat comme les premieres,
+    // et quatre boutons qui les choisissent (lambda_1 de Reroll). Mewgenics Multi :
+    // seul le proprietaire du chat (+0xA0) relance ; rejouee chez tous (mgmp_choice).
+    { 0x00383FE0, "LVLREROLL", "LevelUpScreen::Reroll (sub_140383FE0)" },
+    // Le choix d'une capacite (laquelle oublier) : AbilityChooser::init(this,
+    // Scene*, CatData* r8, Mode r9, ...) -- le rappel std::function<void(int)> a
+    // +0x50 (son _Impl a +0x88). Ouvert par la montee de niveau (0x140386610,
+    // 0x140386900, 0x140386BF0), par un evenement (0x140939CD0, 0x140939FD0) et
+    // par un livre d'objet (0x140350550, 0x140350800, 0x140350AB0). Le choix
+    // (0x140053D70, this + entier : la capacite, 100 + le passif, -1 annuler) le
+    // garde a +0x48 et lance la fermeture, qui appelle le rappel ; son update
+    // (slot 10) choisit -1 sur la touche retour. Mewgenics Multi : le proprietaire
+    // du chat choisit (montee de niveau, evenement), rejoue chez tous.
+    { 0x00052B50, "ABLINIT",   "AbilityChooser::init (sub_140052B50)" },
+    { 0x00053D70, "ABLPICK",   "AbilityChooser pick (sub_140053D70)" },
+    { 0x00053D30, "ABLUPD",    "AbilityChooser::update (sub_140053D30, vtable slot 10)" },
+    // Les objets : le corps du lambda_1 d'InventoryItemBox::click (capture {boite}),
+    // apres les confirmations du jeu. Boite+0x38 l'ecran, +0x58 l'id de l'objet.
+    // Porte par un chat : CatData equip/unequip ; sinon sur le chat montre
+    // (ecran+0x108) : un livre (genre 5) apprend sa capacite (Equipment+0x28) ou
+    // ouvre un AbilityChooser, puis disparait du sac (0x14034FC70) ; un objet
+    // s'equipe (0x1400CA2E0). Les deux rappels des livres (lambda_1/_2/_3 du
+    // lambda_1, capture {_, boite, chat, objet}) remplacent la capacite choisie
+    // puis retirent le livre. Mewgenics Multi : chaque mouvement part chez les
+    // autres, joue chez eux avec les memes fonctions (mm_rungear).
+    { 0x0034F0A0, "INVACT",    "InventoryItemBox click action (lambda_1 body, sub_14034F0A0)" },
+    { 0x00352520, "INVLEARNA", "item book: active ability replaced (sub_140352520)" },
+    { 0x00352430, "INVLEARNP", "item book: passive replaced (sub_140352430)" },
+    // CatData+0x9B0 : cinq emplacements d'objet de 0x60 octets (l'Equipment
+    // recopie, id compris) ; un id -1 ou un nom vide : vide. Equiper (chat, objet,
+    // Loc, 0) recopie l'objet dans l'emplacement de son genre, le retire du sac et
+    // du rangement par son id (0x1402E24D0) et remet l'ancien au sac (Loc) ;
+    // rendre (chat, objet, Loc, 0) fait l'inverse. Les ids survivent : les boites
+    // de l'ecran des objets (cle = id) suivent l'objet.
+    { 0x000CA2E0, "CATEQUIP",  "CatData equip item (sub_1400CA2E0)" },
+    { 0x000CA510, "CATUNEQUIP","CatData unequip item (sub_1400CA510)" },
 };
 
 // Coarse module guard, checked before the per-target signatures.
@@ -745,6 +794,9 @@ enum Call : int {
     // --- Mewgenics Multi : le choix des colliers (src/session/mm_collars.cpp) --
     C_ClassTagClick,         // void(ClassTagBox*) -- sub_1401405A0
     C_CatSelectorSelect,     // void(CatSelector*, u64 cle) -- sub_1400E18B0
+
+    // --- Mewgenics Multi : les objets en direct (src/session/mm_rungear.cpp) --
+    C_BucketErase,           // u32(bloc*, Equipment*) -- retire l'objet de cet id -- sub_1402E24D0
     C_COUNT
 };
 
@@ -1034,6 +1086,9 @@ static const CallDesc kCalls[C_COUNT] = {
     // +0x78 recale sur le rang de la cle dans MewDirector+1472, la fiche du
     // chat a l'ecran (0x1400E1A00).
     { 0x000E18B0, "CatSelector::select(u64 key)" },
+    // Retire du bloc l'objet de cet id (std::unordered_map<u64, Equipment> : le
+    // noeud est libere). Ce que fait le jeu quand un livre est lu (0x14034FC70).
+    { 0x002E24D0, "Inventory bucket erase by id (sub_1402E24D0)" },
 };
 
 // sub_140138A10 IS NOT A DRAW ROUTINE, and it is in the table above only

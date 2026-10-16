@@ -111,6 +111,11 @@ bool     mm_guest_in_run();
 // Le nom d'un joueur de la session (pseudo Steam, « Joueur N » a defaut).
 std::string mm_peer_name(uint8_t id);
 
+// Ecrit un texte (UTF-8, balises du jeu permises : [ ] a eviter dans les noms)
+// dans le champ `child` (15 caracteres au plus) du clip d'un MenuPanel du jeu,
+// comme MenuPanel::set_text. Faux si le champ n'existe pas. Thread du jeu.
+bool mm_panel_set_text(void* panel, const char* child, const std::string& text_utf8);
+
 // Le panneau de la maison clique dans cette image : 1 « Fin de journée »
 // (EndDay_Sign), 2 « À l'aventure ! » (Depart_Sign), 0 aucun. Les deux
 // appellent la meme action du jeu (ButchBox::depart, puis la fin de journee si

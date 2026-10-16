@@ -119,6 +119,24 @@ static const SigTargetDesc kTargetSigs[] = {
       "48 89 5C 24 10 48 89 74 24 18 57 48 83 EC 70 0F 29 74 24 60 48 8B FA" },
     { 0x0033D4B0, "BONUSFOOD",
       "48 8B 41 38 80 B8 94 0C 00 00 00" },
+    { 0x00383FE0, "LVLREROLL",
+      "48 89 5C 24 10 48 89 74 24 18 48 89 7C 24 20 55 41 54 41 55 41 56 41 57 48 8D 6C 24 C9 48 81 EC 00 01 00 00 48 8B F1" },
+    { 0x00052B50, "ABLINIT",
+      "48 89 5C 24 20 4C 89 44 24 18 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 50 FE FF FF" },
+    { 0x00053D70, "ABLPICK",
+      "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 20 48 8B 41 40" },
+    { 0x00053D30, "ABLUPD",
+      "40 53 48 83 EC 20 48 8B D9 E8 ? ? ? ? 48 8D 88 A8 03 00 00" },
+    { 0x0034F0A0, "INVACT",
+      "48 8B C4 48 89 58 20 55 56 57 41 54 41 55 41 56 41 57 48 8D A8 38 FF FF FF" },
+    { 0x00352520, "INVLEARNA",
+      "40 53 48 83 EC 20 48 63 02" },
+    { 0x00352430, "INVLEARNP",
+      "48 89 74 24 18 57 48 83 EC 40 8B 32 48 8B F9 83 FE FF" },
+    { 0x000CA2E0, "CATEQUIP",
+      "48 89 5C 24 08 48 89 6C 24 18 56 57 41 56 48 81 EC 80 00 00 00" },
+    { 0x000CA510, "CATUNEQUIP",
+      "48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 30 4C 8B 12" },
 };
 
 // INDEXED BY enum Call -- order is load-bearing.
@@ -186,6 +204,8 @@ static const SigTargetDesc kCallSigs[] = {
       "40 55 53 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 38 FF FF FF" },
     { 0x000E18B0, "CatSelector::select(u64 key)",
       "48 89 5C 24 10 48 89 6C 24 18 56 57 41 56 48 83 EC 40 48 8B DA" },
+    { 0x002E24D0, "Inventory bucket erase by id (sub_1402E24D0)",
+      "40 53 48 83 EC 20 44 0F B6 02" },
 };
 
 // Globals, recovered from a referencing instruction's own
