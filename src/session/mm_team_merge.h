@@ -255,4 +255,17 @@ bool team_apply_results(sqlite3* own, const std::vector<TeamCat>& results,
                         const std::vector<TeamCat>* departed, TeamApplySummary& sum,
                         const TeamStorageChange* storage = nullptr);
 
+// Invite : ajoute ce qu'il rapporte d'une aventure (sa bourse, mm_purse) a l'or
+// et a la nourriture de sa maison -- les lignes house_gold et house_food de la
+// table properties --, en une transaction. Une ligne absente, ou qui n'est pas un
+// entier, vaut ce que le jeu en lit alors (0 pour l'or, 25 pour la nourriture :
+// get_int a 0x14020684E et 0x1402067FC) ; elle est ecrite en entier. Les
+// quantites negatives comptent pour zero ; le total reste dans un int32
+// (House+0xB4 et +0xB0). Faux = rien n'est change (erreur sqlite).
+struct TeamPurseApply {
+    int64_t gold_before = 0, gold_after = 0;
+    int64_t food_before = 0, food_after = 0;
+};
+bool team_apply_purse(sqlite3* own, int64_t coins, int64_t food, TeamPurseApply* out = nullptr);
+
 } // namespace mgmp

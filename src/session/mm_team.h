@@ -72,6 +72,10 @@
 //     recharger la save d'abord) ; un chat reparti avant que l'etat final de
 //     son depart d'avant n'arrive ne rentre que de son dernier depart ; un chat
 //     deja mort dans la save le reste.
+//   - aventure gagnee : sa bourse (mm_purse) arrive avant l'etat final de ses
+//     chats (MM_PURSE a = 3) ; elle s'ajoute a l'or et a la nourriture de sa
+//     save au meme chargement (team_apply_purse), apres la meme copie de
+//     securite -- ou au chargement suivant si sa save etait deja ouverte.
 //
 // LIMITES. Les chats des invites restent dans la save de l'hote (comme les
 // chats donnes ou partis), hors de sa maison, avec leur marque : meme apres un
@@ -173,10 +177,32 @@ bool team_owners_active();
 // Le joueur qui dirige ce chat (id CatData+0x00), -1 si l'equipe ne le connait pas.
 int team_owner_of(uint64_t cat_id);
 
+// --- mm_purse : les bourses de l'aventure ---------------------------------------
+
+// Hote : l'aventure mixte en cours. `gen` change a chaque nouvelle equipe mixte ;
+// `slots` = les joueurs qui y ont amene des chats, un bit par numero de joueur
+// AU DEPART (stable meme si un joueur revient sous un autre numero), l'hote
+// compris s'il en a amene. Faux sans aventure mixte.
+bool team_run_slots(uint32_t& gen, uint32_t& slots);
+// Hote : le vote du depart de l'aventure mixte en cours (MM_PURSE a = 3, champ b).
+uint8_t team_run_seq();
+// Hote : le joueur (numero au depart) a qui est ce chat (id CatData+0x00) ;
+// l'hote pour les siens et pour un chat que l'aventure ne connait pas (une recrue).
+uint8_t team_slot_of_cat(uint64_t cat_id);
+// Hote : le numero maintenant du joueur de ce numero au depart (-1 : il n'est
+// pas la), et son nom.
+int         team_slot_peer(uint8_t slot);
+std::string team_slot_name(uint8_t slot);
+// Invite : ce qu'il rapporte de l'aventure du vote `seq` (MM_PURSE a = 3). Ajoute
+// a l'or et a la nourriture de sa save quand elle se charge (team_prepare_own_save),
+// et dit dans la fenetre du retour.
+void team_note_payout(uint8_t seq, int32_t coins, int32_t food);
+
 // --- invite : retour chez lui (mgmp_savefile.cpp) -----------------------------
 
 // Juste avant que le jeu n'ouvre sa save `name` : y recopie l'etat final des
-// chats qu'il avait emmenes depuis cette save.
+// chats qu'il avait emmenes depuis cette save, et ajoute a sa maison ce qu'il
+// a rapporte (mm_purse).
 void team_prepare_own_save(const char* name);
 
 // --- crochets (mgmp_hooks.cpp) -------------------------------------------------

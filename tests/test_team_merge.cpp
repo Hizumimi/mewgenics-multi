@@ -654,9 +654,63 @@ void test_storage() {
     sqlite3_close(n);
 }
 
+// La bourse d'un invite ajoutee a sa maison (mm_purse) : properties, entiers.
+int64_t get_prop(sqlite3* db, const char* key, bool& found) {
+    sqlite3_stmt* st = nullptr;
+    sqlite3_prepare_v2(db, "SELECT data FROM properties WHERE key = ?1", -1, &st, nullptr);
+    sqlite3_bind_text(st, 1, key, -1, SQLITE_STATIC);
+    found = sqlite3_step(st) == SQLITE_ROW && sqlite3_column_type(st, 0) == SQLITE_INTEGER;
+    const int64_t v = found ? sqlite3_column_int64(st, 0) : 0;
+    sqlite3_finalize(st);
+    return v;
+}
+
+void test_purse_apply() {
+    sqlite3* db = new_save();
+    exec(db, "INSERT INTO properties VALUES('house_gold', 17)");
+    exec(db, "INSERT INTO properties VALUES('adventure_coins', 40)");
+    mgmp::TeamPurseApply r;
+    CHECK(mgmp::team_apply_purse(db, 27, 12, &r));
+    bool fg = false, ff = false, fa = false;
+    CHECK(get_prop(db, "house_gold", fg) == 44 && fg);
+    CHECK(get_prop(db, "house_food", ff) == 37 && ff);                 // absente : 25 (le jeu), plus 12
+    CHECK(get_prop(db, "adventure_coins", fa) == 40 && fa);            // le reste n'est pas touche
+    CHECK(r.gold_before == 17 && r.gold_after == 44 && r.food_before == 25 && r.food_after == 37);
+
+    // Rien que des pieces : la nourriture n'est pas reecrite.
+    CHECK(mgmp::team_apply_purse(db, 3, 0, &r));
+    CHECK(get_prop(db, "house_gold", fg) == 47 && get_prop(db, "house_food", ff) == 37);
+    // Negatif : zero.
+    CHECK(mgmp::team_apply_purse(db, -5, -5, &r));
+    CHECK(get_prop(db, "house_gold", fg) == 47 && get_prop(db, "house_food", ff) == 37);
+    // Plafond int32.
+    exec(db, "UPDATE properties SET data = 2147483600 WHERE key = 'house_gold'");
+    CHECK(mgmp::team_apply_purse(db, 1000, 0, &r));
+    CHECK(get_prop(db, "house_gold", fg) == 2147483647);
+
+    // Pas un entier : la valeur que le jeu en lit (25), remise en entier.
+    exec(db, "UPDATE properties SET data = 'beaucoup' WHERE key = 'house_food'");
+    CHECK(mgmp::team_apply_purse(db, 0, 10, &r));
+    CHECK(get_prop(db, "house_food", ff) == 35 && ff && r.food_before == 25);
+    // L'or absent : 0.
+    exec(db, "DELETE FROM properties WHERE key = 'house_gold'");
+    CHECK(mgmp::team_apply_purse(db, 4, 0, &r) && get_prop(db, "house_gold", fg) == 4 && r.gold_before == 0);
+    // Et la transaction n'est pas restee ouverte : une autre passe.
+    exec(db, "UPDATE properties SET data = 5 WHERE key = 'house_food'");
+    CHECK(mgmp::team_apply_purse(db, 0, 1, &r) && get_prop(db, "house_food", ff) == 6);
+    sqlite3_close(db);
+
+    // Sans table properties : refuse.
+    sqlite3* bare = nullptr;
+    sqlite3_open(":memory:", &bare);
+    CHECK(!mgmp::team_apply_purse(bare, 1, 1, &r));
+    sqlite3_close(bare);
+}
+
 } // namespace
 
 int main() {
+    test_purse_apply();
     test_message();
     test_cat();
     test_blob();

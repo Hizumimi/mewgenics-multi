@@ -99,6 +99,14 @@ enum Target : int {
     T_InvScreenUpdate,   // sub_14034D130 -- InventoryScreen2::update, l'ecran des objets ouvert
     T_InvScreenDtor,     // sub_140387310 -- son destructeur, l'ecran ferme
     T_NodeEnd,           // sub_140392FC0 -- MapScreen : la fin d'une case (retour sur la carte, ou dans EnterNode)
+    // --- Mewgenics Multi : les bourses de l'aventure (src/session/mm_purse.cpp) --
+    T_RunVictory,        // sub_1403B5430 -- fin d'aventure gagnee : le compte de l'aventure va dans la maison
+    T_EventGainCoins,    // sub_14092BAD0 -- commande d'evenement gain_coins (WorldEvent*, GonObject*)
+    T_EventGainFood,     // sub_14092C330 -- commande d'evenement gain_food (WorldEvent*, GonObject*)
+    T_EventResult,       // sub_14091C650 -- WorldEvent::setupResult : le prix du choix, puis ses effets
+    T_UnitGainCoins,     // sub_140114E30 -- Unit::GainCoins(Character*, int) : les pieces ramassees en combat
+    T_PickupFood,        // sub_1402A12B0 -- HealthPickup (vtable slot 170) : soigne, ou garde de la nourriture
+    T_BonusFoodPassive,  // 0x14033D4B0   -- passif BonusFoodEachBattle : nourriture a chaque combat
     T_COUNT
 };
 
@@ -594,6 +602,52 @@ static const TargetDesc kTargets[T_COUNT] = {
     // dans sa case -- l'etat d'apres la case, pousse par l'hote, attend
     // (follow_node_live).
     { 0x00392FC0, "NODEEND",   "MapScreen node end (sub_140392FC0)" },
+    // La fin d'une aventure gagnee (MewDirector*, seul argument ; appelee par
+    // 0x1403B52E0 une fois les scenes en attente jouees, aussi pour une defense
+    // de la maison) : elle recopie le compte de l'aventure pour l'ecran de fin
+    // (Inventory+0x140/+0x144), l'ajoute a la maison (House+0xB0 nourriture,
+    // +0xB4 or, 0x1403B5809), fait des boites des meubles, ramene les chats, puis
+    // ClearRunState (0x1403B62B0). Une defaite ou un abandon passe par
+    // 0x1403B4750, qui ne rapporte rien.
+    // Mewgenics Multi : avant l'original, chaque invite recoit sa bourse et
+    // elle est retiree du compte (mm_purse).
+    { 0x003B5430, "RUNVICTORY","MewDirector adventure won (sub_1403B5430)" },
+    // Les commandes « gain_coins » et « gain_food » de WorldEvent::spin
+    // (0x1409173A0, un appel chacune) : (WorldEvent*, GonObject* arguments). Le
+    // montant (fixe ou tire du flux de la simulation), puis le texte du resultat
+    // (WORLDEVENT_GAIN_COINS...) et le compte global de l'aventure (pieces entre
+    // 0 et 99, nourriture au moins 0). WorldEvent+0x128 : le chat de l'evenement.
+    // Mewgenics Multi : ce que la commande change va a la bourse du
+    // proprietaire de ce chat (mm_purse).
+    { 0x0092BAD0, "EVTCOINS",  "WorldEvent gain_coins command (sub_14092BAD0)" },
+    { 0x0092C330, "EVTFOOD",   "WorldEvent gain_food command (sub_14092C330)" },
+    // WorldEvent::setupResult (WorldEvent*), un rappel que le clip de
+    // l'evenement appelle par son nom (enregistre par WorldEvent::init,
+    // 0x140913E53) : l'issue du choix (Good, Bad, crit...), son prix si le choix
+    // coute des pieces (« coins » : 0x14091C84D, de 0 a 99, texte
+    // WORLDEVENT_SPEND_COINS), puis WorldEvent::spin sur les effets de l'issue.
+    // Mewgenics Multi : ce que le resultat change au compte hors gain_coins /
+    // gain_food va au proprietaire du chat de l'evenement (mm_purse).
+    { 0x0091C650, "EVTRESULT", "WorldEvent::setupResult (sub_14091C650)" },
+    // Les gains d'un chat en combat. Unit::GainCoins (Character*, int) : un
+    // personnage de l'equipe (Character+0xC94) ajoute au compte de l'aventure
+    // (0 a 99), un autre a sa propre reserve (+0xC90, un voleur) ; appele par
+    // MoneyPickup, BurgleCoin, CoinSteal, Bounty, AwardCoinsOnDeath, la competence
+    // GainCoins ; il fait jouer dedans les OnGainCoins des passifs (vtable +0x398 :
+    // StatusOnGainCoins...), qui peuvent en rappeler un autre. HealthPickup
+    // (glaiel::HealthPickup, vtable 0x1410469E8 slot 170 : l'objet, le Character
+    // qui le ramasse, un multiplicateur) soigne (Character::Heal, qui peut mener a
+    // BurgleCoin...), ou, le chat deja soigne, garde « stored_food_value »
+    // nourritures. Le passif
+    // BonusFoodEachBattle (passif ; son Character a passif+0x38) ajoute ses
+    // nourritures a chaque combat -- fonction de 30 octets sans .pdata,
+    // pointee par la vtable 0x1410ADF00. Character+0x88 : son CatData (nul pour un
+    // non-chat).
+    // Mewgenics Multi : a la bourse du proprietaire du chat (mm_purse) ; sans
+    // ces crochets, partage.
+    { 0x00114E30, "UNITCOINS", "Unit::GainCoins (sub_140114E30)" },
+    { 0x002A12B0, "EATFOOD",   "HealthPickup food (sub_1402A12B0)" },
+    { 0x0033D4B0, "BONUSFOOD", "BonusFoodEachBattle passive (0x14033D4B0)" },
 };
 
 // Coarse module guard, checked before the per-target signatures.

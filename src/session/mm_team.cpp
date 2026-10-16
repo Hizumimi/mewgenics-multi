@@ -4,6 +4,7 @@
 #include "mm_team_merge.h"
 #include "mm_embark.h"
 #include "mm_gear.h"
+#include "mm_purse_core.h"
 #include "mm_rungear.h"
 #include "mm_world.h"
 
@@ -72,6 +73,7 @@ constexpr uint32_t  kVarBlob       = 1;
 constexpr uint32_t  kVarInt        = 5;
 constexpr int64_t   kNoDay         = INT64_MIN;
 constexpr size_t    kMaxDeparts    = 8;   // departs d'un invite en attente de leur retour
+constexpr size_t    kMaxPayouts    = 32;  // bourses d'un invite en attente (mm_purse)
 
 using FnButchDepart = bool (__fastcall*)(void* box);
 using FnReturnCat   = void (__fastcall*)(void* house, uint64_t key);
@@ -195,6 +197,13 @@ struct GuestDepart {                 // invite : un depart avec ses chats
     std::vector<uint8_t>   storage_post;
 };
 
+struct Payout {                      // invite : ce qu'il rapporte d'une aventure gagnee (mm_purse)
+    uint8_t     seq   = 0;           // le vote du depart
+    std::string save;                // sa save ("" : inconnue -- la prochaine qui se charge)
+    int32_t     coins = 0;
+    int32_t     food  = 0;
+};
+
 // Le temps d'une session.
 struct State {
     bool                     on       = false;
@@ -216,11 +225,14 @@ struct Keep {
     std::vector<HostCat>     host_cats;      // hote
     std::string              run_save;       // hote : la save de cette aventure
     uint8_t                  run_seq = 0;    // hote : le vote de son depart
+    uint32_t                 run_gen = 0;    // hote : change a chaque equipe mixte (mm_purse)
     std::vector<GuestDepart> departs;        // invite, du plus ancien au plus recent
     std::vector<uint64_t>    came_home;      // fin d'aventure : chats d'invites que le jeu ramenait
                                              // a la maison (T_HouseReturnCat), cles de la save chargee
     std::vector<std::string> infos;          // fenetres pour ce joueur
     std::vector<std::string> home_infos;     // invite : le retour, une fois chez lui
+    std::vector<Payout>      payouts;        // invite : ses bourses, a ajouter a sa save (mm_purse)
+    bool                     backed_up = false;   // invite : copie de securite faite pour ce chargement
     uint32_t departs_made = 0, refused = 0, returned = 0, applied = 0;
 };
 
@@ -713,6 +725,7 @@ bool prepare_mixed(void* box) {
     k.run      = std::move(run);
     k.run_save = savefile_host_save_name(save, sizeof(save)) ? save : "";
     k.run_seq  = g.vote_seq;
+    ++k.run_gen;                             // les bourses de cette aventure repartent de zero
     k.host_cats.clear();
     for (uint64_t hk : hkeys)
         if (const uint64_t id = cat_id_at(hk)) k.host_cats.push_back(HostCat{ hk, id });
@@ -1074,8 +1087,11 @@ sqlite3* open_own(const char* name, bool write) {
     return db;
 }
 
-// La copie de securite de sa save, avant chaque recopie.
+// La copie de securite de sa save, avant la premiere recopie de ce chargement
+// (deux dans la meme seconde porteraient le meme nom : la seconde, deja
+// modifiee, remplacerait celle d'avant toute recopie).
 bool back_up_own(const char* name) {
+    if (k.backed_up) return true;
     wchar_t path[MAX_PATH];
     wchar_t dir[MAX_PATH];
     if (!own_save_path(name, path, MAX_PATH) || !savefile_save_dir(dir, MAX_PATH)) return false;
@@ -1094,6 +1110,7 @@ bool back_up_own(const char* name) {
         return false;
     }
     log_line("TEAM", "copie de securite : mgmp_backups\\%ls", wcsrchr(dst, L'\\') + 1);
+    k.backed_up = true;
     return true;
 }
 
@@ -1180,6 +1197,35 @@ int apply_results(const char* name, GuestDepart& d) {
     // Aucun de ses chats dans cette save : si l'on ne savait pas de quelle save
     // ils venaient, ce n'est sans doute pas la bonne -- on garde l'etat final.
     return d.save.empty() ? -1 : 1;
+}
+
+// Ses bourses (mm_purse) pour cette save : ajoutees a l'or et a la nourriture de
+// sa maison, en une transaction, apres la copie de securite de ce chargement.
+// La ligne s'ajoute a la fenetre du retour de ce chargement (ses chats), ou en
+// fait une. Pas ajoutees (erreur) : on reessaiera au prochain chargement.
+void apply_payouts(const char* name, size_t home_before) {
+    auto mine = [name](const Payout& p) { return p.save.empty() || _stricmp(p.save.c_str(), name) == 0; };
+    int64_t coins = 0, food = 0;
+    size_t  n = 0;
+    for (const Payout& p : k.payouts)
+        if (mine(p)) { coins += p.coins; food += p.food; ++n; }
+    if (!n) return;
+    if (!back_up_own(name)) return;
+    sqlite3* db = open_own(name, true);
+    if (!db) return;
+    TeamPurseApply r;
+    const bool ok = team_apply_purse(db, coins, food, &r);
+    sqlite3_close(db);
+    if (!ok) {
+        log_line("TEAM", "!! ta bourse n'a pas pu etre ajoutee a %s -- on reessaiera au prochain chargement", name);
+        return;
+    }
+    k.payouts.erase(std::remove_if(k.payouts.begin(), k.payouts.end(), mine), k.payouts.end());
+    log_line("TEAM", "bourse ajoutee a %s : or %lld -> %lld, nourriture %lld -> %lld (%zu aventure(s))", name,
+             (long long)r.gold_before, (long long)r.gold_after, (long long)r.food_before, (long long)r.food_after, n);
+    const std::string line = u8"Tu rapportes " + purse_amount_text(coins, food) + u8" dans ta maison.";
+    if (k.home_infos.size() > home_before) k.home_infos.back() += "\n" + line;
+    else k.home_infos.push_back(u8"Retour de l'aventure\n\n" + line);
 }
 
 // --- messages --------------------------------------------------------------------------------------
@@ -1708,6 +1754,8 @@ void team_prepare_own_save(const char* name) {
     // decide plus rien (ses chats d'invites restent marques dans leur save).
     if (!k.run.empty() && !k.run_save.empty() && _stricmp(k.run_save.c_str(), name) != 0)
         forget_run("une autre save se charge");
+    k.backed_up = false;                     // une copie de securite par chargement
+    const size_t home_before = k.home_infos.size();
     // Invite (maintenant ou avant) : l'etat final de ses chats, depart par depart.
     for (size_t i = 0; i < k.departs.size();) {
         GuestDepart& d = k.departs[i];
@@ -1734,6 +1782,81 @@ void team_prepare_own_save(const char* name) {
         }
         ++i;
     }
+    // Et ce qu'il a rapporte de ses aventures gagnees (mm_purse).
+    apply_payouts(name, home_before);
+}
+
+// --- mm_purse ----------------------------------------------------------------------------------------
+
+bool team_run_slots(uint32_t& gen, uint32_t& slots) {
+    gen   = k.run_gen;
+    slots = 0;
+    if (k.run.empty()) return false;         // pas d'aventure mixte (et jamais chez un invite)
+    if (!k.host_cats.empty()) slots |= 1u << kHostPeer;    // l'hote, s'il a amene des chats
+    for (const RunCat& rc : k.run)
+        if (rc.first_owner < 32) slots |= 1u << rc.first_owner;
+    return true;
+}
+
+uint8_t team_run_seq() { return k.run_seq; }
+
+uint8_t team_slot_of_cat(uint64_t cat_id) {
+    for (const RunCat& rc : k.run)
+        if (rc.cat_id == cat_id) return rc.first_owner;
+    return kHostPeer;
+}
+
+int team_slot_peer(uint8_t slot) {
+    if (slot == kHostPeer) return kHostPeer;
+    for (const RunCat& rc : k.run)
+        if (rc.first_owner == slot) return in_session() ? peer_for(rc) : -1;
+    return -1;
+}
+
+std::string team_slot_name(uint8_t slot) {
+    if (slot != kHostPeer)
+        for (const RunCat& rc : k.run)
+            if (rc.first_owner == slot) return rc.owner_name;
+    return mm_peer_name(slot);
+}
+
+void team_note_payout(uint8_t seq, int32_t coins, int32_t food) {
+    if (coins < 0) coins = 0;
+    if (food < 0) food = 0;
+    if (!coins && !food) return;
+    Payout p;
+    p.seq   = seq;
+    p.coins = coins;
+    p.food  = food;
+    if (const GuestDepart* d = departure(seq)) p.save = d->save;
+    if (p.save.empty()) {
+        char own[64] = {};
+        if (savefile_own_save_name(own, sizeof(own))) p.save = own;
+    }
+    // La meme fin deux fois (meme vote, meme save) : une seule bourse. Les votes
+    // repartent de 1 chez chaque hote : le numero seul ne suffit pas.
+    k.payouts.erase(std::remove_if(k.payouts.begin(), k.payouts.end(),
+                                   [&](const Payout& o) {
+                                       return o.seq == seq && _stricmp(o.save.c_str(), p.save.c_str()) == 0;
+                                   }),
+                    k.payouts.end());
+    if (k.payouts.size() >= kMaxPayouts) {
+        log_line("TEAM", "!! trop de bourses en attente : la plus ancienne (%d piece(s), %d nourriture(s), %s) "
+                         "est oubliee", k.payouts.front().coins, k.payouts.front().food,
+                 k.payouts.front().save.empty() ? "save inconnue" : k.payouts.front().save.c_str());
+        k.payouts.erase(k.payouts.begin());
+    }
+    k.payouts.push_back(p);
+    log_line("TEAM", "<- ta bourse de l'aventure (vote %u) : %d piece(s), %d de nourriture -- ajoutee a %s a "
+                     "son prochain chargement", (unsigned)seq, coins, food,
+             p.save.empty() ? "ta save" : p.save.c_str());
+    // Deja chez lui, sa save ouverte par le jeu : elle n'y sera qu'au prochain
+    // chargement.
+    if (mm_house() && !savefile_in_coop())
+        say(u8"Retour de l'aventure\n\n"
+            u8"Ta bourse de l'aventure (" + purse_amount_text(coins, food) + u8")\n"
+            u8"t'attend, mais ta save est déjà ouverte : retourne\n"
+            u8"au menu principal et recharge-la pour la recevoir.");
 }
 
 bool team_binding(Target t, void** detour, void*** original) {

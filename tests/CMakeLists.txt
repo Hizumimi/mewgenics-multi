@@ -72,6 +72,13 @@ target_include_directories(test_vote PRIVATE ${CMAKE_SOURCE_DIR}/src/session ${C
 target_compile_options(test_vote PRIVATE /utf-8)
 add_test(NAME test_vote COMMAND test_vote)
 
-foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_battleid test_config test_world_merge test_team_merge test_vote)
+# Mewgenics Multi : les bourses de l'aventure -- le partage, la part de chacun a la
+# fin, le message MM_PURSE et les textes.
+add_executable(test_purse test_purse.cpp ${CMAKE_SOURCE_DIR}/src/session/mm_purse_core.cpp)
+target_include_directories(test_purse PRIVATE ${CMAKE_SOURCE_DIR}/src/session ${CMAKE_SOURCE_DIR}/src/net)
+target_compile_options(test_purse PRIVATE /utf-8)
+add_test(NAME test_purse COMMAND test_purse)
+
+foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_battleid test_config test_world_merge test_team_merge test_vote test_purse)
     target_compile_options(${t} PRIVATE /W3)
 endforeach()

@@ -47,6 +47,7 @@
 #include "mm_gear.h"    // Mewgenics Multi : le choix des objets (gear_binding)
 #include "mm_vote.h"    // Mewgenics Multi : le vote du chemin (vote_binding)
 #include "mm_rungear.h" // Mewgenics Multi : les objets en aventure (rungear_binding)
+#include "mm_purse.h"   // Mewgenics Multi : les bourses de l'aventure (purse_binding)
 #include "mgmp_log.h"
 #include "mgmp_mem.h"
 #include "mgmp_record.h"
@@ -819,6 +820,15 @@ const Binding kBindings[] = {
     { T_InvScreenUpdate, nullptr, nullptr },
     { T_InvScreenDtor,   nullptr, nullptr },
     { T_NodeEnd,         nullptr, nullptr },
+    // Mewgenics Multi : les bourses de l'aventure, detours dans
+    // src/session/mm_purse.cpp (purse_binding).
+    { T_RunVictory,      nullptr, nullptr },
+    { T_EventGainCoins,  nullptr, nullptr },
+    { T_EventGainFood,   nullptr, nullptr },
+    { T_EventResult,     nullptr, nullptr },
+    { T_UnitGainCoins,   nullptr, nullptr },
+    { T_PickupFood,  nullptr, nullptr },
+    { T_BonusFoodPassive,nullptr, nullptr },
 };
 
 // Resolves the three RNG bindings, which are not static initialisers because
@@ -871,6 +881,7 @@ bool install_one(const Binding& b, bool announce_off) {
     gear_binding(b.target, &detour, &original);
     vote_binding(b.target, &detour, &original);
     rungear_binding(b.target, &detour, &original);
+    purse_binding(b.target, &detour, &original);
     if (!detour || !original) {
         log_raw("  [!] %-9s no detour bound", t.name);
         return false;

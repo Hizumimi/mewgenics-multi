@@ -42,6 +42,7 @@
 #include "mm_embark.h"         // l'equipe mixte : chacun amene ses chats
 #include "mm_vote.h"           // le vote du chemin
 #include "mm_rungear.h"        // les objets en aventure
+#include "mm_purse.h"          // les bourses de l'aventure
 
 #include <winsock2.h>   // avant windows.h : types reseau d'iphlpapi
 #include <ws2tcpip.h>
@@ -2517,6 +2518,7 @@ void mm_menu_pump() {
     client_adventure_pump();
     vote_pump();                    // Mewgenics Multi : le vote du chemin
     rungear_pump();                 // Mewgenics Multi : les objets en aventure
+    purse_pump();                   // Mewgenics Multi : les bourses de l'aventure
     team_ui_pump();                 // Mewgenics Multi : fenetres de l'equipe mixte
     trip_pump();
     night_pump();
@@ -2772,6 +2774,9 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
             break;
         case MM_RUNREV:
             rungear_on_mm(from, m);
+            break;
+        case MM_PURSE:
+            purse_on_mm(from, m);
             break;
         case MM_DEPART_READY:
             if (net_role() != NetRole::Host || from >= 8) break;

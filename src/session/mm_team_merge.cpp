@@ -781,4 +781,83 @@ bool team_apply_results(sqlite3* own, const std::vector<TeamCat>& results,
     return false;
 }
 
+// --- invite : sa bourse dans sa maison ---------------------------------------------
+
+namespace {
+
+// 1 trouvee (un entier), 0 absente ou pas un entier (`out` = `def`, ce que le
+// jeu en lit alors), -1 erreur.
+int get_property_int(sqlite3* db, const char* key, int64_t def, int64_t& out) {
+    out = def;
+    sqlite3_stmt* st = nullptr;
+    if (sqlite3_prepare_v2(db, "SELECT data FROM properties WHERE key = ?1", -1, &st, nullptr) != SQLITE_OK)
+        return -1;
+    sqlite3_bind_text(st, 1, key, -1, SQLITE_STATIC);
+    const int rc = sqlite3_step(st);
+    int res = -1;
+    if (rc == SQLITE_ROW) {
+        res = 0;
+        if (sqlite3_column_type(st, 0) == SQLITE_INTEGER) {
+            out = (int64_t)sqlite3_column_int64(st, 0);
+            res = 1;
+        }
+    } else if (rc == SQLITE_DONE) {
+        res = 0;
+    }
+    sqlite3_finalize(st);
+    return res;
+}
+
+bool put_property_int(sqlite3* db, const char* key, int64_t v) {
+    sqlite3_stmt* st = nullptr;
+    if (sqlite3_prepare_v2(db, "INSERT OR REPLACE INTO properties(key, data) VALUES(?1, ?2)", -1, &st,
+                           nullptr) != SQLITE_OK)
+        return false;
+    sqlite3_bind_text(st, 1, key, -1, SQLITE_STATIC);
+    sqlite3_bind_int64(st, 2, (sqlite3_int64)v);
+    const bool ok = sqlite3_step(st) == SQLITE_DONE;
+    sqlite3_finalize(st);
+    return ok;
+}
+
+int64_t add_clamped(int64_t have, int64_t more) {
+    int64_t v = have + more;
+    if (v < 0) v = 0;
+    if (v > INT32_MAX) v = INT32_MAX;
+    return v;
+}
+
+} // namespace
+
+bool team_apply_purse(sqlite3* own, int64_t coins, int64_t food, TeamPurseApply* out) {
+    if (!own) return false;
+    if (coins < 0) coins = 0;
+    if (food < 0) food = 0;
+    if (coins > INT32_MAX) coins = INT32_MAX;
+    if (food > INT32_MAX) food = INT32_MAX;
+    TeamPurseApply r;
+    // La lecture et l'ecriture dans la meme transaction.
+    if (!exec(own, "BEGIN IMMEDIATE")) return false;
+    // Les valeurs que le jeu prend quand la ligne manque (MewDirector, 0x1402067FC
+    // et 0x14020684E : get_int("house_food", 25), get_int("house_gold", 0)).
+    const int g = get_property_int(own, "house_gold", 0, r.gold_before);
+    const int f = get_property_int(own, "house_food", 25, r.food_before);
+    if (g < 0 || f < 0) {
+        log_line("TEAM", "!! house_gold ou house_food illisible dans cette save -- la bourse n'y est pas ajoutee");
+        exec(own, "ROLLBACK");
+        return false;
+    }
+    r.gold_after = coins ? add_clamped(r.gold_before, coins) : r.gold_before;
+    r.food_after = food ? add_clamped(r.food_before, food) : r.food_before;
+    bool ok = true;
+    if (coins) ok = put_property_int(own, "house_gold", r.gold_after);
+    if (ok && food) ok = put_property_int(own, "house_food", r.food_after);
+    if (ok && exec(own, "COMMIT")) {
+        if (out) *out = r;
+        return true;
+    }
+    exec(own, "ROLLBACK");
+    return false;
+}
+
 } // namespace mgmp

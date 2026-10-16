@@ -1,5 +1,6 @@
 // mm_vote.cpp -- voir mm_vote.h.
 #include "mm_vote.h"
+#include "mm_purse.h"
 #include "mm_vote_core.h"
 
 #include "mgmp_addresses.h"
@@ -932,6 +933,8 @@ bool vote_popup(VotePopup& out, uint32_t open_layout) {
     fill_names(names);
     out.layout = ((uint32_t)s->round << 8) | (uint32_t)lay;
     out.text   = vote_text(view, self, names, shown_remaining(md, *s), node_label, nullptr, own);
+    out.text  += purse_vote_line(true);      // trouvailles et bourse de l'aventure (mm_purse) : la fenetre
+                                             // s'ouvre ou se met a jour avec ce texte
     if (md == Mode::Guest && g.refused_at && now - g.refused_at < kRefusedShowMs &&
         lay != VoteLayout::Result)
         out.text += std::string(u8"\n[c:red]Ton vote n'a pas été pris : ") +
