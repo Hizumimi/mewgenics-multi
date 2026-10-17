@@ -221,7 +221,16 @@ uint32_t lockstep_state_fence_hits();
 // joueur qui attend la decision de ce chat la referait a chaque image : autant
 // de tirages que d'images d'attente. La decision, elle, voyage. Sans effet pour
 // un chat que son joueur dirige lui-meme (aucun tirage) ; rien pour un ennemi.
-void lockstep_choice_pin(void* brain);
-void lockstep_choice_unpin();
+// Le jeton vit sur la pile de h_GetChoice : un GetChoice imbrique dans
+// l'original aurait le sien, sans desarmer celui du dessus.
+struct ChoicePin {
+    uint64_t* s = nullptr;
+    uint64_t  before[4] = {};
+    uint32_t  flight = 0;
+    uint8_t   cat = 0xFF;
+    bool      armed = false;
+};
+void lockstep_choice_pin(void* brain, ChoicePin& pin);
+void lockstep_choice_unpin(ChoicePin& pin);
 
 } // namespace mgmp

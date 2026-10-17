@@ -101,13 +101,16 @@ void combatlock_enter(void* combat_menu) {
     // read after the fact shows which cat each stretch of greying was for. A
     // menu ticks every frame; a line every frame would be the loudest thing in
     // the file and the least informative.
-    if (g.said != (int)peer_owns || g.said_for != subject) {
+    // Mewgenics Multi : three answers, not two -- a cat taken over mid-turn goes
+    // from "a peer owns it" to "the game's AI plays it" with peer_owns true both
+    // times, and the second line is worth having.
+    const int answer = !peer_owns ? 0 : lockstep_ai_character(subject) ? 2 : 1;
+    if (g.said != answer || g.said_for != subject) {
         log_line("CMLOCK", "combat menu for cat %p: %s",
-                 subject, !peer_owns ? "ours -- bar left alone"
-                        : lockstep_ai_character(subject)
-                                     ? "an absent player's cat, the game's AI plays it -- greying the bar"
-                                     : "a PEER owns it -- greying the bar");
-        g.said     = (int)peer_owns;
+                 subject, answer == 0 ? "ours -- bar left alone"
+                        : answer == 2 ? "an absent player's cat, the game's AI plays it -- greying the bar"
+                                      : "a PEER owns it -- greying the bar");
+        g.said     = answer;
         g.said_for = subject;
     }
 

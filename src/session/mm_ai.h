@@ -55,8 +55,13 @@ bool ai_available();
 // verifier : type 2 ou 3, mm_ai_core.h). Thread du jeu, dans Brain::GetChoice.
 bool ai_choose(void* brain, TurnAction& out, const char** why);
 
-// Pour le journal en fin de session : decisions demandees, tirages remis.
+// Pour le journal en fin de session : decisions demandees, tirages remis, appels
+// apres lesquels la cloture d'etat a vu un chat change (PV, case, elements, mort :
+// une divergence certaine, dite en erreur la premiere fois). Remis a zero a
+// chaque session (lockstep_init).
 uint32_t ai_calls();
 uint32_t ai_rewinds();
+uint32_t ai_fence_hits();
+void     ai_reset_counters();
 
 } // namespace mgmp

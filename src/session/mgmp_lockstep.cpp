@@ -2212,6 +2212,9 @@ void lockstep_set_base(uintptr_t base) {
     g.affecting_elements = (fn_affecting_elements)addr;
 }
 
+// Mewgenics Multi : definie plus bas, avec ChoicePinStats.
+static void mm_ai_reset();
+
 void lockstep_init() {
     if (g.active) return;
     if (!g.cs_ready) { InitializeCriticalSection(&g.cs); g.cs_ready = true; }
@@ -2312,6 +2315,7 @@ void lockstep_init() {
     // agreements -- which is docs/NOTES_MGMP.md's open item 2, the case where `0
     // desync(s)` was never backed by a single comparison.
     g.agreements        = 0;
+    mm_ai_reset();      // Mewgenics Multi : les comptes de l'IA et des GetChoice remis
     // Trace unless the barrier is off, in which case the warning is the point.
     log_line_lvl(config().net_join_barrier ? LogLevel::Trace : LogLevel::Warn,
              "LOCKSTEP", "armed (%s)%s",
@@ -2327,7 +2331,7 @@ void lockstep_init() {
 }
 
 // Mewgenics Multi : l'IA pour les absents et les GetChoice remis (protocole 52) --
-// definie plus bas, avec ChoicePin.
+// definie plus bas, avec ChoicePinStats.
 static void mm_ai_summary();
 
 void lockstep_shutdown() {
@@ -2561,19 +2565,19 @@ uint32_t lockstep_state_fence_hits() { return g_sf.hits; }
 // humain, le flux est donc remis comme avant chez tous : la decision voyage, les
 // tirages qui ont servi a la trouver ne comptent pas. Un joueur qui decide
 // lui-meme ne tire rien : sans effet dans ce cas, de loin le plus courant.
-struct ChoicePin {
-    uint64_t* s = nullptr;
-    uint64_t  before[4] = {};
-    uint32_t  flight = 0;
-    uint8_t   cat = kNoCat;
-    bool      armed = false;
-    uint32_t  hits = 0;                  // GetChoice qui ont tire, cette session
-    uint64_t  said_battle = kNoBattle;   // dit une fois par combat
+// Les comptes, la session durant (remis a zero par lockstep_init) ; `moved` : le
+// dernier GetChoice epingle a tire -- lu juste apres par lockstep_fill_choice, dans
+// le meme appel de h_GetChoice (un GetChoice imbrique finit avant le sien).
+struct ChoicePinStats {
+    uint32_t hits = 0;                   // GetChoice qui ont tire
+    uint64_t said_battle = kNoBattle;    // dit une fois par combat
+    bool     moved = false;
 };
-ChoicePin g_cp;
+ChoicePinStats g_cp;
 
-void lockstep_choice_pin(void* brain) {
-    g_cp.armed = false;
+void lockstep_choice_pin(void* brain, ChoicePin& pin) {
+    pin.armed = false;
+    g_cp.moved = false;
     if (!g.active || !g.snapped || !brain) return;
     const void* actor = nullptr;
     if (!mem_read((const uint8_t*)brain + kBrain_Owner, &actor, sizeof(actor)) || !actor) return;
@@ -2582,32 +2586,39 @@ void lockstep_choice_pin(void* brain) {
     if (cat == kNoCat || !g.human_cat[cat]) return;   // un ennemi, une invocation : chacun le derive
     uint64_t* s = rng_global_stream();
     if (!s) return;
-    memcpy(g_cp.before, s, sizeof(g_cp.before));
-    g_cp.s      = s;
-    g_cp.flight = rng_flight_mark();
-    g_cp.cat    = cat;
-    g_cp.armed  = true;
+    memcpy(pin.before, s, sizeof(pin.before));
+    pin.s      = s;
+    pin.flight = rng_flight_mark();
+    pin.cat    = cat;
+    pin.armed  = true;
 }
 
-void lockstep_choice_unpin() {
-    if (!g_cp.armed) return;
-    g_cp.armed = false;
-    if (memcmp(g_cp.before, g_cp.s, sizeof(g_cp.before)) == 0) return;
-    memcpy(g_cp.s, g_cp.before, sizeof(g_cp.before));
-    rng_flight_rewind(g_cp.flight);
+void lockstep_choice_unpin(ChoicePin& pin) {
+    if (!pin.armed) return;
+    pin.armed = false;
+    if (memcmp(pin.before, pin.s, sizeof(pin.before)) == 0) return;
+    memcpy(pin.s, pin.before, sizeof(pin.before));
+    rng_flight_rewind(pin.flight);
+    g_cp.moved = true;
     ++g_cp.hits;
     if (g_cp.said_battle == g.battles.current) return;
     g_cp.said_battle = g.battles.current;
     log_line("LOCKSTEP", "Brain::GetChoice du chat humain %u a tire dans le flux de la simulation "
                          "(un chat charme ou incontrolable : l'IA du jeu le joue) -- remis comme avant, "
-                         "sa decision vient de celui qui le dirige", (unsigned)g_cp.cat);
+                         "sa decision vient de celui qui le dirige", (unsigned)pin.cat);
+}
+
+static void mm_ai_reset() {
+    g_cp = ChoicePinStats{};
+    ai_reset_counters();
 }
 
 static void mm_ai_summary() {
-    if (ai_calls() || g_cp.hits)
-        log_line("LOCKSTEP", "IA du jeu : %u decision(s) demandee(s) pour les chats des absents "
-                             "(%u fois le flux remis) ; GetChoice d'un chat humain remis %u fois",
-                 ai_calls(), ai_rewinds(), g_cp.hits);
+    if (ai_calls() || g_cp.hits || ai_fence_hits())
+        log_line_lvl(ai_fence_hits() ? LogLevel::Error : LogLevel::Trace, "LOCKSTEP",
+                     "IA du jeu : %u decision(s) demandee(s) pour les chats des absents (%u fois le flux "
+                     "remis, %u fois l'etat d'un chat change) ; GetChoice d'un chat humain remis %u fois",
+                     ai_calls(), ai_rewinds(), ai_fence_hits(), g_cp.hits);
 }
 
 void lockstep_pump() {
@@ -2877,7 +2888,8 @@ static void msg_from_action(const TurnAction& a, uint8_t cat, const void* actor,
 // Mewgenics Multi : la decision part chez les autres -- son auteur et son rang
 // parmi les siennes dans ce combat (apres celles d'une reprise qui lui seraient
 // revenues), le journal de reprise, l'envoi. `by` complete la ligne du journal.
-static void publish_decision(ActionMsg& msg, const char* by) {
+// Vrai si elle est partie.
+static bool publish_decision(ActionMsg& msg, const char* by) {
     msg.author = net_self();
     msg.seq    = g.seen.next(msg.battle_id, msg.author);
     seen_mark(msg.battle_id, msg.author, msg.seq);
@@ -2897,52 +2909,35 @@ static void publish_decision(ActionMsg& msg, const char* by) {
                  (unsigned)msg.actor, msg.type == TA_EndTurn ? "endturn" : "ability",
                  msg.slot_kind, msg.slot_index, msg.tx, msg.ty,
                  msg.gon[0] ? msg.gon : "-", by);
+        return true;
     }
+    return false;
 }
 
-// Mewgenics Multi (protocole 52) : le tour d'un chat d'un absent, chez l'hote.
-// L'IA du jeu decide (mm_ai), apres un instant (AiPacer) ; la decision est
-// rebatie depuis son message, comme chez les invites, puis publiee. Le combat
-// n'attend jamais l'IA : rien d'utilisable, un echec, trop de decisions dans le
-// tour -- fin du tour. Vrai : `out` est ecrit (une decision, ou « rien encore »).
-static bool ai_turn(void* brain, const void* actor, uint8_t cat, void* out) {
-    const uint32_t none = TA_None;
-    if (g.outstanding) {                   // la precedente n'est pas encore jouee
-        mem_write(out, &none, sizeof(none));
-        return true;
-    }
-
-    const AiStep step = g.ai_pacer.poll(GetTickCount64(), g.battles.current, g.turn, cat);
-    if (step == AiStep::Wait) {
-        mem_write(out, &none, sizeof(none));
-        return true;
-    }
-
-    TurnAction a{};
-    const char* why = nullptr;
+// Mewgenics Multi (protocole 52) : une decision de l'IA du jeu -- celle d'un chat
+// d'un absent (ai_turn), ou celle que le jeu fait prendre dans GetChoice a un chat
+// charme ou incontrolable. Verifiee (ai_verdict : rien de choisi, un pouvoir hors
+// des cases du chat -- une fin de tour, jamais un arret du combat), rebatie depuis
+// son message comme chez les autres joueurs, ecrite dans `out`, publiee. `a` nul :
+// une fin de tour, `why` dit pourquoi.
+static void publish_game_ai(const TurnAction* a, const char* why, uint8_t cat, const void* actor,
+                            void* out, const char* by) {
     bool use = false;
-    if (step == AiStep::EndTurn) {
-        why = "trop de decisions dans ce tour";
-    } else if (!ai_choose(brain, a, &why)) {
-        // Une fois par combat en erreur ; les suivantes, la ligne ordinaire plus bas.
-        if (g.ai_failed_battle != g.battles.current) {
-            g.ai_failed_battle = g.battles.current;
-            log_line_lvl(LogLevel::Error, "LOCKSTEP", "!! l'IA du jeu n'a pas pu decider pour le chat %u : %s",
-                         (unsigned)cat, why ? why : "?");
-        }
-    } else {
+    if (a) {
         AbilitySlot slot{ SLOT_NONE, 0 };
-        if (a.type == TA_Ability) slot = ability_slot_of(actor, a.ability);
-        use = ai_verdict(a.type, slot.kind, &why) == AiVerdict::Use;
+        if (a->type == TA_Ability) slot = ability_slot_of(actor, a->ability);
+        use = ai_verdict(a->type, slot.kind, &why) == AiVerdict::Use;
     }
 
-    ActionMsg msg{};
-    if (use) msg_from_action(a, cat, actor, msg);
+    ActionMsg  msg{};
     TurnAction built{};
     char bad[192] = {};
-    if (use && !action_from_msg(msg, actor, built, bad, sizeof(bad))) {
-        use = false;
-        why = bad;                          // ne devrait pas arriver : la case vient de ce chat
+    if (use) {
+        msg_from_action(*a, cat, actor, msg);
+        if (!action_from_msg(msg, actor, built, bad, sizeof(bad))) {
+            use = false;
+            why = bad;                      // ne devrait pas arriver : la case vient de ce chat
+        }
     }
     if (!use) {
         log_line("LOCKSTEP", "l'IA du jeu, chat %u : %s -- fin de son tour", (unsigned)cat,
@@ -2955,12 +2950,56 @@ static bool ai_turn(void* brain, const void* actor, uint8_t cat, void* out) {
     }
 
     mem_write(out, &built, sizeof(built));
+    if (!publish_decision(msg, by))
+        log_line("LOCKSTEP", "-> cat %u %s slot=%u:%u target=(%d,%d) gon=%s%s -- jouee ici, envoyee a "
+                             "personne (aucun joueur connecte)",
+                 (unsigned)msg.actor, msg.type == TA_EndTurn ? "endturn" : "ability",
+                 msg.slot_kind, msg.slot_index, msg.tx, msg.ty, msg.gon[0] ? msg.gon : "-", by);
+}
+
+// Mewgenics Multi (protocole 52) : le tour d'un chat d'un absent, chez l'hote.
+// L'IA du jeu decide (mm_ai), apres un instant (AiPacer), puis publish_game_ai.
+// Le combat n'attend jamais l'IA : un echec, trop de decisions dans le tour --
+// fin du tour. Vrai : `out` est ecrit (une decision, ou « rien encore »).
+static bool ai_turn(void* brain, const void* actor, uint8_t cat, void* out) {
+    const uint32_t none = TA_None;
+    // Un GetChoice qui reviendrait ici pendant l'appel de l'IA (rien ne le montre
+    // aujourd'hui) n'en lance pas un second : « rien encore ».
+    static bool busy = false;
+    if (busy || g.outstanding) {           // ou la precedente n'est pas encore jouee
+        mem_write(out, &none, sizeof(none));
+        return true;
+    }
+
+    const AiStep step = g.ai_pacer.poll(GetTickCount64(), g.battles.current, g.turn, cat);
+    if (step == AiStep::Wait) {
+        mem_write(out, &none, sizeof(none));
+        return true;
+    }
+
+    TurnAction  a{};
+    const char* why  = nullptr;
+    bool        have = false;
+    if (step == AiStep::EndTurn) {
+        why = "trop de decisions dans ce tour";
+    } else {
+        busy = true;
+        have = ai_choose(brain, a, &why);
+        busy = false;
+        // Une fois par combat en erreur ; ensuite, la ligne ordinaire de la fin de tour.
+        if (!have && g.ai_failed_battle != g.battles.current) {
+            g.ai_failed_battle = g.battles.current;
+            log_line_lvl(LogLevel::Error, "LOCKSTEP", "!! l'IA du jeu n'a pas pu decider pour le chat %u : %s",
+                         (unsigned)cat, why ? why : "?");
+        }
+    }
+
     g.ai_pacer.took();
     char by[48];
     const uint8_t from = g.split_controller[cat] != net_self() && g.split_controller[cat] != kMemberNone
                            ? g.split_controller[cat] : (uint8_t)g.owner[cat];
     _snprintf_s(by, sizeof(by), _TRUNCATE, "  (l'IA, pour le joueur %u)", (unsigned)from);
-    publish_decision(msg, by);
+    publish_game_ai(have ? &a : nullptr, why, cat, actor, out, by);
     return true;
 }
 
@@ -3076,6 +3115,21 @@ bool lockstep_fill_choice(void* brain, void* out) {
         TurnAction a{};
         if (!mem_read(out, &a, sizeof(a))) return false;
         if (a.type != TA_Ability && a.type != TA_EndTurn) return false;
+
+        // Mewgenics Multi (protocole 52) : une decision que l'IA du jeu a prise dans
+        // GetChoice pour un chat charme ou incontrolable -- TurnAction+0x80 = 1 (le
+        // « montrer le choix » que pose l'entree 112 de ces passifs, 0x140082B8C ;
+        // PlayerBrain y met 0, 0x140778BBB), ou des tirages remis par le jeton de
+        // h_GetChoice. Jouee ici telle que les autres la rebatissent depuis le
+        // message, comme celles de l'IA pour un absent (et un pouvoir hors des cases
+        // du chat finit son tour au lieu d'arreter le combat). Le clic d'un joueur,
+        // lui, part et se joue tel quel, comme avant.
+        uint32_t shown = 0;
+        memcpy(&shown, a.tail + (0x80 - 0x28), sizeof(shown));
+        if (shown != 0 || g_cp.moved) {
+            publish_game_ai(&a, nullptr, cat, actor, out, "  (l'IA du jeu : chat charme ou incontrolable)");
+            return true;
+        }
 
         ActionMsg msg{};
         msg_from_action(a, cat, actor, msg);

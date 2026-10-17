@@ -227,9 +227,10 @@ void* __fastcall h_GetChoice(void* self, void* out) {
     // Mewgenics Multi (protocole 52) : pour un chat humain en combat commun, ce que
     // l'original tirerait dans le flux de la simulation (l'IA d'un chat charme ou
     // incontrolable) est remis comme avant -- voir lockstep_choice_pin.
-    lockstep_choice_pin(self);
+    ChoicePin pin;
+    lockstep_choice_pin(self, pin);
     void* ret = o_GetChoice(self, out);
-    lockstep_choice_unpin();
+    lockstep_choice_unpin(pin);
 
     // --- run B: inject the recorded decision -----------------------------
     //
