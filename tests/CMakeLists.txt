@@ -79,6 +79,16 @@ target_include_directories(test_purse PRIVATE ${CMAKE_SOURCE_DIR}/src/session ${
 target_compile_options(test_purse PRIVATE /utf-8)
 add_test(NAME test_purse COMMAND test_purse)
 
-foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_battleid test_config test_world_merge test_team_merge test_vote test_purse)
+# Mewgenics Multi : le defile du butin -- le message kTeamLoot, le gagnant de
+# chaque objet (Besoin, Cupidite, egalites) et le deroulement chez l'hote.
+add_executable(test_loot test_loot.cpp ${CMAKE_SOURCE_DIR}/src/session/mm_loot_core.cpp
+               ${CMAKE_SOURCE_DIR}/src/session/mm_team_merge.cpp)
+target_include_directories(test_loot PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/session ${CMAKE_SOURCE_DIR}/src/core ${CMAKE_SOURCE_DIR}/third_party/sqlite)
+target_link_libraries(test_loot PRIVATE mm_sqlite)
+target_compile_options(test_loot PRIVATE /utf-8)
+add_test(NAME test_loot COMMAND test_loot)
+
+foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_battleid test_config test_world_merge test_team_merge test_vote test_purse test_loot)
     target_compile_options(${t} PRIVATE /W3)
 endforeach()

@@ -55,6 +55,9 @@ enum DataSym : int {
     // Registry::Load (0x1400D8C32) remet a max(plus grande cle de la table cats,
     // propriete catid_counter) au chargement d'une save.
     D_CatKeyCounter,
+    // Mewgenics Multi (defile du butin) : le SpawnDatabase du jeu (pointeur),
+    // celui que SpawnDatabase::ItemTooltip relit lui-meme (0x1407B54D6).
+    D_SpawnDatabase,
     D_COUNT
 };
 uintptr_t addr_of_data(DataSym d);

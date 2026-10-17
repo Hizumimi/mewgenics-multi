@@ -13,8 +13,6 @@
 namespace mgmp {
 namespace {
 
-constexpr uint32_t kTeamMagic  = 0x4D41454D;   // « MEAM » (Mewgenics multi, equipe)
-constexpr uint8_t  kTeamFormat = 2;            // 2 : vote, jour de l'invite, sort de chaque chat, cle hote des proprietaires
 constexpr size_t   kMaxCatBytes = 1u << 16;    // un chat fait moins d'un kilo-octet
 constexpr size_t   kMaxTeam     = 16;
 constexpr size_t   kMaxStorageBytes = 512u << 10; // le rangement : quelques kilo-octets (kMaxInvBytes)
@@ -554,7 +552,7 @@ uint8_t team_kind(const uint8_t* p, size_t n) {
     Reader r{p, n};
     if (r.get<uint32_t>() != kTeamMagic || r.get<uint8_t>() != kTeamFormat) return 0;
     const uint8_t kind = r.get<uint8_t>();
-    if (!r.ok || kind < kTeamDepart || kind > kTeamItemSyncReq) return 0;
+    if (!r.ok || kind < kTeamDepart || kind > kTeamLast) return 0;
     return kind;
 }
 
@@ -997,6 +995,157 @@ bool team_apply_purse(sqlite3* own, int64_t coins, int64_t food, TeamPurseApply*
     }
     exec(own, "ROLLBACK");
     return false;
+}
+
+// --- le butin (mm_loot) ----------------------------------------------------------------------
+
+std::vector<uint8_t> team_item_record(const ItemFields& f) {
+    // Ce qu'ecrit le serialiseur d'un objet (0x14022D2A0, version 5), sans table
+    // de chaines : u32 version, u8 present, le nom et le texte (u64 n + octets),
+    // a, b, c, d (u32), e (u8), f (u8).
+    std::vector<uint8_t> b;
+    put<uint32_t>(b, 5);
+    put<uint8_t>(b, 1);
+    put<uint64_t>(b, (uint64_t)f.name.size());
+    b.insert(b.end(), f.name.begin(), f.name.end());
+    put<uint64_t>(b, (uint64_t)f.text.size());
+    b.insert(b.end(), f.text.begin(), f.text.end());
+    put<uint32_t>(b, f.a);
+    put<uint32_t>(b, f.b);
+    put<uint32_t>(b, f.c);
+    put<uint32_t>(b, f.d);
+    put<uint8_t>(b, f.e);
+    put<uint8_t>(b, (uint8_t)f.f);
+    return b;
+}
+
+bool team_item_parse(const uint8_t* p, size_t n, size_t& pos, ItemFields& out) {
+    if (!p || pos > n) return false;
+    Reader r{p, n};
+    r.pos = pos;
+    if (r.get<uint32_t>() != 5 || r.get<uint8_t>() != 1) return false;
+    ItemFields f;
+    for (int k = 0; k < 2; ++k) {
+        const uint64_t len = r.get<uint64_t>();
+        if (!r.ok || len > (k ? 4096u : 512u) || !r.need((size_t)len)) return false;
+        (k ? f.text : f.name).assign((const char*)p + r.pos, (size_t)len);
+        r.pos += (size_t)len;
+    }
+    f.a = r.get<uint32_t>();
+    f.b = r.get<uint32_t>();
+    f.c = r.get<uint32_t>();
+    f.d = r.get<uint32_t>();
+    f.e = r.get<uint8_t>();
+    f.f = r.get<uint8_t>();
+    if (!r.ok || f.name.empty()) return false;
+    pos = r.pos;
+    out = std::move(f);
+    return true;
+}
+
+namespace {
+constexpr uint32_t kPendingMagic   = 0x5454414D;   // « MATT »
+constexpr uint8_t  kPendingVersion = 1;
+constexpr uint32_t kMaxPending     = 4096;
+} // namespace
+
+std::vector<uint8_t> team_pending_encode(const std::vector<PendingLoot>& loot, const std::vector<PendingPayout>& pay) {
+    std::vector<uint8_t> b;
+    put<uint32_t>(b, kPendingMagic);
+    put<uint8_t>(b, kPendingVersion);
+    put<uint32_t>(b, (uint32_t)loot.size());
+    for (const PendingLoot& l : loot) {
+        put<uint8_t>(b, l.seq);
+        put<uint64_t>(b, l.key);
+        const size_t nn = std::min(l.name.size(), (size_t)1024);
+        put<uint16_t>(b, (uint16_t)nn);
+        b.insert(b.end(), l.name.begin(), l.name.begin() + (ptrdiff_t)nn);
+        const std::vector<uint8_t> rec = team_item_record(l.item);
+        put<uint32_t>(b, (uint32_t)rec.size());
+        b.insert(b.end(), rec.begin(), rec.end());
+    }
+    put<uint32_t>(b, (uint32_t)pay.size());
+    for (const PendingPayout& p : pay) {
+        put<uint8_t>(b, p.seq);
+        put<int32_t>(b, p.coins);
+        put<int32_t>(b, p.food);
+    }
+    return b;
+}
+
+bool team_pending_decode(const uint8_t* p, size_t n, std::vector<PendingLoot>& loot_out,
+                         std::vector<PendingPayout>& pay_out) {
+    loot_out.clear();
+    pay_out.clear();
+    if (!p) return false;
+    std::vector<PendingLoot>   loot;
+    std::vector<PendingPayout> pay;
+    Reader r{p, n};
+    if (r.get<uint32_t>() != kPendingMagic || r.get<uint8_t>() != kPendingVersion) return false;
+    const uint32_t nl = r.get<uint32_t>();
+    if (!r.ok || nl > kMaxPending) return false;
+    for (uint32_t i = 0; i < nl; ++i) {
+        PendingLoot l;
+        l.seq = r.get<uint8_t>();
+        l.key = r.get<uint64_t>();
+        const uint16_t nn = r.get<uint16_t>();
+        if (!r.ok || nn > 1024 || !r.need(nn)) return false;
+        l.name.assign((const char*)p + r.pos, nn);
+        r.pos += nn;
+        const uint32_t rl = r.get<uint32_t>();
+        if (!r.ok || !r.need(rl)) return false;
+        size_t pos = r.pos;
+        if (!team_item_parse(p, r.pos + rl, pos, l.item) || pos != r.pos + rl) return false;
+        r.pos = pos;
+        loot.push_back(std::move(l));
+    }
+    const uint32_t np = r.get<uint32_t>();
+    if (!r.ok || np > kMaxPending) return false;
+    for (uint32_t i = 0; i < np; ++i) {
+        PendingPayout q;
+        q.seq   = r.get<uint8_t>();
+        q.coins = r.get<int32_t>();
+        q.food  = r.get<int32_t>();
+        pay.push_back(q);
+    }
+    if (!r.ok || r.pos != n) return false;
+    loot_out = std::move(loot);
+    pay_out  = std::move(pay);
+    return true;
+}
+
+int team_apply_loot(sqlite3* own, const std::vector<ItemFields>& items, uint32_t* count_before,
+                    uint32_t* count_after) {
+    if (!own) return -1;
+    if (items.empty()) return 1;
+    if (!exec(own, "BEGIN IMMEDIATE")) return -1;
+    std::vector<uint8_t> blob;
+    const int f = get_row(own, "SELECT data FROM files WHERE key = ?1", "inventory_storage", 0, blob);
+    if (f < 0) { exec(own, "ROLLBACK"); return -1; }
+    // Un rangement absent ou vide : u32 nombre d'objets = 0 (ce qu'ecrit le jeu
+    // pour un seau vide, 4 octets).
+    if (blob.size() < 4) blob.assign(4, 0);
+    uint32_t count = 0;
+    memcpy(&count, blob.data(), 4);
+    if (count > 100000 || blob.size() > kMaxStorageBytes) {
+        log_line("TEAM", "!! rangement de cette save illisible (%u objet(s), %zu octets) -- le butin n'y est pas ajoute",
+                 count, blob.size());
+        exec(own, "ROLLBACK");
+        return 0;
+    }
+    if (count_before) *count_before = count;
+    for (const ItemFields& it : items) {
+        const std::vector<uint8_t> rec = team_item_record(it);
+        blob.insert(blob.end(), rec.begin(), rec.end());
+        ++count;
+    }
+    memcpy(blob.data(), &count, 4);
+    if (count_after) *count_after = count;
+    if (put_blob(own, "INSERT OR REPLACE INTO files(key, data) VALUES(?1, ?2)", "inventory_storage", 0, blob) &&
+        exec(own, "COMMIT"))
+        return 1;
+    exec(own, "ROLLBACK");
+    return -1;
 }
 
 } // namespace mgmp

@@ -106,6 +106,10 @@ bool mm_game_prompt_open();
 // Le vote du chemin (mm_vote) : sa fenetre est ouverte ; hote, les autres
 // joueurs dans l'aventure (connectes) ; invite, il est dans l'aventure de l'hote.
 bool     mm_vote_popup_open();
+// Le defile du butin (mm_loot) : sa fenetre est ouverte ; une autre fenetre (la
+// notre, une information qui attend, une confirmation du jeu) est ouverte.
+bool     mm_loot_popup_open();
+bool     mm_other_popup_open();
 uint32_t mm_run_peers_mask();
 bool     mm_guest_in_run();
 // Le nom d'un joueur de la session (pseudo Steam, « Joueur N » a defaut).

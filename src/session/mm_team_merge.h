@@ -45,6 +45,10 @@ constexpr uint64_t kCatAway      = 0x80000;
 constexpr uint64_t kCatGuest     = 1ull << 56;
 constexpr uint32_t kCatVersion   = 19;
 
+// La tete de tout message MSG_TEAM : u32 magie, u8 format, u8 genre.
+constexpr uint32_t kTeamMagic  = 0x4D41454D;   // « MEAM » (Mewgenics multi, equipe)
+constexpr uint8_t  kTeamFormat = 2;            // 2 : vote, jour de l'invite, sort de chaque chat, cle hote des proprietaires
+
 // Ce que devient un chat (kTeamResult).
 enum : uint8_t {
     kFateHome = 0,      // il rentre (vivant, ou mort : ses drapeaux le disent)
@@ -72,6 +76,8 @@ enum : uint8_t {
     kTeamItemAck = 10,  // hote -> invite : son mouvement pris ou refuse
     kTeamItemSync = 11, // hote -> invite : le sac, la poubelle et les chats de l'aventure, pour repartir juste
     kTeamItemSyncReq = 12, // invite -> hote : demande kTeamItemSync (apres ses mouvements numerotes jusqu'a seq)
+    kTeamLoot    = 13,  // les deux sens : le defile du butin (mm_loot, protocole 47 ; corps : mm_loot_core)
+    kTeamLast    = kTeamLoot,
 };
 
 // Le message MSG_TEAM : des chats (kTeamDepart, kTeamResult)...
@@ -235,6 +241,37 @@ struct ItemFields {
 };
 constexpr uint32_t kItemSeenBits = 0x6;   // c : « nouvel objet » (voir plus haut)
 uint64_t item_digest(const ItemFields& it);
+
+// Le butin (mm_loot) : un objet tel que le serialiseur du jeu l'ecrit dans un
+// seau de l'inventaire (version 5, sans table de chaines), et des objets ajoutes
+// au rangement d'une save (files, cle inventory_storage : u32 nombre, puis les
+// objets) : 1 ajoutes, 0 rangement illisible (rien ecrit), -1 erreur sqlite.
+std::vector<uint8_t> team_item_record(const ItemFields& f);
+int team_apply_loot(sqlite3* own, const std::vector<ItemFields>& items, uint32_t* count_before = nullptr,
+                    uint32_t* count_after = nullptr);
+// Un objet ecrit par team_item_record, a partir de `pos` (avance) : faux s'il
+// n'en est pas un (version 5, present, chaines raisonnables).
+bool team_item_parse(const uint8_t* p, size_t n, size_t& pos, ItemFields& out);
+
+// Ce qu'un invite attend d'ajouter a une de ses saves -- ses bourses (mm_purse)
+// et son butin (mm_loot) --, garde dans un fichier a cote d'elle
+// (« <save>.mgmp-attente », mm_team) : rien n'est perdu s'il ferme le jeu avant
+// de la recharger. u32 « MATT », u8 version (1), u32 n, n x { u8 vote, u64 cle,
+// u16 n + nom affiche, u32 n + objet (team_item_record) }, u32 m, m x { u8 vote,
+// i32 pieces, i32 nourriture }.
+struct PendingLoot {
+    uint8_t     seq = 0;
+    uint64_t    key = 0;             // le defile et l'objet
+    ItemFields  item;
+    std::string name;
+};
+struct PendingPayout {
+    uint8_t seq   = 0;
+    int32_t coins = 0;
+    int32_t food  = 0;
+};
+std::vector<uint8_t> team_pending_encode(const std::vector<PendingLoot>& loot, const std::vector<PendingPayout>& pay);
+bool team_pending_decode(const uint8_t* p, size_t n, std::vector<PendingLoot>& loot, std::vector<PendingPayout>& pay);
 
 // Le genre d'un message MSG_TEAM, 0 si ce n'en est pas un.
 uint8_t team_kind(const uint8_t* p, size_t n);

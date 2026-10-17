@@ -811,9 +811,147 @@ void test_purse_apply() {
     sqlite3_close(bare);
 }
 
+// Un seau d'objets tel que le jeu l'ecrit (u32 nombre, puis chaque objet en
+// version 5) : faux s'il n'est pas lu jusqu'au dernier octet.
+bool read_bucket(const Bytes& b, std::vector<mgmp::ItemFields>& out) {
+    out.clear();
+    if (b.size() < 4) return false;
+    uint32_t n = 0;
+    memcpy(&n, b.data(), 4);
+    size_t p = 4;
+    auto need = [&](uint64_t k) { return p <= b.size() && k <= (uint64_t)(b.size() - p); };
+    for (uint32_t i = 0; i < n; ++i) {
+        uint32_t v = 0;
+        uint64_t len = 0;
+        if (!need(5)) return false;
+        memcpy(&v, &b[p], 4);
+        const uint8_t present = b[p + 4];
+        p += 5;
+        if (v != 5 || present != 1 || !need(8)) return false;
+        mgmp::ItemFields f;
+        memcpy(&len, &b[p], 8); p += 8;
+        if (!need(len)) return false;
+        f.name.assign((const char*)b.data() + p, (size_t)len); p += (size_t)len;
+        if (!need(8)) return false;
+        memcpy(&len, &b[p], 8); p += 8;
+        if (!need(len)) return false;
+        f.text.assign((const char*)b.data() + p, (size_t)len); p += (size_t)len;
+        if (!need(18)) return false;
+        memcpy(&f.a, &b[p], 4); memcpy(&f.b, &b[p + 4], 4); memcpy(&f.c, &b[p + 8], 4); memcpy(&f.d, &b[p + 12], 4);
+        f.e = b[p + 16];
+        f.f = b[p + 17];
+        p += 18;
+        out.push_back(f);
+    }
+    return p == b.size();
+}
+
+mgmp::ItemFields loot_item(const char* name, const char* text, uint32_t a, uint32_t f) {
+    mgmp::ItemFields it;
+    it.name = name; it.text = text; it.a = a; it.b = 2; it.c = 0x26; it.d = 4000003; it.e = 0xFF; it.f = f;
+    return it;
+}
+
+bool same_item(const mgmp::ItemFields& x, const mgmp::ItemFields& y) {
+    return x.name == y.name && x.text == y.text && x.a == y.a && x.b == y.b && x.c == y.c && x.d == y.d &&
+           x.e == y.e && (uint8_t)x.f == (uint8_t)y.f;
+}
+
+// Le butin gagne par un invite, ajoute au rangement de sa save (mm_loot).
+void test_loot_apply() {
+    const mgmp::ItemFields pipe = loot_item("Pipe", "", 0xFFFFFFFFu, 0);
+    const mgmp::ItemFields book = loot_item("tk_Book", "Fireball", 3, 5);
+    const mgmp::ItemFields horn = loot_item("ShoeHorn", "", 1, 1);
+
+    // Le format : celui du serialiseur (version 5, u8 present, chaines u64).
+    const Bytes rec = mgmp::team_item_record(book);
+    CHECK(rec.size() == 4 + 1 + 8 + 7 + 8 + 8 + 16 + 2);
+    Bytes one;
+    u32(one, 1);
+    one.insert(one.end(), rec.begin(), rec.end());
+    std::vector<mgmp::ItemFields> got;
+    CHECK(read_bucket(one, got) && got.size() == 1 && same_item(got[0], book));
+
+    // Pas de rangement dans la save : il est cree avec les objets.
+    sqlite3* db = new_save();
+    uint32_t before = 99, after = 99;
+    CHECK(mgmp::team_apply_loot(db, { pipe, book }, &before, &after) == 1);
+    CHECK(before == 0 && after == 2);
+    CHECK(read_bucket(get_file(db, "inventory_storage"), got) && got.size() == 2);
+    CHECK(same_item(got[0], pipe) && same_item(got[1], book));
+    // Un rangement existant : les objets s'ajoutent a la fin, le reste est intact.
+    const Bytes prev = get_file(db, "inventory_storage");
+    CHECK(mgmp::team_apply_loot(db, { horn }, &before, &after) == 1 && before == 2 && after == 3);
+    const Bytes now = get_file(db, "inventory_storage");
+    CHECK(read_bucket(now, got) && got.size() == 3 && same_item(got[2], horn));
+    CHECK(now.size() > prev.size() && memcmp(now.data() + 4, prev.data() + 4, prev.size() - 4) == 0);
+    // Rien a ajouter : rien n'est ecrit.
+    CHECK(mgmp::team_apply_loot(db, {}, &before, &after) == 1 && get_file(db, "inventory_storage") == now);
+    // Un rangement vide comme l'ecrit le jeu (4 octets a zero).
+    put_file(db, "inventory_storage", Bytes{ 0, 0, 0, 0 });
+    CHECK(mgmp::team_apply_loot(db, { pipe }, &before, &after) == 1 && before == 0 && after == 1);
+    CHECK(read_bucket(get_file(db, "inventory_storage"), got) && got.size() == 1 && same_item(got[0], pipe));
+    // Un nombre d'objets insense : rien n'est ecrit.
+    const Bytes insane = { 0xFF, 0xFF, 0xFF, 0xFF, 1, 2, 3 };
+    put_file(db, "inventory_storage", insane);
+    CHECK(mgmp::team_apply_loot(db, { pipe }) == 0 && get_file(db, "inventory_storage") == insane);
+    // La transaction n'est pas restee ouverte.
+    put_file(db, "inventory_storage", one);
+    CHECK(mgmp::team_apply_loot(db, { horn }, &before, &after) == 1 && before == 1 && after == 2);
+    CHECK(read_bucket(get_file(db, "inventory_storage"), got) && got.size() == 2 && same_item(got[0], book));
+    sqlite3_close(db);
+
+    // Sans table files, ou sans base : erreur, et la base reste utilisable.
+    sqlite3* bare = nullptr;
+    sqlite3_open(":memory:", &bare);
+    CHECK(mgmp::team_apply_loot(bare, { pipe }) == -1);
+    exec(bare, "BEGIN IMMEDIATE");
+    exec(bare, "COMMIT");
+    sqlite3_close(bare);
+    CHECK(mgmp::team_apply_loot(nullptr, { pipe }) == -1);
+
+    // team_item_parse : l'inverse de team_item_record.
+    size_t pos = 4;
+    mgmp::ItemFields back;
+    CHECK(mgmp::team_item_parse(one.data(), one.size(), pos, back) && pos == one.size() && same_item(back, book));
+    pos = 4;
+    CHECK(!mgmp::team_item_parse(one.data(), one.size() - 1, pos, back) && pos == 4);
+    Bytes v4 = one;
+    v4[4] = 4;                                              // une autre version
+    pos = 4;
+    CHECK(!mgmp::team_item_parse(v4.data(), v4.size(), pos, back));
+
+    // Ce qui attend d'etre ajoute a une save : le fichier « .mgmp-attente ».
+    std::vector<mgmp::PendingLoot> pl(2), pl2;
+    pl[0].seq = 3; pl[0].key = (77ull << 8) | 1; pl[0].item = book; pl[0].name = "Livre de Boule de feu";
+    pl[1].seq = 3; pl[1].key = (77ull << 8) | 4; pl[1].item = pipe; pl[1].name = "Pipe";
+    std::vector<mgmp::PendingPayout> pp(1), pp2;
+    pp[0].seq = 3; pp[0].coins = 27; pp[0].food = -2;
+    const Bytes file = mgmp::team_pending_encode(pl, pp);
+    CHECK(mgmp::team_pending_decode(file.data(), file.size(), pl2, pp2));
+    CHECK(pl2.size() == 2 && pp2.size() == 1);
+    CHECK(pl2[0].seq == 3 && pl2[0].key == pl[0].key && pl2[0].name == pl[0].name && same_item(pl2[0].item, book));
+    CHECK(same_item(pl2[1].item, pipe) && pp2[0].coins == 27 && pp2[0].food == -2);
+    // Coupe, un octet de trop, une autre tete : refuse (et rien n'est rendu).
+    for (size_t cut = 0; cut < file.size(); cut += 7) {
+        CHECK(!mgmp::team_pending_decode(file.data(), cut, pl2, pp2));
+        CHECK(pl2.empty() && pp2.empty());
+    }
+    Bytes more = file;
+    more.push_back(0);
+    CHECK(!mgmp::team_pending_decode(more.data(), more.size(), pl2, pp2));
+    Bytes bad = file;
+    bad[0] ^= 1;
+    CHECK(!mgmp::team_pending_decode(bad.data(), bad.size(), pl2, pp2));
+    // Vide : un fichier valide.
+    const Bytes none = mgmp::team_pending_encode({}, {});
+    CHECK(mgmp::team_pending_decode(none.data(), none.size(), pl2, pp2) && pl2.empty() && pp2.empty());
+}
+
 } // namespace
 
 int main() {
+    test_loot_apply();
     test_purse_apply();
     test_message();
     test_cat();

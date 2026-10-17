@@ -812,6 +812,11 @@ enum Call : int {
 
     // --- Mewgenics Multi : les objets en direct (src/session/mm_rungear.cpp) --
     C_BucketErase,           // u32(bloc*, Equipment*) -- retire l'objet de cet id -- sub_1402E24D0
+
+    // --- Mewgenics Multi : le defile du butin (src/session/mm_loot.cpp) ---------
+    C_ItemName,              // wstring(SpawnDatabase*, Equipment*) -- par valeur -- sub_1407B4BE0
+    C_ItemTooltip,           // wstring(SpawnDatabase*, Equipment*) -- par valeur -- sub_1407B5480
+    C_WStrTidy,              // void(std::wstring*) -- _Tidy_deallocate -- sub_140052290
     C_COUNT
 };
 
@@ -1104,6 +1109,18 @@ static const CallDesc kCalls[C_COUNT] = {
     // Retire du bloc l'objet de cet id (std::unordered_map<u64, Equipment> : le
     // noeud est libere). Ce que fait le jeu quand un livre est lu (0x14034FC70).
     { 0x002E24D0, "Inventory bucket erase by id (sub_1402E24D0)" },
+    // glaiel::SpawnDatabase::ItemName(Equipment*) et ::ItemTooltip(Equipment*)
+    // (noms RTTI de leurs lambdas) : rcx = le SpawnDatabase (global 0x1413C79D0),
+    // rdx = la std::wstring rendue par valeur (construite par la fonction),
+    // r8 = l'objet. Ils ne font que lire l'objet : la cle GON (+0x08) cherchee
+    // dans SpawnDatabase+0x5B8, le texte (+0x28, la capacite d'un livre), l'usure
+    // (+0x5C : « usé », « cassé »), b (+0x4C, l'id d'un chat lie : {aux_cat_name},
+    // CatData::by_id) ; la traduction vient du StringsDatabase (0x1413C5530).
+    { 0x007B4BE0, "SpawnDatabase::ItemName" },
+    { 0x007B5480, "SpawnDatabase::ItemTooltip" },
+    // std::wstring::_Tidy_deallocate : libere le tampon (capacite > 7) avec
+    // l'operator delete du jeu et remet la chaine vide.
+    { 0x00052290, "std::wstring::_Tidy_deallocate" },
 };
 
 // sub_140138A10 IS NOT A DRAW ROUTINE, and it is in the table above only

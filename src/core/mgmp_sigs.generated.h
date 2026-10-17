@@ -210,6 +210,12 @@ static const SigTargetDesc kCallSigs[] = {
       "48 89 5C 24 10 48 89 6C 24 18 56 57 41 56 48 83 EC 40 48 8B DA" },
     { 0x002E24D0, "Inventory bucket erase by id (sub_1402E24D0)",
       "40 53 48 83 EC 20 44 0F B6 02" },
+    { 0x007B4BE0, "SpawnDatabase::ItemName",
+      "48 89 5C 24 08 48 89 74 24 10 4C 89 44 24 18 55 57 41 54 41 56 41 57 48 8D AC 24 10 FE FF FF" },
+    { 0x007B5480, "SpawnDatabase::ItemTooltip",
+      "48 89 5C 24 08 4C 89 44 24 18 48 89 54 24 10 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 20 F8 FF FF" },
+    { 0x00052290, "std::wstring::_Tidy_deallocate",
+      "40 53 48 83 EC 20 48 8B 51 18 48 8B D9 48 83 FA 07" },
 };
 
 // Globals, recovered from a referencing instruction's own
@@ -227,7 +233,10 @@ static const SigDataDesc kSigData[] = {
     { 0x012F6C48, "CatKeyCounter",
       "48 8B F0 41 B1 01 44 8B C7 48 8B C8 E8 ? ? ? ? 48 8B 0D ? ? ? ? 48 FF C1 48 89 0D ? ? ? ? 48 89 8E 48 0C 00 00",
       20, 24 },  // via 0x1400D71B5 in sub_1400D7160 (Registry::NewCat)
+    { 0x013C79D0, "SpawnDatabase",
+      "48 89 5C 24 08 4C 89 44 24 18 48 89 54 24 10 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 20 F8 FF FF 48 81 EC E0 08 00 00 48 8B FA 4C 8B F1 45 33 ED 44 89 6C 24 40 0F 57 C0 0F 11 02 4C 89 6A 10 48 C7 42 18 07 00 00 00 66 44 89 2A BB 01 00 00 00 89 5C 24 40 48 8B 0D ? ? ? ?",
+      89, 93 },  // via 0x1407B54D6 in sub_1407B5480 (SpawnDatabase::ItemTooltip)
 };
-static const int kSigDataCount = 4;
+static const int kSigDataCount = 5;
 
 } // namespace mgmp

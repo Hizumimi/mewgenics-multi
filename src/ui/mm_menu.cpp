@@ -43,6 +43,7 @@
 #include "mm_vote.h"           // le vote du chemin
 #include "mm_rungear.h"        // les objets en aventure
 #include "mm_purse.h"          // les bourses de l'aventure
+#include "mm_loot.h"           // le defile du butin
 
 #include <winsock2.h>   // avant windows.h : types reseau d'iphlpapi
 #include <ws2tcpip.h>
@@ -421,19 +422,21 @@ char g_peer_names[8][64] = {};
 
 enum class Screen { None, Choice, HostLobby, JoinEntry, ClientLobby, BadAddress, NightWait,
                     NightNotice, DepartWait, EmbarkWait, ArrivalWait, DepartOffer, RunOffer, JoinWait,
-                    HomeOffer, Info, Vote };
+                    HomeOffer, Info, Vote, Loot };
 
 // Les demandes posees par les clics et par le clavier, traitees au debut de
 // l'image suivante. Un seul emplacement : il n'y a jamais deux clics a la fois.
 enum class Action { None, OpenAuto, StartHost, OpenJoin, DoJoin, ClickPlay, StopSession, OpenBadAddress,
                     CancelNight, NightReadyNow, DepartCancel, DepartYes, DepartNo, RunJoin, RunLater,
-                    GoHome, JoinCancel, ArrivalDismiss, EmbarkNoWait, VoteYes, VoteNo };
+                    GoHome, JoinCancel, ArrivalDismiss, EmbarkNoWait, VoteYes, VoteNo, LootYes, LootNo };
 Action g_action = Action::None;
 
 // La fenetre du vote du chemin ouverte (mm_vote) : ses boutons, d'apres
 // vote_popup. Garde jusqu'a l'action de ses boutons, qui vient apres sa
 // fermeture.
 uint32_t g_vote_layout = 0;
+// De meme pour la fenetre du defile du butin (mm_loot).
+uint32_t g_loot_layout = 0;
 
 // Images depuis le lancement (mm_menu_pump), pour les delais.
 uint32_t g_frame = 0;
@@ -1966,6 +1969,16 @@ void adventure_popups() {
             return;
         }
     }
+    // Le partage du butin, a la fin d'une aventure mixte gagnee (hote et invites).
+    {
+        LootPopup lp;
+        if (loot_popup(lp)) {
+            if (open_popup(Screen::Loot, lp.text, lp.yes, lp.no, lp.no == nullptr,
+                           Action::LootYes, Action::LootNo))
+                g_loot_layout = lp.layout;
+            return;
+        }
+    }
     if (host && g_dep_wait_wanted && g_dep_active && !g_dep_go && !g_dep_embark) {
         if (open_depart_wait()) g_dep_wait_wanted = false;
         return;
@@ -1984,7 +1997,9 @@ void adventure_popups() {
     }
     if (host) return;
 
-    if (g_home_offer && g_home_due) {
+    // Le defile du butin d'abord : rentrer pendant qu'il passe ferait manquer
+    // les objets (le chargement de sa save), et il ne dure que quelques minutes.
+    if (g_home_offer && g_home_due && !loot_holds_home()) {
         if (open_popup(Screen::HomeOffer, home_offer_text(), u8"Rentrer", nullptr, true,
                        Action::GoHome, Action::GoHome))
             log_line("MULTI", "aventure : fenetre « Retour a la maison » ouverte%s",
@@ -2043,9 +2058,17 @@ void adventure_live() {
             if (!g_host_in_run || savefile_join_armed() || savefile_in_coop()) close_silently();
             break;
         case Screen::HomeOffer:
-            if (!g_home_due) close_silently();       // une nouvelle aventure, ou deja en route
+            // Une nouvelle aventure, deja en route, ou le defile du butin arrive.
+            if (!g_home_due || loot_holds_home()) close_silently();
             else popup_set_text(home_offer_text());
             break;
+        case Screen::Loot: {
+            // Comme le vote : d'autres boutons, on la referme et la suivante s'ouvre.
+            LootPopup lp;
+            if (!loot_popup(lp) || lp.layout != g_loot_layout) close_silently();
+            else popup_set_text(lp.text);
+            break;
+        }
         case Screen::Vote: {
             // Ses boutons ne changent pas une fois ouverte : d'autres boutons (un
             // vote fait, le resultat), on la referme et la suivante s'ouvre.
@@ -2355,6 +2378,12 @@ bool mm_game_prompt_open() { return game_prompt_alive(); }
 
 bool mm_vote_popup_open() { return g_live.alive && g_live.screen == Screen::Vote; }
 
+bool mm_loot_popup_open() { return g_live.alive && g_live.screen == Screen::Loot; }
+
+bool mm_other_popup_open() {
+    return (g_live.alive && g_live.screen != Screen::Loot) || g_info_wanted || game_prompt_alive();
+}
+
 uint32_t mm_run_peers_mask() {
     if (net_role() != NetRole::Host || !session_has_others()) return 0;
     return peer_run_mask() & peers_mask_others();
@@ -2567,6 +2596,12 @@ void mm_menu_pump() {
         case Action::VoteNo:
             vote_popup_button(g_vote_layout, false);
             break;
+        case Action::LootYes:
+            loot_popup_button(g_loot_layout, true);
+            break;
+        case Action::LootNo:
+            loot_popup_button(g_loot_layout, false);
+            break;
     }
 
     host_adventure_pump();
@@ -2574,6 +2609,7 @@ void mm_menu_pump() {
     vote_pump();                    // Mewgenics Multi : le vote du chemin
     rungear_pump();                 // Mewgenics Multi : les objets en aventure
     purse_pump();                   // Mewgenics Multi : les bourses de l'aventure
+    loot_pump();                    // Mewgenics Multi : le defile du butin
     team_ui_pump();                 // Mewgenics Multi : fenetres de l'equipe mixte
     trip_pump();
     night_pump();
@@ -2675,6 +2711,11 @@ void mm_on_button_update(void* button) {
 
 bool mm_menu_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (hwnd) g_hwnd = hwnd;           // pour envoyer Echap (aller au menu)
+    // Le defile du butin : Echap ne fait rien (la boite du jeu pourrait le prendre
+    // pour son second bouton, « Passer » ou « Cupidité », ou le menu pause s'ouvrir).
+    if (g_live.alive && g_live.screen == Screen::Loot && wp == VK_ESCAPE &&
+        (msg == WM_KEYDOWN || msg == WM_KEYUP || msg == WM_SYSKEYDOWN || msg == WM_SYSKEYUP))
+        return true;
     if (!g_live.alive || g_live.screen != Screen::JoinEntry) return false;
 
     switch (msg) {
@@ -2934,6 +2975,14 @@ bool mm_on_button_click(void* button) {
         if (embark_guest_active()) return true;  // il attend le depart de l'hote, dans sa maison
         if (!g_home_due) log_line("MULTI", "aventure : clic sur le panneau de la copie, retour propose");
         g_home_due = true;
+        return true;
+    }
+    // Hote : le defile du butin n'est pas fini -- ni nuit ni depart avant (les
+    // objets partis chez les invites quittent encore son rangement).
+    if (net_role() == NetRole::Host && loot_host_busy()) {
+        log_line("MULTI", "panneau : le partage du butin n'est pas fini, clic retenu");
+        show_info(u8"Le partage du butin n'est pas fini :\n"
+                  u8"attends la fin du défilé des objets.");
         return true;
     }
     if (kind == 2) {

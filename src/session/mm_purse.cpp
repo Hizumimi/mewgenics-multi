@@ -2,6 +2,7 @@
 
 #include "mm_purse.h"
 #include "mm_purse_core.h"
+#include "mm_loot.h"
 #include "mm_menu.h"
 #include "mm_team.h"
 #include "mm_team_merge.h"
@@ -557,7 +558,11 @@ void guest_victory() {
 void __fastcall h_RunVictory(void* dir) {
     if (net_role() == NetRole::Client) guest_victory();
     else host_victory();
+    // Le defile du butin (mm_loot) : le sac et les joueurs avant la fonction du
+    // jeu (ClearRunState, a l'interieur, oublie l'equipe), le rangement apres.
+    loot_victory_before();
     o_RunVictory(dir);
+    loot_victory_after();
 }
 
 // --- les fenetres ------------------------------------------------------------------------

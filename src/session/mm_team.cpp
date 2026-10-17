@@ -4,6 +4,7 @@
 #include "mm_team_merge.h"
 #include "mm_embark.h"
 #include "mm_gear.h"
+#include "mm_loot.h"
 #include "mm_purse_core.h"
 #include "mm_rungear.h"
 #include "mm_world.h"
@@ -204,6 +205,15 @@ struct Payout {                      // invite : ce qu'il rapporte d'une aventur
     int32_t     food  = 0;
 };
 
+struct LootItem {                    // invite : un objet gagne au defile du butin (mm_loot)
+    uint8_t     seq  = 0;            // le vote du depart
+    uint64_t    key  = 0;            // le defile et l'objet (une seule fois)
+    std::string save;                // sa save ("" : inconnue -- la prochaine qui se charge)
+    ItemFields  item;
+    std::string name;                // pour la fenetre du retour
+};
+constexpr size_t kMaxLoot = 256;
+
 // Le temps d'une session.
 struct State {
     bool                     on       = false;
@@ -232,6 +242,7 @@ struct Keep {
     std::vector<std::string> infos;          // fenetres pour ce joueur
     std::vector<std::string> home_infos;     // invite : le retour, une fois chez lui
     std::vector<Payout>      payouts;        // invite : ses bourses, a ajouter a sa save (mm_purse)
+    std::vector<LootItem>    loot;           // invite : son butin, a ajouter au rangement de sa save (mm_loot)
     bool                     backed_up = false;   // invite : copie de securite faite pour ce chargement
     uint32_t departs_made = 0, refused = 0, returned = 0, applied = 0;
 };
@@ -1199,6 +1210,8 @@ int apply_results(const char* name, GuestDepart& d) {
     return d.save.empty() ? -1 : 1;
 }
 
+bool pending_store(const char* save);   // plus bas : le fichier « <save>.mgmp-attente »
+
 // Ses bourses (mm_purse) pour cette save : ajoutees a l'or et a la nourriture de
 // sa maison, en une transaction, apres la copie de securite de ce chargement.
 // La ligne s'ajoute a la fenetre du retour de ce chargement (ses chats), ou en
@@ -1221,9 +1234,175 @@ void apply_payouts(const char* name, size_t home_before) {
         return;
     }
     k.payouts.erase(std::remove_if(k.payouts.begin(), k.payouts.end(), mine), k.payouts.end());
+    pending_store(name);
     log_line("TEAM", "bourse ajoutee a %s : or %lld -> %lld, nourriture %lld -> %lld (%zu aventure(s))", name,
              (long long)r.gold_before, (long long)r.gold_after, (long long)r.food_before, (long long)r.food_after, n);
     const std::string line = u8"Tu rapportes " + purse_amount_text(coins, food) + u8" dans ta maison.";
+    if (k.home_infos.size() > home_before) k.home_infos.back() += "\n" + line;
+    else k.home_infos.push_back(u8"Retour de l'aventure\n\n" + line);
+}
+
+// Ce qui attend d'etre ajoute a une save (ses bourses, son butin), garde dans un
+// fichier a cote d'elle : « <save>.mgmp-attente ». Ecrit des qu'une bourse ou un
+// objet arrive, reecrit (ou efface) apres chaque ajout a la save ; relu juste
+// avant qu'elle se charge. Rien n'est perdu si le joueur ferme le jeu avant.
+bool pending_path(const char* save, wchar_t* path, size_t n) {
+    wchar_t dir[MAX_PATH];
+    if (!save || !save[0] || !savefile_save_dir(dir, MAX_PATH)) return false;
+    wchar_t wname[128] = {};
+    MultiByteToWideChar(CP_UTF8, 0, save, -1, wname, 128);
+    _snwprintf_s(path, n, _TRUNCATE, L"%s\\%s.mgmp-attente", dir, wname);
+    return true;
+}
+
+bool same_save(const std::string& a, const char* b) { return b && _stricmp(a.c_str(), b) == 0; }
+
+// Ecrit le fichier de cette save d'apres k.loot et k.payouts (efface s'il n'y a
+// plus rien). Faux si l'ecriture a rate.
+bool pending_store(const char* save) {
+    wchar_t path[MAX_PATH];
+    if (!pending_path(save, path, MAX_PATH)) return false;
+    std::vector<PendingLoot>   loot;
+    std::vector<PendingPayout> pay;
+    for (const LootItem& l : k.loot)
+        if (same_save(l.save, save)) {
+            PendingLoot e;
+            e.seq  = l.seq;
+            e.key  = l.key;
+            e.item = l.item;
+            e.name = l.name;
+            loot.push_back(std::move(e));
+        }
+    for (const Payout& p : k.payouts)
+        if (same_save(p.save, save)) {
+            PendingPayout e;
+            e.seq   = p.seq;
+            e.coins = p.coins;
+            e.food  = p.food;
+            pay.push_back(e);
+        }
+    if (loot.empty() && pay.empty()) {
+        if (!DeleteFileW(path) && GetLastError() != ERROR_FILE_NOT_FOUND)
+            log_line("TEAM", "!! %s.mgmp-attente ne s'efface pas (win32 %lu)", save, GetLastError());
+        return true;
+    }
+    const std::vector<uint8_t> body = team_pending_encode(loot, pay);
+    wchar_t tmp[MAX_PATH];
+    _snwprintf_s(tmp, _TRUNCATE, L"%s.tmp", path);
+    HANDLE h = CreateFileW(tmp, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) {
+        log_line("TEAM", "!! %s.mgmp-attente : ecriture impossible (win32 %lu)", save, GetLastError());
+        return false;
+    }
+    DWORD done = 0;
+    const bool wrote = WriteFile(h, body.data(), (DWORD)body.size(), &done, nullptr) && done == body.size() &&
+                       FlushFileBuffers(h);
+    CloseHandle(h);
+    if (!wrote || !MoveFileExW(tmp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+        log_line("TEAM", "!! %s.mgmp-attente : ecriture impossible (win32 %lu)", save, GetLastError());
+        DeleteFileW(tmp);
+        return false;
+    }
+    return true;
+}
+
+// Relit le fichier de cette save : ce qui n'est pas deja en memoire s'y ajoute.
+void pending_load(const char* save) {
+    wchar_t path[MAX_PATH];
+    if (!pending_path(save, path, MAX_PATH)) return;
+    HANDLE h = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return;               // rien en attente
+    LARGE_INTEGER size{};
+    std::vector<uint8_t> body;
+    if (GetFileSizeEx(h, &size) && size.QuadPart > 0 && size.QuadPart < (16 << 20)) {
+        body.resize((size_t)size.QuadPart);
+        DWORD got = 0;
+        if (!ReadFile(h, body.data(), (DWORD)body.size(), &got, nullptr) || got != body.size()) body.clear();
+    }
+    CloseHandle(h);
+    std::vector<PendingLoot>   loot;
+    std::vector<PendingPayout> pay;
+    if (body.empty() || !team_pending_decode(body.data(), body.size(), loot, pay)) {
+        log_line("TEAM", "!! %s.mgmp-attente illisible -- laisse tel quel", save);
+        return;
+    }
+    size_t added = 0;
+    for (const PendingLoot& e : loot) {
+        bool have = false;
+        for (const LootItem& l : k.loot)
+            if (l.key == e.key && l.seq == e.seq && same_save(l.save, save)) have = true;
+        if (have || k.loot.size() >= kMaxLoot) continue;
+        LootItem l;
+        l.seq  = e.seq;
+        l.key  = e.key;
+        l.save = save;
+        l.item = e.item;
+        l.name = e.name;
+        k.loot.push_back(std::move(l));
+        ++added;
+    }
+    for (const PendingPayout& e : pay) {
+        bool have = false;
+        for (const Payout& p : k.payouts)
+            if (p.seq == e.seq && same_save(p.save, save)) have = true;
+        if (have || k.payouts.size() >= kMaxPayouts) continue;
+        Payout p;
+        p.seq   = e.seq;
+        p.save  = save;
+        p.coins = e.coins;
+        p.food  = e.food;
+        k.payouts.push_back(p);
+        ++added;
+    }
+    if (added)
+        log_line("TEAM", "%s.mgmp-attente : %zu objet(s) de butin et %zu bourse(s) en attente pour cette save "
+                         "(%zu repris)", save, loot.size(), pay.size(), added);
+}
+
+// Son butin (mm_loot) pour cette save : ajoute au rangement, en une transaction,
+// apres la copie de securite de ce chargement -- et apres le retour de ses
+// chats : tant que l'etat final du depart de la meme aventure attend encore
+// (pas arrive, ou une erreur juste avant), le rangement peut devenir celui de la
+// photo de l'hote (mm_gear) ; ajoute avant, il ferait croire a un rangement
+// change depuis le depart. Ce butin-la attend le chargement suivant.
+void apply_loot(const char* name, size_t home_before) {
+    auto waits = [name](const LootItem& l) {
+        for (const GuestDepart& d : k.departs)
+            if (d.seq == l.seq && (d.save.empty() || _stricmp(d.save.c_str(), name) == 0)) return true;
+        return false;
+    };
+    auto mine = [name, &waits](const LootItem& l) {
+        return (l.save.empty() || _stricmp(l.save.c_str(), name) == 0) && !waits(l);
+    };
+    std::vector<ItemFields>  items;
+    std::vector<std::string> names;
+    size_t held = 0;
+    for (const LootItem& l : k.loot)
+        if (mine(l)) {
+            items.push_back(l.item);
+            names.push_back(l.name);
+        } else if ((l.save.empty() || _stricmp(l.save.c_str(), name) == 0)) {
+            ++held;
+        }
+    if (held)
+        log_line("TEAM", "butin : %zu objet(s) attendent que le retour de tes chats de la meme aventure soit recopie "
+                         "dans %s", held, name);
+    if (items.empty()) return;
+    if (!back_up_own(name)) return;
+    sqlite3* db = open_own(name, true);
+    if (!db) return;
+    uint32_t before = 0, after = 0;
+    const int r = team_apply_loot(db, items, &before, &after);
+    sqlite3_close(db);
+    if (r != 1) {
+        log_line("TEAM", "!! ton butin (%zu objet(s)) n'a pas pu etre ajoute au rangement de %s (%s) -- on reessaiera "
+                         "au prochain chargement", items.size(), name, r == 0 ? "rangement illisible" : "erreur sqlite");
+        return;
+    }
+    k.loot.erase(std::remove_if(k.loot.begin(), k.loot.end(), mine), k.loot.end());
+    pending_store(name);
+    log_line("TEAM", "butin ajoute au rangement de %s : %zu objet(s), %u -> %u", name, items.size(), before, after);
+    const std::string line = u8"Ton butin est dans ton rangement : " + join_names(names) + ".";
     if (k.home_infos.size() > home_before) k.home_infos.back() += "\n" + line;
     else k.home_infos.push_back(u8"Retour de l'aventure\n\n" + line);
 }
@@ -1469,6 +1648,7 @@ void team_on_message(uint8_t from, const SaveFileMsg& m) {
         case kTeamItemAck:
         case kTeamItemSync:
         case kTeamItemSyncReq: rungear_on_team(from, m.data, m.size); break;
+        case kTeamLoot: loot_on_team(from, m.data, m.size); break;
         default:
             log_line("TEAM", "!! message d'equipe inconnu (%u octets) -- ignore", m.size);
             break;
@@ -1760,6 +1940,9 @@ void team_prepare_own_save(const char* name) {
         forget_run("une autre save se charge");
     k.backed_up = false;                     // une copie de securite par chargement
     const size_t home_before = k.home_infos.size();
+    // Ce qui attendait d'etre ajoute a cette save, peut-etre d'une partie d'avant
+    // (le jeu ferme entre-temps) : bourses et butin (mm_purse, mm_loot).
+    pending_load(name);
     // Invite (maintenant ou avant) : l'etat final de ses chats, depart par depart.
     for (size_t i = 0; i < k.departs.size();) {
         GuestDepart& d = k.departs[i];
@@ -1786,8 +1969,9 @@ void team_prepare_own_save(const char* name) {
         }
         ++i;
     }
-    // Et ce qu'il a rapporte de ses aventures gagnees (mm_purse).
+    // Et ce qu'il a rapporte de ses aventures gagnees (mm_purse, mm_loot).
     apply_payouts(name, home_before);
+    apply_loot(name, home_before);
 }
 
 // --- mm_purse ----------------------------------------------------------------------------------------
@@ -1851,6 +2035,7 @@ void team_note_payout(uint8_t seq, int32_t coins, int32_t food) {
         k.payouts.erase(k.payouts.begin());
     }
     k.payouts.push_back(p);
+    if (!p.save.empty()) pending_store(p.save.c_str());   // gardee meme si le jeu se ferme avant
     log_line("TEAM", "<- ta bourse de l'aventure (vote %u) : %d piece(s), %d de nourriture -- ajoutee a %s a "
                      "son prochain chargement", (unsigned)seq, coins, food,
              p.save.empty() ? "ta save" : p.save.c_str());
@@ -1861,6 +2046,39 @@ void team_note_payout(uint8_t seq, int32_t coins, int32_t food) {
             u8"Ta bourse de l'aventure (" + purse_amount_text(coins, food) + u8")\n"
             u8"t'attend, mais ta save est déjà ouverte : retourne\n"
             u8"au menu principal et recharge-la pour la recevoir.");
+}
+
+bool team_note_loot(uint8_t seq, uint64_t key, const ItemFields& item, const std::string& name) {
+    for (const LootItem& l : k.loot)
+        if (l.key == key && l.seq == seq) return true;       // deja note
+    LootItem l;
+    l.seq  = seq;
+    l.key  = key;
+    l.item = item;
+    l.name = name;
+    if (const GuestDepart* d = departure(seq)) l.save = d->save;
+    if (l.save.empty()) {
+        char own[64] = {};
+        if (savefile_own_save_name(own, sizeof(own))) l.save = own;
+    }
+    if (k.loot.size() >= kMaxLoot) {
+        log_line("TEAM", "!! trop d'objets de butin en attente : %s n'est pas pris", item.name.c_str());
+        return false;
+    }
+    k.loot.push_back(std::move(l));
+    // Garde dans le fichier de la save avant de dire a l'hote « pris » : il le
+    // retire alors de son rangement, et l'objet ne doit exister nulle part
+    // ailleurs que la, meme si ce joueur ferme son jeu avant de recharger sa save.
+    const std::string save = k.loot.back().save;
+    if (!save.empty() && !pending_store(save.c_str())) {
+        log_line("TEAM", "!! butin : %s n'a pas pu etre garde sur le disque -- il n'est pas pris (il reste chez l'hote)",
+                 item.name.c_str());
+        k.loot.pop_back();
+        return false;
+    }
+    log_line("TEAM", "<- butin : %s -- ajoute au rangement de %s a son prochain chargement", item.name.c_str(),
+             save.empty() ? "ta save" : save.c_str());
+    return true;
 }
 
 bool team_binding(Target t, void** detour, void*** original) {

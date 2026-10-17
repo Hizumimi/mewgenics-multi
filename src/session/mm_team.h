@@ -75,7 +75,9 @@
 //   - aventure gagnee : sa bourse (mm_purse) arrive avant l'etat final de ses
 //     chats (MM_PURSE a = 3) ; elle s'ajoute a l'or et a la nourriture de sa
 //     save au meme chargement (team_apply_purse), apres la meme copie de
-//     securite -- ou au chargement suivant si sa save etait deja ouverte.
+//     securite -- ou au chargement suivant si sa save etait deja ouverte. Le
+//     butin qu'il gagne au defile (mm_loot) s'ajoute de meme au rangement de sa
+//     save (team_apply_loot), apres le retour de ses chats.
 //
 // LIMITES. Les chats des invites restent dans la save de l'hote (comme les
 // chats donnes ou partis), hors de sa maison, avec leur marque : meme apres un
@@ -101,6 +103,7 @@
 namespace mgmp {
 
 struct SaveFileMsg;
+struct ItemFields;
 enum Target : int;
 
 void team_init();          // session prete (go_ready)
@@ -197,6 +200,12 @@ std::string team_slot_name(uint8_t slot);
 // a l'or et a la nourriture de sa save quand elle se charge (team_prepare_own_save),
 // et dit dans la fenetre du retour.
 void team_note_payout(uint8_t seq, int32_t coins, int32_t food);
+// Invite : un objet gagne au defile du butin (mm_loot) de l'aventure du vote
+// `seq`. Ajoute au rangement de sa save quand elle se charge
+// (team_prepare_own_save, apres le retour de ses chats), et dit dans la fenetre
+// du retour. `key` (le defile et l'objet) : note une seule fois. Faux s'il n'a
+// pas pu etre pris (trop d'objets en attente) : il reste chez l'hote.
+bool team_note_loot(uint8_t seq, uint64_t key, const ItemFields& item, const std::string& name_utf8);
 
 // --- invite : retour chez lui (mgmp_savefile.cpp) -----------------------------
 
