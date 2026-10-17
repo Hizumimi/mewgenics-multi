@@ -143,6 +143,10 @@ static const SigTargetDesc kTargetSigs[] = {
       "48 89 5C 24 10 57 48 83 EC 40 48 8B 41 10 48 8B D9 48 8B 88 98 05 00 00" },
     { 0x00296FB0, "ABANDONRUN",
       "48 89 5C 24 08 55 56 57 41 54 41 55 41 56 41 57 48 8D 6C 24 D9 48 81 EC E0 00 00 00 4C 8B E1" },
+    { 0x001C1650, "NPCFAVOR",
+      "48 89 5C 24 10 48 89 6C 24 18 56 57 41 54 41 56 41 57 48 83 EC 60 4D 8B F8" },
+    { 0x001C18E0, "CACHEREWARD",
+      "48 8B C4 48 89 48 08 55 53 56 57 41 54 41 55 41 56 41 57 48 8D A8 58 FD FF FF" },
 };
 
 // INDEXED BY enum Call -- order is load-bearing.
@@ -220,6 +224,8 @@ static const SigTargetDesc kCallSigs[] = {
       "40 53 48 83 EC 20 48 8B 51 18 48 8B D9 48 83 FA 07" },
     { 0x00772AC0, "Pedigree::add",
       "48 89 5C 24 18 48 89 6C 24 20 48 89 54 24 10 56 57 41 56 48 83 EC 60 49 8B D8" },
+    { 0x00274910, "GlobalProgressionData NPC advance",
+      "89 54 24 10 48 89 4C 24 08 55 53 56 57 41 54 41 55 41 56 41 57 48 8D 6C 24 E1 48 81 EC B8 00 00 00 4C 8B F9" },
 };
 
 // Globals, recovered from a referencing instruction's own
@@ -240,7 +246,10 @@ static const SigDataDesc kSigData[] = {
     { 0x013C79D0, "SpawnDatabase",
       "48 89 5C 24 08 4C 89 44 24 18 48 89 54 24 10 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 20 F8 FF FF 48 81 EC E0 08 00 00 48 8B FA 4C 8B F1 45 33 ED 44 89 6C 24 40 0F 57 C0 0F 11 02 4C 89 6A 10 48 C7 42 18 07 00 00 00 66 44 89 2A BB 01 00 00 00 89 5C 24 40 48 8B 0D ? ? ? ?",
       89, 93 },  // via 0x1407B54D6 in sub_1407B5480 (SpawnDatabase::ItemTooltip)
+    { 0x013DA9A0, "HouseInstance",
+      "40 53 48 83 EC 20 48 8B D9 E8 ? ? ? ? 48 8B 93 E0 02 00 00 48 8B 0D ? ? ? ?",
+      24, 28 },  // via 0x1402EFC05 in sub_1402EFBF0
 };
-static const int kSigDataCount = 5;
+static const int kSigDataCount = 6;
 
 } // namespace mgmp

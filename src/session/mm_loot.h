@@ -46,6 +46,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
+
+#include "mm_team_merge.h"   // ItemFields
 
 namespace mgmp {
 
@@ -74,5 +77,21 @@ void loot_popup_button(uint32_t layout, bool yes);
 bool loot_holds_home();
 // Hote : un defile est en cours ou sa fin n'a pas ete vue.
 bool loot_host_busy();
+
+// --- le rangement de la partie chargee, pour les dons aux PNJ (mm_npcgift) ------
+
+struct LootStoredItem {
+    uint64_t   id = 0;              // Equipment+0x00
+    ItemFields f;
+};
+// Les objets du rangement (kInv_Storage), dans l'ordre de sa liste. Faux : illisible.
+bool loot_storage_items(std::vector<LootStoredItem>& out);
+// Un ecran des objets ou une confirmation du jeu est ouvert : pas de retrait.
+bool loot_storage_busy();
+// Retire du rangement l'objet de cet id, verifie par son empreinte (item_digest).
+// Faux (et pourquoi) s'il n'y est plus, a change, ou si le jeu n'a rien retire.
+bool loot_storage_take(uint64_t id, uint64_t digest, std::string& why);
+// Le nom d'un objet tel que le jeu l'affiche (sa cle GON a defaut), en UTF-8.
+std::string loot_item_label(const ItemFields& f);
 
 } // namespace mgmp

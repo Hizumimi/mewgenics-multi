@@ -58,6 +58,10 @@ enum DataSym : int {
     // Mewgenics Multi (defile du butin) : le SpawnDatabase du jeu (pointeur),
     // celui que SpawnDatabase::ItemTooltip relit lui-meme (0x1407B54D6).
     D_SpawnDatabase,
+    // Mewgenics Multi (dons aux PNJ) : la maison vivante (House*), celle ou
+    // CacheInReward ajoute pieces (+0xB4) et nourriture (+0xB0) ; remise a nul
+    // par le destructeur de la maison (0x140205E6C). Nulle hors de la maison.
+    D_HouseInstance,
     D_COUNT
 };
 uintptr_t addr_of_data(DataSym d);

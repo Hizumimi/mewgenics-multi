@@ -33,6 +33,10 @@ constexpr uintptr_t kNpc_Cur      = 0x18;   // std::string
 constexpr uintptr_t kNpc_Simple   = 0x38;   // les champs simples, de 0x38 a 0x78
 constexpr uintptr_t kTakenElem    = 0x28;   // une recompense prise (sub_1401D84D0 : pas de 0x28)
 
+// sub_140274910 (C_NpcAdvance) : le passage d'un PNJ a sa recompense suivante,
+// sans ses effets -- (PNJ de la progression, +0x48 ; numero du PNJ).
+using FnNpcAdvance = void (__fastcall*)(void* npcs, int npc);
+
 constexpr uint32_t kHostEvery   = 30;       // l'hote relit ses PNJ deux fois par seconde
 constexpr uint32_t kClientEvery = 10;       // l'invite regarde six fois par seconde s'il est chez lui
 constexpr uint32_t kRetry       = 120;      // apres une lecture ratee : nouvel essai dans 2 s
@@ -58,6 +62,7 @@ struct State {
     uint32_t retry_at  = 0;                  // pas avant cette image (lecture ratee)
     bool     was_home  = false;
     uint8_t  said_step[kNpcCount]  = {};     // « l'hote a pris la recompense » deja dit
+    uint64_t tried_step[kNpcCount] = {};     // l'etat de l'hote pour lequel ce PNJ a deja ete avance ici
     uint8_t  said_ready[kNpcCount] = {};     // « recompense prete chez l'hote » deja dit
     uint32_t copied    = 0;                  // PNJ mis a jour depuis le debut de la session
 };
@@ -168,6 +173,15 @@ bool write_npc(void* prog, int i, const NpcState& t, const NpcState& mine) {
     return ok;
 }
 
+bool seh_advance(FnNpcAdvance fn, void* npcs, int npc) {
+    __try {
+        fn(npcs, npc);
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
 // --- hote -------------------------------------------------------------------
 
 bool send_latest(bool all, uint8_t peer) {
@@ -230,6 +244,30 @@ bool client_apply() {
     if (!read_all(prog, mine, "invite")) return false;
     for (int i = 0; i < kNpcCount; ++i) {
         const NpcState& h = g.host[i];
+        // L'hote a pris une recompense de plus (une prise de plus que cette copie) :
+        // le jeu fait passer ce PNJ a la suivante ici aussi, sans ses effets --
+        // ceux-la viennent avec le monde de l'hote au prochain chargement. Une
+        // seule fois par etat de l'hote ; si le resultat n'est pas le sien, on
+        // n'insiste pas (le prochain chargement remet le PNJ de l'hote).
+        if (!npc_same_step(h, mine[i]) && h.taken == mine[i].taken + kTakenElem &&
+            g.tried_step[i] != g.host_hash) {
+            g.tried_step[i] = g.host_hash;
+            auto adv = (FnNpcAdvance)addr_of_call(C_NpcAdvance);
+            NpcState now;
+            const char* why = nullptr;
+            if (!adv) why = "fonction du jeu introuvable";
+            else if (!seh_advance(adv, (char*)prog + kProg_Npcs, i)) why = "exception dans le jeu";
+            else if ((why = read_npc(prog, i, now)) == nullptr && !npc_same_step(h, now)) why = "autre resultat";
+            if (!why) {
+                log_line("NPC", "PNJ %s : passe a « %s », comme chez l'hote", npc_name(i), now.cur.c_str());
+                mine[i] = now;
+                ++g.copied;
+            } else {
+                log_line("NPC", "!! PNJ %s : passage a la recompense suivante impossible ici (%s) -- l'hote en est "
+                                "a « %s », mis a jour au prochain chargement", npc_name(i), why, h.cur.c_str());
+                g.said_step[i] = 1;
+            }
+        }
         if (!npc_same_step(h, mine[i])) {
             if (!g.said_step[i])
                 log_line("NPC", "PNJ %s : l'hote en est a « %s » (ici « %s ») -- mis a jour au "

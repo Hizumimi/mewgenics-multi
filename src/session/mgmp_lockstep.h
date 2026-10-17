@@ -115,10 +115,9 @@ bool    lockstep_halted_watching();
 // dans son aventure et connectes ; les autres sont oublies). Ils ne sont pas
 // membres des combats suivants avant d'etre revenus (lockstep_catchup).
 uint8_t lockstep_halted_peers(uint8_t still);
-// Invite qui rejoint l'aventure : la case de la reprise de l'hote est arrivee --
-// les decisions de ce combat recues avant elle (en direct, pendant que sa
-// demande voyageait) sont oubliees, la reprise les redonne toutes, dans l'ordre.
-void    lockstep_drop_queued(uint64_t battle_id);
+// Hote : ce joueur revient (une reprise lui est faite, meme sur la carte) -- un
+// arret dans un combat d'avant ne compte plus pour lui.
+void    lockstep_peer_back(uint8_t peer);
 
 // A peer joined or reconnected: replay this battle's decisions to it so it can
 // fast-forward into a fight already under way. To that peer only.

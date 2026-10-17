@@ -285,11 +285,19 @@ bool read_item(const void* eq, ItemFields& f, uint64_t* id) {
     return true;
 }
 
+// L'inventaire du Director vivant. L'emplacement global du Director n'est jamais
+// remis a zero (un nouveau a chaque chargement) : son etiquette (ptr-8) doit etre
+// celle notee a cote de l'emplacement (+8), comme le jeu le verifie lui-meme
+// (mm_npc.cpp) -- sinon, au menu, le retrait d'un objet toucherait un inventaire
+// libere (relecture de la build 29).
 void* inventory() {
     const void* const* slot = (const void* const*)addr_of_data(D_MewDirectorPtr);
     const uint8_t* dir = nullptr;
+    uint64_t tag = 0, mark = 0;
     void* inv = nullptr;
     if (!slot || !mem_read(slot, &dir, sizeof(dir)) || !dir) return nullptr;
+    if (!mem_read(slot + 1, &tag, sizeof(tag)) || !mem_read(dir - 8, &mark, sizeof(mark)) || mark != tag)
+        return nullptr;
     if (!mem_read(dir + kDir_Inventory, &inv, sizeof(inv))) return nullptr;
     return inv;
 }
@@ -1190,5 +1198,37 @@ bool loot_holds_home() {
 }
 
 bool loot_host_busy() { return g.armed && is_host() && g.on; }
+
+// --- le rangement, pour les dons aux PNJ (mm_npcgift) -------------------------------------------
+
+bool loot_storage_items(std::vector<LootStoredItem>& out) {
+    out.clear();
+    std::vector<Stored> store;
+    if (!read_bucket(kInv_Storage, store)) return false;
+    for (const Stored& s : store) out.push_back(LootStoredItem{ s.id, s.f });
+    return true;
+}
+
+bool loot_storage_busy() { return rungear_screen_open() || mm_game_prompt_open(); }
+
+bool loot_storage_take(uint64_t id, uint64_t digest, std::string& why) {
+    if (loot_storage_busy()) { why = "un ecran des objets ou une confirmation est ouvert"; return false; }
+    auto erase = (FnErase)addr_of_call(C_BucketErase);
+    uint8_t* inv = (uint8_t*)inventory();
+    Stored s;
+    uint32_t n = 0;
+    if (!inv || !erase) { why = "fonction du jeu ou inventaire introuvable"; return false; }
+    if (!stored_item(id, digest, &s, why)) return false;
+    if (!seh_erase(erase, inv + kInv_Storage, s.payload, &n)) { why = "exception"; return false; }
+    if (n != 1) { why = "le jeu n'a rien retire"; return false; }
+    return true;
+}
+
+std::string loot_item_label(const ItemFields& f) {
+    std::string name;
+    // g.names_ok : les fonctions du jeu sont la (loot_pump) et n'ont jamais leve d'exception.
+    if (g.told && g.names_ok && item_text(C_ItemName, f, name) && !name.empty()) return name;
+    return fallback_name(f);
+}
 
 } // namespace mgmp

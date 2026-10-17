@@ -657,12 +657,6 @@ void follow_on_message(const EnterNodeMsg& m) {
     if (mm_guest_quitting()) return;
     // Mewgenics Multi : qui joue les combats de cette case (protocole 48).
     lockstep_note_members(m.seed0, m.members);
-    // Mewgenics Multi : il rejoint l'aventure (pas encore dans la copie). Les
-    // decisions de cette case arrivees avant elle sont celles que l'hote jouait
-    // pendant que sa demande voyageait : la reprise qui suit cette case (la
-    // sienne) les redonne toutes, dans l'ordre -- gardees, elles seraient
-    // jouees deux fois (relecture du 17 octobre).
-    if (savefile_join_armed() && !savefile_in_coop()) lockstep_drop_queued(m.seed0);
     // A full queue means this peer is eight nodes behind, which no amount of
     // waiting is going to fix. Refuse the newest and SAY SO: the run is already
     // wrong, and the one thing that must not happen is what used to -- losing a

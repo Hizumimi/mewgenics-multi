@@ -30,6 +30,7 @@
 #include "mgmp_mem.h"
 #include "mgmp_split.h"
 #include "mgmp_members.h"
+#include "mgmp_seen.h"
 #include "mgmp_rtti.h"
 #include "mgmp_rng.h"
 #include "mgmp_hooks.h"      // hooks_is_live (Mewgenics Multi : l'enregistreur de vol)
@@ -315,6 +316,13 @@ struct State {
     NotedMembers noted[8]{};             // les masques des dernieres cases (ENTERNODE)
     uint32_t     noted_next = 0;
 
+    // Mewgenics Multi (protocole 50) : les decisions deja vues, par combat et par
+    // auteur (ActionMsg::author, ::seq ; mgmp_seen.h) -- un double est jete, quel
+    // que soit l'ordre (relai de l'hote, reprise, reconnexion). Les derniers
+    // combats seulement : celui en cours, et ceux dont une reprise est arrivee.
+    SeenActions<kMaxPeers, 4> seen;
+    uint32_t                  dup_drops = 0;
+
     // Mewgenics Multi : l'enregistreur de vol (mgmp_rng.h). Ou en etait l'anneau
     // des tirages a chaque empreinte de tour : les tirages du tour T sont entre
     // la marque de T-1 (ou le debut du combat) et celle de T. Un joueur peut
@@ -496,7 +504,12 @@ void members_tick(bool resend) {
     const uint8_t self = net_self();
     if (self >= kMaxPeers) return;
     const uint8_t  run  = (uint8_t)(mm_run_peers_mask() & 0xFFu);
-    const uint8_t  raw  = members_now(g.entry_members, connected_mask(), member_bit(self), run, g.entry_from_run);
+    // Un invite arrete dans un autre combat (en retard, son jeu fige la-bas) ne
+    // jouera jamais celui-ci : parti, comme un deconnecte -- l'hote prend ses chats
+    // et la barriere ne l'attend plus (relecture de la build 29).
+    const uint8_t  frozen = (uint8_t)(g.halted_peers & ~member_bit(self));
+    const uint8_t  raw  = (uint8_t)(members_now(g.entry_members, connected_mask(), member_bit(self), run,
+                                                g.entry_from_run) & ~frozen);
     const uint64_t now  = GetTickCount64();
     uint8_t gone = 0;
     for (uint8_t p = 0; p < kMaxPeers; ++p) {
@@ -570,6 +583,11 @@ bool out_of_host_run() {
     // copie est encore la, mais il ne joue plus ses combats.
     return g.out_of_run && !savefile_join_armed();
 }
+
+// --- Mewgenics Multi : les decisions deja vues (protocole 50, mgmp_seen.h) -------
+
+bool seen_mark(uint64_t battle, uint8_t author, uint32_t seq) { return g.seen.mark(battle, author, seq); }
+void seen_forget(uint64_t battle) { g.seen.forget(battle); }
 
 // --- FNV-1a, the same hash the protocol note specifies ----------------------
 uint64_t fnv1a(const void* p, size_t n, uint64_t h = 1469598103934665603ULL) {
@@ -1665,27 +1683,37 @@ uint32_t pend_purge_retired() {
 
 // Pops the oldest pending action for `cat`, if any. Actions for different cats
 // can legitimately be in flight at once, so this is not a plain FIFO pop.
+//
+// Mewgenics Multi : la plus ancienne par son tour et son rang
+// (seen_action_earlier), pas la premiere arrivee. Un joueur qui rejoint un
+// combat recoit les decisions en direct avant la reprise des plus anciennes : la
+// premiere arrivee pour un chat peut etre celle du tour N, et la jouer au tour 0
+// desynchronisait sa copie (relecture de la build 29).
 bool pend_take(uint8_t cat, ActionMsg& out) {
+    int best = -1;
     for (uint32_t i = 0; i < g.pend_count; ++i) {
-        uint32_t slot = (g.pend_head + i) % kMaxPending;
-        if (g.pending[slot].actor != cat) continue;
+        const ActionMsg& a = g.pending[(g.pend_head + i) % kMaxPending];
+        if (a.actor != cat) continue;
         // The battle id is part of the key, not a filter applied afterwards. An
         // action held for the NEXT battle names a cat index that exists in this
         // one too, so matching on the cat alone would inject a decision from
         // the wrong battle -- the same bug battle identity exists to stop, one
         // layer down.
-        if (g.pending[slot].battle_id != g.battles.current) continue;
-        out = g.pending[slot];
-        // Close the gap by shifting the entries behind it forward one.
-        for (uint32_t j = i; j + 1 < g.pend_count; ++j) {
-            uint32_t a = (g.pend_head + j) % kMaxPending;
-            uint32_t b = (g.pend_head + j + 1) % kMaxPending;
-            g.pending[a] = g.pending[b];
-        }
-        --g.pend_count;
-        return true;
+        if (a.battle_id != g.battles.current) continue;
+        if (best < 0) { best = (int)i; continue; }
+        const ActionMsg& b = g.pending[(g.pend_head + (uint32_t)best) % kMaxPending];
+        if (seen_action_earlier(a.turn, a.author, a.seq, b.turn, b.author, b.seq)) best = (int)i;
     }
-    return false;
+    if (best < 0) return false;
+    out = g.pending[(g.pend_head + (uint32_t)best) % kMaxPending];
+    // Close the gap by shifting the entries behind it forward one.
+    for (uint32_t j = (uint32_t)best; j + 1 < g.pend_count; ++j) {
+        uint32_t a = (g.pend_head + j) % kMaxPending;
+        uint32_t b = (g.pend_head + j + 1) % kMaxPending;
+        g.pending[a] = g.pending[b];
+    }
+    --g.pend_count;
+    return true;
 }
 
 // --- hashing ----------------------------------------------------------------
@@ -1844,6 +1872,7 @@ void halt(const char* why) {
 
     HaltMsg m{};
     m.turn = g.turn;
+    m.battle_id = g.battles.current;
     _snprintf_s(m.reason, sizeof(m.reason), _TRUNCATE, "%s", why);
     net_send_halt(m);
 }
@@ -2170,6 +2199,7 @@ void lockstep_init() {
 
     g.active  = true;
     g.halted  = false;
+    g.halted_watching = false;
     if (!rejoin_in_battle) {
         g.snapped = false;
         // Turn numbering is per battle and the HASH messages are keyed on it.
@@ -2467,6 +2497,15 @@ void lockstep_pump() {
             case MSG_ACTION:
                 if (out_of_host_run()) break;          // Mewgenics Multi : chez lui, pas dans ce combat
                 if (stale_battle(m.action.battle_id, "an action")) break;
+                // Mewgenics Multi : deja vue (relayee par l'hote puis rejouee dans
+                // sa reprise, ou l'inverse) -- jouee une seule fois.
+                if (seen_mark(m.action.battle_id, m.action.author, m.action.seq)) {
+                    if (g.dup_drops++ < 8)
+                        log_line("LOCKSTEP", "decision deja recue (joueur %u, n. %u, combat %016llx) -- ignoree",
+                                 (unsigned)m.action.author, m.action.seq,
+                                 (unsigned long long)m.action.battle_id);
+                    break;
+                }
                 pend_push(m.action);
                 break;
 
@@ -2629,10 +2668,14 @@ void lockstep_pump() {
 
             case MSG_HALT:
                 // Mewgenics Multi : la copie d'un joueur qui regarde le combat (pas
-                // membre) n'arrete pas celui des membres -- elle seule a diverge.
-                if (!battle_member(m.from) || out_of_host_run()) {
-                    log_line("LOCKSTEP", "!! le joueur %u (pas membre de ce combat) s'est arrete : %s -- "
-                                         "le combat continue sans lui", (unsigned)m.from, m.halt.reason);
+                // membre) n'arrete pas celui des membres -- elle seule a diverge. Ni
+                // un arret dans un autre combat (un joueur en retard, qui rejoue un
+                // combat que les autres ont fini).
+                if (m.halt.battle_id != g.battles.current || !battle_member(m.from) || out_of_host_run()) {
+                    log_line("LOCKSTEP", "!! le joueur %u s'est arrete (%s) : %s -- le combat continue sans lui",
+                             (unsigned)m.from,
+                             m.halt.battle_id != g.battles.current ? "dans un autre combat" : "pas membre de ce combat",
+                             m.halt.reason);
                     // Hote : son jeu est fige dans ce combat, il n'enverra jamais le
                     // CONTROL du suivant -- il n'en sera pas membre (la barriere
                     // l'attendrait pour toujours) avant d'etre revenu.
@@ -2816,6 +2859,12 @@ bool lockstep_fill_choice(void* brain, void* out) {
                          (unsigned)cat, msg.gon[0] ? msg.gon : "?");
             }
         }
+
+        // Mewgenics Multi : son auteur et son rang parmi les siennes dans ce combat
+        // (apres celles d'une reprise qui lui seraient revenues).
+        msg.author = net_self();
+        msg.seq    = g.seen.next(msg.battle_id, msg.author);
+        seen_mark(msg.battle_id, msg.author, msg.seq);
 
         // Logged BEFORE the send, and logged whether or not the send succeeds.
         // The log is what a peer joining mid-battle replays to catch up, so it
@@ -3138,17 +3187,23 @@ void lockstep_leave_run() {
     // revient, la reprise de l'hote le refait depuis le debut. Seulement ce
     // combat-la (et les combats retires) : des decisions d'un combat ou il
     // n'est pas encore entre sont celles d'une reprise deja arrivee.
+    // Sans aventure a rejoindre en route (il rentre vraiment) : plus rien a garder.
     {
+        const bool joining = savefile_join_armed();
         static ActionMsg keep[kMaxPending];
         uint32_t kept = 0;
         for (uint32_t i = 0; i < g.pend_count; ++i) {
             const ActionMsg& a = g.pending[(g.pend_head + i) % kMaxPending];
-            if ((was != kNoBattle && a.battle_id == was) || g.battles.is_retired(a.battle_id)) continue;
+            if (!joining || (was != kNoBattle && a.battle_id == was) || g.battles.is_retired(a.battle_id)) continue;
             keep[kept++] = a;
         }
         for (uint32_t i = 0; i < kept; ++i) g.pending[i] = keep[i];
         g.pend_head  = 0;
         g.pend_count = kept;
+        // Les decisions vues de ce combat (de tous, s'il rentre) : la reprise de
+        // l'hote, s'il revient, doit passer.
+        if (!joining)               seen_forget(kNoBattle);
+        else if (was != kNoBattle)  seen_forget(was);
     }
     for (uint32_t p = 0; p < kMaxPeers; ++p) {
         g.peer_hash[p].clear();
@@ -3199,22 +3254,12 @@ uint8_t lockstep_halted_peers(uint8_t still) {
     return g.halted_peers;
 }
 
-void lockstep_drop_queued(uint64_t battle_id) {
+void lockstep_peer_back(uint8_t peer) {
     Guard guard;
-    if (battle_id == kNoBattle || lockstep_is_host()) return;
-    uint32_t kept = 0, dropped = 0;
-    static ActionMsg keep[kMaxPending];
-    for (uint32_t i = 0; i < g.pend_count; ++i) {
-        const ActionMsg& a = g.pending[(g.pend_head + i) % kMaxPending];
-        if (a.battle_id == battle_id) { ++dropped; continue; }
-        keep[kept++] = a;
-    }
-    if (!dropped) return;
-    for (uint32_t i = 0; i < kept; ++i) g.pending[i] = keep[i];
-    g.pend_head  = 0;
-    g.pend_count = kept;
-    log_line("LOCKSTEP", "%u decision(s) du combat %016llx recue(s) avant la reprise de l'hote : oubliee(s), "
-                         "la reprise les redonne toutes", dropped, (unsigned long long)battle_id);
+    if (!lockstep_is_host() || peer >= kMaxPeers || !(g.halted_peers & member_bit(peer))) return;
+    g.halted_peers &= (uint8_t)~member_bit(peer);
+    log_line("LOCKSTEP", "le joueur %u revient apres s'etre arrete : il sera de nouveau membre des combats",
+             (unsigned)peer);
 }
 
 uint8_t lockstep_members_of(uint64_t battle_id) {
@@ -3277,12 +3322,6 @@ void lockstep_enter_battle(uint64_t seed0) {
 // it.
 void lockstep_catchup(uint8_t peer) {
     Guard guard;
-    // Mewgenics Multi : il (re)vient -- un arret d'avant ne compte plus pour lui.
-    if (lockstep_is_host() && peer < kMaxPeers && (g.halted_peers & member_bit(peer))) {
-        g.halted_peers &= (uint8_t)~member_bit(peer);
-        log_line("LOCKSTEP", "le joueur %u revient apres s'etre arrete : il sera de nouveau membre des combats",
-                 (unsigned)peer);
-    }
     if (!g.active || g.battles.current == kNoBattle) return;
     // Mewgenics Multi : l'hote redit sa liste de chats et les membres de ce
     // combat -- celui qui arrive n'en est pas, il regarde ; s'il revient sans

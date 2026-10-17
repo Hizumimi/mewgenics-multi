@@ -44,6 +44,7 @@
 #include "mm_rungear.h"        // les objets en aventure
 #include "mm_purse.h"          // les bourses de l'aventure
 #include "mm_loot.h"           // le defile du butin
+#include "mm_npcgift.h"        // les dons des invites aux PNJ
 
 #include <winsock2.h>   // avant windows.h : types reseau d'iphlpapi
 #include <ws2tcpip.h>
@@ -1395,6 +1396,7 @@ bool     g_home_due        = false;
 // l'ancienne est encore affichee). Faux une fois passe par le menu principal.
 bool     g_copy_on_screen  = false;
 int      g_peer_run_sent   = -1;      // dernier MM_PEER_RUN envoye
+int      g_stable_in       = -1;      // ce joueur dans l'aventure de l'hote, tel que tenu (lockstep : sortie/retour)
 
 // --- un message simple, un seul bouton ---
 bool        g_info_wanted = false;
@@ -1718,7 +1720,9 @@ bool depart_start(void* button) {
         show_info(team_host_too_many_text(players, mine));
         return true;
     }
-    ++g_dep_seq;
+    // 0 est le numero des cadeaux des PNJ (kNpcGiftSeq) : jamais celui d'un vote,
+    // meme apres 255 departs (relecture de la build 29).
+    if (++g_dep_seq == 0) g_dep_seq = 1;
     team_vote_begin(g_dep_seq);
     g_dep_active = true;
     g_dep_go     = false;
@@ -1897,9 +1901,21 @@ void client_adventure_pump() {
         // Une sortie qui n'est pas voulue (pas « Quitter l'aventure ») doit tenir
         // une demi-seconde : une image a 0 en plein combat effacerait l'etat de ce
         // combat ici (lockstep_leave_run) alors qu'il continue.
+        // `stable_in` est la derniere valeur tenue : g_peer_run_sent, lui, est
+        // remis a -1 a chaque nouvelle de l'hote (pour la lui redire), ce qui ne
+        // doit pas sauter cette attente.
         static uint32_t zero_frames = 0;
         zero_frames = in_run ? 0 : zero_frames + 1;
-        const bool settled = in_run || g_quitting || g_peer_run_sent != 1 || zero_frames >= 30;
+        const bool settled = in_run || g_quitting || g_stable_in != 1 || zero_frames >= 30;
+        if (settled && in_run != g_stable_in) {
+            // Les combats de l'hote : plus les siens en sortant (son etat du combat
+            // en cours est oublie, il le reprendrait du debut), de nouveau en
+            // arrivant. Pas en route pour la rejoindre (sauf en sortant d'une
+            // aventure ou il etait) : la reprise de l'hote arrive pendant le trajet.
+            if (in_run) lockstep_rejoin_run();
+            else if (g_stable_in == 1 || !savefile_join_armed()) lockstep_leave_run();
+            g_stable_in = in_run;
+        }
         if (in_run != g_peer_run_sent && settled) {
             // Arrive : ce que l'hote a pousse pendant le trajet (chats,
             // historique) a ete garde ; on l'applique tout de suite, hors combat.
@@ -1909,14 +1925,6 @@ void client_adventure_pump() {
                 runhist_apply_pending("arrived in the host's adventure");
             }
             send_simple(MM_PEER_RUN, (uint8_t)in_run);
-            // Les combats de l'hote : plus les siens en sortant (son etat du combat
-            // en cours est oublie, il le reprendrait du debut), de nouveau en arrivant.
-            // A chaque passage a 0, meme sans 1 envoye juste avant (ce numero est
-            // remis a -1 a chaque nouvelle de l'hote ou coupure) : la sortie est
-            // sans effet si elle est deja faite. Pas en route pour la rejoindre :
-            // la reprise de l'hote (sa file) arrive pendant le trajet.
-            if (in_run) lockstep_rejoin_run();
-            else if (g_peer_run_sent == 1 || !savefile_join_armed()) lockstep_leave_run();
             g_peer_run_sent = in_run;
             log_line("MULTI", "aventure : %s", in_run ? "ce joueur est dans l'aventure de l'hote"
                                                       : "ce joueur n'est pas dans l'aventure de l'hote");
@@ -1950,6 +1958,7 @@ void client_adventure_pump() {
         }
     } else {
         g_peer_run_sent = -1;
+        g_stable_in     = -1;
         g_host_in_run   = false;
         g_dep_req_live  = false;
         g_dep_offer     = false;
@@ -2271,10 +2280,12 @@ uint64_t __fastcall h_HouseHud(void* self, void* a2, uint64_t a3, uint64_t a4) {
     return r;
 }
 
-// Le tuyau de la maison : un invite en session n'envoie pas encore ses chats
-// aux PNJ. Le monde, PNJ compris, est celui de l'hote (mm_world) : la faveur
-// gagnee ici serait effacee au chargement suivant de sa save, et le chat, lui,
-// serait parti. Le tuyau refuse donc le chat, qui reste dans la maison.
+// Le tuyau de la maison. Un invite en session, dans SA maison, donne ses chats
+// aux PNJ comme seul : la faveur part chez l'hote, dont le monde est celui de
+// tous (mm_npcgift ; sans lui, elle serait effacee au chargement suivant de sa
+// save, et le chat, lui, serait parti). Ailleurs -- la maison de la copie d'une
+// aventure de l'hote, ou sans les crochets des dons -- le tuyau refuse le chat,
+// qui reste dans la maison.
 //
 // Le jeu demande au tuyau (Container::AddCat 0x1402E88D0, emplacement 31 de
 // HousePipe) quand on y lache un chat, mais aussi a chaque image pour chaque
@@ -2334,17 +2345,23 @@ void pipe_unlink(void* pipe, void* cat) {
 
 bool __fastcall h_PipePlace(void* pipe, void* cat) {
     if (net_role() == NetRole::Client && session_has_others()) {
+        if (npcgift_guest_donates()) return o_PipePlace(pipe, cat);
         ++g_pipe_refusals;
         if (pipe && cat) pipe_unlink(pipe, cat);
         if (cat && !pipe_told(cat) && (!g_pipe_said_at || g_frame - g_pipe_said_at > kPipeGap)) {
             pipe_remember(cat);
             g_pipe_said_at = g_frame ? g_frame : 1;
-            log_line("MULTI", "tuyau : envoi d'un chat aux PNJ refuse (invite en session, %u refus)",
+            log_line("MULTI", "tuyau : envoi d'un chat aux PNJ refuse (invite en session, %s, %u refus)",
+                     savefile_in_coop() ? "maison de la copie de l'hote" : "dons aux PNJ indisponibles",
                      g_pipe_refusals);
-            show_info(fmt(u8"Les PNJ suivent la partie de %s :\n"
-                          u8"envoyer tes chats dans le tuyau\n"
-                          u8"arrive dans une prochaine version.",
-                          host_display().c_str()));
+            show_info(savefile_in_coop()
+                          ? fmt(u8"Ce tuyau est celui de la maison de %s :\n"
+                                u8"envoie tes chats aux PNJ depuis\n"
+                                u8"ta propre maison.", host_display().c_str())
+                          : fmt(u8"Les PNJ suivent la partie de %s :\n"
+                                u8"envoyer tes chats dans le tuyau n'est\n"
+                                u8"pas possible avec cette version du jeu.",
+                                host_display().c_str()));
         }
         return false;
     }
@@ -2814,6 +2831,7 @@ void mm_menu_pump() {
     rungear_pump();                 // Mewgenics Multi : les objets en aventure
     purse_pump();                   // Mewgenics Multi : les bourses de l'aventure
     loot_pump();                    // Mewgenics Multi : le defile du butin
+    npcgift_pump();                 // Mewgenics Multi : les dons des invites aux PNJ
     team_ui_pump();                 // Mewgenics Multi : fenetres de l'equipe mixte
     trip_pump();
     night_pump();

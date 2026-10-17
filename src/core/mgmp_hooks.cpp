@@ -43,6 +43,7 @@
 #include "mgmp_hooks.h"
 #include "mm_menu.h"   // Mewgenics Multi : bouton Multijoueur et fenetres du jeu
 #include "mm_team.h"   // Mewgenics Multi : l'equipe mixte (team_binding)
+#include "mm_npcgift.h" // Mewgenics Multi : les dons aux PNJ (npcgift_binding)
 #include "mm_collars.h" // Mewgenics Multi : le choix des colliers (collars_binding)
 #include "mm_gear.h"    // Mewgenics Multi : le choix des objets (gear_binding)
 #include "mm_vote.h"    // Mewgenics Multi : le vote du chemin (vote_binding)
@@ -849,6 +850,10 @@ const Binding kBindings[] = {
     // Mewgenics Multi : quitter l'aventure de l'hote, detour dans
     // src/ui/mm_menu.cpp (mm_binding).
     { T_TryAbandonRun,   nullptr, nullptr },
+    // Mewgenics Multi : les dons de l'invite aux PNJ, detours dans
+    // src/session/mm_npcgift.cpp (npcgift_binding).
+    { T_NpcFavor,        nullptr, nullptr },
+    { T_CacheReward,     nullptr, nullptr },
 };
 
 // Resolves the three RNG bindings, which are not static initialisers because
@@ -903,6 +908,7 @@ bool install_one(const Binding& b, bool announce_off) {
     rungear_binding(b.target, &detour, &original);
     purse_binding(b.target, &detour, &original);
     choice_binding(b.target, &detour, &original);
+    npcgift_binding(b.target, &detour, &original);
     if (!detour || !original) {
         log_raw("  [!] %-9s no detour bound", t.name);
         return false;

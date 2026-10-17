@@ -213,6 +213,11 @@ void team_note_payout(uint8_t seq, int32_t coins, int32_t food);
 // du retour. `key` (le defile et l'objet) : note une seule fois. Faux s'il n'a
 // pas pu etre pris (trop d'objets en attente) : il reste chez l'hote.
 bool team_note_loot(uint8_t seq, uint64_t key, const ItemFields& item, const std::string& name_utf8);
+// Invite : les pieces et la nourriture qu'un PNJ lui donne pour son don
+// (mm_npcgift). Ajoutees a sa save a son prochain chargement, comme sa bourse
+// (et dites a part). Faux si elles n'ont pas pu etre gardees : elles restent chez
+// l'hote.
+bool team_note_gift(int32_t coins, int32_t food);
 
 // --- invite : retour chez lui (mgmp_savefile.cpp) -----------------------------
 

@@ -211,6 +211,11 @@ void refuse_peer(uint8_t peer, const char* why) {
 // been accepted, and (Mewgenics Multi) for a peer that was playing its own save
 // and now asks to join the adventure in progress (MM_RUN_REQ).
 void catchup_peer(uint8_t from) {
+    // Mewgenics Multi : il revient -- s'il s'etait arrete dans un combat d'avant
+    // (desynchronise), il redevient membre des combats, meme si l'hote est sur la
+    // carte (pas de reprise de combat plus bas).
+    lockstep_peer_back(from);
+
     // Mewgenics Multi : qui dirige quels chats dans l'aventure en cours, AVANT la
     // save -- le premier combat de l'arrivant en a besoin.
     team_catchup(from);

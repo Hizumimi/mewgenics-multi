@@ -123,6 +123,9 @@ enum Target : int {
     T_EventCatPick,      // sub_14093C220 -- son « ok » (lambda_1) : WorldEvent+0x128 = le chat montre
     // --- Mewgenics Multi : quitter l'aventure de l'hote (src/ui/mm_menu.cpp) --
     T_TryAbandonRun,     // sub_140296FB0 -- PauseMenu::TryAbandonRun : « Abandonner l'aventure »
+    // --- Mewgenics Multi : les dons de l'invite aux PNJ (src/session/mm_npcgift.cpp) --
+    T_NpcFavor,          // sub_1401C1650 -- la faveur d'un don (progression, PNJ, CatData, quantite)
+    T_CacheReward,       // sub_1401C18E0 -- GlobalProgressionData::CacheInReward(PNJ) : la recompense
     T_COUNT
 };
 
@@ -719,6 +722,19 @@ static const TargetDesc kTargets[T_COUNT] = {
     // chez l'hote d'une aventure a plusieurs, une ligne de plus dans la
     // confirmation du jeu (mm_menu).
     { 0x00296FB0, "ABANDONRUN","PauseMenu::TryAbandonRun (sub_140296FB0)" },
+    // Mewgenics Multi : les dons aux PNJ (mm_npcgift.h decrit les deux).
+    // sub_1401C1650 (progression MewDirector+0x5A8, PNJ, CatData*, quantite) :
+    // appelee par chaque rappel de la carte des PNJ (NPCMapDrawer::click_<pnj>,
+    // lambda_1) quand un chat y est envoye, et a la fin d'une aventure pour
+    // l'orgue (0x1401C7B40, 0x1401C7D00). La faveur, le drapeau de la recompense
+    // prete, et pour Beanies les capacites du chat. Chez un invite dans sa
+    // maison, la faveur part chez l'hote au lieu d'etre ajoutee a sa copie.
+    { 0x001C1650, "NPCFAVOR",  "NPC favor from a donated cat (sub_1401C1650)" },
+    // GlobalProgressionData::CacheInReward(NPC) (chaine de l'assertion en
+    // 0x1401C3553) : prend la recompense prete du PNJ -- dialogue du bureau
+    // (« get npc_reward », 0x1408EFDC2) ou commande de console (0x1401E2B37).
+    // Chez l'hote, une recompense remplie par le don d'un invite part chez lui.
+    { 0x001C18E0, "CACHEREWARD","GlobalProgressionData::CacheInReward (sub_1401C18E0)" },
 };
 
 // Coarse module guard, checked before the per-target signatures.
@@ -827,6 +843,9 @@ enum Call : int {
 
     // --- Mewgenics Multi : les recrues (src/session/mm_team.cpp) -------------
     C_PedigreeAdd,           // void(Pedigree*, u64 cle, u64 pa, u64 pb) -- sub_140772AC0
+
+    // --- Mewgenics Multi : les PNJ en direct (src/session/mm_npc.cpp) -----------
+    C_NpcAdvance,            // void(PNJ* (progression+0x48), int PNJ) -- sub_140274910
     C_COUNT
 };
 
@@ -1135,6 +1154,12 @@ static const CallDesc kCalls[C_COUNT] = {
     // operator[] (le reecrire ne double rien). Registry::NewCat l'appelle avec
     // -1, -1 pour un chat sans parents (0x1400D71EC).
     { 0x00772AC0, "Pedigree::add" },
+    // Le passage d'un PNJ a sa recompense suivante, sans ses effets (le debut de
+    // CacheInReward, 0x1401C1955) : la recompense visee rejoint les prises (selon
+    // « repeat at » / « infinite »), la suivante devient la visee, faveur et
+    // drapeau a zero. Mewgenics Multi : chez un invite, refait une fois quand
+    // l'hote a pris une recompense de plus (mm_npc), pour que la jauge suive.
+    { 0x00274910, "GlobalProgressionData NPC advance" },
 };
 
 // sub_140138A10 IS NOT A DRAW ROUTINE, and it is in the table above only

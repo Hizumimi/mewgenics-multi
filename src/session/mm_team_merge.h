@@ -79,7 +79,8 @@ enum : uint8_t {
     kTeamLoot    = 13,  // les deux sens : le defile du butin (mm_loot, protocole 47 ; corps : mm_loot_core)
     kTeamRecruit = 14,  // hote -> tous : une recrue rejoint l'equipe en route, et a qui elle est (protocole 49)
     kTeamNewCats = 15,  // hote -> un invite : a la fin, les recrues qui rentrent chez lui (protocole 49)
-    kTeamLast    = kTeamNewCats,
+    kTeamNpc     = 16,  // les deux sens : les dons de l'invite aux PNJ (mm_npcgift, protocole 50)
+    kTeamLast    = kTeamNpc,
 };
 
 // Le message MSG_TEAM : des chats (kTeamDepart, kTeamResult)...

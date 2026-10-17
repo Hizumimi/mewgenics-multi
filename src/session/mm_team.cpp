@@ -5,6 +5,8 @@
 #include "mm_embark.h"
 #include "mm_gear.h"
 #include "mm_loot.h"
+#include "mm_npcgift.h"
+#include "mm_npcgift_core.h"   // kNpcGiftSeq
 #include "mm_purse_core.h"
 #include "mm_recruit_core.h"
 #include "mm_rungear.h"
@@ -231,6 +233,8 @@ struct Recruit {                     // hote : un chat qui a rejoint l'equipe en
     uint8_t     owner    = kHostPeer;    // son attributaire, par son numero...
     std::string owner_name;              // ... et par son nom (il peut revenir sous un autre numero)
     uint8_t     first_owner = kHostPeer; // son numero quand la recrue lui a ete donnee
+    uint8_t     slot  = 0xFF;            // le numero au depart (RunCat::first_owner) de ses chats a lui,
+                                         // 0xFF s'il n'en avait pas amene
 };
 
 struct NewCat {                      // invite : une recrue qui rentre chez lui, a ajouter a sa save
@@ -286,6 +290,8 @@ struct Keep {
     std::vector<uint64_t>    team_seen;      // hote : les cles deja vues dans l'equipe de cette aventure
     uint64_t                 catless_since[8] = {};   // hote : sans chat vivant depuis (ms) ; 0 : il en a
     void*                    return_house = nullptr; // hote : la maison ou le jeu ramenait l'equipe
+    std::string              recruit_save;   // hote : la save de l'aventure dont sont les recrues (reset_recruits
+                                             // a chaque chargement d'une AUTRE save)
     std::vector<uint64_t>    withheld;       // hote, fin d'aventure : recrues d'invites gardees hors de sa
                                              // maison (h_ReturnCat) -- envoyees, ou rendues a sa maison
     std::vector<std::string> map_infos;      // fenetres a montrer sur la carte (une recrue)
@@ -536,12 +542,12 @@ int recruit_peer(const Recruit& r) {
     for (uint8_t i = 0; i < n && i < 8; ++i) {
         const uint8_t id = ids[i];
         if (id == kHostPeer || mm_peer_name(id) != r.owner_name) continue;
-        // Un autre joueur du meme nom, qui dirige deja ses propres chats (un
-        // autre numero au depart) : ce n'est pas lui qui revient (comme peer_for).
+        // Un autre joueur du meme nom, qui dirige deja ses propres chats (ceux
+        // d'un autre numero au depart que les siens, ou n'importe lesquels s'il
+        // n'en avait pas amene) : ce n'est pas lui qui revient (comme peer_for).
         bool taken = false;
         for (const RunCat& o : k.run)
-            if (o.owner_name == r.owner_name && o.first_owner != r.first_owner && o.owner == id &&
-                peer_present(o.owner))
+            if (o.owner_name == r.owner_name && o.first_owner != r.slot && o.owner == id && peer_present(o.owner))
                 taken = true;
         if (taken) continue;
         if (found >= 0) return -1;           // deux candidats : on ne devine pas
@@ -591,6 +597,15 @@ void reset_recruits() {
     for (uint64_t& t : k.catless_since) t = 0;
     k.return_house = nullptr;
     k.withheld.clear();
+    k.recruit_save.clear();
+}
+
+// Hote : une nouvelle aventure part de sa save `name` -- ses recrues seront les
+// siennes (un rechargement de cette save en pleine aventure les garde).
+void start_recruits() {
+    reset_recruits();
+    char save[64] = {};
+    if (savefile_host_save_name(save, sizeof(save))) k.recruit_save = save;
 }
 
 void forget_run(const char* why) {
@@ -736,6 +751,8 @@ void recruits_tick() {
         r.owner      = pick >= 0 && pick < 8 ? (uint8_t)pick : kHostPeer;
         r.owner_name = mm_peer_name(r.owner);
         r.first_owner = r.owner;
+        for (const RunCat& rc : k.run)
+            if (rc.owner == r.owner && rc.owner_name == r.owner_name) r.slot = rc.first_owner;
         ++living[r.owner];
         k.catless_since[r.owner] = 0;
         k.recruits.push_back(r);
@@ -1098,11 +1115,15 @@ void send_new_cats(void* dir) {
                      why);
         }
     };
+    // Le joueur de chaque recrue, une fois (la liste des joueurs change sur le fil
+    // du reseau : la redemander en route pourrait la perdre entre deux).
+    std::vector<std::pair<uint64_t, int>> owner_of;
     std::vector<int> owners;
     for (uint64_t key : k.withheld) {
         const Recruit* r = guest_recruit_at(key);
-        if (!r) { give_back(key, "son joueur n'est plus la"); continue; }
-        const int p = recruit_peer(*r);
+        const int p = r ? recruit_peer(*r) : -1;
+        if (p < 0 || p == (int)kHostPeer) { give_back(key, "son joueur n'est plus la"); continue; }
+        owner_of.emplace_back(key, p);
         if (std::find(owners.begin(), owners.end(), p) == owners.end()) owners.push_back(p);
     }
     for (int p : owners) {
@@ -1113,9 +1134,13 @@ void send_new_cats(void* dir) {
         std::vector<uint64_t>    keys;
         std::vector<CatDays>     was_days;   // pour tout remettre si l'envoi echoue
         std::vector<uint64_t>    was_flags;
-        for (uint64_t key : k.withheld) {
-            const Recruit* r = guest_recruit_at(key);
-            if (!r || recruit_peer(*r) != p) continue;
+        for (const auto& ko : owner_of) {
+            if (ko.second != p) continue;
+            const uint64_t key = ko.first;
+            const Recruit* r = nullptr;
+            for (const Recruit& x : k.recruits)
+                if (x.host_key == key) r = &x;
+            if (!r) { give_back(key, "recrue introuvable"); continue; }
             void* cat = catsync_cat_by_key(key);
             CatDays days;
             uint64_t flags = 0;
@@ -1324,7 +1349,7 @@ bool __fastcall h_ButchDepart(void* box) {
     // maintenant. Une nouvelle aventure : ses recrues repartent de zero, et
     // elle porte ce vote (la note d'une recrue, les proprietaires et les
     // recrues qui rentrent le donnent aux invites), meme sans chat d'invite.
-    reset_recruits();
+    start_recruits();
     k.run_seq = g.vote_seq;
     const bool prepared = g.prepared && g.prepared_seq == g.vote_seq;
     g.prepared = false;
@@ -1414,7 +1439,7 @@ void __fastcall h_ReturnCat(void* house, uint64_t key) {
 void __fastcall h_RunCleared(void* dir) {
     // Avant l'original : les listes de la course sont encore la, et les chats
     // d'invites, nettoyes par la fin de course, sont dans le registre du jeu.
-    if (!k.run.empty() || !k.recruits.empty()) {
+    if (!k.run.empty() || !k.recruits.empty() || (g.host && !k.owners.empty())) {
         send_results();
         send_new_cats(dir);
         forget_run("fin d'aventure");
@@ -1598,16 +1623,21 @@ bool pending_store(const char* save);   // plus bas : le fichier « <save>.mgmp-
 // fait une. Pas ajoutees (erreur) : on reessaiera au prochain chargement.
 void apply_payouts(const char* name, size_t home_before) {
     auto mine = [name](const Payout& p) { return p.save.empty() || _stricmp(p.save.c_str(), name) == 0; };
-    int64_t coins = 0, food = 0;
+    int64_t coins = 0, food = 0, gift_coins = 0, gift_food = 0;
     size_t  n = 0;
     for (const Payout& p : k.payouts)
-        if (mine(p)) { coins += p.coins; food += p.food; ++n; }
+        if (mine(p)) {
+            // Les cadeaux des PNJ (mm_npcgift) a part : dits autrement.
+            if (p.seq == kNpcGiftSeq) { gift_coins += p.coins; gift_food += p.food; }
+            else                      { coins += p.coins; food += p.food; }
+            ++n;
+        }
     if (!n) return;
     if (!back_up_own(name)) return;
     sqlite3* db = open_own(name, true);
     if (!db) return;
     TeamPurseApply r;
-    const bool ok = team_apply_purse(db, coins, food, &r);
+    const bool ok = team_apply_purse(db, coins + gift_coins, food + gift_food, &r);
     sqlite3_close(db);
     if (!ok) {
         log_line("TEAM", "!! ta bourse n'a pas pu etre ajoutee a %s -- on reessaiera au prochain chargement", name);
@@ -1617,9 +1647,17 @@ void apply_payouts(const char* name, size_t home_before) {
     pending_store(name);
     log_line("TEAM", "bourse ajoutee a %s : or %lld -> %lld, nourriture %lld -> %lld (%zu aventure(s))", name,
              (long long)r.gold_before, (long long)r.gold_after, (long long)r.food_before, (long long)r.food_after, n);
-    const std::string line = u8"Tu rapportes " + purse_amount_text(coins, food) + u8" dans ta maison.";
-    if (k.home_infos.size() > home_before) k.home_infos.back() += "\n" + line;
-    else k.home_infos.push_back(u8"Retour de l'aventure\n\n" + line);
+    if (coins || food) {
+        const std::string line = u8"Tu rapportes " + purse_amount_text(coins, food) + u8" dans ta maison.";
+        if (k.home_infos.size() > home_before) k.home_infos.back() += "\n" + line;
+        else k.home_infos.push_back(u8"Retour de l'aventure\n\n" + line);
+    }
+    if (gift_coins || gift_food) {
+        const std::string line = u8"Les PNJ te remercient de tes chats : " + purse_amount_text(gift_coins, gift_food) +
+                                 u8" dans ta maison.";
+        if (k.home_infos.size() > home_before) k.home_infos.back() += "\n" + line;
+        else k.home_infos.push_back(u8"Cadeaux des PNJ\n\n" + line);
+    }
 }
 
 // Ce qui attend d'etre ajoute a une save (ses bourses, son butin), garde dans un
@@ -1787,12 +1825,12 @@ void apply_loot(const char* name, size_t home_before) {
         return (l.save.empty() || _stricmp(l.save.c_str(), name) == 0) && !waits(l);
     };
     std::vector<ItemFields>  items;
-    std::vector<std::string> names;
+    std::vector<std::string> names, gifts;   // le butin des aventures, les cadeaux des PNJ (mm_npcgift)
     size_t held = 0;
     for (const LootItem& l : k.loot)
         if (mine(l)) {
             items.push_back(l.item);
-            names.push_back(l.name);
+            (l.seq == kNpcGiftSeq ? gifts : names).push_back(l.name);
         } else if ((l.save.empty() || _stricmp(l.save.c_str(), name) == 0)) {
             ++held;
         }
@@ -1814,9 +1852,16 @@ void apply_loot(const char* name, size_t home_before) {
     k.loot.erase(std::remove_if(k.loot.begin(), k.loot.end(), mine), k.loot.end());
     pending_store(name);
     log_line("TEAM", "butin ajoute au rangement de %s : %zu objet(s), %u -> %u", name, items.size(), before, after);
-    const std::string line = u8"Ton butin est dans ton rangement : " + join_names(names) + ".";
-    if (k.home_infos.size() > home_before) k.home_infos.back() += "\n" + line;
-    else k.home_infos.push_back(u8"Retour de l'aventure\n\n" + line);
+    if (!names.empty()) {
+        const std::string line = u8"Ton butin est dans ton rangement : " + join_names(names) + ".";
+        if (k.home_infos.size() > home_before) k.home_infos.back() += "\n" + line;
+        else k.home_infos.push_back(u8"Retour de l'aventure\n\n" + line);
+    }
+    if (!gifts.empty()) {
+        const std::string line = u8"Les cadeaux des PNJ sont dans ton rangement : " + join_names(gifts) + ".";
+        if (k.home_infos.size() > home_before) k.home_infos.back() += "\n" + line;
+        else k.home_infos.push_back(u8"Cadeaux des PNJ\n\n" + line);
+    }
 }
 
 // Ses recrues (kTeamNewCats) pour cette save : ajoutees en une transaction,
@@ -1916,7 +1961,9 @@ std::string loaded_own_save() {
 }
 
 void pedigree_pump() {
-    if (k.pedigree_due.empty() || savefile_in_coop() || !mm_house()) return;
+    // Pas pendant qu'il rejoint une aventure : la maison a l'ecran est encore
+    // celle de l'ancienne copie (hors de la copie pour le mod, deja).
+    if (k.pedigree_due.empty() || savefile_in_coop() || savefile_join_armed() || !mm_house()) return;
     const std::string loaded = loaded_own_save();
     if (loaded.empty()) return;
     bool any = false;
@@ -2289,6 +2336,7 @@ void team_on_message(uint8_t from, const SaveFileMsg& m) {
         case kTeamLoot: loot_on_team(from, m.data, m.size); break;
         case kTeamRecruit: on_recruit(from, m); break;
         case kTeamNewCats: on_newcats(from, m); break;
+        case kTeamNpc: npcgift_on_team(from, m.data, m.size); break;
         default:
             log_line("TEAM", "!! message d'equipe inconnu (%u octets) -- ignore", m.size);
             break;
@@ -2345,7 +2393,7 @@ bool team_embark_prepare(uint8_t seq) {
     g.prepared         = true;
     g.prepared_seq     = seq;
     g.prepared_brought = has_pending_cats();
-    reset_recruits();                        // une nouvelle aventure (voir h_ButchDepart)
+    start_recruits();                        // une nouvelle aventure (voir h_ButchDepart)
     k.run_seq = seq;
     if (!g.prepared_brought)
         drop_mixed();                        // une aventure d'avant ne decide rien pour celle-ci
@@ -2608,10 +2656,10 @@ void team_prepare_own_save(const char* name) {
     // decide plus rien (ses chats d'invites restent marques dans leur save).
     if (!k.run.empty() && !k.run_save.empty() && _stricmp(k.run_save.c_str(), name) != 0)
         forget_run("une autre save se charge");
-    // Une save qui se charge : les recrues d'une aventure en memoire ne la
-    // concernent plus (une aventure sans chat d'invite n'a pas de run_save), et
-    // la premiere photo de l'equipe se refera.
-    reset_recruits();
+    // Une AUTRE save que celle des recrues en memoire : elles ne la concernent
+    // plus, et la premiere photo de l'equipe se refera. La meme (l'hote la
+    // recharge en pleine aventure : son aventure continue) les garde.
+    if (k.recruit_save.empty() || _stricmp(k.recruit_save.c_str(), name) != 0) reset_recruits();
     k.backed_up = false;                     // une copie de securite par chargement
     const size_t home_before = k.home_infos.size();
     // Ce qui attendait d'etre ajoute a cette save, peut-etre d'une partie d'avant
@@ -2743,6 +2791,14 @@ bool team_note_loot(uint8_t seq, uint64_t key, const ItemFields& item, const std
         char own[64] = {};
         if (savefile_own_save_name(own, sizeof(own))) l.save = own;
     }
+    // Sans save a lui (relance du jeu, pas encore d'emplacement choisi) : rien ne
+    // le garderait sur le disque, et la premiere save chargee le prendrait. Il
+    // reste chez l'hote (relecture de la build 29).
+    if (l.save.empty()) {
+        log_line("TEAM", "!! butin : %s -- pas de save a toi dans cette session, il reste chez l'hote",
+                 item.name.c_str());
+        return false;
+    }
     if (k.loot.size() >= kMaxLoot) {
         log_line("TEAM", "!! trop d'objets de butin en attente : %s n'est pas pris", item.name.c_str());
         return false;
@@ -2752,7 +2808,7 @@ bool team_note_loot(uint8_t seq, uint64_t key, const ItemFields& item, const std
     // retire alors de son rangement, et l'objet ne doit exister nulle part
     // ailleurs que la, meme si ce joueur ferme son jeu avant de recharger sa save.
     const std::string save = k.loot.back().save;
-    if (!save.empty() && !pending_store(save.c_str())) {
+    if (!pending_store(save.c_str())) {
         log_line("TEAM", "!! butin : %s n'a pas pu etre garde sur le disque -- il n'est pas pris (il reste chez l'hote)",
                  item.name.c_str());
         k.loot.pop_back();
@@ -2760,6 +2816,45 @@ bool team_note_loot(uint8_t seq, uint64_t key, const ItemFields& item, const std
     }
     log_line("TEAM", "<- butin : %s -- ajoute au rangement de %s a son prochain chargement", item.name.c_str(),
              save.empty() ? "ta save" : save.c_str());
+    return true;
+}
+
+bool team_note_gift(int32_t coins, int32_t food) {
+    if (coins < 0) coins = 0;
+    if (food < 0) food = 0;
+    if (!coins && !food) return true;
+    char own[64] = {};
+    const std::string save = savefile_own_save_name(own, sizeof(own)) ? own : "";
+    if (save.empty()) {                      // comme team_note_loot : il reste chez l'hote
+        log_line("TEAM", "!! cadeau d'un PNJ : pas de save a toi dans cette session -- il reste chez l'hote");
+        return false;
+    }
+    Payout* p = nullptr;
+    for (Payout& o : k.payouts)
+        if (o.seq == kNpcGiftSeq && _stricmp(o.save.c_str(), save.c_str()) == 0) p = &o;
+    if (!p) {
+        if (k.payouts.size() >= kMaxPayouts) {
+            log_line("TEAM", "!! trop de bourses en attente : le cadeau d'un PNJ n'est pas pris");
+            return false;
+        }
+        Payout fresh;
+        fresh.seq  = kNpcGiftSeq;
+        fresh.save = save;
+        k.payouts.push_back(fresh);
+        p = &k.payouts.back();
+    }
+    p->coins += coins;
+    p->food  += food;
+    // Garde dans le fichier de la save avant de dire a l'hote « pris » : il les
+    // retire alors de sa maison.
+    if (!pending_store(save.c_str())) {
+        p->coins -= coins;
+        p->food  -= food;
+        log_line("TEAM", "!! cadeau d'un PNJ : pas garde sur le disque -- il reste chez l'hote");
+        return false;
+    }
+    log_line("TEAM", "<- cadeau d'un PNJ : %d piece(s), %d nourriture(s) -- ajoutes a %s a son prochain chargement",
+             coins, food, save.empty() ? "ta save" : save.c_str());
     return true;
 }
 

@@ -32,6 +32,7 @@ int main() {
         a.b30 = 1; a.b31 = 0;
         a.tx = 5; a.ty = -3; a.dx = -1; a.dy = 0;
         strcpy_s(a.gon, "wp_BearTraps");
+        a.author = 2; a.seq = 70000;
 
         uint32_t n = enc_action(buf, sizeof(buf), a);
         check(n > 0, "encodes");
@@ -49,6 +50,23 @@ int main() {
         check(b.tx == 5 && b.ty == -3, "target survives a negative");
         check(b.dx == -1 && b.dy == 0, "direction survives a negative");
         check(strcmp(b.gon, "wp_BearTraps") == 0, "GON name, the second identity");
+        check(b.author == 2 && b.seq == 70000, "Mewgenics Multi : l'auteur et le rang de la decision (protocole 50)");
+    }
+
+    printf("\n-- Mewgenics Multi : HALT porte son combat (protocole 50) --\n");
+    {
+        HaltMsg h{};
+        h.turn = 12;
+        strcpy_s(h.reason, "hash mismatch");
+        h.battle_id = 0x8899aabbccddeeffULL;
+        uint32_t n = enc_halt(buf, sizeof(buf), h);
+        check(n > 0, "encodes");
+        Reader r(buf, n);
+        check(r.u8v() == MSG_HALT, "message type is HALT");
+        HaltMsg g2{};
+        check(dec_halt(r, g2), "decodes");
+        check(g2.turn == 12 && strcmp(g2.reason, "hash mismatch") == 0, "turn and reason");
+        check(g2.battle_id == 0x8899aabbccddeeffULL, "the battle it halted in, all 64 bits");
     }
 
     printf("\n-- types 6 and 7 are refused at the edge --\n");
@@ -661,6 +679,7 @@ int main() {
         w.i32v(0); w.i32v(0); w.i32v(0); w.i32v(0);
         char big[200]; memset(big, 'x', sizeof(big)); big[199] = 0;
         w.str(big);                     // Writer clamps to 255
+        w.u8v(1); w.u32v(5);            // Mewgenics Multi : auteur et rang (protocole 50)
         w.u32v(0xFEEDFACE);             // a sentinel after the string
 
         Reader r(buf, w.len); r.u8v();
@@ -668,6 +687,7 @@ int main() {
         check(dec_action(r, a), "decodes");
         check(a.battle_id == 9 && a.turn == 1, "battle_id and turn survive ahead of it");
         check(strlen(a.gon) == sizeof(a.gon) - 1, "name truncated to the field");
+        check(a.author == 1 && a.seq == 5, "the fields after the name are read in place");
         check(r.u32v() == 0xFEEDFACE, "the cursor still lands on the next field");
     }
 

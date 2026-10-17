@@ -103,6 +103,22 @@ target_include_directories(test_recruit PRIVATE ${CMAKE_SOURCE_DIR}/src/session)
 target_compile_options(test_recruit PRIVATE /utf-8)
 add_test(NAME test_recruit COMMAND test_recruit)
 
-foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_members test_battleid test_config test_world_merge test_team_merge test_vote test_purse test_loot test_recruit)
+# Mewgenics Multi : les dons de l'invite aux PNJ -- le message kTeamNpc, les
+# capacites du chat, les objets nouveaux du rangement, a qui va la recompense.
+add_executable(test_npcgift test_npcgift.cpp ${CMAKE_SOURCE_DIR}/src/session/mm_npcgift_core.cpp
+               ${CMAKE_SOURCE_DIR}/src/session/mm_team_merge.cpp)
+target_include_directories(test_npcgift PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/session ${CMAKE_SOURCE_DIR}/src/core ${CMAKE_SOURCE_DIR}/third_party/sqlite)
+target_link_libraries(test_npcgift PRIVATE mm_sqlite)
+target_compile_options(test_npcgift PRIVATE /utf-8)
+add_test(NAME test_npcgift COMMAND test_npcgift)
+
+# Mewgenics Multi : les decisions de combat deja vues (relai de l'hote, reprise).
+add_executable(test_seen test_seen.cpp)
+target_include_directories(test_seen PRIVATE ${CMAKE_SOURCE_DIR}/src/session)
+target_compile_options(test_seen PRIVATE /utf-8)
+add_test(NAME test_seen COMMAND test_seen)
+
+foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_members test_battleid test_config test_world_merge test_team_merge test_vote test_purse test_loot test_recruit test_npcgift test_seen)
     target_compile_options(${t} PRIVATE /W3)
 endforeach()

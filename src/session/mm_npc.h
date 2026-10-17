@@ -16,9 +16,11 @@
 // sont a la meme recompense (npc_guest_target). Jamais « recompense prete » :
 // c'est l'hote, qui a fait les dons, qui prend la recompense ; tant qu'elle est
 // prete chez l'hote, l'invite garde sa faveur d'avant, sous le palier. Un PNJ
-// dont l'hote a deja pris la recompense attend le prochain chargement de la
-// save de l'invite, ou mm_world recopie tout (il faudrait sinon changer des
-// chaines et des listes du jeu). Il recopie aussi a chaque retour dans sa
+// dont l'hote vient de prendre la recompense (une prise de plus que sa copie)
+// passe a la suivante chez l'invite aussi, par la fonction du jeu, sans ses
+// effets (C_NpcAdvance, une fois) ; plus loin que ca, il attend le prochain
+// chargement de la save de l'invite, ou mm_world recopie tout. Il recopie aussi
+// a chaque retour dans sa
 // maison : l'etat en direct est plus recent que la save de l'hote qu'il vient
 // de reprendre. Plus d'hote (connexion perdue) : son dernier etat est oublie --
 // le joueur peut alors donner ses chats lui-meme, et un vieil etat ecraserait
