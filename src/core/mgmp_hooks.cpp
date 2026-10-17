@@ -699,6 +699,11 @@ void __fastcall h_SaveSelUpdate(void* self) {
 // reads and does not own -- so handing it a std::string of ours is exactly as
 // valid as the vector element the game would have passed.
 void* __fastcall h_MewDirInit(void* self, void* name) {
+    // Mewgenics Multi (protocole 55) : une partie se charge, et aucune defense de
+    // la maison n'est encore en cours -- ContinueAdventure, appele apres, repose
+    // le drapeau si la save en reprend une. Celui d'une defense quittee par
+    // « Quitter vers le menu » ne doit pas la suivre (mm_team.h).
+    team_house_defense_forget_stale();
     if (const void* sub = savefile_redirect_load())
         return o_MewDirInit(self, (void*)sub);
     return o_MewDirInit(self, name);

@@ -788,13 +788,39 @@ bool house_defense_pending() {
     return busy == 0;
 }
 
-// MewDirector+0x70C : le combat de la defense de la maison (mm_team.h).
-constexpr uintptr_t kDir_DefenseRun = 0x70C;
-
+// MewDirector+0x70C : le combat de la defense de la maison (mm_team.h,
+// kDir_DefenseRun dans mgmp_addresses.h).
 bool house_defense_running() {
     void* d = director();
     uint8_t on = 0;
     return d && mem_read((const char*)d + kDir_DefenseRun, &on, sizeof(on)) && on != 0;
+}
+
+// Le drapeau d'une defense quittee par « Quitter vers le menu » : le jeu ne le
+// remet a zero qu'a la fin d'une aventure (ClearRunState), et le MewDirector est
+// le meme pour toute la partie. Sans cela, la save chargee ensuite -- une autre,
+// ou la copie de l'aventure de l'hote -- serait encore « en defense » : ses
+// combats ne seraient plus suivis par la session, et le jeu lui-meme les jouerait
+// autrement (Character::BeginTurn le lit) que chez les autres. Au menu, il n'y a
+// pas de defense : la reprise d'une defense sauvee le repose (ContinueAdventure).
+bool house_defense_forget_stale() {
+    void* d = director();
+    uint8_t on = 0;
+    if (!d || !mem_read((const char*)d + kDir_DefenseRun, &on, sizeof(on)) || !on) return false;
+    const uint8_t off = 0;
+    if (!mem_write((char*)d + kDir_DefenseRun, &off, sizeof(off))) {
+        static bool said = false;
+        if (!said) {
+            said = true;
+            log_line("TEAM", "!! defense de la maison quittee par le menu : son drapeau (MewDirector+0x%X) "
+                             "n'a pas pu etre remis a zero", (unsigned)kDir_DefenseRun);
+        }
+        return false;
+    }
+    log_line("TEAM", "defense de la maison quittee par le menu : son drapeau (MewDirector+0x%X) est remis "
+                     "a zero -- le jeu ne le fait qu'a la fin d'une aventure, et la partie chargee ensuite "
+                     "se croirait encore en defense", (unsigned)kDir_DefenseRun);
+    return true;
 }
 
 // Une ligne de la table cats, par la connexion du jeu (comme Registry::Save).
@@ -1354,7 +1380,12 @@ bool __fastcall h_ButchDepart(void* box) {
     if (!g.on || !g.host || !in_session() || sign != 2 || defense) {
         g.pending.clear();
         g.prepared = false;
-        forget_run(sign == 1 ? "fin de journee" : defense ? "defense de la maison" : "depart sans autre joueur");
+        // La defense d'un INVITE ne dit rien de l'aventure de l'hote : ses chats
+        // peuvent y etre restes (« Quitter l'aventure »), et ce qu'il en sait (qui
+        // dirige quels chats, pour la fenetre qui la lui repropose) reste tel quel.
+        // Chez l'hote, a la maison, il n'y a plus d'aventure mixte en cours.
+        if (!(defense && g.on && !g.host))
+            forget_run(sign == 1 ? "fin de journee" : defense ? "defense de la maison" : "depart sans autre joueur");
         if (defense) log_line("TEAM", "defense de la maison : depart du jeu, avec les chats de ta boite");
         return o_ButchDepart(box);
     }
@@ -1460,7 +1491,11 @@ void __fastcall h_RunCleared(void* dir) {
         forget_run("fin d'aventure");
     } else {
         copy_results(dir);                   // chez un invite, dans sa copie
-        if (!g.host) k.owners.clear();       // l'hote enverra la sienne, vide
+        // L'hote enverra la sienne, vide. Pas a la fin de la defense de la maison
+        // d'un invite (protocole 55 ; MewDirector+0x70C encore pose, l'original
+        // le remet a zero) : elle ne dit rien de l'aventure de l'hote, ou ses
+        // chats peuvent etre restes.
+        if (!g.host && !house_defense_running()) k.owners.clear();
     }
     // Toujours : une aventure sans chat d'invite ni recrue a aussi sa photo de
     // l'equipe, qui ne doit pas servir a la suivante.
@@ -2173,6 +2208,7 @@ void on_result(uint8_t from, const SaveFileMsg& m) {
 
 bool team_house_defense_pending() { return house_defense_pending(); }
 bool team_house_defense_running() { return house_defense_running(); }
+bool team_house_defense_forget_stale() { return house_defense_forget_stale(); }
 
 // Une recrue rejoint l'equipe (hote -> tous) : la fenetre, sur la carte.
 void on_recruit(uint8_t from, const SaveFileMsg& m) {

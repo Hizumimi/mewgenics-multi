@@ -153,6 +153,12 @@ bool lockstep_peer_owns_character(const void* character);
 // l'IA du jeu le joue (mm_ai.h). Pour le journal de la barre grisee.
 bool lockstep_ai_character(const void* character);
 
+// Mewgenics Multi (protocole 55) : le combat a l'ecran est la defense de la maison
+// de ce joueur -- un combat a lui seul, que la session laisse au jeu (mm_team.h).
+// Les pointeurs des autres n'y ont rien a faire, ni le sien chez eux
+// (mgmp_cursor, mgmp_overlay).
+bool lockstep_solo_battle();
+
 // --- diagnostics ------------------------------------------------------------
 
 struct LockstepStats {

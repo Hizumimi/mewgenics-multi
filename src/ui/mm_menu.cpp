@@ -57,6 +57,7 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <vector>
 
 #pragma comment(lib, "iphlpapi.lib")
 
@@ -989,6 +990,13 @@ uint32_t g_night_roster_mask = 0;
 bool     g_host_ready[8]     = {};      // cote hote : qui est pret, par numero de joueur
 uint32_t g_host_last_roster  = 0;
 
+// Mewgenics Multi (protocole 55) : les AUTRES joueurs qui defendent leur maison en
+// ce moment (MM_PEER_DEFEND, defense_pump) -- les listes d'attente le disent (la
+// nuit, le depart, l'arrivee dans l'aventure) plutot que « pas encore ».
+uint32_t g_defend_mask       = 0;
+
+bool peer_defending(uint8_t id) { return id < 8 && (g_defend_mask & (1u << id)) != 0; }
+
 // L'annonce aux joueurs qui ne sont pas encore prets.
 uint32_t g_notice_mask       = 0;       // les joueurs prets qu'on a deja annonces
 bool     g_notice_wanted     = false;   // une annonce attend que la maison soit libre
@@ -1086,7 +1094,9 @@ std::string night_lines(int* not_ready) {
             const bool me = id == net_self();
             const bool ready = me ? g_night_ready : (g_night_ready_mask & (1u << id)) != 0;
             const std::string who = me ? display_name(mm_local_name()) + u8" (toi)" : peer_name(id);
-            lines += "  " + who + (ready ? u8" : prêt\n" : u8" : pas encore\n");
+            lines += "  " + who + (ready                       ? u8" : prêt\n"
+                                   : !me && peer_defending(id) ? u8" : défend sa maison\n"
+                                                               : u8" : pas encore\n");
             if (!ready) ++waiting;
         }
     }
@@ -1578,7 +1588,9 @@ std::string depart_wait_text() {
     if (n && net_peer_ids(ids, 8))
         for (uint8_t i = 0; i < n && i < 8; ++i) {
             if (ids[i] == net_self() || ids[i] >= 8) continue;
-            lines += "  " + peer_name(ids[i]) + " : " + dep_answer_text(g_dep_answer[ids[i]]) + "\n";
+            const uint8_t a = g_dep_answer[ids[i]];
+            lines += "  " + peer_name(ids[i]) + " : " +
+                     (a != 1 && peer_defending(ids[i]) ? u8"défend sa maison" : dep_answer_text(a)) + "\n";
         }
     return fmt(u8"Départ en aventure\n\n"
                u8"Tu veux partir à l'aventure.\n"
@@ -1589,7 +1601,8 @@ std::string arrival_text() {
     std::string lines;
     for (uint8_t id = 0; id < 8; ++id)
         if (g_arrival_mask & (1u << id))
-            lines += "  " + peer_name(id) + u8" : pas encore là\n";
+            lines += "  " + peer_name(id) + (peer_defending(id) ? u8" : défend sa maison\n"
+                                                                : u8" : pas encore là\n");
     return fmt(u8"En attente de ton équipe\n\n%s\n"
                u8"Si tu avances sans l'attendre, tu diriges\n"
                u8"ses chats dans les combats jusqu'à son arrivée.", lines.c_str());
@@ -1973,9 +1986,16 @@ void client_adventure_pump() {
     // Sa propre save est en pleine aventure : en multijoueur, les combats de
     // mgmp attendent l'hote, ils ne commenceraient jamais. On le lui dit, une
     // fois par partie chargee.
+    //
+    // Pas pour la defense de sa maison (protocole 54) : un combat a lui seul, que
+    // la session laisse au jeu. Le combat lui-meme ne compte pas comme une
+    // aventure chargee (mgmp_savefile) ; avant lui, pendant le fondu qui suit le
+    // clic sur « Défendre ! », la liste des chats de la course est deja remplie et
+    // le boss attaque encore -- la defense est en route.
     static bool said_own_run = false;
     if (others && !savefile_in_coop() && !g_copy_on_screen && !savefile_join_armed() &&
-        !g_home_due && !g_trip.active && savefile_adventure_is_loaded() && !at_main_menu()) {
+        !g_home_due && !g_trip.active && savefile_adventure_is_loaded() && !at_main_menu() &&
+        !team_house_defense_pending()) {
         if (!said_own_run) {
             said_own_run = true;
             log_line("MULTI", "!! la save de ce joueur est en pleine aventure : elle ne peut "
@@ -3036,7 +3056,7 @@ void mm_on_host_left() {
     }
 }
 
-// --- Mewgenics Multi (protocole 54) : la defense de la maison ------------------------
+// --- Mewgenics Multi (protocoles 54 et 55) : la defense de la maison ----------------
 //
 // Chacun defend sa maison, seul (mm_team.h). Ce joueur dit aux autres quand son
 // combat commence et finit (MM_PEER_DEFEND : a = 1 / 0, b = son numero ; l'hote
@@ -3044,38 +3064,161 @@ void mm_on_host_left() {
 // propose de partir, un invite pret pour la nuit -- ne saurait pas pourquoi il ne
 // repond plus. La transition se lit sur le jeu (MewDirector+0x70C) : aussi pour
 // une defense reprise d'une save.
-static bool g_defending = false;
+//
+// Protocole 55 : les arrivants l'apprennent aussi -- ce joueur redit sa defense en
+// cours des que sa session est prete avec quelqu'un de nouveau, et l'hote redit
+// toutes celles qu'il connait a chaque HELLO accepte. Chacun tient la liste de ceux
+// qui defendent (g_defend_mask), taillee sur les presents des que leur liste est
+// arrivee (pendant la presentation aussi : c'est la que l'arrivant recoit les
+// rappels). Les listes d'attente le disent ; sinon une fenetre, qui attend son tour
+// derriere une autre et la carte libre de l'aventure (kInfoYieldToFollow).
+static bool        g_defending      = false;  // ce joueur defend sa maison (le jeu le dit)
+static uint32_t    g_defend_roster  = 0;      // les presents a qui c'est deja dit
+static bool        g_defense_due    = false;  // une fenetre a ce sujet attend son tour
+static std::string g_defense_text;            // son texte, refait a chaque nouvelle
+static std::string g_defense_shown;           // le texte confie a show_info en dernier
 
-static void defense_pump() {
-    const bool now = team_house_defense_running();
-    if (now == g_defending) return;
-    g_defending = now;
-    log_line("MULTI", "defense de la maison : %s", now ? "le combat commence -- ce joueur le joue seul, "
-                                                         "la session n'y entre pas"
-                                                       : "le combat est fini");
-    if (!session_has_others()) return;
+static void send_defend(uint8_t who, bool on, uint8_t flags = 0) {
     MmMsg m{};
     m.kind = MM_PEER_DEFEND;
-    m.a    = now ? 1 : 0;
-    m.b    = net_self();
+    m.a    = on ? 1 : 0;
+    m.b    = who;
+    m.c    = flags;
     net_send_mm(m);
+}
+
+// « X », « X et Y », « X, Y et Z ».
+static std::string defender_names(uint32_t mask) {
+    std::vector<std::string> n;
+    for (uint8_t id = 0; id < 8; ++id)
+        if (mask & (1u << id)) n.push_back(peer_name(id));
+    std::string s;
+    for (size_t i = 0; i < n.size(); ++i)
+        s += (i == 0 ? "" : i + 1 == n.size() ? " et " : ", ") + n[i];
+    return s;
+}
+
+// Le texte de la fenetre apres la nouvelle sur `who` : l'etat de tous, a jour (une
+// fenetre pas encore vue est remplacee par celle-ci, rien ne se perd).
+static std::string defense_text(uint8_t who, bool on) {
+    const uint32_t others = g_defend_mask & ~(1u << who);
+    if (on) {
+        if (!others)
+            return fmt(u8"%s défend sa maison : un combat qu'il joue\n"
+                       u8"seul, avec ses chats. Il revient ensuite.", peer_name(who).c_str());
+        return fmt(u8"%s défendent leur maison : chacun joue\n"
+                   u8"son combat seul, avec ses chats. Ils reviennent ensuite.",
+                   defender_names(g_defend_mask).c_str());
+    }
+    if (!others) return fmt(u8"%s a fini de défendre sa maison.", peer_name(who).c_str());
+    const bool one = (others & (others - 1)) == 0;
+    return fmt(u8"%s a fini de défendre sa maison.\n%s %s encore.", peer_name(who).c_str(),
+               defender_names(others).c_str(), one ? u8"défend la sienne" : u8"défendent la leur");
+}
+
+// Une liste d'attente est a l'ecran : elle dit qui defend sa maison, a jour.
+static bool defense_listed_on_screen() {
+    return g_live.alive && (g_live.screen == Screen::NightWait || g_live.screen == Screen::DepartWait ||
+                            g_live.screen == Screen::ArrivalWait);
+}
+
+// Chaque image : la fenetre « X défend sa maison » / « X a fini » prend son tour.
+// Jamais a la place d'une autre fenetre en attente (show_info n'en garde qu'une) :
+// elle attend. Une liste d'attente a l'ecran la rend inutile, et retire celle qui
+// attendait encore.
+static void defense_note_pump() {
+    const bool ours_waiting = g_info_wanted && !g_defense_shown.empty() && g_info_text == g_defense_shown;
+    if (defense_listed_on_screen()) {
+        if (ours_waiting) g_info_wanted = false;
+        g_defense_due = false;
+        return;
+    }
+    if (!g_defense_due) return;
+    if (g_info_wanted && !ours_waiting) return;
+    g_defense_due   = false;
+    g_defense_shown = g_defense_text;
+    show_info(g_defense_shown, kInfoYieldToFollow);
+}
+
+static void defense_pump() {
+    // Au menu, il n'y a pas de defense : celle qu'on a quittee par « Quitter vers le
+    // menu » laisse son drapeau pose (le jeu ne le remet a zero qu'a la fin d'une
+    // aventure), et la save chargee ensuite -- une autre, ou la copie de l'aventure
+    // de l'hote -- se croirait encore en defense (mm_team.h). La reprise d'une
+    // defense sauvee le repose elle-meme. (Le chargement d'une partie le fait
+    // aussi : h_MewDirInit.)
+    if (at_main_menu() && !find_scene("Battle") && !find_scene("House"))
+        team_house_defense_forget_stale();
+
+    // Ceux qui sont partis ne defendent plus rien ici. La liste des presents vaut
+    // des qu'elle est arrivee, avant la fin de la presentation.
+    g_defend_mask &= net_active() ? roster_mask() : 0;
+
+    const bool now     = team_house_defense_running();
+    const bool changed = now != g_defending;
+    if (changed) {
+        g_defending = now;
+        log_line("MULTI", "defense de la maison : %s", now ? "le combat commence -- ce joueur le joue seul, "
+                                                             "la session n'y entre pas"
+                                                           : "le combat est fini");
+    }
+    defense_note_pump();
+
+    // Personne a qui le dire (pas de session prete) : tous seront nouveaux ensuite.
+    if (!session_has_others()) {
+        g_defend_roster = 0;
+        return;
+    }
+    // Un arrivant (ou la session qui devient prete) : ce joueur lui redit sa defense
+    // en cours. L'hote redit celles qu'il connait a chaque HELLO (mm_on_peer_hello).
+    const uint32_t roster    = roster_mask();
+    const bool     newcomers = (roster & ~g_defend_roster) != 0;
+    g_defend_roster = roster;
+    if (changed || (newcomers && g_defending)) send_defend(net_self(), g_defending);
+}
+
+// Hote : un joueur vient d'etre accepte (HELLO). Son numero repart de zero (un
+// numero repris ne defend rien : tous l'oublient, sans fenetre), et il apprend les
+// defenses en cours -- la sienne propre, il la redira lui-meme.
+static void defense_on_hello(uint8_t peer) {
+    if (net_role() != NetRole::Host || peer >= 8) return;
+    const uint32_t bit = 1u << peer;
+    if (g_defend_mask & bit) {
+        g_defend_mask &= ~bit;
+        log_line("MULTI", "defense de la maison : le numero %u repart de zero (un joueur arrive)", (unsigned)peer + 1);
+    }
+    send_defend(peer, false, kDefendSilent);
+    if (g_defending) send_defend(net_self(), true);
+    for (uint8_t id = 0; id < 8; ++id)
+        if (g_defend_mask & (1u << id)) send_defend(id, true);
 }
 
 static void on_peer_defend(uint8_t from, const MmMsg& m) {
     // L'hote : de l'invite lui-meme (son numero de connexion fait foi), relaye aux
     // autres. Un invite : de l'hote, qui dit pour qui.
-    const uint8_t who = net_role() == NetRole::Host ? from : m.b;
+    const bool    host = net_role() == NetRole::Host;
+    const uint8_t who  = host ? from : m.b;
     if (who >= 8 || who == net_self()) return;
-    if (net_role() == NetRole::Host) {
+    const bool on     = m.a != 0;
+    const bool silent = !host && !on && (m.c & kDefendSilent);
+    if (host) {
         MmMsg relay = m;
         relay.b = who;
+        relay.c = 0;
         net_send_mm(relay);
     }
+    const uint32_t bit = 1u << who;
+    if (((g_defend_mask & bit) != 0) == on) return;    // un rappel pour un arrivant : rien de neuf ici
+    g_defend_mask = on ? (g_defend_mask | bit) : (g_defend_mask & ~bit);
+    if (silent) {
+        log_line("MULTI", "defense de la maison : le numero %u repart de zero (un joueur arrive)", (unsigned)who + 1);
+        return;
+    }
     log_line("MULTI", "defense de la maison : %s %s", peer_name(who).c_str(),
-             m.a ? "defend sa maison (un combat a lui seul)" : "a fini de defendre sa maison");
-    show_info(m.a ? fmt(u8"%s défend sa maison : un combat qu'il joue\n"
-                        u8"seul, avec ses chats. Il revient ensuite.", peer_name(who).c_str())
-                  : fmt(u8"%s a fini de défendre sa maison.", peer_name(who).c_str()));
+             on ? "defend sa maison (un combat a lui seul)" : "a fini de defendre sa maison");
+    g_defense_text = defense_text(who, on);
+    g_defense_due  = true;
+    defense_note_pump();
 }
 
 void mm_on_message(uint8_t from, const MmMsg& m) {
@@ -3268,6 +3411,19 @@ bool mm_on_button_click(void* button) {
         // team_house_defense_running), et les autres le savent (MM_PEER_DEFEND,
         // defense_pump).
         if (house_boss_defend()) {
+            // En route pour l'aventure de l'hote (le trajet vers le menu, ou sa partie
+            // qui va se charger) : le trajet quitterait ce combat a peine commence.
+            // Sa maison attendra son retour (l'attaque reste dans sa save).
+            if (savefile_join_armed() || g_trip.active) {
+                log_line("MULTI", "panneau « Defendre » : ce joueur part rejoindre l'aventure de l'hote -- "
+                                  "clic retenu, la defense attendra son retour");
+                show_info(fmt(u8"Tu pars rejoindre l'aventure de %s :\n"
+                              u8"tu défendras ta maison à ton retour.", host_display().c_str()));
+                return true;
+            }
+            // Pret pour la nuit : il ne l'est plus, il part se battre (les autres
+            // l'attendront, leur liste dit qu'il defend sa maison).
+            if (g_night_ready) set_night_ready(false);
             log_line("MULTI", "panneau « Defendre » en session : ce joueur defend sa maison, seul");
             return false;
         }
@@ -3315,6 +3471,7 @@ bool mm_on_button_click(void* button) {
 void mm_on_peer_hello(uint8_t peer, const char* name_utf8) {
     if (peer >= 8) return;
     copy_utf8(g_peer_names[peer], sizeof(g_peer_names[peer]), name_utf8 ? name_utf8 : "");
+    defense_on_hello(peer);              // Mewgenics Multi : les defenses en cours (protocole 55)
 }
 
 } // namespace mgmp

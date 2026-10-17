@@ -1301,6 +1301,20 @@ constexpr uintptr_t kDir_Inventory = 1416;    // Inventory*
 // See RunHistMsg.
 constexpr uintptr_t kDir_RunHistory = 1424;
 
+// Mewgenics Multi (protocoles 54 et 55) : MewDirector+0x70C, un octet -- le combat de la
+// defense de la maison est en cours. Le jeu le pose au debut de ce combat
+// (0x1403B1A37, dans le rappel de la transition que lance 0x1403B1680 ; aussi
+// 0x1403191C3, le lanceur de deboguage des house_bosses/*.lvl)
+// et a la reprise d'une defense sauvee (ContinueAdventure, 0x1403BCEF5 : la
+// progression dit qu'un boss attaque). Il ne le remet a zero qu'a deux endroits :
+// le constructeur (0x1401BE9C1, une fois au lancement : le MewDirector vit autant
+// que le processus, 0x140750F90) et ClearRunState (0x1403B6493), appele par les fins
+// d'aventure seulement (0x1403B4FB4 echec ou abandon, 0x1403B5F83 succes).
+// « Quitter vers le menu » pendant la defense le laisse donc pose : mm_team le
+// remet a zero au menu (team_house_defense_forget_stale). Lu aussi par le jeu en
+// combat (Character::BeginTurn, 0x14010B733).
+constexpr uintptr_t kDir_DefenseRun = 0x70C;
+
 // WorldEvent+0x1A10 -- the std::string naming the event that was chosen.
 // WorldEvent::init writes MapScreen::select_event's result into it
 // (0x14090FB87), tests it against the literal "random" (0x14090FBA3) and then

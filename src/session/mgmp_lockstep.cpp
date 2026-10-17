@@ -3286,18 +3286,17 @@ void lockstep_turn_boundary(void* turn_control) {
     if (!g.active) return;
 
     // Mewgenics Multi (protocole 54) : la defense de la maison, seul -- rien a
-    // photographier ni a comparer. Dit une fois par defense.
-    {
-        static bool said = false;
-        if (solo_battle()) {
-            if (!said) {
-                said = true;
-                log_line("LOCKSTEP", "defense de la maison : un combat a ce joueur seul -- la session n'y entre "
-                                     "pas (ni photo, ni empreinte, ni decision partagee)");
-            }
-            return;
+    // photographier ni a comparer. Dit une fois par combat de defense (sa liste
+    // de personnages : deux defenses de suite sont deux combats).
+    if (solo_battle()) {
+        static const void* said_for = nullptr;
+        const void* list = resolve_char_list(turn_control);
+        if (list != said_for) {
+            said_for = list;
+            log_line("LOCKSTEP", "defense de la maison : un combat a ce joueur seul -- la session n'y entre "
+                                 "pas (ni photo, ni empreinte, ni decision partagee)");
         }
-        said = false;
+        return;
     }
 
     // A new battle means a new character list, and the old roster describes
@@ -3581,6 +3580,7 @@ uint8_t lockstep_members_of(uint64_t battle_id) {
     return noted_members(battle_id);
 }
 bool     lockstep_local_actor(){ return g.active && (solo_battle() || (g.snapped && g.local_actor)); }
+bool     lockstep_solo_battle(){ return solo_battle(); }
 
 bool lockstep_peer_owns_character(const void* character) {
     if (!g.active || !g.snapped || !character || solo_battle()) return false;

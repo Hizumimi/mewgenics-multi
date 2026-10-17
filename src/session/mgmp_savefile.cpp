@@ -434,7 +434,19 @@ bool adventure_is_loaded_impl() {
     // offsets moved, and that is exactly when not to call a function that
     // writes the player's save file.
     if (!registry || !ids) return false;
-    return count > 0 && count <= 4096;
+    if (count == 0 || count > 4096) return false;
+
+    // Mewgenics Multi (protocole 55) : LA DEFENSE DE LA MAISON N'EST PAS UNE
+    // AVENTURE. Le jeu la joue comme une : la liste des chats de la course est
+    // remplie (0x1403B1680 y copie la boite) et la maison detruite pendant le
+    // combat. Mais c'est un combat de ce joueur seul, chez lui (mm_team.h) : rien
+    // a publier ni a suivre. Lue comme une aventure, elle faisait dire a l'invite
+    // « Ta save est en pleine aventure », et chez l'hote mgmp_leave le croyait
+    // en course (un « l'hote a quitte l'aventure » a la fin) et mgmp_savefile
+    // attendait la carte pour la publier.
+    uint8_t defense = 0;
+    if (mem_read(d + kDir_DefenseRun, &defense, sizeof(defense)) && defense) return false;
+    return true;
 }
 
 bool flush_live_run() {

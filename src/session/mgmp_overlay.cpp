@@ -8,6 +8,7 @@
 #include "mgmp_tuning.h"
 #include "mgmp_gpak.h"
 #include "mgmp_cursor.h"
+#include "mgmp_lockstep.h"   // lockstep_solo_battle (Mewgenics Multi)
 #include "mgmp_log.h"
 #include "mgmp_mem.h"
 #include "mgmp_net.h"
@@ -1264,6 +1265,10 @@ void overlay_on_swap(void* window) {
 
     const bool test = tune::kCursorGlTest;
     if (!test && !net_active()) return;
+    // Mewgenics Multi (protocole 55) : la defense de la maison, un combat a ce joueur
+    // seul -- les pointeurs des autres (un combat commun, leur carte) n'y ont rien a
+    // faire (mgmp_cursor ne publie pas non plus le sien pendant ce combat).
+    if (!test && lockstep_solo_battle()) return;
 
     // Is there anybody to draw? Checked before any GL work so a solo session
     // never builds a program it will not use.

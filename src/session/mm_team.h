@@ -194,11 +194,20 @@ std::string team_run_guest_names();
 bool team_house_defense_pending();
 // Le combat de la defense de la maison est en cours chez ce joueur :
 // MewDirector+0x70C (un octet), pose par le jeu au debut de ce combat
-// (0x1403B1A37, 0x1403191C3) ou a la reprise d'une defense sauvee
-// (ContinueAdventure, 0x1403BCEF5), remis a zero par ClearRunState (0x1403B6494) ;
+// (0x1403B1A37 ; 0x1403191C3 dans le lanceur de deboguage) ou a la reprise d'une defense sauvee
+// (ContinueAdventure, 0x1403BCEF5), remis a zero par ClearRunState (0x1403B6493) ;
 // ClearRunState et les fins d'aventure le lisent (0x1403B477E : une defense
 // ramene son equipe meme perdue).
 bool team_house_defense_running();
+// Protocole 55. Au menu, et au chargement d'une partie (MewDirector::init, avant
+// ContinueAdventure qui repose le drapeau si la save reprend une defense) : une
+// defense quittee par « Quitter vers le menu » laisse MewDirector+0x70C pose --
+// le jeu ne le remet a zero qu'a la fin d'une aventure, et le MewDirector vit
+// autant que le processus. On le remet a zero (vrai si c'etait le cas), sinon la
+// save chargee ensuite se croirait en defense : la session ne suivrait plus ses
+// combats, et le jeu les jouerait autrement que chez les autres
+// (Character::BeginTurn le lit).
+bool team_house_defense_forget_stale();
 
 // --- mgmp_lockstep ------------------------------------------------------------
 

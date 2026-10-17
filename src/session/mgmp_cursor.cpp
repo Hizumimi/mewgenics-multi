@@ -364,6 +364,15 @@ void cursor_on_status_menu(void* sm) {
         return;   // not on a battle board; nothing to point at
     }
 
+    // Mewgenics Multi (protocole 55) : la defense de la maison de ce joueur, un
+    // combat a lui seul. Personne d'autre n'est sur ce plateau : son pointeur n'a
+    // rien a faire chez les autres (un combat commun, leur carte), ni les leurs
+    // ici. Rien n'est publie ni dessine ; ses reticules redeviennent les siens.
+    if (lockstep_solo_battle()) {
+        if (g.touched_pips) { set_local_pip_alpha(sm, 1.0); g.touched_pips = false; }
+        return;
+    }
+
     const uint64_t battle = lockstep_battle_id();
     const bool     mine   = lockstep_local_actor();
     const uint64_t now    = GetTickCount64();
