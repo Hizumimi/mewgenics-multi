@@ -115,6 +115,9 @@ std::string mm_peer_name(uint8_t id);
 // dans le champ `child` (15 caracteres au plus) du clip d'un MenuPanel du jeu,
 // comme MenuPanel::set_text. Faux si le champ n'existe pas. Thread du jeu.
 bool mm_panel_set_text(void* panel, const char* child, const std::string& text_utf8);
+// Le texte du champ `child` de ce panneau (UTF-8, balises comprises), pour le
+// remettre apres. Faux si le champ n'existe pas ou ne se lit pas. Thread du jeu.
+bool mm_panel_get_text(void* panel, const char* child, std::string& out_utf8);
 
 // Le panneau de la maison clique dans cette image : 1 « Fin de journée »
 // (EndDay_Sign), 2 « À l'aventure ! » (Depart_Sign), 0 aucun. Les deux

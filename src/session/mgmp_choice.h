@@ -126,7 +126,7 @@
 //     montee de niveau, la relance, et la capacite choisie (ou l'annulation) dans
 //     un AbilityChooser de montee de niveau ou d'evenement. L'hote decide pour ses
 //     chats, pour une recrue, et pour un chat dont le proprietaire n'est pas dans
-//     l'aventure. Les evenements restent a l'hote.
+//     l'aventure. (Les options d'evenement : voir protocole 45 plus bas.)
 //   - Chez celui qui ne decide pas, le clic est retenu, et le titre de l'ecran
 //     (« title » du panneau, ou « prompt » de l'AbilityChooser) dit qui choisit.
 //   - Un invite proprietaire ne joue pas son clic : il le demande a l'hote
@@ -160,6 +160,53 @@
 //   - Le delai de 60 s d'une tete de file court aussi quand elle retient un choix
 //     pour l'ecran qui est la (plus loin dans la file) ; en quittant une case, les
 //     choix de cette case qui attendent encore sont laisses.
+//
+// ---------------------------------------------------------------------------
+// MEWGENICS MULTI : LES EVENEMENTS AUSSI (protocole 45)
+// ---------------------------------------------------------------------------
+//
+// AVANT. L'hote choisissait l'option de chaque evenement, meme quand il parlait
+// d'un chat d'invite. Le chat d'un evenement « cat_choice: choose » (un joueur le
+// choisit, setupCatChoice puis le « ok » du CatSelector) n'etait pas replique :
+// chacun envoyait le sien de son cote, et les deux aventures pouvaient diverger.
+//
+// MAINTENANT :
+//   - L'option d'un evenement est au proprietaire du chat de l'evenement
+//     (WorldEvent+0x128) -- l'hote pour un evenement sans chat, une recrue, un chat
+//     dont le proprietaire a quitte l'aventure, et sans equipe mixte. Meme chemin
+//     que les montees de niveau : un invite demande (kChoiceEvent,
+//     kChoiceFlagRequest, cat_id le chat, serial les choix d'option deja faits dans
+//     la case), l'hote verifie que le chat est le sien et que la demande vise
+//     l'etape ou il en est (une demande faite sur une etape deja decidee n'est
+//     jamais jouee sur la suivante), la joue par le chemin du jeu, puis la publie.
+//   - Un choix d'evenement ne se joue que quand les options sont a l'ecran
+//     (WorldEvent+0x19F9, que setupActionChoice pose et que le choix joue remet a
+//     zero tout de suite) : la liste existe des WorldEvent::init, et joue a la page
+//     du titre il faisait sauter le clip a l'etape d'apres sans montrer les
+//     options. Attendre cette page ne compte pas dans le delai de 60 s de la file
+//     (Apply::Hold) : un joueur qui lit le texte ne perd pas le choix.
+//   - Le chat d'un evenement « choose » (kChoiceEventCat) : chacun ne peut envoyer
+//     que ses chats (son « ok » sur le chat d'un autre est retenu, et le titre dit
+//     « Ce chat est a X » trois secondes) ; un invite le demande a l'hote ; le
+//     premier pris chez l'hote l'emporte, et il est rejoue chez tous quand leur
+//     choix du chat s'ouvre (CatSelector::select, puis le « ok » du jeu).
+//   - Chez celui qui ne decide pas, les options a l'ecran, le titre de l'evenement
+//     (« title », son nom) dit « A X de choisir » ; le nom revient une fois le choix
+//     fait. « A toi de choisir » quand ce joueur prend la main.
+//   - JAMAIS UN ECRAN FIGE. (a) Le choix du chat est suivi par WorldEvent (adresse
+//     et panneau), ouvert par setupCatChoice ou par un clic sur son « ok » (le
+//     bouton n'existe que pendant ce choix : une session commencee sur cet ecran
+//     ne l'a pas vu s'ouvrir), ferme par un « ok » joue ou par les options a
+//     l'ecran ; ni le mode « cat_choice » ni le chat pose ne servent a le dire. (b)
+//     L'hote publie le chat que le jeu a pose apres son « ok », pas celui que
+//     montrait le CatSelector. (c) Un invite qui ne peut pas rejouer le chat choisi
+//     ailleurs choisit le sien chez lui (comme avant). (d) Une demande du
+//     proprietaire pour l'etape ou en est l'hote qui ne se joue pas chez lui (les
+//     listes different) : l'hote prend la main pour cette etape. (e) Attendre la
+//     page du choix (Hold) dure 5 min au plus, et garde vivante chez l'hote la
+//     demande qui attend. (f) +0x19F9 et le rejeu du chat ne servent que sur le
+//     build vise (resolve_is_pinned_build) ; ailleurs, la liste qui change (10 s au
+//     plus) et le chat choisi par chacun, comme avant.
 #include <cstdint>
 
 namespace mgmp {
@@ -168,7 +215,7 @@ enum Target : int;
 struct ChoiceMsg;
 
 // Mewgenics Multi : detours et originaux de T_LevelReroll, T_AbilityInit,
-// T_AbilityPick et T_AbilityUpdate.
+// T_AbilityPick, T_AbilityUpdate, T_EventCatChoice et T_EventCatPick.
 bool choice_binding(Target t, void** detour, void*** original);
 
 void choice_set_base(uintptr_t base);

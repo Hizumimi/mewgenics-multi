@@ -373,6 +373,29 @@ int main() {
               "a reroll round-trips");
     }
     {
+        // Mewgenics Multi 45 : les evenements aussi -- la demande d'option porte le
+        // chat de l'evenement et l'etape (les choix deja faits dans la case) ; le
+        // chat envoye dans un evenement « choose » est un genre de plus.
+        ChoiceMsg m{};
+        m.kind = kChoiceEvent; m.index = 2; m.count = 3;
+        m.flags = kChoiceFlagRequest; m.cat_id = 0x1122334455667788ull; m.serial = 2;
+        strcpy_s(m.name, "int");
+        uint32_t n = enc_choice(buf, sizeof(buf), m);
+        Reader r(buf, n); r.u8v();
+        ChoiceMsg o{};
+        check(dec_choice(r, o) && o.kind == kChoiceEvent && o.index == 2 && o.count == 3, "an event request decodes");
+        check(o.flags == kChoiceFlagRequest && o.cat_id == 0x1122334455667788ull && o.serial == 2,
+              "its cat and its step survive");
+        ChoiceMsg c{}; c.kind = kChoiceEventCat; c.cat_id = 0x0F0E0D0C0B0A0908ull;
+        strcpy_s(c.name, "0f0e0d0c0b0a0908");
+        n = enc_choice(buf, sizeof(buf), c);
+        Reader r2(buf, n); r2.u8v();
+        ChoiceMsg o2{};
+        check(dec_choice(r2, o2) && o2.kind == kChoiceEventCat && o2.cat_id == 0x0F0E0D0C0B0A0908ull,
+              "the event's cat round-trips");
+        check(kChoiceEventCat < kChoiceKinds && kChoiceAbility < kChoiceEventCat, "kind 4, inside the kinds");
+    }
+    {
         // An event choice carries the stat key rather than a type, and kind 0
         // must round-trip as cleanly as kind 1.
         ChoiceMsg m{};

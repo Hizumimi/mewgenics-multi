@@ -842,6 +842,10 @@ const Binding kBindings[] = {
     { T_InvLearnPassive, nullptr, nullptr },
     { T_CatEquip,        nullptr, nullptr },
     { T_CatUnequip,      nullptr, nullptr },
+    // Mewgenics Multi : le chat d'un evenement, detours dans
+    // src/session/mgmp_choice.cpp (choice_binding).
+    { T_EventCatChoice,  nullptr, nullptr },
+    { T_EventCatPick,    nullptr, nullptr },
 };
 
 // Resolves the three RNG bindings, which are not static initialisers because

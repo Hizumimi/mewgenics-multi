@@ -12,6 +12,8 @@
 #include "mgmp_resolve.h"
 #include "mm_menu.h"         // Mewgenics Multi : mm_run_peers_mask, mm_peer_name, mm_panel_set_text
 #include "mm_team.h"         // Mewgenics Multi : team_owners_active, team_owner_of
+#include "mgmp_catsync.h"    // Mewgenics Multi : catsync_cat_by_key (le choix du chat d'un evenement)
+#include "mgmp_hooks.h"      // Mewgenics Multi : hooks_is_live
 
 #include <windows.h>
 #include <intrin.h>
@@ -63,6 +65,28 @@ constexpr uintptr_t kCat_Id        = 0x00;
 constexpr uintptr_t kCat_LevelUps  = 0xC30;   // CatData : u32 incremente par LevelUpScreen::init (0x14037A357) --
                                               // un ecran de montee de niveau de ce chat, le meme chez tous
 
+// Mewgenics Multi : l'evenement (WorldEvent, 1.1.21239).
+//   +0x40 son panneau (MenuPanel : « title », le nom de l'evenement, ecrit par
+//     setupTitle 0x140919760 ; « prompt », son texte) ;
+//   +0x50 le CatSelector du choix du chat (+0x88 la cle du chat montre) ;
+//   +0xB0 « cat_choice » de l'evenement, lu par WorldEvent::init : 0 choose (un
+//     joueur choisit le chat : setupCatChoice 0x140919AE0, puis son « ok »,
+//     lambda_1 0x14093C220, ecrit +0x128), 1 random et 2 random parmi ceux qui
+//     n'ont pas fait les derniers evenements (tire du flux de la simulation a
+//     0x1409150F8), 3 none ;
+//   +0x128 le chat de l'evenement (CatData*, nul tant qu'il n'est pas choisi ou
+//     sans chat ; seuls WorldEvent::init et le « ok » du choix du chat l'ecrivent --
+//     la commande set_subject ne change que l'image du clip « subject ») ;
+//   +0x19F9 les options sont a l'ecran et attendent un clic (setupActionChoice
+//     0x14091A7E0 l'ecrit a 1, la suite 0x14091EA80 a 0). Le choix d'une option
+//     (0x14093C1C0) pose +0x100 puis relance le clip : joue a la page du titre,
+//     il ferait sauter l'evenement a une etape qu'il n'a pas montree.
+constexpr uintptr_t kEvt_Panel     = 0x40;
+constexpr uintptr_t kEvt_Selector  = 0x50;
+constexpr uintptr_t kEvt_Subject   = 0x128;
+constexpr uintptr_t kEvt_Choosing  = 0x19F9;
+constexpr uintptr_t kSel_Key       = 0x88;
+
 // The shipped UI pads out to 4 buttons per screen, and a reroll appends 4 more
 // each time. This bound only has to be loose enough not to reject a legitimate
 // list and tight enough to refuse a wild pointer.
@@ -77,12 +101,15 @@ constexpr uint64_t kAheadWaitMs   = 5000;    // hote : une demande d'un ecran qu
 constexpr uint64_t kPendingMs     = 3000;    // invite : une demande sans reponse retient les clics suivants, au plus
 constexpr uint32_t kMaxChoosers   = 8;
 constexpr uint64_t kChooserLostMs = 15000;   // un AbilityChooser dont l'update ne tourne plus : oublie
-constexpr uint64_t kEventSettleMs = 10000;   // invite : le choix d'evenement d'apres attend une liste neuve, au plus
+constexpr uint64_t kEventSettleMs = 10000;   // le choix d'evenement d'apres attend une liste neuve, au plus
 constexpr uint64_t kTitleRefreshMs = 500;    // le titre « A X de choisir » : reecrit a ce rythme (title_level)
+constexpr uint64_t kNoticeMs      = 3000;    // « Ce chat est a X » dans le titre de l'evenement, autant
+constexpr uint64_t kHoldCapMs     = 300000;  // un choix qui attend la page du choix (Apply::Hold) : 5 min au plus
 
 using fn_cap     = void (__fastcall*)(void*);
 using fn_this    = void (__fastcall*)(void*);
 using fn_pick    = void (__fastcall*)(void*, int32_t);
+using fn_catsel  = void (__fastcall*)(void*, uint64_t);   // CatSelector::select(cle)
 // AbilityChooser::init(this, Scene*, CatData*, Mode, ...) : dix arguments, tous
 // passes dans un registre ou une case de pile de 8 octets -- les faire suivre
 // tels quels en uint64_t est exact (les objets passes par valeur le sont par
@@ -105,6 +132,7 @@ struct Decision {
     uint8_t  from      = 0;    // hote : l'invite qui demande
     uint64_t since     = 0;    // son arrivee
     uint64_t blocked   = 0;    // invite : depuis quand son ecran est la sans qu'il s'applique
+    uint64_t held      = 0;    // depuis quand il attend la page du choix (Apply::Hold)
     bool     warned    = false;
 };
 
@@ -119,7 +147,9 @@ struct Chooser {
 };
 
 enum class Gate { Run, Request, Refuse };
-enum class Apply { Applied, Wait, Drop };
+// Hold : attendre sans que le delai d'abandon coure (l'ecran est le bon, le joueur
+// n'en est pas encore a la page du choix : le titre d'un evenement qu'il lit).
+enum class Apply { Applied, Wait, Hold, Drop };
 
 struct State {
     bool on        = false;
@@ -138,6 +168,9 @@ struct State {
     fn_pick    o_pick    = nullptr;
     fn_ablinit o_ablinit = nullptr;
     fn_this    o_ablupd  = nullptr;
+    fn_this    o_catchoice = nullptr;   // WorldEvent::setupCatChoice
+    fn_cap     o_catpick   = nullptr;   // son « ok » (lambda_1, capture {_, WorldEvent*, MewDirector*})
+    fn_catsel  catsel      = nullptr;   // CatSelector::select (C_CatSelectorSelect)
 
     void* world_event  = nullptr;   // latest WorldEvent*,    from its update
     void* level_screen = nullptr;   // latest LevelUpScreen*, from its update
@@ -172,14 +205,38 @@ struct State {
     const void* titled_opts = nullptr; //    peut resservir pour l'ecran suivant)...
     uint64_t titled_at   = 0;         // ... et quand (reecrit de temps en temps : voir title_level)
     bool     titled_other = false;    // ... pour dire qu'un autre joueur choisit
-    // Invite : sa demande sans reponse, par genre (montee de niveau, relance,
-    // capacite) -- voir request.
+    // Invite : sa demande sans reponse, par genre (evenement, montee de niveau,
+    // relance, capacite, chat de l'evenement) -- voir request.
     struct Pending { const void* screen = nullptr; uint64_t cat = 0; uint64_t at = 0; };
-    Pending pend[4];
+    Pending pend[kChoiceKinds];
 
-    // Invite : le dernier choix d'evenement joue, et la liste ou il l'a ete.
+    // Le dernier choix d'evenement joue ici, et la liste ou il l'a ete.
     uint64_t evt_done_at = 0;
     uint64_t evt_done_fp = 0;
+    // Les choix d'option d'evenement joues dans cette case (le meme compte chez
+    // tous : l'hote les joue avant de les publier). Une demande porte celui de
+    // son ecran : faite sur une etape deja decidee, elle n'est pas jouee.
+    uint32_t evt_stage = 0;
+    // Hote : l'etape ou il prend la main (+1 ; 0 : aucune) -- la demande du
+    // proprietaire pour cette etape ne peut pas se jouer ici, personne d'autre ne
+    // pourrait choisir.
+    uint32_t evt_takeover = 0;
+    // Le choix du chat d'un evenement (setupCatChoice, puis son « ok »), pour un
+    // WorldEvent : son panneau a l'ouverture (un autre evenement a la meme adresse
+    // n'est pas celui-ci), ouvert, fait, et le repli (le chat choisi ailleurs ne se
+    // rejoue pas ici : ce joueur choisit le sien, comme avant, plutot qu'un ecran fige).
+    struct CatPick { void* we = nullptr; void* panel = nullptr; bool open = false; bool done = false; bool local = false; };
+    CatPick catpick;
+    // Le titre de l'evenement, tant que ce module l'a change : le texte du jeu
+    // (remis apres), le notre, et jusqu'a quand un avis reste.
+    void*       etitle_we     = nullptr;
+    bool        etitle_on     = false;
+    std::string etitle_game;
+    std::string etitle_ours;
+    uint64_t    etitle_at     = 0;
+    uint64_t    etitle_until  = 0;   // un avis (« Ce chat est a X ») : jusque-la
+    bool        etitle_other  = false;
+    bool        etitle_unreadable = false;   // le titre du jeu ne se lit pas : on n'y ecrit pas
 
     uint32_t sent      = 0;
     uint32_t applied   = 0;
@@ -199,15 +256,21 @@ struct Guard {
 
 const char* kind_name(uint8_t k) {
     switch (k) {
-        case kChoiceLevelUp: return "level-up";
-        case kChoiceReroll:  return "reroll";
-        case kChoiceAbility: return "ability";
-        default:             return "event";
+        case kChoiceLevelUp:  return "level-up";
+        case kChoiceReroll:   return "reroll";
+        case kChoiceAbility:  return "ability";
+        case kChoiceEventCat: return "event cat";
+        default:              return "event";
     }
 }
 
-// Le genre d'ecran ou un choix s'applique (la relance : la montee de niveau).
-uint8_t screen_kind_of(uint8_t kind) { return kind == kChoiceReroll ? kChoiceLevelUp : kind; }
+// Le genre d'ecran ou un choix s'applique (la relance : la montee de niveau ; le
+// chat d'un evenement : l'evenement).
+uint8_t screen_kind_of(uint8_t kind) {
+    if (kind == kChoiceReroll) return kChoiceLevelUp;
+    if (kind == kChoiceEventCat) return kChoiceEvent;
+    return kind;
+}
 
 // Both called with the Guard held.
 void remember_skipped(uint64_t seed) {
@@ -320,6 +383,96 @@ int32_t level_rerolls_left(const void* screen) {
     return left;
 }
 
+// --- Mewgenics Multi : l'evenement --------------------------------------------
+
+void* event_subject(const void* we) {
+    void* cat = nullptr;
+    if (!we || !mem_read((const uint8_t*)we + kEvt_Subject, &cat, sizeof(cat))) return nullptr;
+    return cat;
+}
+
+uint64_t event_subject_id(const void* we) { return cat_id_of(event_subject(we)); }
+
+// Ses options sont a l'ecran et attendent un clic.
+bool event_choosing(const void* we) {
+    uint8_t on = 0;
+    return we && mem_read((const uint8_t*)we + kEvt_Choosing, &on, 1) && on;
+}
+
+void* event_panel(const void* we) {
+    void* panel = nullptr;
+    if (!we || !mem_read((const uint8_t*)we + kEvt_Panel, &panel, sizeof(panel))) return nullptr;
+    return panel;
+}
+
+// Le choix du chat suivi est celui de cet evenement (meme adresse, meme panneau).
+// (Ni le mode « cat_choice » ni le chat pose ne disent s'il est ouvert : le clip
+// d'un evenement appelle setupCatChoice quand il veut, et different_from_last_x_cats
+// fait tirer un chat a WorldEvent::init meme pour un evenement « choose ».)
+bool catpick_is(const void* we) { return we && g.catpick.we == we && g.catpick.panel == event_panel(we); }
+
+void catpick_forget() { g.catpick = State::CatPick{}; }
+
+// setupCatChoice a tourne sur lui (ou le bouton « ok » de son choix a ete clique).
+void catpick_mark_open(void* we) {
+    if (!catpick_is(we)) {
+        g.catpick       = State::CatPick{};
+        g.catpick.we    = we;
+        g.catpick.panel = event_panel(we);
+    }
+    g.catpick.open = true;
+    g.catpick.done = false;
+}
+
+// Un « ok » a tourne : le chat est pose.
+void catpick_closed(const void* we) {
+    if (!catpick_is(we)) return;
+    g.catpick.open = false;
+    g.catpick.done = true;
+}
+
+bool catpick_open_on(const void* we) { return catpick_is(we) && g.catpick.open; }
+bool catpick_done_on(const void* we) { return catpick_is(we) && g.catpick.done; }
+
+// Les offsets bruts de WorldEvent et le rejeu du chat ne valent que pour le build
+// vise, et demandent les deux crochets du choix du chat et CatSelector::select.
+bool catpick_replicated() {
+    return g.catsel && hooks_is_live(T_EventCatChoice) && hooks_is_live(T_EventCatPick) && resolve_is_pinned_build();
+}
+
+// La cle du chat que montre le CatSelector de l'evenement (0 : illisible).
+uint64_t catpick_key(const void* we) {
+    void* sel = nullptr;
+    uint64_t key = 0;
+    if (!we || !mem_read((const uint8_t*)we + kEvt_Selector, &sel, sizeof(sel)) || !sel) return 0;
+    if (!mem_read((const uint8_t*)sel + kSel_Key, &key, sizeof(key))) return 0;
+    return key;
+}
+
+const void* director() {
+    const void* const* slot = (const void* const*)addr_of_data(D_MewDirectorPtr);
+    const void* dir = nullptr;
+    if (!slot || !mem_read(slot, &dir, sizeof(dir))) return nullptr;
+    return dir;
+}
+
+// La cle d'un chat de l'equipe de l'aventure d'apres son id (MewDirector+0x5C0, les
+// cles que parcourt le CatSelector) ; 0 : pas dans l'equipe.
+uint64_t run_cat_key(uint64_t cat_id) {
+    const uint8_t* dir = (const uint8_t*)director();
+    uint32_t n = 0;
+    const uint64_t* keys = nullptr;
+    if (!cat_id || !dir || !mem_read(dir + kDir_CatIdCount, &n, sizeof(n)) ||
+        !mem_read(dir + kDir_CatIdData, &keys, sizeof(keys)) || !keys || n == 0 || n > 16)
+        return 0;
+    for (uint32_t i = 0; i < n; ++i) {
+        uint64_t key = 0;
+        if (!mem_read(keys + i, &key, sizeof(key)) || !key) continue;
+        if (cat_id_of(catsync_cat_by_key(key)) == cat_id) return key;
+    }
+    return 0;
+}
+
 // Le proprietaire d'un chat dans l'equipe mixte ; -1 sans equipe mixte ou pour un
 // chat qu'elle ne connait pas (une recrue de l'aventure) : l'hote decide.
 int owner_of(uint64_t cat_id) {
@@ -363,6 +516,9 @@ std::string decider_name(int decider) {
     return display(mm_peer_name((uint8_t)decider));
 }
 
+// Hote : il a pris la main sur l'etape ou en est l'evenement (voir host_apply).
+bool host_took_over() { return !g.is_client && g.evt_takeover == g.evt_stage + 1; }
+
 // --- injecting -------------------------------------------------------------
 //
 // Both are the game's own commit path with our index substituted, rather than a
@@ -405,6 +561,26 @@ bool inject_level(void* screen, uint32_t index) {
     return true;
 }
 
+// Mewgenics Multi : le chat d'un evenement, par le chemin du jeu -- le CatSelector
+// montre ce chat (CatSelector::select), puis son « ok » (le lambda de setupCatChoice
+// ne lit que capture+8, le WorldEvent, et capture+0x10, le MewDirector : il pose
+// WorldEvent+0x128, note le chat parmi ceux des derniers evenements, puis relance
+// le clip).
+bool inject_catpick(void* we, uint64_t key) {
+    void* sel = nullptr;
+    void* dir = (void*)director();
+    if (!we || !key || !dir || !g.catsel || !g.o_catpick) return false;
+    if (!mem_read((const uint8_t*)we + kEvt_Selector, &sel, sizeof(sel)) || !sel) return false;
+    g.catsel(sel, key);
+    if (catpick_key(we) != key) return false;
+    void* cap[3] = { nullptr, we, dir };
+    g.injecting = true;
+    g.o_catpick(cap);              // l'original : notre crochet ne le voit pas
+    g.injecting = false;
+    catpick_closed(we);
+    return true;
+}
+
 // --- Mewgenics Multi : envoyer ------------------------------------------------
 
 ChoiceMsg to_msg(const Decision& d, uint8_t flags) {
@@ -436,17 +612,20 @@ bool publish(const Decision& d) {
     return true;
 }
 
+State::Pending& pend_of(uint8_t kind) { return g.pend[kind < kChoiceKinds ? kind : kChoiceEvent]; }
+
 // Invite : une demande de ce genre pour cet ecran attend encore sa reponse.
 bool pending(uint8_t kind, const void* screen, uint64_t cat, uint64_t now) {
-    const State::Pending& p = g.pend[kind & 3];
+    const State::Pending& p = pend_of(kind);
     return p.screen == screen && p.cat == cat && now - p.at < kPendingMs;
 }
 
 // Invite : la reponse a sa demande est arrivee (un choix de ce genre pour ce
-// chat, joue ou laisse).
+// chat, joue ou laisse ; le chat d'un evenement : quel qu'il soit, le choix du
+// chat est fait).
 void answered(const Decision& d) {
-    State::Pending& p = g.pend[d.kind & 3];
-    if (p.cat == d.cat_id) p = State::Pending{};
+    State::Pending& p = pend_of(d.kind);
+    if (p.cat == d.cat_id || d.kind == kChoiceEventCat) p = State::Pending{};
 }
 
 // Invite proprietaire : la demande part chez l'hote. Tant qu'elle attend sa
@@ -457,7 +636,9 @@ void answered(const Decision& d) {
 // dans l'ordre, l'option d'avant la relance garde sa place.)
 void request(const Decision& d, const void* screen) {
     const uint64_t now = GetTickCount64();
-    if (pending(d.kind, screen, d.cat_id, now) ||
+    const State::Pending& cp = pend_of(kChoiceEventCat);
+    const bool cat_waiting = d.kind == kChoiceEventCat && cp.screen == screen && now - cp.at < kPendingMs;
+    if (pending(d.kind, screen, d.cat_id, now) || cat_waiting ||
         (d.kind == kChoiceReroll && pending(kChoiceLevelUp, screen, d.cat_id, now))) {
         log_line_lvl(LogLevel::Trace, "CHOICE", "a %s click waits for the answer to this player's request",
                      kind_name(d.kind));
@@ -469,7 +650,7 @@ void request(const Decision& d, const void* screen) {
                  kind_name(d.kind), d.index);
         return;
     }
-    State::Pending& p = g.pend[d.kind & 3];
+    State::Pending& p = pend_of(d.kind);
     p.screen = screen;
     p.cat    = d.cat_id;
     p.at     = now;
@@ -584,16 +765,48 @@ Apply try_apply(Decision& d, void* screen) {
         if (!read_options(screen, kEvt_OptBegin, kEvt_OptEnd, begin, count)) {
             if (!d.warned) {
                 d.warned = true;
-                log_line("CHOICE", "holding the host's event choice %u -- this peer's option list is not "
-                                   "built yet", d.index);
+                log_line("CHOICE", "holding an event choice %u -- this peer's option list is not built yet", d.index);
             }
             return Apply::Wait;
         }
-        // Mewgenics Multi : juste apres un choix, la liste est peut-etre encore celle
-        // de l'etape choisie -- le suivant attend qu'elle change (kEventSettleMs au plus).
+        if (!g.is_client) {
+            // Mewgenics Multi (hote) : la demande d'un invite. Faite sur une etape
+            // deja decidee (le compte des choix de la case a avance depuis), elle
+            // n'est jamais jouee sur la suivante -- laissee tout de suite, sans
+            // attendre des options qui ne reviendront peut-etre pas ; le chat de
+            // l'evenement doit etre celui de la demande (set_subject peut l'avoir change).
+            if (d.serial != g.evt_stage) {
+                log_line("CHOICE", "!! an event request made after %u choice(s) arrived after %u -- refusing, %s",
+                         d.serial, g.evt_stage, d.serial < g.evt_stage ? "that step was already decided"
+                                                                       : "this peer is behind it");
+                return Apply::Drop;
+            }
+            if (event_subject_id(screen) != d.cat_id) {
+                log_line("CHOICE", "!! an event request for cat %016llx arrived on an event about cat %016llx -- refusing",
+                         (unsigned long long)d.cat_id, (unsigned long long)event_subject_id(screen));
+                return Apply::Drop;
+            }
+        }
+        // Mewgenics Multi : les options a l'ecran. La liste existe des WorldEvent::init,
+        // mais a la page du titre (ou du choix du chat) le choix ferait sauter le clip
+        // a la suite sans passer par elles : il attend que le joueur y arrive. Un
+        // choix joue remet +0x19F9 a zero tout de suite (0x14091EA80) : celui d'apres
+        // attend aussi que setupActionChoice ait montre l'etape suivante.
+        const bool gate = resolve_is_pinned_build();     // l'offset ne vaut que pour ce build
+        if (gate && !event_choosing(screen)) {
+            if (!d.warned) {
+                d.warned = true;
+                log_line("CHOICE", "holding an event choice %u -- this peer's event is not showing its options yet",
+                         d.index);
+            }
+            return Apply::Hold;
+        }
+        // Sans cet offset (un autre build) : juste apres un choix, la liste est
+        // peut-etre encore celle de l'etape choisie -- le suivant attend qu'elle change
+        // (kEventSettleMs au plus).
         const uint64_t fp  = event_fp(begin, count);
         const uint64_t now = GetTickCount64();
-        if (g.evt_done_at && fp == g.evt_done_fp) {
+        if (!gate && g.evt_done_at && fp == g.evt_done_fp) {
             if (now - g.evt_done_at < kEventSettleMs) return Apply::Wait;
             if (!d.warned) {
                 d.warned = true;
@@ -604,29 +817,75 @@ Apply try_apply(Decision& d, void* screen) {
         // Count first: if the two lists are different lengths the index means
         // nothing, and saying so beats picking the wrong option.
         if (d.count && d.count != count) {
-            log_line("CHOICE", "!! host offered %u event option(s), this peer built %u -- refusing to"
+            log_line("CHOICE", "!! the event choice was made on %u option(s), this peer built %u -- refusing to"
                                " choose; the two screens are not the same screen", d.count, count);
             return Apply::Drop;
         }
         if (d.index >= count) {
-            log_line("CHOICE", "!! host chose event option %u but this peer has only %u -- refusing",
-                     d.index, count);
+            log_line("CHOICE", "!! event option %u chosen but this peer has only %u -- refusing", d.index, count);
             return Apply::Drop;
         }
-        // Then the name: reported and obeyed. The host DID press that button.
+        // Then the name: reported and obeyed on a guest (the host DID press that
+        // button) ; chez l'hote, une demande dont l'option n'est pas la sienne est
+        // refusee.
         char mine[48] = {};
         option_name(kChoiceEvent, begin + (uintptr_t)d.index * kOptStride, mine, sizeof(mine));
-        if (d.name[0] && strcmp(mine, d.name) != 0)
-            log_line("CHOICE", "!! event option %u is '%s' here but '%s' on the host -- taking it anyway,"
-                               " the lists are the same length", d.index, mine, d.name);
+        if (d.name[0] && strcmp(mine, d.name) != 0) {
+            log_line("CHOICE", "!! event option %u is '%s' here but '%s' where it was chosen%s", d.index, mine, d.name,
+                     g.is_client ? " -- taking it anyway, the lists are the same length"
+                                 : " -- refusing the player's request");
+            if (!g.is_client) return Apply::Drop;
+        }
         g.world_event = screen;
         if (!inject_event(d.index)) {
-            log_line("CHOICE", "!! failed to apply the host's event choice %u", d.index);
+            log_line("CHOICE", "!! failed to apply the event choice %u", d.index);
             return Apply::Drop;
         }
         g.evt_done_at = now;
         g.evt_done_fp = fp;
-        log_line("CHOICE", "applied the host's event choice: option %u/%u ('%s')", d.index, count, mine);
+        ++g.evt_stage;
+        log_line("CHOICE", "applied an event choice: option %u/%u ('%s')", d.index, count, mine);
+        d.count = count;
+        return Apply::Applied;
+    }
+    case kChoiceEventCat: {
+        // Mewgenics Multi : le chat d'un evenement. Son choix doit etre ouvert ici
+        // (setupCatChoice a tourne, le chat n'est pas encore pose).
+        if (!catpick_replicated()) {
+            log_line("CHOICE", "!! the event's cat was chosen elsewhere, but this peer cannot replay it (cat selector,"
+                               " cat-choice hooks or game build)");
+            return Apply::Drop;
+        }
+        if (!catpick_open_on(screen)) {
+            if (catpick_done_on(screen)) {
+                log_line("CHOICE", "dropped the choice of cat %016llx -- this event's cat is already chosen",
+                         (unsigned long long)d.cat_id);
+                return Apply::Drop;
+            }
+            if (!d.warned) {
+                d.warned = true;
+                log_line("CHOICE", "holding the choice of cat %016llx for the event -- its cat choice is not open here yet",
+                         (unsigned long long)d.cat_id);
+            }
+            return Apply::Hold;
+        }
+        // Chez un invite, un chat qui ne se rejoue pas (pas dans son equipe, le jeu
+        // ne le pose pas) : il choisit le sien, comme avant -- jamais un ecran fige.
+        const uint64_t key = run_cat_key(d.cat_id);
+        if (!key) {
+            log_line("CHOICE", "!! cat %016llx is not in this peer's team -- the event's cat is not chosen here%s",
+                     (unsigned long long)d.cat_id, g.is_client ? " ; this player picks one locally" : "");
+            if (g.is_client) g.catpick.local = true;
+            return Apply::Drop;
+        }
+        g.world_event = screen;
+        if (!inject_catpick(screen, key) || event_subject_id(screen) != d.cat_id) {
+            log_line("CHOICE", "!! failed to send cat %016llx into the event%s", (unsigned long long)d.cat_id,
+                     g.is_client && catpick_open_on(screen) ? " ; this player picks one locally" : "");
+            if (g.is_client) g.catpick.local = true;
+            return Apply::Drop;
+        }
+        log_line("CHOICE", "applied the event's cat: %016llx ('%s')", (unsigned long long)d.cat_id, d.name);
         return Apply::Applied;
     }
     case kChoiceLevelUp:
@@ -786,21 +1045,32 @@ void guest_apply(uint8_t screen_kind, void* screen) {
             if (!in_the_way) return;
         }
         const Apply r = screen_kind_of(d.kind) == screen_kind ? try_apply(d, screen) : Apply::Wait;
-        if (r == Apply::Wait) {
+        Apply rr = r;
+        if (r == Apply::Hold) {
+            // Son ecran est la, le joueur n'y est pas encore (il lit le titre) : le
+            // delai d'abandon ne court pas -- 5 min au plus (un ecran qui n'y vient
+            // jamais retiendrait sinon tous les choix d'apres).
+            if (!d.held) d.held = now;
+            if (now - d.held < kHoldCapMs) { d.blocked = 0; return; }
+            rr = Apply::Wait;
+        }
+        if (rr == Apply::Wait) {
             if (!d.blocked) d.blocked = now;
             if (now - d.blocked > kBlockedDropMs) {
                 log_line("CHOICE", "!! the host's %s choice %u never fit this peer's screen in %u s"
                                    " (cat %016llx) -- dropped; the two runs may differ here",
                          kind_name(d.kind), d.index, (unsigned)(kBlockedDropMs / 1000),
                          (unsigned long long)d.cat_id);
+                if (d.kind == kChoiceEvent) ++g.evt_stage;   // l'hote en est a l'etape d'apres
                 answered(d);
                 g.queue.pop_front();
                 continue;
             }
             return;
         }
-        const bool event = d.kind == kChoiceEvent;
+        const bool event = screen_kind_of(d.kind) == kChoiceEvent;
         if (r == Apply::Applied) ++g.applied;
+        else if (d.kind == kChoiceEvent) ++g.evt_stage;     // laisse : l'hote, lui, l'a joue
         answered(d);
         g.queue.pop_front();
         // Un evenement batit son etape suivante apres coup : le choix d'apres
@@ -830,9 +1100,10 @@ void drop_siblings(const Decision& done) {
 // Hote : la plus ancienne demande d'invite pour ce chat et cet ecran.
 void host_apply(uint8_t screen_kind, void* screen) {
     const uint64_t now = GetTickCount64();
-    const uint64_t cat = (screen_kind == kChoiceAbility)
-                             ? (chooser_find(screen) ? chooser_find(screen)->cat_id : 0)
-                             : level_cat_id(screen);
+    uint64_t cat = 0;
+    if (screen_kind == kChoiceAbility)     cat = chooser_find(screen) ? chooser_find(screen)->cat_id : 0;
+    else if (screen_kind == kChoiceEvent)  cat = event_subject_id(screen);   // 0 : pas encore pose
+    else                                   cat = level_cat_id(screen);
     for (auto it = g.queue.begin(); it != g.queue.end();) {
         Decision& d = *it;
         const bool stale = (d.node_seed && g.here_seed && d.node_seed != g.here_seed) ||
@@ -844,7 +1115,17 @@ void host_apply(uint8_t screen_kind, void* screen) {
             it = g.queue.erase(it);
             continue;
         }
-        if (screen_kind_of(d.kind) != screen_kind || !cat || d.cat_id != cat) { ++it; continue; }
+        if (screen_kind_of(d.kind) != screen_kind) { ++it; continue; }
+        if (d.kind == kChoiceEvent && cat && d.cat_id != cat) {
+            // L'evenement parle d'un autre chat ici : leurs choix du chat different.
+            log_line("CHOICE", "dropped %s's event request %u -- it was made for cat %016llx, this event is about"
+                               " cat %016llx", mm_peer_name(d.from).c_str(), d.index, (unsigned long long)d.cat_id,
+                     (unsigned long long)cat);
+            it = g.queue.erase(it);
+            continue;
+        }
+        // (Le chat d'un evenement : n'importe lequel des siens, tant que son choix est ouvert.)
+        if (d.kind != kChoiceEventCat && (!cat || d.cat_id != cat)) { ++it; continue; }
         // Toujours le sien ? (Il a pu partir : l'hote decide alors.)
         if (decider_of(d.cat_id) != (int)d.from) {
             log_line("CHOICE", "dropped %s's %s request -- that player no longer decides for cat %016llx",
@@ -853,7 +1134,23 @@ void host_apply(uint8_t screen_kind, void* screen) {
             continue;
         }
         const Apply r = try_apply(d, screen);
+        if (r == Apply::Hold) {
+            // L'hote n'en est pas encore a la page du choix (il lit le titre) : la
+            // demande reste vivante (5 min au plus), son ordre est garde.
+            if (!d.held) d.held = now;
+            if (now - d.held < kHoldCapMs) d.since = now;
+            return;
+        }
         if (r == Apply::Wait) return;           // l'ordre de ce chat est garde
+        if (r == Apply::Drop && d.kind == kChoiceEvent && d.serial >= g.evt_stage &&
+            event_subject_id(screen) == d.cat_id) {
+            // La demande du proprietaire pour CETTE etape ne se joue pas ici (les deux
+            // listes different) : l'hote, qui retient ses propres clics, prend la main
+            // pour elle -- sinon personne ne pourrait plus choisir.
+            g.evt_takeover = g.evt_stage + 1;
+            log_line("CHOICE", "!! %s's choice for this step of the event cannot be played here -- the host takes it over",
+                     mm_peer_name(d.from).c_str());
+        }
         if (r == Apply::Applied) {
             ++g.applied;
             const Decision done = d;
@@ -912,6 +1209,95 @@ void title_chooser(void* chooser, Chooser* c) {
     snprintf(buf, sizeof(buf), u8"À %s de choisir la capacité à remplacer.", decider_name(decider).c_str());
     if (!mm_panel_set_text(panel, "prompt", buf))
         log_line("CHOICE", "!! could not write who decides on the ability chooser (no 'prompt' field)");
+}
+
+// Le titre de l'evenement (« title », le nom de l'evenement) : le texte du jeu est
+// garde la premiere fois que ce module y ecrit, et remis quand il n'a plus rien a
+// dire. Un autre WorldEvent : rien a remettre (son panneau est neuf).
+
+void etitle_forget() {
+    g.etitle_we = nullptr;
+    g.etitle_on = false;
+    g.etitle_game.clear();
+    g.etitle_ours.clear();
+    g.etitle_at = g.etitle_until = 0;
+    g.etitle_other = false;
+    g.etitle_unreadable = false;
+}
+
+void etitle_write(void* we, const std::string& text, uint64_t now) {
+    void* panel = event_panel(we);
+    if (!panel) return;
+    if (!g.etitle_on) {
+        // Le texte du jeu d'abord, pour le remettre : illisible, on n'y touche pas
+        // (notre texte resterait).
+        std::string game;
+        if (!mm_panel_get_text(panel, "title", game)) {
+            if (!g.etitle_unreadable)
+                log_line("CHOICE", "!! the event's title cannot be read -- who decides is not written on it");
+            g.etitle_unreadable = true;
+            return;
+        }
+        g.etitle_game = game;
+        g.etitle_on   = true;
+    }
+    if (text == g.etitle_ours && now - g.etitle_at < kTitleRefreshMs) return;
+    const bool first = text != g.etitle_ours;
+    g.etitle_ours = text;
+    g.etitle_at   = now;
+    if (!mm_panel_set_text(panel, "title", text) && first)
+        log_line("CHOICE", "!! could not write who decides on the event screen (no 'title' field)");
+}
+
+void etitle_restore(void* we) {
+    if (!g.etitle_on) return;
+    void* panel = event_panel(we);
+    if (panel) mm_panel_set_text(panel, "title", g.etitle_game);
+    g.etitle_on = false;
+    g.etitle_ours.clear();
+    g.etitle_until = 0;
+    g.etitle_other = false;
+}
+
+// Un avis court dans le titre (le « ok » d'un chat qui n'est pas a ce joueur).
+void etitle_notice(void* we, const std::string& text) {
+    if (g.etitle_we != we) { etitle_forget(); g.etitle_we = we; }
+    const uint64_t now = GetTickCount64();
+    g.etitle_at = 0;                                   // reecrit tout de suite
+    etitle_write(we, text, now);
+    g.etitle_until = now + kNoticeMs;
+}
+
+// Chez qui ne decide pas, les options de l'evenement a l'ecran : « A X de choisir ».
+// « A toi de choisir » quand ce joueur prend la main (le proprietaire est parti).
+void title_event(void* we) {
+    const uint64_t now = GetTickCount64();
+    if (g.etitle_we != we) { etitle_forget(); g.etitle_we = we; }
+    if (g.etitle_until) {
+        if (now < g.etitle_until) return;              // l'avis reste
+        etitle_restore(we);
+    }
+    std::string want;
+    bool other = false;
+    if (event_choosing(we)) {
+        int decider = 0;
+        other = gate_for(event_subject_id(we), &decider) == Gate::Refuse && !host_took_over();
+        if (other) {
+            char buf[160];
+            snprintf(buf, sizeof(buf), u8"À %s de choisir", decider_name(decider).c_str());
+            want = buf;
+        } else if (g.etitle_on && g.etitle_other) {
+            want = u8"À toi de choisir";
+        }
+    }
+    if (want.empty()) {
+        // Plus d'options a l'ecran (le resultat), ou ce joueur decide : le nom de
+        // l'evenement revient -- sauf « A toi de choisir », tant que les options sont la.
+        if (g.etitle_on && !(event_choosing(we) && g.etitle_ours == u8"À toi de choisir")) etitle_restore(we);
+        return;
+    }
+    etitle_write(we, want, now);
+    g.etitle_other = other;
 }
 
 // Mewgenics Multi : la derniere image ou un ecran de choix a tourne (sans le
@@ -1027,6 +1413,94 @@ void __fastcall h_AbilityUpdate(void* chooser) {
     g.o_ablupd(chooser);
 }
 
+// WorldEvent::setupCatChoice (appele par le clip de l'evenement, par son nom) :
+// d'abord le jeu (le CatSelector, le « ok »), puis le choix du chat est ouvert --
+// note meme hors session : une session qui commence sur cet ecran le connait.
+void __fastcall h_EventCatChoice(void* we) {
+    g.o_catchoice(we);
+    if (!we) return;
+    Guard guard;
+    catpick_mark_open(we);
+    if (g.on) log_line_lvl(LogLevel::Trace, "CHOICE", "the event's cat choice is open");
+}
+
+// Ce que fait le « ok » du choix du chat chez ce joueur.
+enum class Pick { Local, Publish, Swallow };
+
+// Chacun n'envoie que ses chats ; un invite le demande a l'hote, qui le joue et
+// publie le chat que le jeu a pose (le premier pris l'emporte).
+Pick on_event_cat_pick(void* cap, void** we_out) {
+    void* we = nullptr;
+    if (cap) mem_read((const uint8_t*)cap + 8, &we, sizeof(we));
+    *we_out = we;
+    if (!g.on || !cap || !we || g.injecting) return Pick::Local;
+    if (g.is_client && !savefile_in_coop()) return Pick::Local;   // sa propre save
+    if (!catpick_replicated()) return Pick::Local;                 // impossible a rejouer : chacun le sien, comme avant
+    Guard guard;
+    g.world_event = we;
+    // Le bouton n'existe que pendant le choix du chat : un clic dit qu'il est ouvert
+    // (setupCatChoice a pu tourner avant la session).
+    if (!catpick_is(we)) catpick_mark_open(we);
+    if (!g.catpick.open) {
+        // Deja choisi (un double clic, ou le chat d'un autre joueur vient d'arriver).
+        log_line("CHOICE", "ignored a cat choice on an event whose cat is already chosen");
+        return Pick::Swallow;
+    }
+    if (g.catpick.local) {
+        log_line("CHOICE", "the event's cat is picked locally -- the one chosen elsewhere could not be replayed here");
+        return Pick::Local;
+    }
+    const uint64_t cat_id = cat_id_of(catsync_cat_by_key(catpick_key(we)));
+    if (!cat_id) {
+        // Un chat que ce joueur ne sait pas nommer. L'hote le joue et publie celui
+        // que le jeu aura pose ; un invite le prend chez lui, plutot qu'un ecran fige.
+        log_line("CHOICE", "!! the event's cat selector shows a cat this peer cannot name -- %s",
+                 g.is_client ? "picked locally" : "played here, then the cat it sets is published");
+        return g.is_client ? Pick::Local : Pick::Publish;
+    }
+    Decision d;
+    d.kind   = kChoiceEventCat;
+    d.cat_id = cat_id;
+    snprintf(d.name, sizeof(d.name), "%016llx", (unsigned long long)cat_id);
+    int decider = 0;
+    switch (gate_for(cat_id, &decider)) {
+    case Gate::Refuse: {
+        refused_click("event cat", cat_id, decider);
+        char buf[160];
+        snprintf(buf, sizeof(buf), u8"Ce chat est à %s", decider_name(decider).c_str());
+        etitle_notice(we, buf);
+        return Pick::Swallow;
+    }
+    case Gate::Request:
+        request(d, we);
+        return Pick::Swallow;
+    case Gate::Run:
+        return Pick::Publish;
+    }
+    return Pick::Local;
+}
+
+void __fastcall h_EventCatPick(void* cap) {
+    void* we = nullptr;
+    const Pick p = on_event_cat_pick(cap, &we);
+    if (p == Pick::Swallow) return;
+    g.o_catpick(cap);
+    if (!we) return;
+    Guard guard;
+    catpick_closed(we);
+    if (p != Pick::Publish || !g.on) return;
+    // Le chat que le jeu a pose (pas celui que montrait le CatSelector avant).
+    Decision d;
+    d.kind   = kChoiceEventCat;
+    d.cat_id = event_subject_id(we);
+    if (!d.cat_id) {
+        log_line("CHOICE", "!! the event's ok set no cat this peer can name -- the others are not told");
+        return;
+    }
+    snprintf(d.name, sizeof(d.name), "%016llx", (unsigned long long)d.cat_id);
+    publish(d);
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -1037,6 +1511,8 @@ bool choice_binding(Target t, void** detour, void*** original) {
         case T_AbilityInit:   *detour = (void*)&h_AbilityInit;   *original = (void**)&g.o_ablinit; return true;
         case T_AbilityPick:   *detour = (void*)&h_AbilityPick;   *original = (void**)&g.o_pick;    return true;
         case T_AbilityUpdate: *detour = (void*)&h_AbilityUpdate; *original = (void**)&g.o_ablupd;  return true;
+        case T_EventCatChoice: *detour = (void*)&h_EventCatChoice; *original = (void**)&g.o_catchoice; return true;
+        case T_EventCatPick:   *detour = (void*)&h_EventCatPick;   *original = (void**)&g.o_catpick;   return true;
         default: return false;
     }
 }
@@ -1046,6 +1522,7 @@ void choice_set_base(uintptr_t base) {
     g.resolved = false;
     g.evt_commit = nullptr;
     g.lvl_click  = nullptr;
+    g.catsel     = nullptr;
 
     // An armed client that cannot inject is worse than a desync: it swallows
     // clicks it has no way to replace and the screen is permanently dead with
@@ -1062,6 +1539,11 @@ void choice_set_base(uintptr_t base) {
     g.evt_commit = (fn_cap)evt;
     g.lvl_click  = (fn_cap)lvl;
     g.resolved = true;
+    // Mewgenics Multi : montrer un chat dans le CatSelector d'un evenement, pour
+    // rejouer le chat choisi ailleurs. Sans lui, chacun choisit le sien, comme avant.
+    g.catsel = (fn_catsel)addr_of_call(C_CatSelectorSelect);
+    if (!g.catsel)
+        log_line("CHOICE", "!! CatSelector::select did not resolve -- each peer keeps choosing an event's cat on its own");
 }
 
 void choice_init() {
@@ -1072,6 +1554,10 @@ void choice_init() {
     g.level_screen = nullptr;
     g.queue.clear();
     g.injecting = false;
+    g.evt_stage = 0;
+    g.evt_takeover = 0;
+    catpick_forget();
+    etitle_forget();
     if (!g.on) { log_line("CHOICE", "choice replication disabled by net_choice = 0"); return; }
     if (g.is_client && !g.resolved) {
         // Refusing is the safe direction. An armed client SWALLOWS every local
@@ -1085,10 +1571,10 @@ void choice_init() {
         return;
     }
     log_line_lvl(LogLevel::Trace, "CHOICE", "armed -- %s",
-             g.is_client ? "taking the host's event choices; level-ups and ability choices of this"
-                           " player's own cats are asked of the host, the others' are suppressed"
-                         : "publishing event choices; level-ups and ability choices of a guest's cat"
-                           " come from that guest");
+             g.is_client ? "event options, level-ups and ability choices of this player's own cats (and the"
+                           " event cats it sends) are asked of the host, the others' are taken from it"
+                         : "publishing every choice; those about a guest's cat (event options, level-ups,"
+                           " ability choices, the event cats it sends) come from that guest");
 }
 
 void choice_shutdown() {
@@ -1121,34 +1607,56 @@ bool choice_on_event_commit(void* cap) {
 
     uint8_t* begin = nullptr; uint32_t count = 0;
     const bool have = read_options(we, kEvt_OptBegin, kEvt_OptEnd, begin, count);
+    const uintptr_t delta = have ? (uintptr_t)((uint8_t*)entry - begin) : 0;
+    const bool in_list = have && delta % kOptStride == 0 && delta / kOptStride < count;
 
-    // Les evenements restent une decision commune : l'hote choisit.
-    if (g.is_client) {
-        ++g.swallowed;
-        log_line("CHOICE", "suppressed a local event click -- the host owns this run's"
-                           " event choices (this peer had %u option(s))", have ? count : 0);
+    // Mewgenics Multi : le proprietaire du chat de l'evenement decide (l'hote pour
+    // un evenement sans chat, une recrue, ou sans equipe mixte).
+    Decision d;
+    d.kind   = kChoiceEvent;
+    d.index  = in_list ? (uint32_t)(delta / kOptStride) : 0;
+    d.count  = count;
+    d.cat_id = event_subject_id(we);
+    d.serial = g.evt_stage;
+    if (in_list) option_name(kChoiceEvent, (const uint8_t*)entry, d.name, sizeof(d.name));
+
+    int decider = 0;
+    Gate gate = gate_for(d.cat_id, &decider);
+    if (gate == Gate::Refuse && host_took_over()) gate = Gate::Run;   // la demande du proprietaire ne se joue pas ici
+    switch (gate) {
+    case Gate::Refuse:
+        refused_click("event", d.cat_id, decider);
+        title_event(we);
         return false;                        // do NOT run the original
+    case Gate::Request:
+        if (!in_list) {
+            log_line("CHOICE", "!! the chosen event option is not an element of this event's array -- not asked");
+            return false;
+        }
+        request(d, we);
+        return false;
+    case Gate::Run:
+        break;
     }
 
     // Host: name the index, publish it, then let the click through.
     if (!have) {
         log_line("CHOICE", "!! could not read this event's option array -- the peer will"
                            " not be told which option was picked");
+        ++g.evt_stage;
         return true;
     }
-    const uintptr_t delta = (uintptr_t)((uint8_t*)entry - begin);
-    if (delta % kOptStride || delta / kOptStride >= count) {
+    if (!in_list) {
         log_line("CHOICE", "!! the chosen option is not an element of this event's array"
                            " -- not publishing");
+        ++g.evt_stage;
         return true;
     }
-
-    Decision d;
-    d.kind  = kChoiceEvent;
-    d.index = (uint32_t)(delta / kOptStride);
-    d.count = count;
-    option_name(kChoiceEvent, (const uint8_t*)entry, d.name, sizeof(d.name));
     publish(d);
+    // Mewgenics Multi : une demande d'invite pour l'etape suivante attendra la liste neuve.
+    g.evt_done_at = GetTickCount64();
+    g.evt_done_fp = event_fp(begin, count);
+    ++g.evt_stage;
     return true;
 }
 
@@ -1163,7 +1671,12 @@ void choice_on_event_update(void* world_event) {
     if (g.is_client && !savefile_in_coop()) return;   // Mewgenics Multi : sa propre save
     Guard guard;
     g.world_event = world_event;
+    // Mewgenics Multi : les options a l'ecran, le choix du chat est passe.
+    if (catpick_open_on(world_event) && resolve_is_pinned_build() && event_choosing(world_event))
+        catpick_closed(world_event);
     if (g.is_client) guest_apply(kChoiceEvent, world_event);
+    else             host_apply(kChoiceEvent, world_event);   // Mewgenics Multi : les demandes des invites
+    title_event(world_event);
 }
 
 // --- the level-up screen ---------------------------------------------------
@@ -1252,8 +1765,12 @@ void choice_on_message(uint8_t from, const ChoiceMsg& m) {
     if (!g.on) return;
     Guard guard;
 
+    if (m.kind >= kChoiceKinds) {
+        log_line("CHOICE", "!! a choice of unknown kind %u from peer %u -- ignored", (unsigned)m.kind, (unsigned)from);
+        return;
+    }
     Decision d;
-    d.kind      = m.kind <= kChoiceAbility ? m.kind : kChoiceEvent;
+    d.kind      = m.kind;
     d.index     = m.index;
     d.count     = m.count;
     d.aux       = m.aux;
@@ -1274,8 +1791,9 @@ void choice_on_message(uint8_t from, const ChoiceMsg& m) {
                                " they own the run", kind_name(m.kind));
             return;
         }
-        if (d.kind == kChoiceEvent || !d.cat_id) {
-            log_line("CHOICE", "!! %s asked for an event choice -- events stay the host's", mm_peer_name(from).c_str());
+        if (!d.cat_id) {
+            log_line("CHOICE", "!! %s asked for a %s choice without a cat -- those are the host's",
+                     mm_peer_name(from).c_str(), kind_name(d.kind));
             return;
         }
         if (owner_of(d.cat_id) != (int)from) {
@@ -1339,6 +1857,8 @@ void choice_forget_screens() {
     g.world_event  = nullptr;
     g.level_screen = nullptr;
     g.titled_level = nullptr;
+    catpick_forget();
+    etitle_forget();
     for (uint32_t i = 0; i < kMaxChoosers; ++i) g.choosers[i] = Chooser{};
 }
 
@@ -1347,6 +1867,8 @@ void choice_forget() {
     g.world_event  = nullptr;
     g.level_screen = nullptr;
     g.titled_level = nullptr;
+    catpick_forget();
+    etitle_forget();
     g.here_seed    = 0;
     if (!g.queue.empty())
         log_line("CHOICE", "dropped %u held choice(s) -- the host's save that just arrived already has"
@@ -1363,6 +1885,14 @@ void choice_on_node_entered(uint64_t node_seed) {
     g.chose_here = false;
     for (State::Pending& p : g.pend) p = State::Pending{};
     g.evt_done_at = 0;                    // un autre evenement : sa liste peut ressembler a l'ancienne
+    if (left != node_seed) {
+        // Mewgenics Multi : une autre case, un autre evenement -- ses choix se
+        // comptent de zero, son choix du chat et son titre sont les siens.
+        g.evt_stage    = 0;
+        g.evt_takeover = 0;
+        catpick_forget();
+        etitle_forget();
+    }
 
     // Mewgenics Multi (invite) : un choix de la case qu'il vient de quitter ne
     // trouvera plus son ecran ; en tete de file, il retiendrait tous ceux d'apres

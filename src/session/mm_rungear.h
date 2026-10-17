@@ -54,6 +54,14 @@
 //     revenu de la case que l'invite a suivie en dernier (MM_RUNREV, drapeau
 //     « pose »), sans poussee ni etat de l'hote en attente. L'hote, dans une case,
 //     garde ses changements pour sa poussee de retour sur la carte.
+//   - « Sur la carte » veut dire ENTRE DEUX CASES (follow_node_live,
+//     follow_inside_node, aucune case a suivre), pas « la carte tourne » : l'ecran
+//     des objets met la carte en pause (comme toute fenetre du jeu), et un test
+//     sur follow_on_map prenait un hote sac ouvert pour un hote dans une case --
+//     aucun de ses mouvements ne partait -- et un invite sac ouvert pour un invite
+//     dans une case -- tous ses clics etaient retenus (build 22). La carte qui
+//     tourne ne sert plus qu'a la poussee d'apres une case, aux poussees gardees et
+//     aux fenetres de ce module.
 //   - L'invite ne suit l'hote dans une case qu'une fois son ecran des objets
 //     ferme.
 //   - Un livre lu ailleurs pendant qu'une confirmation ou un AbilityChooser de

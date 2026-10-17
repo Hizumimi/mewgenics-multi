@@ -441,9 +441,11 @@ bool compute_active() {
     if (!want) return false;
     // Sans ses crochets, ce module ne sait ni quand un ecran est ouvert ni ce
     // qu'un clic deplace : mieux vaut l'ancien comportement (chacun touche a
-    // tout, l'hote remet tout a chaque case).
+    // tout, l'hote remet tout a chaque case). La fin d'une case (T_NodeEnd) dit
+    // jusqu'ou une case dure (follow_node_live) : sans elle, « entre deux cases »
+    // commencerait une seconde apres l'entree, au milieu d'un evenement.
     static const Target kNeed[] = { T_InvScreenUpdate, T_InvScreenDtor, T_InvItemAct, T_InvLearnActive,
-                                    T_InvLearnPassive, T_CatEquip, T_CatUnequip };
+                                    T_InvLearnPassive, T_CatEquip, T_CatUnequip, T_NodeEnd };
     for (Target t : kNeed) {
         if (!hooks_is_live(t)) {
             if (!g.told_hooks) {
@@ -468,17 +470,28 @@ bool compute_active() {
     return true;
 }
 
-// Hote : sur la carte, entre deux cases, son etat d'apres la case parti.
-bool host_map() { return follow_on_map() && !follow_inside_node() && !follow_node_live(); }
-bool host_live() { return host_map() && g.settled; }
+// Hote : entre deux cases. Sa carte peut ne pas tourner : l'ecran des objets (comme
+// toute fenetre du jeu) la met en pause -- il n'en est pas moins sur la carte. (Un
+// test sur la carte qui tourne prenait l'hote, sac ouvert, pour un hote dans une
+// case : aucun de ses mouvements ne partait, et ceux des invites etaient refuses.)
+bool host_between() { return !follow_inside_node() && !follow_node_live(); }
+// ... et sa carte a l'ecran : la poussee d'apres une case, les fenetres de ce module.
+bool host_map() { return follow_on_map() && host_between(); }
+// Ses mouvements partent et ceux des invites sont pris : entre deux cases, son
+// etat d'apres la derniere case parti.
+bool host_live() { return g.settled && host_between(); }
 
 bool host_settled_for_me() {
     return g.have_rev && g.adopted && (g.host_flags & kRevSettled) && g.host_seed == g.entered_seed;
 }
 
+// Invite : entre deux cases, et aucune case de l'hote a suivre (sa carte en pause,
+// sac ouvert, compte : il est sur la carte).
+bool guest_between() { return follow_pending_count() == 0 && !follow_node_live(); }
+
 // Invite : ce qui l'empeche de changer ses objets maintenant.
 Why guest_block() {
-    if (!follow_on_map() || follow_pending_count() != 0 || follow_node_live()) return Why::Node;
+    if (!guest_between()) return Why::Node;
     if (!host_settled_for_me()) return Why::Wait;
     if (held_pushes() || !g.queue.empty() || g.sync_pending || g.bundle_have) return Why::Behind;
     return Why::None;
@@ -486,12 +499,9 @@ Why guest_block() {
 
 bool guest_live() { return guest_block() == Why::None; }
 
-// Invite : les mouvements de l'hote peuvent-ils se jouer maintenant ? (Sur la
-// carte, l'etat de l'hote a jour ; un ecran des objets ouvert ne gene pas.)
-bool guest_can_apply() {
-    return follow_on_map() && follow_pending_count() == 0 && !follow_node_live() && !held_pushes() &&
-           !g.sync_pending && !g.bundle_have;
-}
+// Invite : les mouvements de l'hote peuvent-ils se jouer maintenant ? (Entre deux
+// cases, l'etat de l'hote a jour ; un ecran des objets ouvert ne gene pas.)
+bool guest_can_apply() { return guest_between() && !held_pushes() && !g.sync_pending && !g.bundle_have; }
 
 // Ce qui empeche CE joueur d'agir sur ce chat (Why::None : rien).
 Why act_block(void* cat) {
@@ -530,8 +540,8 @@ void tell_why(Why why, int owner) {
         break;
     case Why::Node:
         if (follow_pending_count()) break;               // il va suivre l'hote : rien a lire apres coup
-        tell(why, u8"Objets\n\nPendant une case, les objets ne changent que\n"
-                  u8"chez l'hôte. Équipe tes chats sur la carte.");
+        tell(why, u8"Objets\n\nPendant une case (une boutique, une montée de\n"
+                  u8"niveau...), seul l'hôte change les objets.\nÉquipe tes chats sur la carte.");
         break;
     case Why::Wait:
         tell(why, u8"Objets\n\nL'hôte n'est pas encore revenu sur la carte :\n"
@@ -1110,11 +1120,12 @@ void apply_bundle() {
 }
 
 void guest_pump(uint64_t now) {
-    const bool on_map = follow_on_map() && follow_pending_count() == 0 && !follow_node_live();
+    const bool on_map = follow_on_map() && guest_between();
     // Les poussees de l'hote gardees parce qu'un ecran des objets est ouvert :
     // identiques a son etat, elles n'ont rien a relire (au plus une fois par
-    // seconde : chaque comparaison serialise des chats et le sac).
-    if (held_pushes() && g.n_screens && on_map && now - g.same_checked >= kSameCheckMs) {
+    // seconde : chaque comparaison serialise des chats et le sac). Le sac ouvert
+    // arrete la carte : entre deux cases suffit.
+    if (held_pushes() && g.n_screens && guest_between() && now - g.same_checked >= kSameCheckMs) {
         g.same_checked = now;
         catsync_drop_identical("ecran des objets ouvert");
         invsync_drop_identical("ecran des objets ouvert");
@@ -1267,8 +1278,7 @@ void rungear_pump() {
     if (!g.notice.empty() && !mm_info_busy() && !g.n_screens) {
         // Jamais au moment ou il va suivre l'hote : la fenetre arreterait sa
         // carte, et l'hote l'attendrait. Elle attend la carte d'apres la case.
-        const bool show = is_host() ? host_map()
-                                    : (follow_on_map() && follow_pending_count() == 0 && !follow_node_live());
+        const bool show = is_host() ? host_map() : (follow_on_map() && guest_between());
         if (show) {
             mm_show_info(g.notice, kInfoYieldToFollow);
             g.notice.clear();

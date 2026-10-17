@@ -118,6 +118,9 @@ enum Target : int {
     T_InvLearnPassive,   // sub_140352430 -- un livre de passif : celui a remplacer choisi
     T_CatEquip,          // sub_1400CA2E0 -- CatData : equiper un objet du sac
     T_CatUnequip,        // sub_1400CA510 -- CatData : rendre un objet porte au sac
+    // --- Mewgenics Multi : le chat d'un evenement (src/session/mgmp_choice.cpp) --
+    T_EventCatChoice,    // sub_140919AE0 -- WorldEvent::setupCatChoice : le choix du chat s'ouvre
+    T_EventCatPick,      // sub_14093C220 -- son « ok » (lambda_1) : WorldEvent+0x128 = le chat montre
     T_COUNT
 };
 
@@ -697,6 +700,18 @@ static const TargetDesc kTargets[T_COUNT] = {
     // de l'ecran des objets (cle = id) suivent l'objet.
     { 0x000CA2E0, "CATEQUIP",  "CatData equip item (sub_1400CA2E0)" },
     { 0x000CA510, "CATUNEQUIP","CatData unequip item (sub_1400CA510)" },
+    // Le choix du chat d'un evenement « cat_choice: choose » (WorldEvent+0xB0 = 0) :
+    // setupCatChoice (WorldEvent*, appele par le clip de l'evenement par son nom,
+    // enregistre par WorldEvent::init) montre le CatSelector (+0x50, la cle du
+    // chat montre a +0x88, l'equipe de l'aventure MewDirector+0x5C0) et lie le
+    // bouton « ok » du panneau (+0x40) a son lambda_1 : capture {_, WorldEvent*,
+    // MewDirector*}, il ecrit WorldEvent+0x128 = CatData::by_id(cle), note la cle
+    // parmi les chats des derniers evenements (MewDirector+0x590+0x90) puis
+    // relance le clip (0x14091EA80, qui delie les boutons). Mewgenics Multi :
+    // chacun n'envoie que ses chats ; le premier pris chez l'hote est rejoue chez
+    // tous (mgmp_choice).
+    { 0x00919AE0, "EVTCATCH",  "WorldEvent::setupCatChoice (sub_140919AE0)" },
+    { 0x0093C220, "EVTCATOK",  "WorldEvent cat choice ok (lambda_1, sub_14093C220)" },
 };
 
 // Coarse module guard, checked before the per-target signatures.
