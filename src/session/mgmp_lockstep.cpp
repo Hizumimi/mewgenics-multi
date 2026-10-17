@@ -30,6 +30,8 @@
 #include "mgmp_mem.h"
 #include "mgmp_split.h"
 #include "mgmp_members.h"
+#include "mm_ai.h"           // Mewgenics Multi : l'IA pour les chats d'un absent
+#include "mm_ai_core.h"
 #include "mgmp_seen.h"
 #include "mgmp_rtti.h"
 #include "mgmp_rng.h"
@@ -301,6 +303,15 @@ struct State {
     // son CONTROL avec les membres a jour, que les invites adoptent tels quels.
     uint8_t  controller[kMaxCats] = {};  // qui dirige chaque chat humain (kMemberNone sinon)
     uint8_t  split_controller[kMaxCats] = {};  // ... d'apres le partage de la photo, avant tout depart
+    // Mewgenics Multi (protocole 52) : le proprietaire de chaque chat d'apres la
+    // liste de l'equipe mixte (-1 : inconnu, ou partage par place), et, chez
+    // l'hote, les chats que l'IA du jeu joue pour un absent (members_ai_cats,
+    // mm_ai.h). Ils restent « a l'hote » pour le partage et la verification.
+    int      owner[kMaxCats] = {};
+    bool     ai_cat[kMaxCats] = {};
+    uint32_t ai_count   = 0;
+    AiPacer  ai_pacer;
+    uint64_t ai_failed_battle = kNoBattle; // l'IA a echoue dans ce combat (dit une fois)
     uint64_t snap_battle       = kNoBattle;    // le combat de la photo (snapped reste vrai jusqu'au
                                                // premier tour du suivant : elle peut etre perimee)
     uint64_t gone_since[kMaxPeers] = {}; // hote : membre absent depuis (ms), pour ne pas le juger sur une image
@@ -438,6 +449,39 @@ uint32_t tally_ids(uint8_t* ids, uint32_t cap) {
     return member_ids(g.members, ids, cap);
 }
 
+// Mewgenics Multi (protocole 52) : chez l'hote, l'IA du jeu joue les chats des
+// absents. Recalcule avec le partage (photo, depart d'un membre) ; chez un
+// invite, jamais -- les decisions de ces chats lui arrivent de l'hote.
+void refresh_ai_cats() {
+    const uint8_t self = net_self();
+    bool before[kMaxCats];
+    for (uint32_t i = 0; i < g.cat_count; ++i) before[i] = g.ai_cat[i];
+    const uint32_t was = g.ai_count;
+    if (lockstep_is_host() && self != kNoPeer && ai_available())
+        g.ai_count = members_ai_cats(g.controller, g.split_controller, g.owner, g.human_cat,
+                                     g.cat_count, self, g.ai_cat);
+    else {
+        for (uint32_t i = 0; i < g.cat_count; ++i) g.ai_cat[i] = false;
+        g.ai_count = 0;
+    }
+    bool changed = was != g.ai_count;
+    for (uint32_t i = 0; i < g.cat_count && !changed; ++i) changed = before[i] != g.ai_cat[i];
+    if (!changed || !g.ai_count) return;
+    char list[160] = {};
+    int off = 0;
+    for (uint32_t i = 0; i < g.cat_count; ++i) {
+        if (!g.ai_cat[i]) continue;
+        const uint8_t from = g.split_controller[i] != self && g.split_controller[i] != kMemberNone
+                               ? g.split_controller[i] : (uint8_t)g.owner[i];
+        const int w = _snprintf_s(list + off, sizeof(list) - off, _TRUNCATE, "%s%u (joueur %u)",
+                                  off ? ", " : "", i, (unsigned)from);
+        if (w < 0) break;                   // plein : la suite n'y tient pas
+        off += w;
+    }
+    log_line("LOCKSTEP", "l'IA du jeu joue les chats des absents : %s -- ses decisions partent "
+                         "comme celles de l'hote", list);
+}
+
 // Les chats de ce joueur d'apres `controller` (apres le partage, ou quand
 // l'hote reprend ceux d'un membre parti).
 void local_from_controller() {
@@ -448,6 +492,7 @@ void local_from_controller() {
         if (g.local_cat[i]) ++local;
     }
     g.stats.local_cats = local;
+    refresh_ai_cats();
 }
 
 // Annonce la liste de chats de ce joueur pour ce combat (CONTROL) et la range
@@ -1034,6 +1079,7 @@ bool split_by_owner() {
         return false;
     }
     members_split_by_owner(owner, g.human_cat, g.cat_count, g.entry_members, kHostPeer, g.controller);
+    for (uint32_t i = 0; i < g.cat_count; ++i) g.owner[i] = owner[i];   // l'IA pour les absents
     char list[160] = {};
     int off = 0;
     for (uint32_t i = 0; i < g.cat_count; ++i) {
@@ -1130,7 +1176,14 @@ void snapshot_cats(void* turn_control) {
     for (uint32_t i = 0; i < kMaxCats; ++i) {
         g.local_cat[i]  = false;
         g.controller[i] = kMemberNone;
+        // Mewgenics Multi : le partage de la photo est recopie plus bas ; d'ici la,
+        // celui du combat precedent ne doit rien dire (l'IA pour les absents le lit).
+        g.split_controller[i] = kMemberNone;
+        g.owner[i]      = -1;      // split_by_owner les remplit
+        g.ai_cat[i]     = false;
     }
+    g.ai_count = 0;
+    g.ai_pacer = AiPacer{};
     bool by_owner = false;   // Mewgenics Multi : equipe mixte
 
     // Mewgenics Multi : les membres de ce combat, la base du partage -- ceux que
@@ -1207,6 +1260,7 @@ void snapshot_cats(void* turn_control) {
     }
     // Mewgenics Multi : le partage de la photo, la base des changements de membres.
     for (uint32_t i = 0; i < kMaxCats; ++i) g.split_controller[i] = g.controller[i];
+    refresh_ai_cats();
 
     uint32_t local = 0;
     for (uint32_t i = 0; i < g.cat_count; ++i) if (g.local_cat[i]) ++local;
@@ -2272,8 +2326,13 @@ void lockstep_init() {
                  (unsigned long long)g.battles.current, g.turn, g.cat_count);
 }
 
+// Mewgenics Multi : l'IA pour les absents et les GetChoice remis (protocole 52) --
+// definie plus bas, avec ChoicePin.
+static void mm_ai_summary();
+
 void lockstep_shutdown() {
     if (!g.active) return;
+    mm_ai_summary();
     LockstepStats s = lockstep_stats();
 
     // `0 desync(s)` is a pass ONLY if something was compared. A session that
@@ -2313,6 +2372,9 @@ bool lockstep_aim_subject(const void* character, uint8_t& cat, bool& peer_owns) 
     const uint8_t i = cat_index_of(character);
     if (i == kNoCat)     return false;   // a summon: in nobody's roster
     if (!g.human_cat[i]) return false;   // an AI cat: both peers drive it
+    // Mewgenics Multi : le chat d'un absent, chez l'hote, est « a lui » ici (local) :
+    // mgmp_aim n'en publie qu'un arret (lockstep_ai_character) -- ni la visee du
+    // joueur de l'hote, ni celle, perimee, de l'absent.
     cat       = i;
     peer_owns = !g.local_cat[i];
     return true;
@@ -2486,6 +2548,67 @@ uint32_t lockstep_state_fence_end(const char* what) {
 }
 
 uint32_t lockstep_state_fence_hits() { return g_sf.hits; }
+
+// --- Mewgenics Multi (protocole 52) : Brain::GetChoice d'un chat humain --------
+//
+// Le jeu fait choisir son IA pour un chat de joueur charme ou incontrolable
+// (passifs Charmed, ProbeCharmed, Uncontrollable : mm_ai.h) DANS Brain::GetChoice,
+// et cette IA tire dans le flux de la simulation. Celui qui dirige le chat la fait
+// tourner une fois (la decision est prise, puis publiee) ; chaque autre joueur la
+// refait a chaque image tant que la decision ne lui est pas arrivee -- lockstep
+// la remplace par « rien encore », et Brain::UpdateDecision redemande -- : autant
+// de tirages en plus, et les flux se separent. Autour de GetChoice d'un chat
+// humain, le flux est donc remis comme avant chez tous : la decision voyage, les
+// tirages qui ont servi a la trouver ne comptent pas. Un joueur qui decide
+// lui-meme ne tire rien : sans effet dans ce cas, de loin le plus courant.
+struct ChoicePin {
+    uint64_t* s = nullptr;
+    uint64_t  before[4] = {};
+    uint32_t  flight = 0;
+    uint8_t   cat = kNoCat;
+    bool      armed = false;
+    uint32_t  hits = 0;                  // GetChoice qui ont tire, cette session
+    uint64_t  said_battle = kNoBattle;   // dit une fois par combat
+};
+ChoicePin g_cp;
+
+void lockstep_choice_pin(void* brain) {
+    g_cp.armed = false;
+    if (!g.active || !g.snapped || !brain) return;
+    const void* actor = nullptr;
+    if (!mem_read((const uint8_t*)brain + kBrain_Owner, &actor, sizeof(actor)) || !actor) return;
+    Guard guard;
+    const uint8_t cat = cat_index_of(actor);
+    if (cat == kNoCat || !g.human_cat[cat]) return;   // un ennemi, une invocation : chacun le derive
+    uint64_t* s = rng_global_stream();
+    if (!s) return;
+    memcpy(g_cp.before, s, sizeof(g_cp.before));
+    g_cp.s      = s;
+    g_cp.flight = rng_flight_mark();
+    g_cp.cat    = cat;
+    g_cp.armed  = true;
+}
+
+void lockstep_choice_unpin() {
+    if (!g_cp.armed) return;
+    g_cp.armed = false;
+    if (memcmp(g_cp.before, g_cp.s, sizeof(g_cp.before)) == 0) return;
+    memcpy(g_cp.s, g_cp.before, sizeof(g_cp.before));
+    rng_flight_rewind(g_cp.flight);
+    ++g_cp.hits;
+    if (g_cp.said_battle == g.battles.current) return;
+    g_cp.said_battle = g.battles.current;
+    log_line("LOCKSTEP", "Brain::GetChoice du chat humain %u a tire dans le flux de la simulation "
+                         "(un chat charme ou incontrolable : l'IA du jeu le joue) -- remis comme avant, "
+                         "sa decision vient de celui qui le dirige", (unsigned)g_cp.cat);
+}
+
+static void mm_ai_summary() {
+    if (ai_calls() || g_cp.hits)
+        log_line("LOCKSTEP", "IA du jeu : %u decision(s) demandee(s) pour les chats des absents "
+                             "(%u fois le flux remis) ; GetChoice d'un chat humain remis %u fois",
+                 ai_calls(), ai_rewinds(), g_cp.hits);
+}
 
 void lockstep_pump() {
     if (!g.active) return;
@@ -2727,6 +2850,119 @@ void lockstep_pump() {
 
 // Defined just below, after its first caller.
 static void apply_remote(const ActionMsg& msg, const void* actor, void* out);
+static bool action_from_msg(const ActionMsg& msg, const void* actor, TurnAction& a,
+                            char* why, size_t why_n);
+
+// Mewgenics Multi : le message d'une decision de ce joueur pour son chat `cat`
+// (type 2 ou 3). Factorise pour l'IA d'un absent (protocole 52).
+static void msg_from_action(const TurnAction& a, uint8_t cat, const void* actor, ActionMsg& msg) {
+    msg = ActionMsg{};
+    msg.battle_id = g.battles.current;
+    msg.turn  = g.turn;
+    msg.actor = cat;
+    msg.type  = (uint8_t)a.type;
+    msg.tx = a.target_x; msg.ty = a.target_y;
+    msg.dx = a.dir_x;    msg.dy = a.dir_y;
+    msg.b30 = a.tail[0x30 - 0x28];
+    msg.b31 = a.tail[0x31 - 0x28];
+
+    if (a.type == TA_Ability) {
+        AbilitySlot slot = ability_slot_of(actor, a.ability);
+        msg.slot_kind  = slot.kind;
+        msg.slot_index = slot.index;
+        ability_gon_name(a.ability, msg.gon, sizeof(msg.gon));
+    }
+}
+
+// Mewgenics Multi : la decision part chez les autres -- son auteur et son rang
+// parmi les siennes dans ce combat (apres celles d'une reprise qui lui seraient
+// revenues), le journal de reprise, l'envoi. `by` complete la ligne du journal.
+static void publish_decision(ActionMsg& msg, const char* by) {
+    msg.author = net_self();
+    msg.seq    = g.seen.next(msg.battle_id, msg.author);
+    seen_mark(msg.battle_id, msg.author, msg.seq);
+
+    // Logged BEFORE the send, and logged whether or not the send succeeds.
+    // The log is what a peer joining mid-battle replays to catch up, so it
+    // has to describe what this peer DID, not what it managed to transmit
+    // -- a decision that failed to send is exactly the one a joining peer
+    // most needs, and a peer that was not connected yet cannot have been
+    // sent anything at all.
+    sent_log_push(msg);
+
+    if (net_send_action(msg)) {
+        g.outstanding = true;
+        ++g.stats.sent;
+        log_line("LOCKSTEP", "-> cat %u %s slot=%u:%u target=(%d,%d) gon=%s%s",
+                 (unsigned)msg.actor, msg.type == TA_EndTurn ? "endturn" : "ability",
+                 msg.slot_kind, msg.slot_index, msg.tx, msg.ty,
+                 msg.gon[0] ? msg.gon : "-", by);
+    }
+}
+
+// Mewgenics Multi (protocole 52) : le tour d'un chat d'un absent, chez l'hote.
+// L'IA du jeu decide (mm_ai), apres un instant (AiPacer) ; la decision est
+// rebatie depuis son message, comme chez les invites, puis publiee. Le combat
+// n'attend jamais l'IA : rien d'utilisable, un echec, trop de decisions dans le
+// tour -- fin du tour. Vrai : `out` est ecrit (une decision, ou « rien encore »).
+static bool ai_turn(void* brain, const void* actor, uint8_t cat, void* out) {
+    const uint32_t none = TA_None;
+    if (g.outstanding) {                   // la precedente n'est pas encore jouee
+        mem_write(out, &none, sizeof(none));
+        return true;
+    }
+
+    const AiStep step = g.ai_pacer.poll(GetTickCount64(), g.battles.current, g.turn, cat);
+    if (step == AiStep::Wait) {
+        mem_write(out, &none, sizeof(none));
+        return true;
+    }
+
+    TurnAction a{};
+    const char* why = nullptr;
+    bool use = false;
+    if (step == AiStep::EndTurn) {
+        why = "trop de decisions dans ce tour";
+    } else if (!ai_choose(brain, a, &why)) {
+        // Une fois par combat en erreur ; les suivantes, la ligne ordinaire plus bas.
+        if (g.ai_failed_battle != g.battles.current) {
+            g.ai_failed_battle = g.battles.current;
+            log_line_lvl(LogLevel::Error, "LOCKSTEP", "!! l'IA du jeu n'a pas pu decider pour le chat %u : %s",
+                         (unsigned)cat, why ? why : "?");
+        }
+    } else {
+        AbilitySlot slot{ SLOT_NONE, 0 };
+        if (a.type == TA_Ability) slot = ability_slot_of(actor, a.ability);
+        use = ai_verdict(a.type, slot.kind, &why) == AiVerdict::Use;
+    }
+
+    ActionMsg msg{};
+    if (use) msg_from_action(a, cat, actor, msg);
+    TurnAction built{};
+    char bad[192] = {};
+    if (use && !action_from_msg(msg, actor, built, bad, sizeof(bad))) {
+        use = false;
+        why = bad;                          // ne devrait pas arriver : la case vient de ce chat
+    }
+    if (!use) {
+        log_line("LOCKSTEP", "l'IA du jeu, chat %u : %s -- fin de son tour", (unsigned)cat,
+                 why ? why : "rien a faire");
+        TurnAction end{};
+        memset(&end, 0, sizeof(end));
+        end.type = TA_EndTurn;
+        msg_from_action(end, cat, actor, msg);
+        action_from_msg(msg, actor, built, bad, sizeof(bad));
+    }
+
+    mem_write(out, &built, sizeof(built));
+    g.ai_pacer.took();
+    char by[48];
+    const uint8_t from = g.split_controller[cat] != net_self() && g.split_controller[cat] != kMemberNone
+                           ? g.split_controller[cat] : (uint8_t)g.owner[cat];
+    _snprintf_s(by, sizeof(by), _TRUNCATE, "  (l'IA, pour le joueur %u)", (unsigned)from);
+    publish_decision(msg, by);
+    return true;
+}
 
 bool lockstep_fill_choice(void* brain, void* out) {
     if (!g.active || !brain || !out) return false;
@@ -2749,7 +2985,9 @@ bool lockstep_fill_choice(void* brain, void* out) {
     // Recorded before the AI and barrier branches below, so it tracks every
     // turn rather than only the ones this function goes on to act upon. A
     // summon (kNoCat) is nobody's, same as an AI cat.
-    g.local_actor = (cat != kNoCat) && g.local_cat[cat];
+    // Mewgenics Multi : le chat d'un absent, que joue l'IA, n'est pas « a ce joueur »
+    // pour son curseur.
+    g.local_actor = (cat != kNoCat) && g.local_cat[cat] && !g.ai_cat[cat];
     if (cat == kNoCat) return false;      // a summon: not in the snapshot, so
                                           // neither peer treats it as owned and
                                           // both let their own AI drive it.
@@ -2829,6 +3067,10 @@ bool lockstep_fill_choice(void* brain, void* out) {
             return true;
         }
 
+        // Mewgenics Multi (protocole 52) : le chat d'un absent -- l'IA du jeu
+        // decide a la place du joueur de l'hote, dont les clics ne comptent pas.
+        if (g.ai_cat[cat]) return ai_turn(brain, actor, cat, out);
+
         if (g.outstanding) return false;
 
         TurnAction a{};
@@ -2836,52 +3078,17 @@ bool lockstep_fill_choice(void* brain, void* out) {
         if (a.type != TA_Ability && a.type != TA_EndTurn) return false;
 
         ActionMsg msg{};
-        msg.battle_id = g.battles.current;
-        msg.turn  = g.turn;
-        msg.actor = cat;
-        msg.type  = (uint8_t)a.type;
-        msg.tx = a.target_x; msg.ty = a.target_y;
-        msg.dx = a.dir_x;    msg.dy = a.dir_y;
-        msg.b30 = a.tail[0x30 - 0x28];
-        msg.b31 = a.tail[0x31 - 0x28];
-
-        if (a.type == TA_Ability) {
-            AbilitySlot slot = ability_slot_of(actor, a.ability);
-            msg.slot_kind  = slot.kind;
-            msg.slot_index = slot.index;
-            ability_gon_name(a.ability, msg.gon, sizeof(msg.gon));
-            if (slot.kind == SLOT_UNKNOWN) {
-                // Unreproducible on the peer: it has no way to name this
-                // ability. Say so loudly rather than send an action the other
-                // side will resolve to nullptr and silently skip.
-                log_line("LOCKSTEP", "!! cat %u used an ability in no known slot "
-                                     "(gon='%s') -- peer cannot resolve it",
-                         (unsigned)cat, msg.gon[0] ? msg.gon : "?");
-            }
+        msg_from_action(a, cat, actor, msg);
+        if (a.type == TA_Ability && msg.slot_kind == SLOT_UNKNOWN) {
+            // Unreproducible on the peer: it has no way to name this
+            // ability. Say so loudly rather than send an action the other
+            // side will resolve to nullptr and silently skip.
+            log_line("LOCKSTEP", "!! cat %u used an ability in no known slot "
+                                 "(gon='%s') -- peer cannot resolve it",
+                     (unsigned)cat, msg.gon[0] ? msg.gon : "?");
         }
 
-        // Mewgenics Multi : son auteur et son rang parmi les siennes dans ce combat
-        // (apres celles d'une reprise qui lui seraient revenues).
-        msg.author = net_self();
-        msg.seq    = g.seen.next(msg.battle_id, msg.author);
-        seen_mark(msg.battle_id, msg.author, msg.seq);
-
-        // Logged BEFORE the send, and logged whether or not the send succeeds.
-        // The log is what a peer joining mid-battle replays to catch up, so it
-        // has to describe what this peer DID, not what it managed to transmit
-        // -- a decision that failed to send is exactly the one a joining peer
-        // most needs, and a peer that was not connected yet cannot have been
-        // sent anything at all.
-        sent_log_push(msg);
-
-        if (net_send_action(msg)) {
-            g.outstanding = true;
-            ++g.stats.sent;
-            log_line("LOCKSTEP", "-> cat %u %s slot=%u:%u target=(%d,%d) gon=%s",
-                     (unsigned)cat, a.type == TA_EndTurn ? "endturn" : "ability",
-                     msg.slot_kind, msg.slot_index, msg.tx, msg.ty,
-                     msg.gon[0] ? msg.gon : "-");
-        }
+        publish_decision(msg, "");
         return false;    // the local brain's own decision proceeds unchanged
     }
 
@@ -2907,10 +3114,14 @@ bool lockstep_fill_choice(void* brain, void* out) {
 // did. Everything below -- the slot resolution, the GON cross-check, the halt
 // on a mismatch -- has to be identical for both, because a replayed decision is
 // exactly as authoritative as a live one.
-static void apply_remote(const ActionMsg& msg, const void* actor, void* out) {
+// Mewgenics Multi : la TurnAction d'une decision, telle que chaque joueur la
+// rebatit depuis le message -- celui qui la recoit (apply_remote) comme l'hote qui
+// la publie pour l'IA d'un absent, pour que tous jouent exactement la meme. Faux,
+// `why` rempli, si son pouvoir ne se retrouve pas chez ce joueur.
+static bool action_from_msg(const ActionMsg& msg, const void* actor, TurnAction& a,
+                            char* why, size_t why_n) {
     const uint8_t cat = msg.actor;
 
-    TurnAction a{};
     memset(&a, 0, sizeof(a));
     a.type     = msg.type;
     a.target_x = msg.tx; a.target_y = msg.ty;
@@ -2924,14 +3135,10 @@ static void apply_remote(const ActionMsg& msg, const void* actor, void* out) {
         AbilitySlot slot{ msg.slot_kind, msg.slot_index };
         a.ability = ability_from_slot(actor, slot);
         if (!a.ability) {
-            char why[192];
-            _snprintf_s(why, sizeof(why), _TRUNCATE,
+            _snprintf_s(why, why_n, _TRUNCATE,
                         "cat %u slot %u:%u (gon '%s') is empty on this peer",
                         (unsigned)cat, msg.slot_kind, msg.slot_index, msg.gon);
-            halt(why);
-            uint32_t none = TA_None;
-            mem_write(out, &none, sizeof(none));
-            return;
+            return false;
         }
         // Resolve by slot, validate by name. A disagreement here means the two
         // peers' cats no longer hold the same abilities, which is a desync that
@@ -2939,15 +3146,25 @@ static void apply_remote(const ActionMsg& msg, const void* actor, void* out) {
         char gon[64];
         if (msg.gon[0] && ability_gon_name(a.ability, gon, sizeof(gon)) &&
             strcmp(gon, msg.gon) != 0) {
-            char why[192];
-            _snprintf_s(why, sizeof(why), _TRUNCATE,
+            _snprintf_s(why, why_n, _TRUNCATE,
                         "cat %u slot %u:%u holds '%s', peer sent '%s'",
                         (unsigned)cat, msg.slot_kind, msg.slot_index, gon, msg.gon);
-            halt(why);
-            uint32_t none = TA_None;
-            mem_write(out, &none, sizeof(none));
-            return;
+            return false;
         }
+    }
+    return true;
+}
+
+static void apply_remote(const ActionMsg& msg, const void* actor, void* out) {
+    const uint8_t cat = msg.actor;
+
+    TurnAction a{};
+    char why[192];
+    if (!action_from_msg(msg, actor, a, why, sizeof(why))) {
+        halt(why);
+        uint32_t none = TA_None;
+        mem_write(out, &none, sizeof(none));
+        return;
     }
 
     mem_write(out, &a, sizeof(a));
@@ -3274,7 +3491,15 @@ bool lockstep_peer_owns_character(const void* character) {
     const uint8_t cat = cat_index_of(character);
     if (cat == kNoCat)      return false;   // a summon: nobody's, both AIs drive it
     if (!g.human_cat[cat])  return false;   // an AI cat: decided locally on both
-    return !g.local_cat[cat];
+    // Mewgenics Multi : chez l'hote, le chat d'un absent que joue l'IA du jeu --
+    // la barre grisee, comme pour le chat d'un autre joueur.
+    return !g.local_cat[cat] || g.ai_cat[cat];
+}
+
+bool lockstep_ai_character(const void* character) {
+    if (!g.active || !g.snapped || !character) return false;
+    const uint8_t cat = cat_index_of(character);
+    return cat != kNoCat && g.ai_cat[cat];
 }
 
 // Called by the map layer from BOTH peers as they enter a node -- the host from

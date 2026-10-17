@@ -230,6 +230,8 @@ static const SigTargetDesc kCallSigs[] = {
       "48 89 5C 24 18 48 89 6C 24 20 48 89 54 24 10 56 57 41 56 48 83 EC 60 49 8B D8" },
     { 0x00274910, "GlobalProgressionData NPC advance",
       "89 54 24 10 48 89 4C 24 08 55 53 56 57 41 54 41 55 41 56 41 57 48 8D 6C 24 E1 48 81 EC B8 00 00 00 4C 8B F9" },
+    { 0x00082B00, "Uncontrollable AI choice",
+      "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 81 EC F0 00 00 00 48 8B FA 48 8B F1 33 ED 48 8B 41 38" },
 };
 
 // Globals, recovered from a referencing instruction's own

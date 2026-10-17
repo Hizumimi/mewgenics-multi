@@ -347,6 +347,68 @@ int main() {
         check(peers[0].controller[4] == 0 && peers[1].tally(b) == -1, "its cat goes to the host, the rest stays put");
     }
 
+    // L'IA du jeu chez l'hote (protocole 52) : les chats d'un absent, et eux seuls.
+    auto ai_of = [](const Peer& p, const Battle& b, std::vector<bool>& ai) {
+        const uint32_t n = (uint32_t)b.human.size();
+        bool human[64] = {}, flags[64] = {};
+        int  owner[64] = {};
+        for (uint32_t i = 0; i < n; ++i) { human[i] = b.human[i]; owner[i] = b.owner[i]; }
+        const uint32_t c = members_ai_cats(p.controller.data(), p.split_ctl.data(), owner, human, n, kHost, flags);
+        ai.assign(flags, flags + n);
+        return c;
+    };
+
+    printf("\n-- l'IA joue les chats d'un absent (par proprietaire) --\n");
+    {
+        // 2 chats de l'hote, 2 de l'invite, un ennemi, une recrue.
+        Battle b;
+        b.human = { true, true, true, true, false, true };
+        b.owner = { 0, 0, 1, 1, -1, -1 };
+        auto peers = make_peers({ 0, 1 });
+        for (Peer& p : peers) p.split(b, 0x03, true);
+        std::vector<bool> ai;
+        check(ai_of(peers[0], b, ai) == 0, "everyone here: the AI plays nothing");
+        peers[0].host_tick(b, 0x01, 0x00, true);   // l'invite se deconnecte
+        check(ai_of(peers[0], b, ai) == 2 && ai[2] && ai[3], "the guest leaves: the AI plays its two cats");
+        check(!ai[0] && !ai[1], "never the host's own cats");
+        check(!ai[4], "never an enemy");
+        check(!ai[5] && peers[0].local[5], "a recruit with no known owner stays with the host's player");
+
+        // A l'entree, l'invite n'etait pas dans l'aventure : ses chats, des le debut.
+        auto solo = make_peers({ 0, 1 });
+        solo[0].split(b, 0x01, true);
+        check(ai_of(solo[0], b, ai) == 2 && ai[2] && ai[3] && !ai[5], "an owner absent at entry: the AI from the start");
+    }
+
+    printf("\n-- l'IA, 3 joueurs : seul l'absent est remplace --\n");
+    {
+        Battle b;
+        b.human = { true, true, true };
+        b.owner = { 0, 1, 2 };
+        auto peers = make_peers({ 0, 1, 2 });
+        for (Peer& p : peers) p.split(b, 0x07, true);
+        peers[0].host_tick(b, 0x03, 0x02, true);   // B rentre chez lui
+        std::vector<bool> ai;
+        check(ai_of(peers[0], b, ai) == 1 && ai[2] && !ai[1], "B's cat to the AI, A keeps playing its own");
+        // Chez A, le chat de B est a l'hote (ses decisions arrivent de l'hote) :
+        // l'IA ne tourne que chez l'hote (mgmp_lockstep ne fait ce calcul que la).
+        broadcast(peers, 0, b);
+        check(peers[1].controller[2] == kHost && !peers[1].local[2], "A waits for the host's decisions for B's cat");
+    }
+
+    printf("\n-- l'IA, partage par place : un membre parti --\n");
+    {
+        Battle b;
+        b.human = { true, true, true, true };
+        b.owner = { -1, -1, -1, -1 };
+        auto peers = make_peers({ 0, 1 });
+        for (Peer& p : peers) p.split(b, 0x03, false);
+        std::vector<bool> ai;
+        check(ai_of(peers[0], b, ai) == 0, "no owners known, everyone here: nothing for the AI");
+        peers[0].host_tick(b, 0x01, 0x00, true);
+        check(ai_of(peers[0], b, ai) == 2 && ai[2] && ai[3] && !ai[0], "the departed seat's cats go to the AI");
+    }
+
     printf("\n%s (%d failure%s)\n", g_fail ? "FAILED" : "PASSED", g_fail, g_fail == 1 ? "" : "s");
     return g_fail ? 1 : 0;
 }

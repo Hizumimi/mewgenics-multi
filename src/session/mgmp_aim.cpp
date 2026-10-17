@@ -356,6 +356,43 @@ bool read_brain_aim(const void* brain, void*& ability,
     return true;
 }
 
+// The rate-limited send shared by publish() and publish_stop(): a change goes at
+// most every kMinGapMs, an unchanged state once per kHeartbeatMs.
+void send_aim(const AimMsg& m) {
+    const uint32_t now = GetTickCount();
+    const bool changed =
+        (m.active != (g.sent_active ? 1 : 0)) ||
+        m.cat != g.sent_cat || m.slot_kind != g.sent_kind ||
+        m.slot_index != g.sent_index ||
+        m.tx != g.sent_target.x || m.ty != g.sent_target.y ||
+        m.dx != g.sent_dir.x    || m.dy != g.sent_dir.y;
+
+    const uint32_t since = now - g.sent_at;
+    if (!changed && since < kHeartbeatMs) return;
+    if (changed && since < kMinGapMs)     return;
+
+    if (!net_send_aim(m)) return;
+    ++g.sent;
+    g.sent_active   = (m.active != 0);
+    g.sent_cat      = m.cat;
+    g.sent_kind     = m.slot_kind;
+    g.sent_index    = m.slot_index;
+    g.sent_target.x = m.tx; g.sent_target.y = m.ty;
+    g.sent_dir.x    = m.dx; g.sent_dir.y    = m.dy;
+    g.sent_at       = now;
+}
+
+// Mewgenics Multi (protocole 52) : chez l'hote, le chat d'un absent que joue l'IA
+// du jeu n'a pas de visee a montrer -- un arret, qui efface aussi chez les autres
+// la derniere visee de l'absent s'il est parti en visant ce chat.
+void publish_stop(uint8_t cat) {
+    AimMsg m{};
+    m.battle_id = lockstep_battle_id();
+    m.cat       = cat;
+    m.active    = 0;
+    send_aim(m);
+}
+
 void publish(void* brain, uint8_t cat) {
     void* ability = nullptr;
     iVec2D target{}, dir{};
@@ -388,27 +425,7 @@ void publish(void* brain, uint8_t cat) {
         }
     }
 
-    const uint32_t now = GetTickCount();
-    const bool changed =
-        (m.active != (g.sent_active ? 1 : 0)) ||
-        m.cat != g.sent_cat || m.slot_kind != g.sent_kind ||
-        m.slot_index != g.sent_index ||
-        m.tx != g.sent_target.x || m.ty != g.sent_target.y ||
-        m.dx != g.sent_dir.x    || m.dy != g.sent_dir.y;
-
-    const uint32_t since = now - g.sent_at;
-    if (!changed && since < kHeartbeatMs) return;
-    if (changed && since < kMinGapMs)     return;
-
-    if (!net_send_aim(m)) return;
-    ++g.sent;
-    g.sent_active   = (m.active != 0);
-    g.sent_cat      = m.cat;
-    g.sent_kind     = m.slot_kind;
-    g.sent_index    = m.slot_index;
-    g.sent_target.x = m.tx; g.sent_target.y = m.ty;
-    g.sent_dir.x    = m.dx; g.sent_dir.y    = m.dy;
-    g.sent_at       = now;
+    send_aim(m);
 }
 
 void draw_held(void* brain, uint8_t cat) {
@@ -558,8 +575,9 @@ void aim_on_update_decision(void* brain) {
     bool    peer_owns = false;
     if (!lockstep_aim_subject(self, cat, peer_owns)) return;
 
-    if (peer_owns) draw_held(brain, cat);
-    else           publish(brain, cat);
+    if (peer_owns)                          draw_held(brain, cat);
+    else if (lockstep_ai_character(self))   publish_stop(cat);    // Mewgenics Multi : l'IA le joue
+    else                                    publish(brain, cat);
 }
 
 uint32_t aim_sent()  { return g.sent; }

@@ -145,7 +145,13 @@ bool lockstep_local_actor();
 // Answers false for everything it cannot PROVE: no session, no snapshot, a cat
 // that is not in the roster (a summon), or an AI cat. The caller is cosmetic,
 // and a menu greyed out when it should not be reads as a bug in the game.
+// Mewgenics Multi (protocole 52) : vrai aussi, chez l'hote, pour le chat d'un
+// absent que joue l'IA du jeu -- ce n'est pas son joueur qui le joue.
 bool lockstep_peer_owns_character(const void* character);
+
+// Mewgenics Multi (protocole 52) : chez l'hote, ce chat est celui d'un absent, et
+// l'IA du jeu le joue (mm_ai.h). Pour le journal de la barre grisee.
+bool lockstep_ai_character(const void* character);
 
 // --- diagnostics ------------------------------------------------------------
 
@@ -206,5 +212,16 @@ uint32_t lockstep_preview_facing_count();
 void     lockstep_state_fence_begin();
 uint32_t lockstep_state_fence_end(const char* what);
 uint32_t lockstep_state_fence_hits();
+
+// --- Mewgenics Multi (protocole 52) : GetChoice d'un chat humain -------------
+//
+// Autour de l'original de Brain::GetChoice (h_GetChoice), pour un chat humain en
+// combat commun : le flux de la simulation est remis comme avant s'il a bouge.
+// Le jeu y fait choisir son IA pour un chat charme ou incontrolable, et chaque
+// joueur qui attend la decision de ce chat la referait a chaque image : autant
+// de tirages que d'images d'attente. La decision, elle, voyage. Sans effet pour
+// un chat que son joueur dirige lui-meme (aucun tirage) ; rien pour un ennemi.
+void lockstep_choice_pin(void* brain);
+void lockstep_choice_unpin();
 
 } // namespace mgmp

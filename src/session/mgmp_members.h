@@ -24,6 +24,10 @@
 //     zero, et la verification arreterait le combat).
 //   - Un joueur qui revient en plein combat n'en redevient pas membre : il
 //     regarde jusqu'au combat suivant.
+//   - (protocole 52) Chez l'hote, l'IA du jeu joue les chats d'un absent
+//     (members_ai_cats, mm_ai.h) : il les dirige toujours au sens du partage --
+//     ses decisions partent comme les siennes --, mais ce n'est plus lui qui
+//     clique.
 //
 // Les masques ont un bit par numero de joueur (1 << id ; kMaxPeers = 4, donc les
 // bits 0 a 3). 0 veut dire « inconnu » : on retombe sur la regle de mgmp, tous
@@ -120,6 +124,26 @@ inline uint32_t members_takeover(uint8_t* controller, const bool* human, uint32_
         ++moved;
     }
     return moved;
+}
+
+// Les chats que l'IA du jeu joue chez l'hote : ceux d'un joueur absent de ce
+// combat. Un chat humain que l'hote dirige alors qu'il est a un autre joueur --
+// le partage de la photo le donnait a un invite parti depuis (members_takeover),
+// ou son proprietaire connu (`owner`, -1 inconnu) n'etait pas membre a l'entree.
+// Jamais un chat de l'hote, ni une recrue sans proprietaire connu (l'hote la
+// joue). `ai` : un drapeau par chat ; rend leur nombre.
+inline uint32_t members_ai_cats(const uint8_t* controller, const uint8_t* split, const int* owner,
+                                const bool* human, uint32_t n, uint8_t host, bool* ai) {
+    uint32_t count = 0;
+    for (uint32_t i = 0; i < n; ++i) {
+        ai[i] = false;
+        if (!human[i] || controller[i] != host) continue;
+        const bool taken = split[i] != host && split[i] != kMemberNone;
+        const bool away  = owner[i] >= 0 && owner[i] < 8 && (uint8_t)owner[i] != host;
+        ai[i] = taken || away;
+        count += ai[i] ? 1u : 0u;
+    }
+    return count;
 }
 
 } // namespace mgmp

@@ -858,6 +858,9 @@ enum Call : int {
 
     // --- Mewgenics Multi : les PNJ en direct (src/session/mm_npc.cpp) -----------
     C_NpcAdvance,            // void(PNJ* (progression+0x48), int PNJ) -- sub_140274910
+
+    // --- Mewgenics Multi : l'IA pour les chats d'un absent (src/session/mm_ai.cpp)
+    C_AiChoice,              // TurnAction*(Passive*, TurnAction* out) -- sub_140082B00
     C_COUNT
 };
 
@@ -1172,6 +1175,19 @@ static const CallDesc kCalls[C_COUNT] = {
     // drapeau a zero. Mewgenics Multi : chez un invite, refait une fois quand
     // l'hote a pris une recompense de plus (mm_npc), pour que la jauge suive.
     { 0x00274910, "GlobalProgressionData NPC advance" },
+    // L'IA du jeu pour un chat d'un joueur : l'entree 112 des passifs
+    // Uncontrollable (objet Brain Chip, Deja Vu severe), Charmed et ProbeCharmed
+    // (vtables 0x140F9B830, 0x140F7B2E0, 0x140F47C90), appelee par leur entree 111
+    // (0x140768530) depuis Brain::GetChoice. rcx = le passif, dont elle ne lit que
+    // le Character (+0x38) ; rdx = la TurnAction rendue (0x88 octets, sa
+    // std::function a +0x40, _Impl a +0x78). Si le cerveau du chat (Character+0x68)
+    // est un PlayerBrain (l'id 0x5D3 dans sa liste de types, vtable+0x18), elle
+    // fait ce que fait GenericBrain::decide (0x1408B48D0) : les pouvoirs
+    // utilisables (0x140139310, sans le deplacement), puis le choix de l'IA
+    // (0x1408B44D0, qui tire dans le flux de la simulation et, s'il finit le tour,
+    // oriente le chat : Brain+0x2B1 « auto_orient ») ; sinon une TurnAction de
+    // type 0. Mewgenics Multi : chez l'hote, pour les chats d'un absent (mm_ai).
+    { 0x00082B00, "Uncontrollable AI choice" },
 };
 
 // sub_140138A10 IS NOT A DRAW ROUTINE, and it is in the table above only

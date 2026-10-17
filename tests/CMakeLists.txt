@@ -129,6 +129,13 @@ target_link_libraries(test_shop PRIVATE mm_sqlite)
 target_compile_options(test_shop PRIVATE /utf-8)
 add_test(NAME test_shop COMMAND test_shop)
 
-foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_members test_battleid test_config test_world_merge test_team_merge test_vote test_purse test_loot test_recruit test_npcgift test_seen test_shop)
+# Mewgenics Multi : l'IA qui joue les chats d'un absent -- son rythme, le plafond
+# de decisions par tour, ce qui part (protocole 52).
+add_executable(test_ai test_ai.cpp)
+target_include_directories(test_ai PRIVATE ${CMAKE_SOURCE_DIR}/src/session ${CMAKE_SOURCE_DIR}/src/determinism)
+target_compile_options(test_ai PRIVATE /utf-8)
+add_test(NAME test_ai COMMAND test_ai)
+
+foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_members test_battleid test_config test_world_merge test_team_merge test_vote test_purse test_loot test_recruit test_npcgift test_seen test_shop test_ai)
     target_compile_options(${t} PRIVATE /W3)
 endforeach()

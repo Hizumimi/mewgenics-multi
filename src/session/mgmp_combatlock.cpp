@@ -103,8 +103,10 @@ void combatlock_enter(void* combat_menu) {
     // the file and the least informative.
     if (g.said != (int)peer_owns || g.said_for != subject) {
         log_line("CMLOCK", "combat menu for cat %p: %s",
-                 subject, peer_owns ? "a PEER owns it -- greying the bar"
-                                    : "ours -- bar left alone");
+                 subject, !peer_owns ? "ours -- bar left alone"
+                        : lockstep_ai_character(subject)
+                                     ? "an absent player's cat, the game's AI plays it -- greying the bar"
+                                     : "a PEER owns it -- greying the bar");
         g.said     = (int)peer_owns;
         g.said_for = subject;
     }
