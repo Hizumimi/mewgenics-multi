@@ -29,6 +29,7 @@
 #include "mgmp_tuning.h"
 #include "mgmp_mem.h"
 #include "mgmp_split.h"
+#include "mgmp_members.h"
 #include "mgmp_rtti.h"
 #include "mgmp_rng.h"
 #include "mgmp_hooks.h"      // hooks_is_live (Mewgenics Multi : l'enregistreur de vol)
@@ -291,6 +292,21 @@ struct State {
     uint32_t barrier_waits     = 0;      // GetChoice polls parked in this battle
     bool     barrier_said_open = false;  // ...and whether we have said it lifted
 
+    // --- Mewgenics Multi : les membres du combat (mgmp_members.h, protocole 48) ---
+    //
+    // Le partage se fait sur les membres de l'entree dans la case (le masque que
+    // l'hote a mis dans ENTERNODE : le meme pour tous). Ensuite les membres ne
+    // font que diminuer : l'hote prend les chats de ceux qui partent et renvoie
+    // son CONTROL avec les membres a jour, que les invites adoptent tels quels.
+    uint8_t  controller[kMaxCats] = {};  // qui dirige chaque chat humain (kMemberNone sinon)
+    uint8_t  entry_members     = 0;      // les membres a l'entree : la base du partage
+    bool     entry_from_run    = false;  // ... choisis par l'hote d'apres son aventure
+    uint8_t  members           = 0;      // les membres maintenant (invite : ceux de l'hote)
+    bool     members_from_host = false;  // invite : le CONTROL de l'hote les a donnes
+    struct NotedMembers { uint64_t battle = 0; uint8_t mask = 0; };
+    NotedMembers noted[8]{};             // les masques des dernieres cases (ENTERNODE)
+    uint32_t     noted_next = 0;
+
     // Mewgenics Multi : l'enregistreur de vol (mgmp_rng.h). Ou en etait l'anneau
     // des tirages a chaque empreinte de tour : les tirages du tour T sont entre
     // la marque de T-1 (ou le debut du combat) et celle de T. Un joueur peut
@@ -365,6 +381,130 @@ void halt(const char* why);
 // its last act, because the peer's CONTROL may already be sitting in the queue
 // by the time this side finally has a roster to check it against.
 void verify_control();
+
+// --- Mewgenics Multi : les membres du combat ----------------------------------
+
+// Les joueurs connectes, en bits (net_peer_ids). 0 avant le premier PEERS.
+uint8_t connected_mask() {
+    uint8_t ids[kMaxPeers] = {};
+    const uint8_t n = net_peer_count();
+    if (n == 0 || !net_peer_ids(ids, kMaxPeers)) return 0;
+    return member_mask_of(ids, n);
+}
+
+uint8_t noted_members(uint64_t battle) {
+    if (battle == kNoBattle) return 0;
+    for (const State::NotedMembers& n : g.noted)
+        if (n.mask && n.battle == battle) return n.mask;
+    return 0;
+}
+
+// « 0,1 » pour le journal.
+const char* members_text(uint8_t mask, char* buf, size_t n) {
+    int off = 0;
+    buf[0] = 0;
+    for (uint8_t id = 0; id < 8 && off < (int)n - 4; ++id)
+        if (member_in(mask, id))
+            off += _snprintf_s(buf + off, n - off, _TRUNCATE, "%s%u", off ? "," : "", (unsigned)id);
+    if (!off) _snprintf_s(buf, n, _TRUNCATE, "aucun");
+    return buf;
+}
+
+bool lockstep_is_host() { return net_role() == NetRole::Host; }
+
+// Les joueurs dont le CONTROL compte pour ce combat, par numero croissant :
+// chez l'hote, ses membres ; chez un invite, ceux que l'hote a annonces dans le
+// sien (aucun avant : l'hote est toujours membre, son CONTROL est attendu de
+// toute facon). Un invite ne recoupe pas avec les joueurs connectes : un membre
+// parti n'en sort qu'avec la liste de chats de l'hote qui reprend les siens.
+uint32_t tally_ids(uint8_t* ids, uint32_t cap) {
+    if (!lockstep_is_host() && !g.members_from_host) return 0;
+    return member_ids(g.members, ids, cap);
+}
+
+// Les chats de ce joueur d'apres `controller` (apres le partage, ou quand
+// l'hote reprend ceux d'un membre parti).
+void local_from_controller() {
+    const uint8_t self = net_self();
+    uint32_t local = 0;
+    for (uint32_t i = 0; i < g.cat_count; ++i) {
+        g.local_cat[i] = g.human_cat[i] && g.controller[i] == self && self != kNoPeer;
+        if (g.local_cat[i]) ++local;
+    }
+    g.stats.local_cats = local;
+}
+
+// Annonce la liste de chats de ce joueur pour ce combat (CONTROL) et la range
+// dans la table avec celles des autres. Celui de l'hote porte les membres a
+// jour : une liste de chats n'arrive jamais sans les membres qui vont avec.
+void publish_control() {
+    ControlMsg c{};
+    c.battle_id = g.battles.current;
+    c.humans    = g.humans;
+    for (uint32_t i = 0; i < g.cat_count && c.count < 32; ++i)
+        if (g.local_cat[i]) c.cats[c.count++] = (uint8_t)i;
+    c.members = lockstep_is_host() ? g.members : 0;
+    net_send_control(c);
+
+    // File our own claim in the same table as everyone else's. The coverage
+    // check is a tally over all players, and leaving ourselves out of it
+    // would make every cat we own look unclaimed.
+    const uint8_t self = net_self();
+    if (self < kMaxPeers) {
+        g.peer_control[self]      = c;
+        g.have_peer_control[self] = true;
+    }
+}
+
+// Hote : un membre parti depuis l'entree dans la case (deconnecte, ou plus dans
+// son aventure -- MM_PEER_RUN) laisse ses chats a l'hote, qui les joue. `resend` :
+// en plein combat, le CONTROL de l'hote repart aussitot avec les membres a jour
+// (au debut du combat, snapshot_cats l'envoie juste apres).
+void members_tick(bool resend) {
+    if (!lockstep_is_host() || !g.snapped || g.halted || !g.members) return;
+    const uint8_t self = net_self();
+    if (self >= kMaxPeers) return;
+    const uint8_t run  = (uint8_t)(mm_run_peers_mask() & 0xFFu);
+    const uint8_t now  = members_now(g.entry_members, connected_mask(), member_bit(self), run, g.entry_from_run);
+    const uint8_t gone = (uint8_t)(g.members & ~now);
+    if (!gone) return;
+    const uint32_t moved = members_takeover(g.controller, g.human_cat, g.cat_count, gone, self);
+    g.members = now;
+    local_from_controller();
+    char left[32], who[32];
+    log_line("LOCKSTEP", "joueur(s) %s parti(s) %s : l'hote dirige leurs %u chat(s) jusqu'a la fin du "
+                         "combat -- membres maintenant %s",
+             members_text(gone, left, sizeof(left)), resend ? "en plein combat" : "avant le debut du combat",
+             moved, members_text(now, who, sizeof(who)));
+    if (resend) {
+        publish_control();
+        verify_control();
+    }
+}
+
+// Invite : les membres que l'hote annonce pour ce combat. Ceux qui en sont sortis
+// laissent leurs chats a l'hote ; si ce joueur n'en est pas (arrive en plein
+// combat, ou revenu apres en etre parti), il ne dirige rien dans ce combat.
+void apply_host_members(uint8_t mask) {
+    if (!mask) return;
+    const uint8_t self   = net_self();
+    const uint8_t before = g.members_from_host ? g.members : g.entry_members;
+    const uint32_t local_before = g.stats.local_cats;
+    g.members           = mask;
+    g.members_from_host = true;
+    const uint8_t gone = (uint8_t)(g.entry_members & ~mask);
+    if (gone) members_takeover(g.controller, g.human_cat, g.cat_count, gone, kHostPeer);
+    local_from_controller();
+    if (mask == before && g.stats.local_cats == local_before) return;
+    char who[32];
+    if (!member_in(mask, self))
+        log_line("LOCKSTEP", "membres de ce combat selon l'hote : %s -- ce joueur n'en est pas, "
+                             "l'hote dirige ses chats jusqu'a la fin du combat (%u avant)",
+                 members_text(mask, who, sizeof(who)), local_before);
+    else
+        log_line("LOCKSTEP", "membres de ce combat selon l'hote : %s -- les chats des partis sont a l'hote",
+                 members_text(mask, who, sizeof(who)));
+}
 
 // --- FNV-1a, the same hash the protocol note specifies ----------------------
 uint64_t fnv1a(const void* p, size_t n, uint64_t h = 1469598103934665603ULL) {
@@ -793,23 +933,16 @@ uint64_t battle_cat_id(const void* character) {
 // Le partage par proprietaire (equipe mixte). Faux, sans rien toucher, si aucun
 // chat humain de ce combat n'est dans la liste.
 bool split_by_owner() {
-    uint8_t ids[8] = {};
-    const uint8_t n = net_peer_count();
-    const bool have_ids = n && net_peer_ids(ids, 8);
-    auto present = [&](int peer) {
-        if (!have_ids) return peer == (int)kHostPeer;
-        for (uint8_t i = 0; i < n && i < 8; ++i)
-            if (ids[i] == peer) return true;
-        return false;
-    };
+    // Les proprietaires de la liste de l'hote (mm_team) ; un chat qu'elle ne
+    // connait pas (une recrue), ou dont le proprietaire n'est pas membre de ce
+    // combat, est a l'hote (mgmp_members.h).
     int owner[kMaxCats];
     uint32_t known = 0;
     for (uint32_t i = 0; i < g.cat_count; ++i) {
         owner[i] = -1;
         if (!g.human_cat[i]) continue;
-        int o = team_owner_of(battle_cat_id(g.cats[i]));
+        const int o = team_owner_of(battle_cat_id(g.cats[i]));
         if (o >= 0) ++known;
-        if (o < 0 || !present(o)) o = kHostPeer;
         owner[i] = o;
     }
     if (!known) {
@@ -817,15 +950,14 @@ bool split_by_owner() {
                              "proprietaires -- partage habituel");
         return false;
     }
-    const uint8_t self = net_self();
+    members_split_by_owner(owner, g.human_cat, g.cat_count, g.entry_members, kHostPeer, g.controller);
     char list[160] = {};
     int off = 0;
     for (uint32_t i = 0; i < g.cat_count; ++i) {
-        if (owner[i] < 0) continue;
-        g.local_cat[i] = owner[i] == (int)self;
+        if (!g.human_cat[i] || g.controller[i] == kMemberNone) continue;
         if (off < (int)sizeof(list) - 12)
-            off += _snprintf_s(list + off, sizeof(list) - off, _TRUNCATE, "%s%u->%d",
-                               off ? " " : "", i, owner[i]);
+            off += _snprintf_s(list + off, sizeof(list) - off, _TRUNCATE, "%s%u->%u",
+                               off ? " " : "", i, (unsigned)g.controller[i]);
     }
     log_line("LOCKSTEP", "equipe mixte : chaque joueur dirige ses chats (%u connu(s) sur %u) -- "
                          "chat->joueur : %s", known, g.humans, list);
@@ -908,8 +1040,27 @@ void snapshot_cats(void* turn_control) {
     }
 
     // --- the control split ---------------------------------------------
-    for (uint32_t i = 0; i < kMaxCats; ++i) g.local_cat[i] = false;
+    for (uint32_t i = 0; i < kMaxCats; ++i) {
+        g.local_cat[i]  = false;
+        g.controller[i] = kMemberNone;
+    }
     bool by_owner = false;   // Mewgenics Multi : equipe mixte
+
+    // Mewgenics Multi : les membres de ce combat, la base du partage -- ceux que
+    // l'hote a mis dans ENTERNODE en entrant dans la case (lui et les invites de
+    // son aventure), le meme masque pour tous. Sans masque (case entree sans
+    // lui), les joueurs connectes, comme mgmp.
+    {
+        const uint8_t connected = connected_mask();
+        const uint8_t noted     = noted_members(g.battles.current);
+        g.entry_members     = noted ? noted : connected;
+        g.entry_from_run    = noted != 0;
+        g.members           = g.entry_members;
+        g.members_from_host = false;
+        char who[32];
+        log_line("LOCKSTEP", "membres de ce combat : %s (%s)", members_text(g.entry_members, who, sizeof(who)),
+                 noted ? "choisis par l'hote a l'entree de la case" : "les joueurs connectes");
+    }
 
     if (cfg.net_control_auto) {
         // Derived identically on both peers rather than negotiated, which is
@@ -920,52 +1071,42 @@ void snapshot_cats(void* turn_control) {
         // still exchange CONTROL afterwards, but as a check on the result --
         // not as the source of it.
         //
-        // Spread the human cats over however many players are in the session,
-        // in roster order, host first, with the remainder going to the earliest
-        // positions. Four cats over three players is 2/1/1; three over two is
-        // 2/1, which is what the two-player rule always did -- the old
-        // `(humans+1)/2` is exactly this formula at P=2, so nothing changes for
-        // a two-player session.
-        //
-        // Position, not peer id: see net_peer_pos. And contiguous rather than
+        // Spread the human cats over the battle's members, in roster order,
+        // host first, with the remainder going to the earliest positions. Four
+        // cats over three players is 2/1/1; three over two is 2/1, which is
+        // what the two-player rule always did. Contiguous rather than
         // interleaved, so each player's cats are adjacent in the roster and the
-        // log is readable by eye.
-        uint32_t P   = net_peer_count();
-        uint32_t pos = net_peer_pos();
-        if (P == 0) {
-            // No PEERS yet. Claim nothing rather than guess: claiming
-            // everything would have two peers driving the same cat, and
-            // claiming half assumes a player count we have not been told.
-            P = 1; pos = 0;
-            log_line("LOCKSTEP", "!! no peer list yet -- deferring the split; if "
-                                 "this repeats, PEERS never arrived");
-        }
+        // log is readable by eye. (Mewgenics Multi : sur les membres du combat,
+        // par numero -- le masque est le meme chez tous, les places aussi.)
+        //
         // Mewgenics Multi : en equipe mixte, chaque joueur dirige SES chats --
         // l'id du chat (Character+0x88 -> CatData+0x00) dans la liste des
         // proprietaires que l'hote a envoyee au depart (mm_team). Meme liste,
-        // meme liste des joueurs, meme combat : meme partage sur chaque pair,
-        // et CONTROL le verifie comme avant. Un chat que la liste ne connait
-        // pas (une recrue) ou dont le proprietaire n'est plus la est a l'hote.
-        // Aucun chat de la liste dans ce combat : elle est d'une autre
-        // aventure, partage habituel par place.
-        if (team_owners_active() && split_by_owner()) {
+        // memes membres, meme combat : meme partage sur chaque pair, et CONTROL
+        // le verifie comme avant. Un chat que la liste ne connait pas (une
+        // recrue) ou dont le proprietaire n'est pas membre est a l'hote. Aucun
+        // chat de la liste dans ce combat : elle est d'une autre aventure,
+        // partage habituel par place.
+        if (!g.entry_members) {
+            // No PEERS yet. Claim nothing rather than guess: claiming
+            // everything would have two peers driving the same cat, and
+            // claiming half assumes a player count we have not been told.
+            log_line("LOCKSTEP", "!! no peer list yet -- deferring the split; if "
+                                 "this repeats, PEERS never arrived");
+        } else if (team_owners_active() && split_by_owner()) {
             by_owner = true;
         } else {
-            const SplitRange range = split_for(g.humans, P, pos);
-            const uint32_t   mine  = range.count;
-
-            uint32_t seen = 0;
-            for (uint32_t i = 0; i < g.cat_count; ++i) {
-                if (!g.human_cat[i]) continue;
-                g.local_cat[i] = split_owns(range, seen);
-                ++seen;
-            }
-
+            members_split_by_seat(g.human_cat, g.cat_count, g.entry_members, g.controller);
+            const uint8_t self = net_self();
+            uint32_t mine = 0;
+            for (uint32_t i = 0; i < g.cat_count; ++i)
+                if (g.human_cat[i] && g.controller[i] == self) ++mine;
             if (mine == 0 && g.humans)
                 log_line("LOCKSTEP", "!! %u human cat(s) over %u player(s) leaves this "
-                                     "peer (position %u) with none -- it will watch "
-                                     "this battle", g.humans, P, pos);
+                                     "peer with none -- it will watch this battle",
+                         g.humans, member_count(g.entry_members));
         }
+        local_from_controller();
     } else {
         for (uint32_t i = 0; i < cfg.net_control_count; ++i) {
             uint8_t idx = cfg.net_control[i];
@@ -1098,23 +1239,19 @@ void snapshot_cats(void* turn_control) {
     // otherwise shows up as a battle stalling on that cat's turn with nothing
     // in either log to say why. Making it one-way would put that check in only
     // one of the two logs.
-    {
-        ControlMsg c{};
-        c.battle_id = g.battles.current;
-        c.humans = g.humans;
-        for (uint32_t i = 0; i < g.cat_count && c.count < 32; ++i)
-            if (g.local_cat[i]) c.cats[c.count++] = (uint8_t)i;
-        net_send_control(c);
-
-        // File our own claim in the same table as everyone else's. The coverage
-        // check is a tally over all players, and leaving ourselves out of it
-        // would make every cat we own look unclaimed.
-        uint8_t self = net_self();
-        if (self < kMaxPeers) {
-            g.peer_control[self]      = c;
-            g.have_peer_control[self] = true;
-        }
+    //
+    // Mewgenics Multi : avant de l'annoncer, l'hote reprend les chats des membres
+    // deja partis depuis l'entree dans la case (members_tick), et son CONTROL
+    // porte les membres a jour ; un invite applique ceux que l'hote a peut-etre
+    // deja annonces pour ce combat.
+    if (lockstep_is_host()) {
+        members_tick(false);
+    } else if (g.have_peer_control[kHostPeer] &&
+               g.peer_control[kHostPeer].battle_id == g.battles.current &&
+               g.peer_control[kHostPeer].members) {
+        apply_host_members(g.peer_control[kHostPeer].members);
     }
+    publish_control();
 
     // The host may already have told us its split before we had a roster to
     // check it against.
@@ -1137,9 +1274,11 @@ void verify_control() {
     // concluded. With two players that was one message; with four it is three,
     // and checking coverage against a partial set would halt on cats whose
     // owner simply has not reported yet.
+    // Mewgenics Multi : les membres du combat (tally_ids) -- chez un invite,
+    // ceux de l'hote, connus avec sa liste de chats.
     uint8_t ids[kMaxPeers] = {};
-    uint8_t count = net_peer_count();
-    if (count == 0 || !net_peer_ids(ids, kMaxPeers)) return;
+    const uint8_t count = (uint8_t)tally_ids(ids, kMaxPeers);
+    if (count == 0) return;
 
     for (uint8_t i = 0; i < count; ++i) {
         uint8_t id = ids[i];
@@ -1293,9 +1432,11 @@ void aggregate_controls(bool& all_in, uint64_t& odd_battle) {
     all_in = false;
     odd_battle = g.battles.current;
 
+    // Mewgenics Multi : les membres de ce combat, et non toute la session (un
+    // joueur rentre chez lui n'y viendra jamais).
     uint8_t ids[kMaxPeers] = {};
-    uint8_t count = net_peer_count();
-    if (count == 0 || !net_peer_ids(ids, kMaxPeers)) return;
+    const uint8_t count = (uint8_t)tally_ids(ids, kMaxPeers);
+    if (count == 0) return;
 
     bool     every = true;
     uint64_t odd   = g.battles.current;
@@ -1971,6 +2112,11 @@ void lockstep_init() {
         g.control_checked = false;
         for (uint32_t p = 0; p < kMaxPeers; ++p) g.have_peer_control[p] = false;
         g.barrier_said_open = false;
+        // Mewgenics Multi : les membres vont avec le partage (refaits a la photo).
+        g.entry_members     = 0;
+        g.entry_from_run    = false;
+        g.members           = 0;
+        g.members_from_host = false;
     }
     g.barrier_waits     = 0;
     g.have_prev         = false;
@@ -2361,6 +2507,11 @@ void lockstep_pump() {
                                          "outside the peer table -- ignored",
                              (unsigned)m.from);
                 }
+                // Mewgenics Multi : celui de l'hote porte les membres du combat ;
+                // pour un combat pas encore commence ici, la photo les appliquera.
+                if (!lockstep_is_host() && m.from == kHostPeer && m.control.members &&
+                    g.snapped && m.control.battle_id == g.battles.current)
+                    apply_host_members(m.control.members);
                 verify_control();
                 break;
 
@@ -2407,6 +2558,14 @@ void lockstep_pump() {
         // unconditionally -- including the ones this switch ignored -- keeps
         // that fact in one place instead of one place per case.
         net_msg_release(m);
+    }
+
+    // Mewgenics Multi : l'hote reprend les chats d'un membre parti en plein
+    // combat (deconnecte, ou rentre chez lui) -- apres les messages de cette
+    // image, ou ce qu'il avait encore envoye est deja dans la file.
+    {
+        Guard guard;
+        members_tick(true);
     }
 }
 
@@ -2838,6 +2997,22 @@ void lockstep_turn_boundary(void* turn_control) {
 }
 
 uint64_t lockstep_battle_id()  { return g.active ? g.battles.current : kNoBattle; }
+
+void lockstep_note_members(uint64_t battle_id, uint8_t mask) {
+    Guard guard;
+    if (battle_id == kNoBattle || !mask) return;
+    for (State::NotedMembers& n : g.noted)
+        if (n.battle == battle_id) { n.mask = mask; return; }
+    State::NotedMembers& slot = g.noted[g.noted_next++ % (sizeof(g.noted) / sizeof(g.noted[0]))];
+    slot.battle = battle_id;
+    slot.mask   = mask;
+}
+
+uint8_t lockstep_members_of(uint64_t battle_id) {
+    Guard guard;
+    if (g.active && g.snapped && battle_id == g.battles.current && g.members) return g.members;
+    return noted_members(battle_id);
+}
 bool     lockstep_local_actor(){ return g.active && g.snapped && g.local_actor; }
 
 bool lockstep_peer_owns_character(const void* character) {
@@ -2893,6 +3068,10 @@ void lockstep_enter_battle(uint64_t seed0) {
 void lockstep_catchup(uint8_t peer) {
     Guard guard;
     if (!g.active || g.battles.current == kNoBattle) return;
+    // Mewgenics Multi : l'hote redit sa liste de chats et les membres de ce
+    // combat -- celui qui arrive n'en est pas, il regarde ; s'il revient sans
+    // avoir quitte le combat, il lache ainsi les chats que l'hote a repris.
+    if (lockstep_is_host() && g.snapped) publish_control();
     if (g.sent_log_n == 0) {
         log_line("LOCKSTEP", "peer %u joined battle %016llx -- nothing to replay,"
                              " it can derive this battle from the node seed alone",

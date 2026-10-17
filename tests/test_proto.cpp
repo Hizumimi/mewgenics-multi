@@ -149,7 +149,20 @@ int main() {
         check(o.battle_id == 3, "battle id");
         check(o.humans == 4, "human count");
         check(o.count == 2 && o.cats[0] == 19 && o.cats[1] == 20, "claimed indices");
+        check(o.members == 0, "no members unless set (a guest's CONTROL)");
         check(r.pos == r.len, "consumed exactly the frame");
+    }
+    {
+        // Mewgenics Multi (48) : celui de l'hote porte les membres du combat.
+        ControlMsg c{};
+        c.battle_id = 7; c.humans = 3; c.count = 1; c.cats[0] = 4;
+        c.members = 0x05;                   // l'hote et le joueur 2
+        uint32_t n = enc_control(buf, sizeof(buf), c);
+        Reader r(buf, n); r.u8v();
+        ControlMsg o{};
+        check(dec_control(r, o) && o.members == 0x05 && o.count == 1 && o.cats[0] == 4,
+              "members ride with the host's claims");
+        check(r.pos == r.len, "members: consumed exactly the frame");
     }
     {
         // An empty claim is legal: a pure observer claims nothing, and the
@@ -305,7 +318,20 @@ int main() {
         EnterNodeMsg o{};
         check(dec_enter_node(r, o), "early home: decodes");
         check(o.type == 4 && (o.flags & kEnterEarlyHome), "early home: the flag survives");
+        check(o.members == 0, "early home: no members unless set");
         check(r.pos == r.len, "early home: consumed exactly the frame");
+    }
+    {
+        // Mewgenics Multi (48) : qui joue les combats de la case.
+        EnterNodeMsg m{};
+        m.index = 3; m.node_count = 22; m.type = 5; m.seed0 = 0x1122334455667788ULL;
+        m.members = 0x0B;                   // joueurs 0, 1 et 3
+        uint32_t n = enc_enter_node(buf, sizeof(buf), m);
+        Reader r(buf, n); r.u8v();
+        EnterNodeMsg o{};
+        check(dec_enter_node(r, o) && o.members == 0x0B && o.seed0 == m.seed0,
+              "members: the battle's players survive");
+        check(r.pos == r.len, "members: consumed exactly the frame");
     }
     {
         EnterNodeMsg m{}; m.index = 1; m.seed0 = 1;

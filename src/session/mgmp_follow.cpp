@@ -8,6 +8,7 @@
 #include "mgmp_follow.h"
 #include "mgmp_marker.h"     // Mewgenics Multi : le pion arrive sur la case suivie
 #include "mm_rungear.h"      // Mewgenics Multi : les objets en aventure
+#include "mm_menu.h"         // mm_run_peers_mask : les membres d'un combat (Mewgenics Multi)
 #include "mgmp_savefile.h"   // savefile_in_coop (Mewgenics Multi)
 #include "mgmp_lockstep.h"
 #include "mgmp_net.h"
@@ -382,6 +383,11 @@ bool follow_on_enter_node(void* map_screen, void* node, bool* sent) {
     // same id from the same field of the same node in follow_map_update.
     const uint64_t seed = node_seed0(node);
     lockstep_enter_battle(seed);
+    // Mewgenics Multi : qui joue les combats de cette case -- l'hote et les
+    // invites qui sont dans son aventure maintenant (protocole 48). Un invite
+    // rentre chez lui ne bloque plus le combat : ses chats sont a l'hote.
+    const uint8_t members = (uint8_t)((1u << kHostPeer) | (mm_run_peers_mask() & 0x0Fu));
+    lockstep_note_members(seed, members);
     remember_node(index, count, type, seed);
     g.inside    = true;
     g.inside_at = GetTickCount64();
@@ -415,6 +421,7 @@ bool follow_on_enter_node(void* map_screen, void* node, bool* sent) {
     m.node_count = count;
     m.type       = type;
     m.seed0      = seed;
+    m.members    = members;
     // Mewgenics Multi : la maison prise avant la fin de la carte (kEnterEarlyHome).
     uint8_t early = 0;
     if (type == kNodeType_Home &&
@@ -536,6 +543,9 @@ void follow_catchup(uint8_t peer) {
     m.node_count = g.here_count;
     m.type       = g.here_type;
     m.seed0      = g.here_seed;
+    // Mewgenics Multi : les membres de ce combat maintenant -- celui qui arrive
+    // n'en est pas (il regarde jusqu'a la case suivante).
+    m.members    = lockstep_members_of(g.here_seed);
     if (!net_send_enter_node_to(peer, m)) return;
 
     log_line("FOLLOW", "-> re-sent the CURRENT node %u/%u (%s) seed0=%016llx to"
@@ -634,6 +644,8 @@ void follow_on_message(const EnterNodeMsg& m) {
     // pleine les marquerait « sautees » pour la couche des choix) ; il recevra
     // la case actuelle en rejoignant (session_catchup_peer).
     if (!savefile_in_coop() && !savefile_join_armed()) return;
+    // Mewgenics Multi : qui joue les combats de cette case (protocole 48).
+    lockstep_note_members(m.seed0, m.members);
     // A full queue means this peer is eight nodes behind, which no amount of
     // waiting is going to fix. Refuse the newest and SAY SO: the run is already
     // wrong, and the one thing that must not happen is what used to -- losing a

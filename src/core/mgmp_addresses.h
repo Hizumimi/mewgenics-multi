@@ -121,6 +121,8 @@ enum Target : int {
     // --- Mewgenics Multi : le chat d'un evenement (src/session/mgmp_choice.cpp) --
     T_EventCatChoice,    // sub_140919AE0 -- WorldEvent::setupCatChoice : le choix du chat s'ouvre
     T_EventCatPick,      // sub_14093C220 -- son « ok » (lambda_1) : WorldEvent+0x128 = le chat montre
+    // --- Mewgenics Multi : quitter l'aventure de l'hote (src/ui/mm_menu.cpp) --
+    T_TryAbandonRun,     // sub_140296FB0 -- PauseMenu::TryAbandonRun : « Abandonner l'aventure »
     T_COUNT
 };
 
@@ -712,6 +714,11 @@ static const TargetDesc kTargets[T_COUNT] = {
     // tous (mgmp_choice).
     { 0x00919AE0, "EVTCATCH",  "WorldEvent::setupCatChoice (sub_140919AE0)" },
     { 0x0093C220, "EVTCATOK",  "WorldEvent cat choice ok (lambda_1, sub_14093C220)" },
+    // Mewgenics Multi : « Abandonner l'aventure » du menu pause. Chez un invite
+    // dans la copie de l'hote, notre fenetre « Quitter l'aventure » a la place ;
+    // chez l'hote d'une aventure a plusieurs, une ligne de plus dans la
+    // confirmation du jeu (mm_menu).
+    { 0x00296FB0, "ABANDONRUN","PauseMenu::TryAbandonRun (sub_140296FB0)" },
 };
 
 // Coarse module guard, checked before the per-target signatures.

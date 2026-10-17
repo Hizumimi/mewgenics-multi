@@ -24,6 +24,13 @@ add_executable(test_split test_split.cpp)
 target_include_directories(test_split PRIVATE ${CMAKE_SOURCE_DIR}/src/session)
 add_test(NAME test_split COMMAND test_split)
 
+# Mewgenics Multi : les membres d'un combat (protocole 48) -- le partage sur les
+# membres de l'entree, la reprise des chats d'un parti par l'hote, l'adoption de
+# ses membres par un invite, et la verification de chacun.
+add_executable(test_members test_members.cpp)
+target_include_directories(test_members PRIVATE ${CMAKE_SOURCE_DIR}/src/session)
+add_test(NAME test_members COMMAND test_members)
+
 add_executable(test_sigscan test_sigscan.cpp ${CMAKE_SOURCE_DIR}/src/core/mgmp_sigscan.cpp)
 target_include_directories(test_sigscan PRIVATE ${CMAKE_SOURCE_DIR}/src/core)
 add_test(NAME test_sigscan COMMAND test_sigscan)

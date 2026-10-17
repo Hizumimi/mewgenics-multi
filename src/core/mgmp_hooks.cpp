@@ -846,6 +846,9 @@ const Binding kBindings[] = {
     // src/session/mgmp_choice.cpp (choice_binding).
     { T_EventCatChoice,  nullptr, nullptr },
     { T_EventCatPick,    nullptr, nullptr },
+    // Mewgenics Multi : quitter l'aventure de l'hote, detour dans
+    // src/ui/mm_menu.cpp (mm_binding).
+    { T_TryAbandonRun,   nullptr, nullptr },
 };
 
 // Resolves the three RNG bindings, which are not static initialisers because

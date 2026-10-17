@@ -140,12 +140,19 @@ using FnConfirmBuild = void (__fastcall*)(void* self, uint64_t a2, uint64_t text
 using FnHouseHud = uint64_t (__fastcall*)(void* house, void* a2, uint64_t a3, uint64_t a4);
 // HousePipe::TryPlaceCat(Character*) : vrai = le tuyau prend le chat.
 using FnPipePlace = bool (__fastcall*)(void* pipe, void* cat);
+// PauseMenu::TryAbandonRun(PauseMenu*) (0x140296FB0) : le bouton « Abandonner
+// l'aventure » du menu pause (aussi « Abandonner le combat » d'une maison
+// attaquee, et « Passer le tutoriel ») ouvre la confirmation du jeu, dont le
+// « oui » finit l'aventure comme une defaite (MewDirector::AbandonRun : le
+// fondu « defeat » puis 0x1403B4750).
+using FnTryAbandonRun = void (__fastcall*)(void* pause_menu);
 
 FnMainMenuInit o_MainMenuInit = nullptr;
 FnMeow         o_Meow         = nullptr;
 FnConfirmBuild o_ConfirmBuild = nullptr;
 FnHouseHud     o_HouseHud     = nullptr;
 FnPipePlace    o_PipePlace    = nullptr;
+FnTryAbandonRun o_TryAbandonRun = nullptr;
 
 template <class F> F call_target(Call c) { return (F)addr_of_call(c); }
 
@@ -422,13 +429,14 @@ char g_peer_names[8][64] = {};
 
 enum class Screen { None, Choice, HostLobby, JoinEntry, ClientLobby, BadAddress, NightWait,
                     NightNotice, DepartWait, EmbarkWait, ArrivalWait, DepartOffer, RunOffer, JoinWait,
-                    HomeOffer, Info, Vote, Loot };
+                    HomeOffer, Info, Vote, Loot, QuitRun };
 
 // Les demandes posees par les clics et par le clavier, traitees au debut de
 // l'image suivante. Un seul emplacement : il n'y a jamais deux clics a la fois.
 enum class Action { None, OpenAuto, StartHost, OpenJoin, DoJoin, ClickPlay, StopSession, OpenBadAddress,
                     CancelNight, NightReadyNow, DepartCancel, DepartYes, DepartNo, RunJoin, RunLater,
-                    GoHome, JoinCancel, ArrivalDismiss, EmbarkNoWait, VoteYes, VoteNo, LootYes, LootNo };
+                    GoHome, JoinCancel, ArrivalDismiss, EmbarkNoWait, VoteYes, VoteNo, LootYes, LootNo,
+                    QuitRun };
 Action g_action = Action::None;
 
 // La fenetre du vote du chemin ouverte (mm_vote) : ses boutons, d'apres
@@ -1360,6 +1368,17 @@ bool     g_dep_offer       = false;   // la proposer a ce joueur
 uint32_t g_dep_offer_at    = 0;       // pas avant cette image (« Pas encore »)
 bool     g_run_offer       = false;   // proposer de rejoindre l'aventure en cours
 uint32_t g_run_offer_at    = 0;
+// Il a quitte l'aventure de lui-meme (« Quitter l'aventure ») : on ne la lui
+// repropose plus tout seul -- un clic sur un panneau de sa maison le fait.
+bool     g_run_offer_quiet = false;
+// « Abandonner l'aventure » dans le menu pause (PauseMenu::TryAbandonRun) : chez
+// un invite dans la copie, notre fenetre « Quitter l'aventure » a la place, a
+// l'image suivante (par-dessus le menu pause, toujours ouvert) ; chez l'hote
+// d'une aventure ou sont des chats d'invites, la confirmation du jeu qui se
+// construit pendant l'appel dit aussi ce que perdent les autres.
+bool     g_quit_wanted     = false;
+uint32_t g_quit_asked_at   = 0;
+bool     g_abandon_note    = false;
 bool     g_home_offer      = false;   // proposer de rentrer
 // L'aventure de l'hote est finie (abandon, victoire, defaite, connexion coupee)
 // et ce joueur n'est pas encore rentre chez lui : vrai dans la copie, et encore
@@ -1410,6 +1429,12 @@ bool trip_active() { return g_trip.active; }
 // (Un invite, ou un ancien invite dont la connexion vient de tomber : il n'est
 // plus « Client », mais sa copie, elle, est toujours la.)
 bool battle_popups_ok() {
+    // « Quitter l'aventure », demande depuis le menu pause d'un combat : le menu
+    // met deja le combat en pause chez ce joueur, la fenetre n'y change rien.
+    if (g_quit_wanted) {
+        bool paused = false;
+        if (find_scene("Battle", &paused) && paused) return true;
+    }
     if (net_role() == NetRole::Host) return false;
     if (session_has_others() && g_host_in_run) return false;     // le combat continue
     // A rentrer, ou deja en route (le trajet peut avoir a dire « appuie sur
@@ -1418,6 +1443,7 @@ bool battle_popups_ok() {
 }
 
 constexpr uint32_t kOfferAgain  = 30 * 60;   // 30 s avant de re-proposer
+constexpr uint32_t kOfferAgainLong = 5 * 60 * 60;   // « Plus tard » a l'aventure en cours : 5 min
 
 void show_info(const std::string& text, int flags = 0) {
     g_info_text   = text;
@@ -1556,8 +1582,8 @@ std::string arrival_text() {
         if (g_arrival_mask & (1u << id))
             lines += "  " + peer_name(id) + u8" : pas encore là\n";
     return fmt(u8"En attente de ton équipe\n\n%s\n"
-               u8"Les combats l'attendent : attends-la\n"
-               u8"avant d'avancer sur la carte.", lines.c_str());
+               u8"Si tu avances sans l'attendre, tu diriges\n"
+               u8"ses chats dans les combats jusqu'à son arrivée.", lines.c_str());
 }
 
 std::string depart_offer_text() {
@@ -1575,9 +1601,37 @@ std::string run_offer_text() {
                    u8"%s est en aventure !\n"
                    u8"Tes chats ne sont pas du voyage : tu suivras\n"
                    u8"l'aventure sans diriger de chat.", h.c_str());
+    if (team_guest_has_cats_in_run())
+        return fmt(u8"Aventure en cours\n\n"
+                   u8"%s est en aventure avec tes chats !\n"
+                   u8"Tant que tu n'es pas là, il les dirige.\n"
+                   u8"Rejoins son équipe ?", h.c_str());
     return fmt(u8"Aventure en cours\n\n"
                u8"%s est en aventure !\n"
-               u8"Rejoins son équipe : ses combats t'attendent.", h.c_str());
+               u8"Rejoins son équipe ?", h.c_str());
+}
+
+// « Abandonner l'aventure » dans la copie de l'hote : ce n'est pas la sienne,
+// il la quitte (ses chats restent dans l'equipe de l'hote).
+std::string quit_run_text() {
+    const std::string h = host_display();
+    if (!session_has_others() || !g_host_in_run)
+        return fmt(u8"Quitter l'aventure\n\n"
+                   u8"L'aventure de %s est terminée :\n"
+                   u8"tu rentres dans ta maison.", h.c_str());
+    if (!team_guest_has_cats_in_run())
+        return fmt(u8"Quitter l'aventure\n\n"
+                   u8"C'est l'aventure de %s : seul lui peut\n"
+                   u8"l'abandonner. Elle continue sans toi.\n\n"
+                   u8"Tu rentres dans ta maison ? Pour revenir,\n"
+                   u8"clique sur un panneau de ta maison.", h.c_str());
+    return fmt(u8"Quitter l'aventure\n\n"
+               u8"C'est l'aventure de %s : seul lui peut\n"
+               u8"l'abandonner. Elle continue sans toi, et tes\n"
+               u8"chats restent dans son équipe : il les dirige,\n"
+               u8"puis ils rentrent chez toi à la fin.\n\n"
+               u8"Tu rentres dans ta maison ? Pour revenir,\n"
+               u8"clique sur un panneau de ta maison.", h.c_str());
 }
 
 std::string join_wait_text() {
@@ -1851,6 +1905,7 @@ void client_adventure_pump() {
         g_dep_req_live  = false;
         g_dep_offer     = false;
         g_run_offer     = false;
+        g_run_offer_quiet = false;
         // La connexion est coupee pendant qu'il partait : il ne la rejoint plus.
         if (savefile_join_armed() && !savefile_in_coop())
             cancel_join("connexion coupee");
@@ -1891,10 +1946,10 @@ void client_adventure_pump() {
     }
 
     // L'hote est en aventure et ce joueur n'y est pas (arrive en cours de route,
-    // « Plus tard », sorti de la copie...) : le lui proposer, encore et encore --
-    // les combats de l'hote l'attendent.
+    // « Plus tard », sorti de la copie...) : le lui proposer -- sauf s'il l'a
+    // quittee de lui-meme (un panneau de sa maison la lui repropose).
     if (others && g_host_in_run && !savefile_in_coop() && !savefile_join_armed() &&
-        !g_dep_offer && !g_run_offer) {
+        !g_dep_offer && !g_run_offer && !g_run_offer_quiet) {
         g_run_offer    = true;
         g_run_offer_at = g_frame;
     }
@@ -1996,6 +2051,21 @@ void adventure_popups() {
         return;
     }
     if (host) return;
+
+    // « Abandonner l'aventure » dans la copie : notre fenetre a la place de celle
+    // du jeu, par-dessus le menu pause encore ouvert. La demande ne vaut que
+    // quelques instants (le menu ferme entre-temps : le joueur recliquera).
+    if (g_quit_wanted) {
+        if (!savefile_in_coop() || g_frame - g_quit_asked_at > 120) {
+            g_quit_wanted = false;
+        } else if (open_popup(Screen::QuitRun, quit_run_text(), u8"Rentrer", u8"Rester", false,
+                              Action::QuitRun, Action::None)) {
+            g_quit_wanted = false;
+            log_line("MULTI", "aventure : fenetre « Quitter l'aventure » ouverte%s",
+                     find_scene("Battle") ? " (en plein combat)" : "");
+        }
+        return;
+    }
 
     // Le defile du butin d'abord : rentrer pendant qu'il passe ferait manquer
     // les objets (le chargement de sa save), et il ne dure que quelques minutes.
@@ -2227,6 +2297,62 @@ bool __fastcall h_PipePlace(void* pipe, void* cat) {
     return o_PipePlace(pipe, cat);
 }
 
+// « Abandonner l'aventure » (PauseMenu::TryAbandonRun).
+void __fastcall h_TryAbandonRun(void* pause_menu) {
+    // Un invite dans la copie de l'aventure de l'hote : ce n'est pas la sienne.
+    // L'abandon du jeu y serait une defaite dans sa copie seulement -- ses chats
+    // « pas revenus » dans sa propre save (journal du 17 octobre), pendant que
+    // l'aventure de l'hote continue avec eux. On lui propose de la quitter.
+    if (net_role() == NetRole::Client && savefile_in_coop()) {
+        g_quit_wanted   = true;
+        g_quit_asked_at = g_frame;
+        log_line("MULTI", "aventure : « Abandonner » dans la copie de l'hote -- remplace par "
+                          "« Quitter l'aventure »");
+        return;
+    }
+    // L'hote d'une aventure ou sont des chats d'invites : c'est une defaite pour
+    // toute l'equipe, et sa confirmation le dit (h_ConfirmBuild, pendant l'appel).
+    g_abandon_note = net_role() == NetRole::Host && session_has_others() &&
+                     !team_run_guest_names().empty();
+    o_TryAbandonRun(pause_menu);
+    g_abandon_note = false;
+}
+
+// Une std::wstring du jeu, lue (tampon interne ou sur le tas).
+bool read_game_wstring(const GameWString* s, std::wstring& out) {
+    GameWString w{};
+    if (!s || !mem_read(s, &w, sizeof(w)) || w.size > 4096) return false;
+    out.assign(w.size, L'\0');
+    if (w.cap > 7) {
+        if (!w.ptr || (w.size && !mem_read(w.ptr, &out[0], w.size * sizeof(wchar_t)))) return false;
+    } else {
+        if (w.size > 7) return false;
+        if (w.size) memcpy(&out[0], w.buf, w.size * sizeof(wchar_t));
+    }
+    return true;
+}
+
+// La confirmation de l'abandon chez l'hote d'une aventure a plusieurs : son texte
+// (deja traduit : une std::wstring passee par valeur au constructeur, que celui-ci
+// detruira) avec notre ligne en dessous.
+void add_abandon_note(GameWString* text) {
+    const std::string names = team_run_guest_names();
+    auto move = call_target<FnWStrMove>(C_WStrMoveAssign);
+    if (names.empty() || !move) return;
+    std::wstring w;
+    if (!read_game_wstring(text, w)) {
+        log_line("MULTI", "!! abandon de l'aventure : texte de la confirmation illisible, laisse tel quel");
+        return;
+    }
+    w += utf8_to_wide(fmt(u8"\n\nC'est une défaite pour toute l'équipe :\n"
+                          u8"les chats de %s ne rentreront pas non plus.", names.c_str()).c_str());
+    GameWString tmp;
+    if (!make_game_wstring(tmp, w)) return;
+    move(text, &tmp);
+    log_line("MULTI", "abandon de l'aventure : la confirmation dit aussi que les chats de %s ne rentreront "
+                      "pas", names.c_str());
+}
+
 // Hors de la maison, ses chats n'existent plus : on oublie qui a ete prevenu
 // (de nouveaux chats peuvent reprendre les memes adresses au retour).
 void pipe_pump() {
@@ -2247,6 +2373,12 @@ void __fastcall h_Meow(void* /*self*/) {
 void __fastcall h_ConfirmBuild(void* self, uint64_t a2, uint64_t text, uint64_t a4,
                                uint64_t a5, uint64_t ok_only, uint64_t a7, uint64_t a8) {
     if (!g_pending.active) {
+        // La confirmation d'« Abandonner l'aventure », chez l'hote d'une aventure
+        // a plusieurs (h_TryAbandonRun) : une ligne de plus.
+        if (g_abandon_note && text) {
+            g_abandon_note = false;          // cette boite-ci seulement
+            add_abandon_note((GameWString*)text);
+        }
         o_ConfirmBuild(self, a2, text, a4, a5, ok_only, a7, a8);
         // Une confirmation du jeu : ses boutons, pour le depart ensemble.
         g_game_prompt = GamePrompt{};
@@ -2478,6 +2610,7 @@ bool mm_binding(Target t, void** detour, void*** original) {
     case T_ConfirmBuild: *detour = (void*)&h_ConfirmBuild; *original = (void**)&o_ConfirmBuild; return true;
     case T_HouseHud:     *detour = (void*)&h_HouseHud;     *original = (void**)&o_HouseHud;     return true;
     case T_PipePlaceCat: *detour = (void*)&h_PipePlace;    *original = (void**)&o_PipePlace;    return true;
+    case T_TryAbandonRun: *detour = (void*)&h_TryAbandonRun; *original = (void**)&o_TryAbandonRun; return true;
     default: return false;
     }
 }
@@ -2562,7 +2695,21 @@ void mm_menu_pump() {
             log_line("MULTI", "aventure : ce joueur rejoint l'aventure en cours");
             break;
         case Action::RunLater:
-            g_run_offer_at = g_frame + kOfferAgain;
+            // Ses combats ne l'attendent plus (protocole 48) : rappel espace.
+            g_run_offer_at = g_frame + kOfferAgainLong;
+            break;
+        case Action::QuitRun:
+            log_line("MULTI", "aventure : ce joueur quitte l'aventure de l'hote (ses chats restent dans "
+                              "l'equipe, l'hote les dirige)");
+            g_run_offer_quiet = true;
+            g_run_offer       = false;
+            g_home_offer = false;
+            g_home_due   = false;
+            savefile_go_home();
+            if (!savefile_home_armed())
+                log_line("MULTI", "!! quitter l'aventure : la session est finie, ce joueur choisira sa "
+                                  "save au menu");
+            start_menu_trip("quitter l'aventure");
             break;
         case Action::GoHome:
             g_home_offer = false;
@@ -2907,7 +3054,8 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
                     g_run_offer_at = 0;
                 }
             } else {
-                g_run_offer = false;
+                g_run_offer       = false;
+                g_run_offer_quiet = false;           // la prochaine aventure se propose
                 if (savefile_join_armed() && !savefile_in_coop())
                     cancel_join("l'aventure de l'hote est finie");
             }
@@ -3009,14 +3157,25 @@ bool mm_on_button_click(void* button) {
         }
         if (!savefile_join_armed() && g_host_in_run) {
             log_line("MULTI", "aventure : clic d'un invite sur le panneau, l'aventure en cours lui est reproposee");
-            g_run_offer    = true;
-            g_run_offer_at = g_frame;
+            g_run_offer       = true;
+            g_run_offer_at    = g_frame;
+            g_run_offer_quiet = false;
             return true;
         }
         log_line("MULTI", "depart demande par un invite : c'est l'hote qui lance l'aventure");
         show_info(fmt(u8"C'est %s qui lance l'aventure :\n"
                       u8"demande-lui de cliquer sur « À l'aventure ! ».",
                       host_display().c_str()));
+        return true;
+    }
+    // Un invite chez lui pendant que l'hote est en aventure : la nuit ne peut
+    // pas passer sans l'hote, le panneau lui repropose plutot l'aventure.
+    if (net_role() == NetRole::Client && !savefile_join_armed() && g_host_in_run && !g_live.alive) {
+        log_line("MULTI", "aventure : clic d'un invite sur « Fin de journée » pendant l'aventure de l'hote -- "
+                          "elle lui est reproposee");
+        g_run_offer       = true;
+        g_run_offer_at    = g_frame;
+        g_run_offer_quiet = false;
         return true;
     }
     if (g_night_ready || g_live.alive) return true;

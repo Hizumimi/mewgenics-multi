@@ -1924,6 +1924,21 @@ bool team_guest_has_cats_in_run() {
     return false;
 }
 
+std::string team_run_guest_names() {
+    std::vector<std::string> names;
+    for (const RunCat& rc : k.run) {
+        std::string n = rc.owner_name;
+        for (char& c : n)
+            if (c == '[') c = '(';
+            else if (c == ']') c = ')';
+        if (n.empty()) continue;
+        bool have = false;
+        for (const std::string& o : names) have = have || o == n;
+        if (!have) names.push_back(n);
+    }
+    return join_names(names);
+}
+
 bool team_owners_active() { return !k.owners.empty(); }
 
 int team_owner_of(uint64_t cat_id) {

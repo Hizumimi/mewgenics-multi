@@ -439,6 +439,11 @@ void leave_pump() {
         log_line("LEAVE", "-> the host has left the run and is on '%s' -- telling "
                           "the client, which is otherwise unable to tell this "
                           "apart from a long turn", where_name);
+    else if (net_peer_count() < 2)
+        // Mewgenics Multi : plus personne dans la session (journal du 17
+        // octobre : l'invite venait de se deconnecter) -- personne a prevenir.
+        log_line("LEAVE", "the host left the run with nobody else in the session -- "
+                          "nothing to tell");
     else
         log_line_lvl(LogLevel::Error, "LEAVE",
                  "!! the host left the run and the message could not be sent -- "

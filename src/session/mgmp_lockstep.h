@@ -91,6 +91,15 @@ uint64_t lockstep_battle_id();
 // they entered the same node.
 void lockstep_enter_battle(uint64_t seed0);
 
+// Mewgenics Multi (protocole 48) : les membres d'un combat, un bit par numero de
+// joueur (mgmp_members.h). L'hote les note en entrant dans la case (lui et les
+// invites de son aventure) et les met dans ENTERNODE ; un invite note ceux de
+// l'ENTERNODE qu'il suit. Le partage des chats de ce combat se fait sur eux.
+void    lockstep_note_members(uint64_t battle_id, uint8_t mask);
+// Les membres de ce combat maintenant (le combat en cours : apres les departs),
+// sinon ceux notes ; 0 si inconnus.
+uint8_t lockstep_members_of(uint64_t battle_id);
+
 // A peer joined or reconnected: replay this battle's decisions to it so it can
 // fast-forward into a fight already under way. To that peer only.
 void lockstep_catchup(uint8_t peer);
