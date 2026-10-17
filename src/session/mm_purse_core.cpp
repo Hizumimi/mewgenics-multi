@@ -253,6 +253,19 @@ std::string purse_find_line(const std::string& cat, int64_t coins, int64_t food,
     return who + u8" n'a rien trouvé.";
 }
 
+std::string purse_shop_line(const std::string& what, int64_t coins, int64_t food, bool mine,
+                            const std::string& owner) {
+    (void)food;
+    const std::string thing = what.empty() ? std::string(u8"un objet") : purse_safe(what);
+    const std::string who   = mine ? std::string(u8"Tu as acheté ") : purse_safe(owner) + u8" a acheté ";
+    const std::string purse = mine ? std::string("ta bourse") : std::string("sa bourse");
+    if (coins < 0)
+        return who + thing + u8" pour " + purse_amount_text(-coins, 0) + u8" : c'est pris sur " + purse + ".";
+    if (coins > 0)
+        return who + thing + u8" : " + purse_amount_text(coins, 0) + u8" de plus pour " + purse + ".";
+    return who + thing + u8" (gratuit).";
+}
+
 std::string purse_battle_line(int64_t coins, int64_t food, bool mine, const std::string& owner) {
     const bool gain = coins > 0 || food > 0;
     const bool loss = coins < 0 || food < 0;

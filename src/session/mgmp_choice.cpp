@@ -12,6 +12,7 @@
 #include "mgmp_resolve.h"
 #include "mm_menu.h"         // Mewgenics Multi : mm_run_peers_mask, mm_peer_name, mm_panel_set_text
 #include "mm_team.h"         // Mewgenics Multi : team_owners_active, team_owner_of
+#include "mm_shop.h"         // Mewgenics Multi : shop_host_inside (un bonbon achete par l'hote)
 #include "mgmp_catsync.h"    // Mewgenics Multi : catsync_cat_by_key (le choix du chat d'un evenement)
 #include "mgmp_hooks.h"      // Mewgenics Multi : hooks_is_live
 
@@ -502,6 +503,10 @@ int decider_of(uint64_t cat_id) {
     if (!g.is_client) {
         const uint32_t mask = mm_run_peers_mask();
         if (o >= 32 || !(mask & (1u << o))) return (int)kHostPeer;
+        // Mewgenics Multi (protocole 51) : dans sa boutique, une montee de niveau
+        // vient d'un bonbon que l'hote a achete -- la copie de l'invite n'a pas cet
+        // ecran (le bonbon n'y est pas rejoue) : l'hote choisit, sinon personne.
+        if (shop_host_inside()) return (int)kHostPeer;
     }
     return o;
 }

@@ -52,7 +52,8 @@
 //     appels suivis qu'il contient. Tout le
 //     reste -- le compte a la premiere image de carte, recompenses des combats,
 //     boutique (aussi celle d'un evenement), boites, evenement sans chat, un
-//     voleur ennemi -- est partage a parts egales (les unites qui restent : un
+//     voleur ennemi -- est partage a parts egales, sauf un achat en boutique (la
+//     bourse de l'acheteur, mm_shop) (les unites qui restent : un
 //     gain a la bourse la plus maigre, une perte a la plus garnie). Une bourse
 //     peut passer sous zero : une dette, que ses trouvailles suivantes
 //     remboursent (mm_purse_core.h).
@@ -96,6 +97,22 @@ void purse_pump();
 
 // MM_PURSE (invite).
 void purse_on_mm(uint8_t from, const MmMsg& m);
+
+// --- mm_shop : les achats en boutique -----------------------------------------------
+
+// Hote : les bourses suivent une aventure mixte (en cours, pas encore gagnee).
+bool purse_tracking();
+// Hote : la bourse du joueur de numero de place `slot` (son numero au depart de
+// l'aventure) : ses pieces et sa nourriture ; `has` : il en a une (il a amene des
+// chats, ou quelque chose y est alle). Faux sans bourses suivies.
+bool purse_slot(uint8_t slot, int64_t& coins, int64_t& food, bool& has);
+// Hote : un achat de ce joueur (mm_shop). Ce que `call(arg)` change au compte de
+// l'aventure va a sa bourse, pas partage, et chacun le voit dans la fenetre du vote
+// (« Ami a acheté Épée pour 12 pièces »). Sans bourses suivies : `call(arg)` seul.
+void purse_charge(uint8_t slot, const std::string& label, void (*call)(void*), void* arg);
+// La bourse de CE joueur maintenant (hote : la sienne, s'il en a une ; invite :
+// celle que l'hote lui a envoyee, si elle est fraiche). Faux sans bourse a lui.
+bool purse_mine(int64_t& coins, int64_t& food);
 
 // Pour la fenetre du vote du chemin : les trouvailles depuis la case d'avant
 // (« \nFrédéric a trouvé 15 pièces : c'est pour ta bourse. ») et

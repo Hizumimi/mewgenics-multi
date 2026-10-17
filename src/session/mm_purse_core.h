@@ -4,9 +4,9 @@
 //
 // Une bourse par joueur, en pieces et en nourriture. Ce qu'un evenement donne
 // (ou coute) a un chat, ou ce qu'un chat ramasse en combat, va a la bourse de son
-// proprietaire ; le reste (provisions du depart, recompenses des combats,
-// boutique, boites) est partage a parts egales entre les joueurs qui ont amene
-// des chats. La somme des bourses est toujours le compte
+// proprietaire, un achat en boutique a celle de l'acheteur (mm_shop) ; le reste
+// (provisions du depart, recompenses des combats, boites) est partage a parts
+// egales entre les joueurs qui ont amene des chats. La somme des bourses est toujours le compte
 // de l'aventure (adventure_coins, adventure_food). Une bourse peut passer sous
 // zero (une depense de l'equipe, ou une perte de son chat, plus grosse qu'elle) :
 // c'est une dette, que les trouvailles suivantes remboursent ; a la fin, une
@@ -81,6 +81,7 @@ enum : uint8_t {
 // MM_PURSE a = 2, champ c.
 constexpr uint8_t kFindSpent  = 0x01;   // le prix d'un choix de l'evenement (« a dépensé »)
 constexpr uint8_t kFindBattle = 0x02;   // ramasse en combat par les chats de ce joueur (sans nom)
+constexpr uint8_t kFindShop   = 0x04;   // un achat en boutique (mm_shop) : texte = ce qui est achete
 
 struct PurseLine {
     uint8_t peer  = 0;
@@ -129,5 +130,12 @@ std::string purse_find_line(const std::string& cat, int64_t coins, int64_t food,
 //   « En combat, tes chats ont trouvé 12 pièces : c'est pour ta bourse. »
 //   « En combat, les chats d'Ami ont trouvé 3 nourritures : c'est pour sa bourse. »
 std::string purse_battle_line(int64_t coins, int64_t food, bool mine, const std::string& owner);
+
+// Un achat en boutique (UTF-8) :
+//   « Tu as acheté Épée pour 12 pièces : c'est pris sur ta bourse. »
+//   « Ami a acheté 5 nourritures pour 8 pièces : c'est pris sur sa bourse. »
+// coins/food : ce que l'achat a change a la bourse (le prix en negatif).
+std::string purse_shop_line(const std::string& what, int64_t coins, int64_t food, bool mine,
+                            const std::string& owner);
 
 } // namespace mgmp

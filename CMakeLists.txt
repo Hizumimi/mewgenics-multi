@@ -98,6 +98,8 @@ add_library(mgmp SHARED
     src/session/mm_loot_core.cpp
     src/session/mm_npcgift.cpp
     src/session/mm_npcgift_core.cpp
+    src/session/mm_shop.cpp
+    src/session/mm_shop_core.cpp
     src/session/mm_recruit_core.cpp
     src/session/mm_vote_core.cpp
     src/session/mm_team.cpp

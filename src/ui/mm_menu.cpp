@@ -45,6 +45,7 @@
 #include "mm_purse.h"          // les bourses de l'aventure
 #include "mm_loot.h"           // le defile du butin
 #include "mm_npcgift.h"        // les dons des invites aux PNJ
+#include "mm_shop.h"           // les achats en boutique avec sa bourse
 
 #include <winsock2.h>   // avant windows.h : types reseau d'iphlpapi
 #include <ws2tcpip.h>
@@ -573,7 +574,7 @@ void* find_scene(const char* wanted, bool* paused = nullptr) {
 // quand l'aventure de l'hote est finie (battle_popups_ok), pour ramener l'invite
 // chez lui.
 void* popup_parent_scene() {
-    for (const char* name : { "House", "Map", "MainMenu", "SaveSelectionScreen", "Battle", "Event" })
+    for (const char* name : { "House", "Map", "MainMenu", "SaveSelectionScreen", "Battle", "Event", "Shop" })
         if (void* s = find_scene(name)) return s;
     return nullptr;
 }
@@ -2832,6 +2833,7 @@ void mm_menu_pump() {
     purse_pump();                   // Mewgenics Multi : les bourses de l'aventure
     loot_pump();                    // Mewgenics Multi : le defile du butin
     npcgift_pump();                 // Mewgenics Multi : les dons des invites aux PNJ
+    shop_pump();                    // Mewgenics Multi : les achats en boutique avec sa bourse
     team_ui_pump();                 // Mewgenics Multi : fenetres de l'equipe mixte
     trip_pump();
     night_pump();
@@ -3175,6 +3177,8 @@ bool mm_on_button_click(void* button) {
     if (embark_on_button_click(button)) return true;
     // Les objets en aventure : seul le proprietaire d'un chat change les siens.
     if (rungear_on_click(button)) return true;
+    // Les boutiques : l'hote ne sort pas sans le confirmer si un invite y achete.
+    if (shop_on_click(button)) return true;
     const int kind = sign_kind(button);
     if (!kind) return false;
     // Le panneau clique, pour l'action qu'il declenche pendant ce meme clic

@@ -4,6 +4,7 @@
 #include "mm_loot_core.h"
 #include "mm_menu.h"
 #include "mm_rungear.h"
+#include "mm_shop.h"
 #include "mm_team.h"
 #include "mm_team_merge.h"
 
@@ -1102,9 +1103,15 @@ void loot_victory_after() {
         host_start({}, g.snap_players, g.snap_seq, now);
         return;
     }
+    size_t claimed = 0;
     for (uint64_t id : g.snap_ids)
         for (const Stored& s : store)
             if (s.id == id) {
+                // Achete en boutique : il rentre chez son acheteur (mm_shop), sans defiler.
+                if (shop_claims(id)) {
+                    ++claimed;
+                    break;
+                }
                 if (s.f.name.size() > kMaxItemName || s.f.text.size() > kMaxItemText) {
                     log_line("BUTIN", "!! %s : nom ou texte trop long pour le defile -- il reste chez toi",
                              s.f.name.substr(0, 40).c_str());
@@ -1117,9 +1124,12 @@ void loot_victory_after() {
                 items.push_back(std::move(it));
                 break;
             }
-    if (items.size() < g.snap_ids.size())
+    if (claimed)
+        log_line("BUTIN", "%zu objet(s) achete(s) en boutique : ils ne defilent pas (ils sont a leur acheteur)",
+                 claimed);
+    if (items.size() + claimed < g.snap_ids.size())
         log_line("BUTIN", "%zu objet(s) du sac pas dans le rangement (devenus autre chose en rentrant)",
-                 g.snap_ids.size() - items.size());
+                 g.snap_ids.size() - items.size() - claimed);
     if (items.size() > kLootMaxItems) {
         log_line("BUTIN", "!! %zu objets : seuls les %zu premiers defilent", items.size(), kLootMaxItems);
         items.resize(kLootMaxItems);
@@ -1223,6 +1233,16 @@ bool loot_storage_take(uint64_t id, uint64_t digest, std::string& why) {
     if (n != 1) { why = "le jeu n'a rien retire"; return false; }
     return true;
 }
+
+bool loot_bag_items(std::vector<LootStoredItem>& out) {
+    out.clear();
+    std::vector<Stored> bag;
+    if (!read_bucket(kInv_Backpack, bag)) return false;
+    for (const Stored& s : bag) out.push_back(LootStoredItem{ s.id, s.f });
+    return true;
+}
+
+bool loot_read_equipment(const void* eq, ItemFields& f, uint64_t* id) { return read_item(eq, f, id); }
 
 std::string loot_item_label(const ItemFields& f) {
     std::string name;

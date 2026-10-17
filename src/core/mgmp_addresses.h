@@ -126,6 +126,9 @@ enum Target : int {
     // --- Mewgenics Multi : les dons de l'invite aux PNJ (src/session/mm_npcgift.cpp) --
     T_NpcFavor,          // sub_1401C1650 -- la faveur d'un don (progression, PNJ, CatData, quantite)
     T_CacheReward,       // sub_1401C18E0 -- GlobalProgressionData::CacheInReward(PNJ) : la recompense
+    // --- Mewgenics Multi : les achats en boutique (src/session/mm_shop.cpp) --
+    T_ShopBuy,           // sub_14079A600 -- Shop::BuyItem(ShopItem&) : l'achat, le prix verifie par le bouton
+    T_ShopUpdate,        // sub_140797EA0 -- Shop::update (entree 10 de sa vtable) : la boutique ouverte
     T_COUNT
 };
 
@@ -735,6 +738,15 @@ static const TargetDesc kTargets[T_COUNT] = {
     // (« get npc_reward », 0x1408EFDC2) ou commande de console (0x1401E2B37).
     // Chez l'hote, une recompense remplie par le don d'un invite part chez lui.
     { 0x001C18E0, "CACHEREWARD","GlobalProgressionData::CacheInReward (sub_1401C18E0)" },
+    // Mewgenics Multi : les achats en boutique (mm_shop.h decrit les deux).
+    // Shop::BuyItem(Shop*, ShopItem&) : appele par le bouton d'achat (un rappel,
+    // 0x14079A3F0) une fois le prix verifie. Chez un invite dans la copie de
+    // l'hote, l'achat part chez l'hote ; chez l'hote, le prix est pris dans la
+    // bourse de l'acheteur, et l'achat est rejoue chez tous.
+    { 0x0079A600, "SHOPBUY",   "glaiel::Shop::BuyItem (sub_14079A600)" },
+    // Shop::update (vtable 0x140F03A88, entree 10) : la boutique vivante, ou
+    // l'hote achete pour un invite et ou une copie rejoue les achats.
+    { 0x00797EA0, "SHOPUPD",   "glaiel::Shop::update (sub_140797EA0)" },
 };
 
 // Coarse module guard, checked before the per-target signatures.

@@ -44,6 +44,7 @@
 #include "mm_menu.h"   // Mewgenics Multi : bouton Multijoueur et fenetres du jeu
 #include "mm_team.h"   // Mewgenics Multi : l'equipe mixte (team_binding)
 #include "mm_npcgift.h" // Mewgenics Multi : les dons aux PNJ (npcgift_binding)
+#include "mm_shop.h"    // Mewgenics Multi : les achats en boutique (shop_binding)
 #include "mm_collars.h" // Mewgenics Multi : le choix des colliers (collars_binding)
 #include "mm_gear.h"    // Mewgenics Multi : le choix des objets (gear_binding)
 #include "mm_vote.h"    // Mewgenics Multi : le vote du chemin (vote_binding)
@@ -854,6 +855,10 @@ const Binding kBindings[] = {
     // src/session/mm_npcgift.cpp (npcgift_binding).
     { T_NpcFavor,        nullptr, nullptr },
     { T_CacheReward,     nullptr, nullptr },
+    // Mewgenics Multi : les achats en boutique, detours dans
+    // src/session/mm_shop.cpp (shop_binding).
+    { T_ShopBuy,         nullptr, nullptr },
+    { T_ShopUpdate,      nullptr, nullptr },
 };
 
 // Resolves the three RNG bindings, which are not static initialisers because
@@ -909,6 +914,7 @@ bool install_one(const Binding& b, bool announce_off) {
     purse_binding(b.target, &detour, &original);
     choice_binding(b.target, &detour, &original);
     npcgift_binding(b.target, &detour, &original);
+    shop_binding(b.target, &detour, &original);
     if (!detour || !original) {
         log_raw("  [!] %-9s no detour bound", t.name);
         return false;

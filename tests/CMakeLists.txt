@@ -119,6 +119,16 @@ target_include_directories(test_seen PRIVATE ${CMAKE_SOURCE_DIR}/src/session)
 target_compile_options(test_seen PRIVATE /utf-8)
 add_test(NAME test_seen COMMAND test_seen)
 
-foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_members test_battleid test_config test_world_merge test_team_merge test_vote test_purse test_loot test_recruit test_npcgift test_seen)
+# Mewgenics Multi : les achats en boutique -- le message kTeamShop, qui peut
+# acheter quoi, les refus, a qui est un objet achete.
+add_executable(test_shop test_shop.cpp ${CMAKE_SOURCE_DIR}/src/session/mm_shop_core.cpp
+               ${CMAKE_SOURCE_DIR}/src/session/mm_team_merge.cpp)
+target_include_directories(test_shop PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/session ${CMAKE_SOURCE_DIR}/src/core ${CMAKE_SOURCE_DIR}/third_party/sqlite)
+target_link_libraries(test_shop PRIVATE mm_sqlite)
+target_compile_options(test_shop PRIVATE /utf-8)
+add_test(NAME test_shop COMMAND test_shop)
+
+foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_members test_battleid test_config test_world_merge test_team_merge test_vote test_purse test_loot test_recruit test_npcgift test_seen test_shop)
     target_compile_options(${t} PRIVATE /W3)
 endforeach()

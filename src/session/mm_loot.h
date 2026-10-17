@@ -94,4 +94,12 @@ bool loot_storage_take(uint64_t id, uint64_t digest, std::string& why);
 // Le nom d'un objet tel que le jeu l'affiche (sa cle GON a defaut), en UTF-8.
 std::string loot_item_label(const ItemFields& f);
 
+// --- le sac de l'aventure et un objet en memoire, pour les achats (mm_shop) -----
+
+// Les objets du sac (kInv_Backpack), dans l'ordre de sa liste. Faux : illisible.
+bool loot_bag_items(std::vector<LootStoredItem>& out);
+// Les champs d'un Equipment en memoire (0x60 octets, son id en tete) -- celui
+// d'un objet de boutique. Faux : illisible.
+bool loot_read_equipment(const void* eq, ItemFields& f, uint64_t* id);
+
 } // namespace mgmp

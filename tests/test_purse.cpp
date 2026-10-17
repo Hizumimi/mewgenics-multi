@@ -250,6 +250,20 @@ void test_text() {
           "prix d'un choix");
     check(purse_find_line("Minou", 5, 0, true, "", true) == u8"Minou a trouvé 5 pièces : c'est pour ta bourse.",
           "« dépensé » ne change pas un gain");
+
+    // Les achats en boutique (protocole 51, mm_shop).
+    check(purse_shop_line(u8"Épée", -12, 0, true, "") == u8"Tu as acheté Épée pour 12 pièces : c'est pris sur ta bourse.",
+          "achat a soi");
+    check(purse_shop_line(u8"5 nourritures", -8, 5, false, "Ami") ==
+          u8"Ami a acheté 5 nourritures pour 8 pièces : c'est pris sur sa bourse.", "achat d'un autre (nourriture)");
+    check(purse_shop_line("Arc", -1, 0, false, "B[o]b") == u8"B(o)b a acheté Arc pour 1 pièce : c'est pris sur sa bourse.",
+          "un nom nettoye, une piece");
+    check(purse_shop_line("", 0, 0, true, "") == u8"Tu as acheté un objet (gratuit).", "gratuit, sans nom");
+    check(purse_shop_line(u8"10 pièces", 5, 0, true, "") == u8"Tu as acheté 10 pièces : 5 pièces de plus pour ta bourse.",
+          "des pieces qui rapportent");
+    check(purse_shop_line("[c:red]Lame", -3, 0, true, "") == u8"Tu as acheté (c:red)Lame pour 3 pièces : c'est pris sur ta bourse.",
+          "pas de balise dans le nom de l'objet");
+    check(kFindShop == 0x04 && !(kFindShop & (kFindSpent | kFindBattle)), "drapeau des achats a part");
 }
 
 } // namespace

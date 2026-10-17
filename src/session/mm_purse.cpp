@@ -4,6 +4,7 @@
 #include "mm_purse_core.h"
 #include "mm_loot.h"
 #include "mm_menu.h"
+#include "mm_shop.h"
 #include "mm_team.h"
 #include "mm_team_merge.h"
 
@@ -75,11 +76,13 @@ struct Find {
 // s'imbriquent : setupResult appelle gain_coins ; Unit::GainCoins fait jouer les
 // OnGainCoins des passifs, qui peuvent rappeler Unit::GainCoins pour un autre
 // chat ; HealthPickup soigne, et un soin peut faire gagner des pieces.
-enum CtxKind : uint8_t { kCtxCommand = 0, kCtxResult = 1, kCtxBattle = 2 };
+enum CtxKind : uint8_t { kCtxCommand = 0, kCtxResult = 1, kCtxBattle = 2, kCtxShop = 3 };
 struct Ctx {
     void*    cat  = nullptr;         // son CatData (pour son nom ; nul en combat)
     uint64_t id   = 0;               // son id (0 : pas de chat -- partage)
     uint8_t  kind = kCtxCommand;
+    uint8_t  slot = 0;               // kCtxShop : le joueur qui achete (numero de place)
+    std::string label;               // kCtxShop : ce qu'il achete
 };
 
 struct State {
@@ -221,8 +224,8 @@ bool own_line(uint8_t self, int64_t& coins, int64_t& food) {
 void push_find(Find f) {
     f.at = GetTickCount64();
     for (Find& o : g.finds)
-        if (!o.shown && o.owner == f.owner && o.owner_name == f.owner_name && o.flags == f.flags &&
-            o.cat == f.cat) {
+        if (!o.shown && !(f.flags & kFindShop) && o.owner == f.owner && o.owner_name == f.owner_name &&
+            o.flags == f.flags && o.cat == f.cat) {
             o.coins = clamp32((int64_t)o.coins + f.coins);
             o.food  = clamp32((int64_t)o.food + f.food);
             o.at    = f.at;
@@ -298,6 +301,32 @@ void attribute(void* cat, uint64_t id, int64_t dc, int64_t df, uint8_t flags, co
     host_send(true);
 }
 
+// Un achat en boutique (mm_shop) : ce qu'il change au compte va a la bourse de
+// l'acheteur, et chacun le voit.
+void attribute_shop(uint8_t slot, const std::string& label, int64_t dc, int64_t df) {
+    if ((!dc && !df) || g.ended) return;
+    g.dirty = true;
+    g.book.credit(slot, dc, df);
+    ++g.finds_made;
+    Find f;
+    f.owner      = team_slot_peer(slot);
+    f.owner_name = team_slot_name(slot);
+    f.coins      = clamp32(dc);
+    f.food       = clamp32(df);
+    f.flags      = kFindShop;
+    f.cat        = label;
+    log_line("PURSE", "achat de %s : %+lld piece(s), %+lld nourriture(s) -> bourse de %s (%lld et %lld)",
+             label.c_str(), (long long)dc, (long long)df, f.owner_name.c_str(), (long long)g.book.at(slot).coins,
+             (long long)g.book.at(slot).food);
+    if (in_session() && f.owner >= 0 && f.owner < kPurseSlots) {
+        MmMsg m;
+        purse_encode_find(m, (uint8_t)f.owner, f.coins, f.food, f.cat, kFindShop);
+        if (!net_send_mm(m)) log_line("PURSE", "!! envoi de l'achat impossible");
+    }
+    push_find(std::move(f));
+    host_send(true);
+}
+
 // Ce qui a change depuis la derniere fois : au chat de l'appel suivi en cours le
 // plus interieur ; hors de tout appel suivi, partage.
 void take_pending(const char* what) {
@@ -310,6 +339,10 @@ void take_pending(const char* what) {
     g.seen_food  = f;
     if (g.depth > 0) {
         const Ctx& t = g.ctx[g.depth - 1];
+        if (t.kind == kCtxShop) {
+            attribute_shop(t.slot, t.label, dc, df);
+            return;
+        }
         const uint8_t flags = t.kind == kCtxBattle                             ? kFindBattle
                             : (t.kind == kCtxResult && dc <= 0 && df <= 0)     ? kFindSpent
                                                                                : 0;
@@ -386,6 +419,26 @@ void in_ctx(void* cat, uint64_t id, uint8_t kind, const char* what, Call call) {
     c.kind = kind;
     call();
     take_pending(what);
+    --g.depth;
+}
+
+// Un achat (mm_shop) : comme in_ctx, a la bourse du joueur `slot` plutot qu'a
+// celle du proprietaire d'un chat.
+void in_shop_ctx(uint8_t slot, const std::string& label, void (*call)(void*), void* arg) {
+    take_pending("avant un achat");
+    if (g.depth >= kMaxCtx) {
+        call(arg);
+        take_pending("achat (trop profond)");
+        return;
+    }
+    Ctx& c = g.ctx[g.depth++];
+    c.cat   = nullptr;
+    c.id    = 0;
+    c.kind  = kCtxShop;
+    c.slot  = slot;
+    c.label = label;
+    call(arg);
+    take_pending("achat");
     --g.depth;
 }
 
@@ -560,8 +613,12 @@ void __fastcall h_RunVictory(void* dir) {
     else host_victory();
     // Le defile du butin (mm_loot) : le sac et les joueurs avant la fonction du
     // jeu (ClearRunState, a l'interieur, oublie l'equipe), le rangement apres.
+    // Les achats en boutique (mm_shop) : notes avant (l'equipe encore connue),
+    // envoyes a leurs acheteurs apres, avant le defile (qui ne les montre pas).
     loot_victory_before();
+    shop_victory_before();
     o_RunVictory(dir);
+    shop_victory_after();
     loot_victory_after();
 }
 
@@ -656,7 +713,7 @@ void purse_on_mm(uint8_t from, const MmMsg& m) {
             if (!mm_guest_in_run()) return;
             f.owner      = owner;
             f.owner_name = mm_peer_name(owner);
-            f.flags      = flags & (kFindSpent | kFindBattle);
+            f.flags      = flags & (kFindSpent | kFindBattle | kFindShop);
             log_line("PURSE", "<- %s : %+d piece(s), %+d nourriture(s) -> bourse de %s",
                      (f.flags & kFindBattle) ? "en combat" : f.cat.c_str(), f.coins, f.food, f.owner_name.c_str());
             push_find(std::move(f));
@@ -720,6 +777,7 @@ std::string purse_vote_line(bool mark) {
         }
         const bool mine = fd.owner == self;
         out += "\n" + ((fd.flags & kFindBattle) ? purse_battle_line(fd.coins, fd.food, mine, fd.owner_name)
+                      : (fd.flags & kFindShop)  ? purse_shop_line(fd.cat, fd.coins, fd.food, mine, fd.owner_name)
                                                 : purse_find_line(fd.cat, fd.coins, fd.food, mine, fd.owner_name,
                                                                   (fd.flags & kFindSpent) != 0));
         if (mark) fd.shown = true;
@@ -727,6 +785,40 @@ std::string purse_vote_line(bool mark) {
     }
     if (purse) out += u8"\nTa bourse : " + purse_balance_text(c, f) + ".";
     return out;
+}
+
+bool purse_tracking() { return tracking_host(); }
+
+bool purse_slot(uint8_t slot, int64_t& coins, int64_t& food, bool& has) {
+    coins = food = 0;
+    has   = false;
+    if (!tracking_host() || slot >= kPurseSlots) return false;
+    coins = g.book.at(slot).coins;
+    food  = g.book.at(slot).food;
+    has   = (g.slots & (1u << slot)) != 0 || coins != 0 || food != 0;
+    return true;
+}
+
+bool purse_mine(int64_t& coins, int64_t& food) {
+    coins = food = 0;
+    if (!g.armed) return false;
+    if (net_role() == NetRole::Client) {
+        return mm_guest_in_run() && g.have && GetTickCount64() - g.have_at <= kLedgerStaleMs &&
+               own_line(net_self(), coins, food);
+    }
+    if (!tracking_host()) return false;
+    coins = g.book.at(kHostPeer).coins;
+    food  = g.book.at(kHostPeer).food;
+    return (g.slots & (1u << kHostPeer)) || coins || food;
+}
+
+void purse_charge(uint8_t slot, const std::string& label, void (*call)(void*), void* arg) {
+    if (!call) return;
+    if (!tracking_host() || slot >= kPurseSlots) {
+        call(arg);
+        return;
+    }
+    in_shop_ctx(slot, label, call, arg);
 }
 
 bool purse_binding(Target t, void** detour, void*** original) {
