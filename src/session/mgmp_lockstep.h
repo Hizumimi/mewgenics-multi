@@ -210,7 +210,10 @@ uint32_t lockstep_preview_facing_count();
 // Cheap enough for a per-frame caller: one pass over the roster, no allocation,
 // and it returns immediately when lockstep is not in a battle.
 void     lockstep_state_fence_begin();
-uint32_t lockstep_state_fence_end(const char* what);
+// Rend le nombre de chats dont l'etat a bouge (orientation comprise, remise) ;
+// Mewgenics Multi : `rest`, s'il est donne, recoit ceux dont autre chose que
+// l'orientation a bouge (PV, bouclier, case, elements, mort) -- non remis.
+uint32_t lockstep_state_fence_end(const char* what, uint32_t* rest = nullptr);
 uint32_t lockstep_state_fence_hits();
 
 // --- Mewgenics Multi (protocole 52) : GetChoice d'un chat humain -------------

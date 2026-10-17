@@ -57,11 +57,19 @@ bool ai_choose(void* brain, TurnAction& out, const char** why);
 
 // Pour le journal en fin de session : decisions demandees, tirages remis, appels
 // apres lesquels la cloture d'etat a vu un chat change (PV, case, elements, mort :
-// une divergence certaine, dite en erreur la premiere fois). Remis a zero a
-// chaque session (lockstep_init).
+// une divergence certaine, dite en erreur la premiere fois), appels apres
+// lesquels seule une orientation avait bouge (remise, sans consequence). Remis a
+// zero a chaque session (lockstep_init).
 uint32_t ai_calls();
 uint32_t ai_rewinds();
 uint32_t ai_fence_hits();
+uint32_t ai_faced();
 void     ai_reset_counters();
+
+// Avant d'ecrire une TurnAction entiere par-dessus celle que le jeu a rendue
+// (h_GetChoice) : sa std::function detruite, s'il y en a une -- sinon elle fuit
+// (le destructeur du jeu ne verrait plus qu'un _Impl nul). Faux si la lecture a
+// echoue (exception attrapee).
+bool ai_clear_function(void* turn_action);
 
 } // namespace mgmp

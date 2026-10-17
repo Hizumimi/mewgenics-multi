@@ -2499,7 +2499,8 @@ void lockstep_state_fence_begin() {
     g_sf.armed = true;
 }
 
-uint32_t lockstep_state_fence_end(const char* what) {
+uint32_t lockstep_state_fence_end(const char* what, uint32_t* rest) {
+    if (rest) *rest = 0;
     if (!g_sf.armed) return 0;
     g_sf.armed = false;
 
@@ -2525,6 +2526,7 @@ uint32_t lockstep_state_fence_end(const char* what) {
 
         if (!face_moved && !rest_moved) continue;
         ++moved;
+        if (rest_moved && rest) ++*rest;   // Mewgenics Multi : ce qui n'est pas remis
 
         if (face_moved) {
             // Putting it back is correct here for the same reason it is correct
@@ -2614,11 +2616,12 @@ static void mm_ai_reset() {
 }
 
 static void mm_ai_summary() {
-    if (ai_calls() || g_cp.hits || ai_fence_hits())
+    if (ai_calls() || g_cp.hits)
         log_line_lvl(ai_fence_hits() ? LogLevel::Error : LogLevel::Trace, "LOCKSTEP",
                      "IA du jeu : %u decision(s) demandee(s) pour les chats des absents (%u fois le flux "
-                     "remis, %u fois l'etat d'un chat change) ; GetChoice d'un chat humain remis %u fois",
-                     ai_calls(), ai_rewinds(), ai_fence_hits(), g_cp.hits);
+                     "remis, %u fois une orientation remise, %u fois l'etat d'un chat change) ; "
+                     "GetChoice d'un chat humain remis %u fois",
+                     ai_calls(), ai_rewinds(), ai_faced(), ai_fence_hits(), g_cp.hits);
 }
 
 void lockstep_pump() {
@@ -2949,6 +2952,9 @@ static void publish_game_ai(const TurnAction* a, const char* why, uint8_t cat, c
         action_from_msg(msg, actor, built, bad, sizeof(bad));
     }
 
+    // `out` est la TurnAction rendue par le jeu (celle de l'IA d'un chat charme y
+    // a ete copiee, std::function comprise) : sa std::function detruite d'abord.
+    ai_clear_function(out);
     mem_write(out, &built, sizeof(built));
     if (!publish_decision(msg, by))
         log_line("LOCKSTEP", "-> cat %u %s slot=%u:%u target=(%d,%d) gon=%s%s -- jouee ici, envoyee a "
@@ -3124,9 +3130,11 @@ bool lockstep_fill_choice(void* brain, void* out) {
         // message, comme celles de l'IA pour un absent (et un pouvoir hors des cases
         // du chat finit son tour au lieu d'arreter le combat). Le clic d'un joueur,
         // lui, part et se joue tel quel, comme avant.
+        // Un int ecrit en entier (mov dword) aux trois endroits, et 1 exactement chez
+        // l'IA des passifs.
         uint32_t shown = 0;
         memcpy(&shown, a.tail + (0x80 - 0x28), sizeof(shown));
-        if (shown != 0 || g_cp.moved) {
+        if (shown == 1u || g_cp.moved) {
             publish_game_ai(&a, nullptr, cat, actor, out, "  (l'IA du jeu : chat charme ou incontrolable)");
             return true;
         }
@@ -3221,6 +3229,10 @@ static void apply_remote(const ActionMsg& msg, const void* actor, void* out) {
         return;
     }
 
+    // Mewgenics Multi : la TurnAction que le jeu vient de rendre peut porter une
+    // std::function (celle de l'IA d'un chat charme, que chaque joueur qui attend
+    // refait) : detruite avant d'ecrire par-dessus, sinon elle fuit.
+    ai_clear_function(out);
     mem_write(out, &a, sizeof(a));
     ++g.stats.applied;
     log_line("LOCKSTEP", "<- cat %u %s slot=%u:%u target=(%d,%d) gon=%s",

@@ -27,20 +27,21 @@ using FnDeleteThis = void  (__fastcall*)(void* impl, bool dealloc);
 
 uint32_t g_calls   = 0;
 uint32_t g_rewinds = 0;
-uint32_t g_fence   = 0;
+uint32_t g_fence   = 0;     // appels apres lesquels un chat avait autre chose que l'orientation de change
+uint32_t g_faced   = 0;     // ... ou seulement son orientation (remise par la cloture)
 bool     g_said_missing = false;
 
-// L'appel, puis la std::function de la reponse detruite comme le fait le jeu
-// (0x140082BB1) : _Impl->_Delete_this(_Impl != tampon local), entree 4 de sa
-// vtable. Une fonction a part, sans objet C++ : __try l'exige.
-bool seh_choose(FnAiChoice fn, void* passive, uint8_t* out) {
+// La std::function d'une TurnAction detruite comme le fait le jeu (0x140082BB1) :
+// _Impl->_Delete_this(_Impl != tampon local), entree 4 de sa vtable, puis _Impl a
+// nul -- l'etat « vide » d'une std::function MSVC, que le destructeur du jeu
+// laissera tel quel. Sans objet C++ : __try l'exige.
+bool seh_destroy_function(uint8_t* ta) {
     __try {
-        fn(passive, out);
-        void* impl = *(void**)(out + kTA_FuncImpl);
+        void* impl = *(void**)(ta + kTA_FuncImpl);
         if (impl) {
             void** vt = *(void***)impl;
-            ((FnDeleteThis)vt[4])(impl, impl != (void*)(out + kTA_FuncBuf));
-            *(void**)(out + kTA_FuncImpl) = nullptr;
+            ((FnDeleteThis)vt[4])(impl, impl != (void*)(ta + kTA_FuncBuf));
+            *(void**)(ta + kTA_FuncImpl) = nullptr;
         }
         return true;
     } __except (EXCEPTION_EXECUTE_HANDLER) {
@@ -48,7 +49,22 @@ bool seh_choose(FnAiChoice fn, void* passive, uint8_t* out) {
     }
 }
 
+// L'appel, puis la std::function de la reponse detruite.
+bool seh_choose(FnAiChoice fn, void* passive, uint8_t* out) {
+    __try {
+        fn(passive, out);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+    return seh_destroy_function(out);
+}
+
 } // namespace
+
+bool ai_clear_function(void* turn_action) {
+    if (!turn_action) return false;
+    return seh_destroy_function((uint8_t*)turn_action);
+}
 
 bool ai_available() {
     const bool ok = addr_of_call(C_AiChoice) != 0;
@@ -102,13 +118,15 @@ bool ai_choose(void* brain, TurnAction& out, const char** why) {
     ++g_calls;
 
     // La cloture ne le dit qu'une fois par session, et cette fois peut deja avoir
-    // servi a l'apercu de la visee (mgmp_aim) : ici, a part.
-    if (const uint32_t moved = lockstep_state_fence_end("l'IA du jeu (le chat d'un absent)")) {
-        if (g_fence++ == 0)
-            log_line_lvl(LogLevel::Error, "AI", "!! l'IA du jeu a change l'etat de %u chat(s) chez l'hote "
-                                                "(PV, case, elements ou mort) -- les invites ne l'ont pas : "
-                                                "le combat va se desynchroniser", moved);
-    }
+    // servi a l'apercu de la visee (mgmp_aim) : ici, a part. Une orientation est
+    // remise par la cloture (compte a part, sans consequence) ; le reste ne l'est pas.
+    uint32_t rest = 0;
+    const uint32_t moved = lockstep_state_fence_end("l'IA du jeu (le chat d'un absent)", &rest);
+    if (moved > rest) ++g_faced;
+    if (rest && g_fence++ == 0)
+        log_line_lvl(LogLevel::Error, "AI", "!! l'IA du jeu a change l'etat de %u chat(s) chez l'hote "
+                                            "(PV, case, elements ou mort) -- les invites ne l'ont pas : "
+                                            "le combat va se desynchroniser", rest);
     if (s && memcmp(before, s, sizeof(before)) != 0) {
         memcpy(s, before, sizeof(before));
         rng_flight_rewind(flight);
@@ -127,11 +145,13 @@ bool ai_choose(void* brain, TurnAction& out, const char** why) {
 uint32_t ai_calls()      { return g_calls; }
 uint32_t ai_rewinds()    { return g_rewinds; }
 uint32_t ai_fence_hits() { return g_fence; }
+uint32_t ai_faced()      { return g_faced; }
 
 void ai_reset_counters() {
     g_calls   = 0;
     g_rewinds = 0;
     g_fence   = 0;
+    g_faced   = 0;
 }
 
 } // namespace mgmp
