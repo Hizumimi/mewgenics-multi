@@ -55,6 +55,26 @@ src = open(HDR, "r", encoding="utf-8").read()
 code = re.findall(r'\{\s*0x([0-9A-Fa-f]{8})\s*,\s*"([^"]+)"\s*,\s*"([0-9A-Fa-f? ]+)"\s*\}', src)
 dat  = re.findall(r'\{\s*0x([0-9A-Fa-f]{8})\s*,\s*"([^"]+)"\s*,\s*"([0-9A-Fa-f? ]+)"\s*,\s*(\d+)\s*,\s*(\d+)\s*\}', src)
 
+# The same shape rules the DLL's own parser applies (src/core/mgmp_sigscan.cpp,
+# sig_parse): a pattern it refuses never resolves in game, however unique it is
+# here. Two data patterns that ended on their displacement's wildcards passed this
+# script for several builds and were "UNRESOLVED: malformed pattern" in every log.
+def shape_error(pat):
+    toks = pat.split()
+    if not toks:            return "empty pattern"
+    if toks[0] == "?":      return "starts with a wildcard"
+    if toks[-1] == "?":     return "ends with a wildcard (the DLL refuses it)"
+    if sum(1 for t in toks if t != "?") < 8:
+                            return "fewer than 8 literal bytes"
+    return None
+
+shape_fails = 0
+for _rva_s, name, pat, *rest in [tuple(c) for c in code] + [tuple(d) for d in dat]:
+    err = shape_error(pat)
+    if err:
+        shape_fails += 1
+        print(f"  FAIL {name:32} malformed for the DLL: {err}")
+
 fails = 0
 print(f"\n--- {len(code)} code patterns")
 for rva_s, name, pat in code:
@@ -84,6 +104,6 @@ for rva_s, name, pat, disp_off, insn_end in dat:
     if recovered != rva: dfails += 1
     print(f"  {mark:8} {name:20} claimed 0x{rva:08X}  recovered 0x{recovered:08X}")
 
-total = fails + dfails
+total = fails + dfails + shape_fails
 print(f"\n{'ALL PATTERNS VERIFIED' if total == 0 else str(total) + ' FAILURE(S)'}")
 sys.exit(1 if total else 0)

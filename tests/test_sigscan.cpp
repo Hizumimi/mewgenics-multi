@@ -13,6 +13,7 @@
 // earlier draft collapsed the last two, which is how you get a mod that silently
 // hooks whichever of two ICF-folded functions the scan happened to reach first.
 #include "mgmp_sigscan.h"
+#include "mgmp_sigs.generated.h"   // Mewgenics Multi : tous les motifs livres
 
 #include <cstdio>
 #include <cstring>
@@ -241,8 +242,31 @@ static void test_resolve_data() {
     CHECK(res2.drift == (int32_t)(0x800 - 0x900), "drift %d wrong", res2.drift);
 }
 
+// Mewgenics Multi : chaque motif livre passe le parseur de la DLL. Deux motifs de
+// donnees finissaient sur les jokers de leur deplacement : uniques dans le binaire
+// (verify_sigs.py les disait bons), mais refuses en jeu par sig_parse (« pattern
+// ends with a wildcard ») -- SpawnDatabase et HouseInstance n'etaient jamais
+// resolus. Ce test lit la table telle que la DLL la compile.
+static void test_generated_tables() {
+    char err[96] = {};
+    SigPattern p{};
+    for (const SigTargetDesc& d : kTargetSigs)
+        CHECK(sig_parse(d.pattern, &p, err, sizeof(err)), "cible %s refusee par sig_parse : %s", d.name, err);
+    for (const SigTargetDesc& d : kCallSigs)
+        CHECK(sig_parse(d.pattern, &p, err, sizeof(err)), "appel %s refuse par sig_parse : %s", d.name, err);
+    for (const SigDataDesc& d : kSigData) {
+        const bool ok = sig_parse(d.pattern, &p, err, sizeof(err));
+        CHECK(ok, "donnee %s refusee par sig_parse : %s", d.name, err);
+        if (ok)
+            CHECK((int)d.insn_end_off <= p.len && d.disp_off + 4u <= d.insn_end_off,
+                  "donnee %s : deplacement (%u) ou fin d'instruction (%u) hors du motif (%u octets)",
+                  d.name, (unsigned)d.disp_off, (unsigned)d.insn_end_off, (unsigned)p.len);
+    }
+}
+
 int main() {
     std::printf("sigscan: %s\n", sigscan_cpu_name());
+    test_generated_tables();
     test_parse();
     test_match();
     test_find();
