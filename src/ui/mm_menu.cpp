@@ -2391,7 +2391,8 @@ int mm_panel_read_text(void* panel, const char* child, std::string& out_utf8, st
         if (why) *why = reason;
         return r;
     };
-    if (!panel || !child || strlen(child) > 15) return fail("pas de panneau");
+    if (!panel) return fail("pas de panneau");
+    if (!child || strlen(child) > 15) return fail("nom de champ invalide");
     auto find = call_target<FnFindChild>(C_SwfFindChild);
     if (!find) return fail("recherche d'un champ introuvable");
     void* clip = nullptr;

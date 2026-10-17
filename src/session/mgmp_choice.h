@@ -196,8 +196,11 @@
 //     de champ « title » dans le clip de l'evenement : MenuPanel::set_text n'y
 //     ecrit alors rien), et rien n'etait ecrit. Le journal dit pourquoi un champ ne
 //     se lit pas. Le texte du jeu revient une fois le choix fait, s'il est encore
-//     celui que le mod a modifie (le resultat du choix le remplace). « A toi de
-//     choisir » quand ce joueur prend la main.
+//     celui que le mod a modifie (le resultat du choix le remplace). Le champ
+//     n'est reecrit que si le jeu l'a change (une autre page : la ligne suit), et
+//     un texte qui contient deja la ligne n'est jamais pris pour celui du jeu (un
+//     setter qui reformaterait ce qu'il garde ne la ferait pas doubler). « A toi
+//     de choisir » quand ce joueur prend la main, tant que les options sont la.
 //   - JAMAIS UN ECRAN FIGE. (a) Le choix du chat est suivi par WorldEvent (adresse
 //     et panneau), ouvert par setupCatChoice ou par un clic sur son « ok » (le
 //     bouton n'existe que pendant ce choix : une session commencee sur cet ecran

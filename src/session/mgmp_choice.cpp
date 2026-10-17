@@ -104,6 +104,8 @@ constexpr uint64_t kChooserLostMs = 15000;   // un AbilityChooser dont l'update 
 constexpr uint64_t kEventSettleMs = 10000;   // le choix d'evenement d'apres attend une liste neuve, au plus
 constexpr uint64_t kTitleRefreshMs = 500;    // le titre « A X de choisir » : reecrit a ce rythme (title_level)
 constexpr uint64_t kNoticeMs      = 3000;    // « Ce chat est a X » dans le titre de l'evenement, autant
+constexpr uint64_t kEventTextMs   = 150;     // l'ecran de l'evenement : le champ relu a ce rythme (une page changee)
+constexpr uint64_t kTitleRetryMs  = 1000;    //   ... et, ni titre ni texte lisible, une nouvelle lecture au plus
 constexpr uint64_t kHoldCapMs     = 300000;  // un choix qui attend la page du choix (Apply::Hold) : 5 min au plus
 
 using fn_cap     = void (__fastcall*)(void*);
@@ -240,7 +242,13 @@ struct State {
     uint64_t    etitle_at     = 0;
     uint64_t    etitle_until  = 0;   // un avis (« Ce chat est a X ») : jusque-la
     bool        etitle_other  = false;
-    bool        etitle_unreadable = false;   // ni titre ni texte lisible : on n'y ecrit pas
+    bool        etitle_unreadable = false;   // ni titre ni texte lisible : on n'y ecrit pas...
+    uint64_t    etitle_retry_at = 0;         //   ... et on ne relit qu'a partir de la
+    // Le dernier texte ecrit et le texte du jeu d'alors, gardes apres un oubli : un
+    // panneau qui le montre encore (deux WorldEvent qui alternent) n'a pas notre
+    // ligne pour texte du jeu.
+    std::string etitle_prev_written;
+    std::string etitle_prev_game;
 
     uint32_t sent      = 0;
     uint32_t applied   = 0;
@@ -1226,6 +1234,12 @@ void title_chooser(void* chooser, Chooser* c) {
 // quand il n'a plus rien a dire -- seulement si le champ montre encore notre
 // texte : le jeu qui l'a remplace (le resultat du choix) garde le sien. Un autre
 // WorldEvent : rien a remettre (son panneau est neuf).
+// Le champ « montre notre texte » s'il est ce qui y a ete relu juste apres notre
+// ecriture, ou s'il contient notre ligne : le setter du jeu pourrait reformater
+// ce qu'il garde (la relecture du champ, +0xB8, n'a encore jamais ete vue en
+// jeu), et un texte qui contient notre ligne n'est jamais pris pour celui du jeu
+// (sinon la ligne s'ajouterait encore a chaque reecriture). Rien n'est reecrit
+// tant que le champ montre notre texte.
 
 void etitle_forget() {
     g.etitle_we = nullptr;
@@ -1237,6 +1251,7 @@ void etitle_forget() {
     g.etitle_at = g.etitle_until = 0;
     g.etitle_other = false;
     g.etitle_unreadable = false;
+    g.etitle_retry_at = 0;
 }
 
 bool etitle_appends() { return g.etitle_field && strcmp(g.etitle_field, "prompt") == 0; }
@@ -1246,59 +1261,78 @@ std::string etitle_full(const std::string& line) {
     return g.etitle_game + "\n\n" + line;
 }
 
+bool etitle_shows_ours(const std::string& cur) {
+    if (!g.etitle_written.empty() && cur == g.etitle_written) return true;
+    return !g.etitle_ours.empty() && cur.find(g.etitle_ours) != std::string::npos;
+}
+
 void etitle_write(void* we, const std::string& text, uint64_t now) {
     void* panel = event_panel(we);
-    if (!panel) return;
+    if (!panel || text.empty()) return;
     if (!g.etitle_on) {
         // Le texte du jeu d'abord, pour le remettre : illisible, on n'y touche pas
-        // (notre texte resterait).
+        // (notre texte resterait). Un titre vide n'est pas affiche : le texte.
+        if (g.etitle_unreadable && now < g.etitle_retry_at) return;
         std::string game, why_title, why_prompt;
         const int t = mm_panel_read_text(panel, "title", game, &why_title);
-        if (t == 1) {
+        if (t == 1 && !game.empty()) {
             g.etitle_field = "title";
         } else if (mm_panel_read_text(panel, "prompt", game, &why_prompt) == 1) {
             g.etitle_field = "prompt";
         } else {
             if (!g.etitle_unreadable)
                 log_line("CHOICE", "!! who decides cannot be written on the event screen -- title: %s, prompt: %s",
-                         why_title.c_str(), why_prompt.c_str());
+                         t == 1 ? "vide" : why_title.c_str(), why_prompt.c_str());
             g.etitle_unreadable = true;
+            g.etitle_retry_at   = now + kTitleRetryMs;
             return;
         }
+        if (!g.etitle_prev_written.empty() && game == g.etitle_prev_written) game = g.etitle_prev_game;
         g.etitle_game = game;
+        g.etitle_ours.clear();
         g.etitle_written.clear();
+        g.etitle_at = 0;
         g.etitle_on = true;
     }
-    std::string full = etitle_full(text);
-    if (full == g.etitle_written && now - g.etitle_at < kTitleRefreshMs) return;
+    if (text == g.etitle_ours && now - g.etitle_at < kEventTextMs) return;
+    g.etitle_at = now;
     if (!g.etitle_written.empty()) {
-        // Le jeu a remplace le champ depuis (une autre page d'options) : son
-        // nouveau texte est celui a remettre.
         std::string cur;
-        if (mm_panel_read_text(panel, g.etitle_field, cur) == 1 && cur != g.etitle_written && cur != g.etitle_game) {
-            g.etitle_game = cur;
-            full = etitle_full(text);
+        if (mm_panel_read_text(panel, g.etitle_field, cur) != 1) return;   // ne se lit plus : rien
+        if (etitle_shows_ours(cur)) {
+            if (text == g.etitle_ours) return;           // deja la
+        } else {
+            g.etitle_game = cur;                         // le jeu l'a remplace (une autre page) : le sien
         }
     }
+    const std::string full = etitle_full(text);
     const bool first = text != g.etitle_ours;
-    g.etitle_ours    = text;
-    g.etitle_written = full;
-    g.etitle_at      = now;
-    if (!mm_panel_set_text(panel, g.etitle_field, full) && first)
-        log_line("CHOICE", "!! could not write who decides on the event screen ('%s')", g.etitle_field);
+    g.etitle_ours = text;
+    if (!mm_panel_set_text(panel, g.etitle_field, full)) {
+        g.etitle_written = full;
+        if (first) log_line("CHOICE", "!! could not write who decides on the event screen ('%s')", g.etitle_field);
+        return;
+    }
+    // Ce que le champ garde vraiment.
+    std::string back;
+    g.etitle_written      = mm_panel_read_text(panel, g.etitle_field, back) == 1 ? back : full;
+    g.etitle_prev_written = g.etitle_written;
+    g.etitle_prev_game    = g.etitle_game;
 }
 
 void etitle_restore(void* we) {
+    g.etitle_until = 0;
     if (!g.etitle_on) return;
     void* panel = event_panel(we);
     std::string cur;
-    if (panel && mm_panel_read_text(panel, g.etitle_field, cur) == 1 && cur == g.etitle_written)
+    if (panel && mm_panel_read_text(panel, g.etitle_field, cur) == 1 && etitle_shows_ours(cur))
         mm_panel_set_text(panel, g.etitle_field, g.etitle_game);
+    g.etitle_prev_written.clear();
+    g.etitle_prev_game.clear();
     g.etitle_on = false;
     g.etitle_field = nullptr;
     g.etitle_ours.clear();
     g.etitle_written.clear();
-    g.etitle_until = 0;
     g.etitle_other = false;
 }
 
@@ -1329,14 +1363,16 @@ void title_event(void* we) {
             char buf[160];
             snprintf(buf, sizeof(buf), u8"À %s de choisir", decider_name(decider).c_str());
             want = buf;
-        } else if (g.etitle_on && g.etitle_other) {
+        } else if (g.etitle_on && (g.etitle_other || g.etitle_ours == u8"À toi de choisir")) {
+            // Ce joueur a pris la main : « A toi de choisir » tant que les options
+            // sont la (et remis si le jeu change le texte de la page).
             want = u8"À toi de choisir";
         }
     }
     if (want.empty()) {
-        // Plus d'options a l'ecran (le resultat), ou ce joueur decide : le nom de
-        // l'evenement revient -- sauf « A toi de choisir », tant que les options sont la.
-        if (g.etitle_on && !(event_choosing(we) && g.etitle_ours == u8"À toi de choisir")) etitle_restore(we);
+        // Plus d'options a l'ecran (le resultat), ou ce joueur decide : le texte du
+        // jeu revient.
+        if (g.etitle_on) etitle_restore(we);
         return;
     }
     etitle_write(we, want, now);

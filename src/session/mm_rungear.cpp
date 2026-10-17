@@ -289,6 +289,7 @@ bool slot_info(void* cat, uint32_t k, SlotInfo& s) {
 std::string item_str(const ItemFields& f) {
     std::string s = fmt("a=%d b=%u c=0x%x d=%u e=%u f=%u", (int)f.a, f.b, f.c, f.d, (unsigned)f.e, f.f);
     if (!f.text.empty()) s += " texte=" + f.text.substr(0, 40);
+    s += fmt(" empreinte %016llx", (unsigned long long)item_digest(f));
     return s;
 }
 
@@ -969,7 +970,8 @@ uint8_t apply_op(const ItemOp& op, std::string& why) {
     }
     case kItemUnequip: {
         SlotInfo si;
-        if (!slot_info(cat, op.slot, si) || !si.full || si.digest != op.item) {
+        if (!slot_info(cat, op.slot, si)) { why = "emplacement illisible"; return kItemInvalid; }
+        if (!si.full || si.digest != op.item) {
             why = "objet absent de l'emplacement" + slot_like(si);
             return kItemConflict;
         }
