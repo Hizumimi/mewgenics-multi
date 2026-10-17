@@ -31,8 +31,12 @@
 //     vise (le porteur de l'objet, sinon le chat montre) au moment d'agir.
 //   - Un mouvement fait par ce joueur (equiper, rendre au sac, lire un livre) est
 //     note pendant l'appel du jeu : l'objet par son EMPREINTE (les champs que le
-//     jeu sauve, pas son id), l'emplacement, ce qu'il tenait avant ; pour un
-//     livre, le chat tel qu'il est apres. Il part aussitot (MSG_TEAM kTeamItemOp) :
+//     jeu sauve, sauf son id et ce que ce joueur en a vu -- sa place a l'ecran et
+//     les bits « nouvel objet », qui changent chez un joueur seul : voir
+//     item_digest, mm_team_merge.h), l'emplacement, ce qu'il tenait avant ; pour un
+//     livre, le chat tel qu'il est apres. Quand un mouvement ne se joue pas, les
+//     deux journaux disent les champs de l'objet (envoye, et ceux du meme nom
+//     ici). Il part aussitot (MSG_TEAM kTeamItemOp) :
 //     l'hote l'envoie a tous ; un invite le joue chez lui tout de suite et l'envoie
 //     a l'hote.
 //   - L'hote prend le mouvement d'un invite sur la carte, hors d'une case : chat a

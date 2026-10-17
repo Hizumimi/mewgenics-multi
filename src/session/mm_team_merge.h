@@ -185,6 +185,7 @@ struct ItemOp {
     uint64_t             prev    = 0;
     std::string          name;
     std::vector<uint8_t> cat;
+    std::string          detail;     // chez qui le fait, pour son journal : jamais sur le fil
 };
 std::vector<uint8_t> team_item_op_encode(const ItemOp& m);
 bool team_item_op_decode(const uint8_t* p, size_t n, ItemOp& m);
@@ -210,16 +211,29 @@ bool team_item_sync_req_decode(const uint8_t* p, size_t n, uint32_t& seq);
 std::vector<uint8_t> team_item_sync_encode(const RunGearMsg& m);
 bool team_item_sync_decode(const uint8_t* p, size_t n, RunGearMsg& m);
 
-// L'empreinte d'un objet d'un joueur a l'autre : les champs que le jeu sauve
-// (serialiseur 0x14022D640, version 5), pas son id (un compteur propre a chaque
-// processus). Jamais 0.
+// L'empreinte d'un objet d'un joueur a l'autre (protocole 46) : ce qu'est l'objet,
+// pas ce que ce joueur en a vu. Les champs que le jeu sauve (serialiseur
+// 0x14022D2A0, version 5), SAUF :
+//   - son id (Equipment+0x00) : un compteur propre a chaque processus ;
+//   - d (+0x54) : sa place a l'ecran, 1000 + son rang quand l'ecran des objets
+//     du sac se ferme (0x14034D9B0 -> Inventory::set_order 0x1402E2380), 4000000
+//     + son rang a la fin d'une aventure (0x1402E2460) ;
+//   - les bits 0x2 et 0x4 de c (+0x50) : « nouvel objet », poses a la creation ;
+//     0x2 s'efface quand la souris passe sur l'objet a l'ecran des objets
+//     (InventoryItemBox::update, 0x14034EA08), les deux au depart en aventure
+//     (0x1403B1143).
+// Chacun change chez un joueur sans changer chez l'autre : avec eux, un objet
+// pris a la souris n'avait plus l'empreinte de sa copie chez l'autre (« objet
+// absent du sac »). f (+0x5C, l'usure : 0, 1, 3, 5 -- 0x1402DF420) compte pour
+// l'octet que la save en garde (le serialiseur l'y ramene). Jamais 0.
 struct ItemFields {
     std::string name;            // Equipment+0x08, la cle GON
     std::string text;            // +0x28 (un livre : la capacite qu'il apprend)
-    uint32_t    a = 0, b = 0, c = 0, d = 0;   // +0x48, +0x4C, +0x50, +0x54
+    uint32_t    a = 0, b = 0, c = 0, d = 0;   // +0x48 (charges, -1 sans fin), +0x4C, +0x50 (drapeaux), +0x54 (place)
     uint8_t     e = 0;           // +0x58
-    uint32_t    f = 0;           // +0x5C
+    uint32_t    f = 0;           // +0x5C (usure)
 };
+constexpr uint32_t kItemSeenBits = 0x6;   // c : « nouvel objet » (voir plus haut)
 uint64_t item_digest(const ItemFields& it);
 
 // Le genre d'un message MSG_TEAM, 0 si ce n'en est pas un.

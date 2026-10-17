@@ -186,13 +186,18 @@
 //     options. Attendre cette page ne compte pas dans le delai de 60 s de la file
 //     (Apply::Hold) : un joueur qui lit le texte ne perd pas le choix.
 //   - Le chat d'un evenement « choose » (kChoiceEventCat) : chacun ne peut envoyer
-//     que ses chats (son « ok » sur le chat d'un autre est retenu, et le titre dit
+//     que ses chats (son « ok » sur le chat d'un autre est retenu, et l'ecran dit
 //     « Ce chat est a X » trois secondes) ; un invite le demande a l'hote ; le
 //     premier pris chez l'hote l'emporte, et il est rejoue chez tous quand leur
 //     choix du chat s'ouvre (CatSelector::select, puis le « ok » du jeu).
-//   - Chez celui qui ne decide pas, les options a l'ecran, le titre de l'evenement
-//     (« title », son nom) dit « A X de choisir » ; le nom revient une fois le choix
-//     fait. « A toi de choisir » quand ce joueur prend la main.
+//   - Chez celui qui ne decide pas, les options a l'ecran, l'ecran de l'evenement
+//     dit « A X de choisir » : dans son titre s'il se lit, sinon une ligne sous son
+//     texte (« prompt ») -- en build 23 le titre ne se lisait pas (sans doute pas
+//     de champ « title » dans le clip de l'evenement : MenuPanel::set_text n'y
+//     ecrit alors rien), et rien n'etait ecrit. Le journal dit pourquoi un champ ne
+//     se lit pas. Le texte du jeu revient une fois le choix fait, s'il est encore
+//     celui que le mod a modifie (le resultat du choix le remplace). « A toi de
+//     choisir » quand ce joueur prend la main.
 //   - JAMAIS UN ECRAN FIGE. (a) Le choix du chat est suivi par WorldEvent (adresse
 //     et panneau), ouvert par setupCatChoice ou par un clic sur son « ok » (le
 //     bouton n'existe que pendant ce choix : une session commencee sur cet ecran

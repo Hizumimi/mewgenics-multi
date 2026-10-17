@@ -537,12 +537,15 @@ uint64_t item_digest(const ItemFields& it) {
     fnv_bytes(h, &zero, 1);
     fnv_bytes(h, it.text.data(), it.text.size());
     fnv_bytes(h, &zero, 1);
-    const uint32_t ints[5] = { it.a, it.b, it.c, it.d, it.f };
+    // Ni d (sa place a l'ecran) ni les bits « nouvel objet » de c : ce que ce
+    // joueur en a vu (mm_team_merge.h). f : l'octet que la save en garde.
+    const uint32_t ints[3] = { it.a, it.b, it.c & ~kItemSeenBits };
     for (uint32_t v : ints) {
         const uint8_t le[4] = { (uint8_t)v, (uint8_t)(v >> 8), (uint8_t)(v >> 16), (uint8_t)(v >> 24) };
         fnv_bytes(h, le, 4);
     }
-    fnv_bytes(h, &it.e, 1);
+    const uint8_t tail[2] = { it.e, (uint8_t)it.f };
+    fnv_bytes(h, tail, 2);
     return h ? h : 1;
 }
 

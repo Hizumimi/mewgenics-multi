@@ -116,8 +116,13 @@ std::string mm_peer_name(uint8_t id);
 // comme MenuPanel::set_text. Faux si le champ n'existe pas. Thread du jeu.
 bool mm_panel_set_text(void* panel, const char* child, const std::string& text_utf8);
 // Le texte du champ `child` de ce panneau (UTF-8, balises comprises), pour le
-// remettre apres. Faux si le champ n'existe pas ou ne se lit pas. Thread du jeu.
-bool mm_panel_get_text(void* panel, const char* child, std::string& out_utf8);
+// remettre apres : 1 lu, 0 pas de champ de ce nom dans le clip (MenuPanel::set_text
+// n'y ecrit rien non plus), -1 un champ illisible (`why`, s'il est donne, dit
+// pourquoi). Thread du jeu.
+int mm_panel_read_text(void* panel, const char* child, std::string& out_utf8, std::string* why = nullptr);
+inline bool mm_panel_get_text(void* panel, const char* child, std::string& out_utf8) {
+    return mm_panel_read_text(panel, child, out_utf8) == 1;
+}
 
 // Le panneau de la maison clique dans cette image : 1 « Fin de journée »
 // (EndDay_Sign), 2 « À l'aventure ! » (Depart_Sign), 0 aucun. Les deux

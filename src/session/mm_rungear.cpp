@@ -110,6 +110,7 @@ struct SlotInfo {
     uint64_t    id     = (uint64_t)-1;
     uint64_t    digest = 0;
     std::string name;
+    ItemFields  f;                   // ses champs (le journal, quand un mouvement ne se joue pas)
 };
 
 struct BagItem {
@@ -117,6 +118,7 @@ struct BagItem {
     uint64_t    id      = 0;
     uint64_t    digest  = 0;
     std::string name;
+    ItemFields  f;
 };
 
 struct Screen {
@@ -277,8 +279,17 @@ bool slot_info(void* cat, uint32_t k, SlotInfo& s) {
     if (s.full) {
         s.digest = item_digest(f);
         s.name   = f.name;
+        s.f      = std::move(f);
     }
     return true;
+}
+
+// Les champs d'un objet, pour le journal : quand un mouvement ne se joue pas, les
+// deux journaux disent ce qui differe.
+std::string item_str(const ItemFields& f) {
+    std::string s = fmt("a=%d b=%u c=0x%x d=%u e=%u f=%u", (int)f.a, f.b, f.c, f.d, (unsigned)f.e, f.f);
+    if (!f.text.empty()) s += " texte=" + f.text.substr(0, 40);
+    return s;
 }
 
 void* inventory() {
@@ -314,6 +325,7 @@ bool bag_items(std::vector<BagItem>& out) {
         if (read_item(b.payload, f, &b.id)) {
             b.digest = item_digest(f);
             b.name   = f.name;
+            b.f      = std::move(f);
             out.push_back(std::move(b));
         }
         if (!mem_read(n, &n, sizeof(n))) return false;
@@ -330,6 +342,24 @@ void* find_bag(uint64_t digest, std::string* name = nullptr) {
             return b.payload;
         }
     return nullptr;
+}
+
+// Pour le journal d'un objet introuvable : les objets de ce nom au sac ici.
+std::string bag_like(const std::string& name) {
+    std::vector<BagItem> bag;
+    if (!bag_items(bag)) return " ; sac illisible ici";
+    std::string s;
+    uint32_t n = 0;
+    for (const BagItem& b : bag) {
+        if (b.name != name) continue;
+        if (++n > 3) { s += ", ..."; break; }
+        s += (n == 1 ? " ; ici : " : ", ") + item_str(b.f);
+    }
+    return n ? s : fmt(" ; aucun %s au sac ici (%zu objet(s))", name.c_str(), bag.size());
+}
+
+std::string slot_like(const SlotInfo& si) {
+    return si.full ? " ; ici : " + si.name + " " + item_str(si.f) : std::string(" ; emplacement vide ici");
 }
 
 // L'equipe de l'aventure (MewDirector+1472).
@@ -713,9 +743,10 @@ void send_local(ItemOp op) {
         g.unacked.push_back(u);
     }
     ++g.sent;
-    log_line("SAC", "-> mouvement %u : %s %s (emplacement %u) chat %016llx%s", op.seq, op_name(op.op),
+    log_line("SAC", "-> mouvement %u : %s %s (emplacement %u) chat %016llx%s%s", op.seq, op_name(op.op),
              op.name.c_str(), (unsigned)op.slot, (unsigned long long)op.cat_id,
-             op.op == kItemLearn ? fmt(", %zu octets", op.cat.size()).c_str() : "");
+             op.op == kItemLearn ? fmt(", %zu octets", op.cat.size()).c_str() : "",
+             op.detail.empty() ? "" : (" [" + op.detail + "]").c_str());
 }
 
 // --- noter ce que fait un clic ------------------------------------------------------------
@@ -753,6 +784,7 @@ void scope_end() {
                 op.cat_id  = cat_id_of(cat);
                 op.item    = gone ? gone->digest : 0;
                 op.name    = gone ? gone->name : std::string("(chat)");
+                op.detail  = gone ? item_str(gone->f) : std::string();
                 op.cat     = std::move(after);
                 ops.push_back(std::move(op));
             }
@@ -788,6 +820,7 @@ uint8_t __fastcall h_CatEquip(void* cat, void* item, int32_t loc, int32_t flag) 
             op.item    = item_digest(f);
             op.prev    = before[slot].full ? before[slot].digest : 0;
             op.name    = f.name;
+            op.detail  = item_str(f);
             g.scope.ops.push_back(std::move(op));
         }
     }
@@ -811,6 +844,7 @@ uint8_t __fastcall h_CatUnequip(void* cat, void* item, int32_t loc, int32_t flag
         op.cat_id  = cat_id_of(cat);
         op.item    = si.digest;
         op.name    = si.name;
+        op.detail  = item_str(si.f);
         g.scope.ops.push_back(std::move(op));
     }
     return r;
@@ -914,10 +948,13 @@ uint8_t apply_op(const ItemOp& op, std::string& why) {
     switch (op.op) {
     case kItemEquip: {
         void* item = find_bag(op.item);
-        if (!item) { why = "objet absent du sac"; return kItemConflict; }
+        if (!item) { why = "objet absent du sac" + bag_like(op.name); return kItemConflict; }
         SlotInfo si;
         if (!slot_info(cat, op.slot, si)) { why = "emplacement illisible"; return kItemInvalid; }
-        if ((si.full ? si.digest : 0) != op.prev) { why = "l'emplacement tient autre chose"; return kItemConflict; }
+        if ((si.full ? si.digest : 0) != op.prev) {
+            why = "l'emplacement tient autre chose" + slot_like(si);
+            return kItemConflict;
+        }
         g.applying = true;
         const uint8_t r = o_CatEquip(cat, item, kLocBackpack, 0);
         g.applying = false;
@@ -933,7 +970,7 @@ uint8_t apply_op(const ItemOp& op, std::string& why) {
     case kItemUnequip: {
         SlotInfo si;
         if (!slot_info(cat, op.slot, si) || !si.full || si.digest != op.item) {
-            why = "objet absent de l'emplacement";
+            why = "objet absent de l'emplacement" + slot_like(si);
             return kItemConflict;
         }
         g.applying = true;
@@ -946,7 +983,7 @@ uint8_t apply_op(const ItemOp& op, std::string& why) {
         void* book = nullptr;
         if (op.item) {
             book = find_bag(op.item);
-            if (!book) { why = "livre absent du sac"; return kItemConflict; }
+            if (!book) { why = "livre absent du sac" + bag_like(op.name); return kItemConflict; }
         }
         SlotInfo before[kSlots];
         for (uint32_t k = 0; k < kSlots; ++k) slot_info(cat, k, before[k]);

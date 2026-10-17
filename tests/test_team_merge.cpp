@@ -493,14 +493,25 @@ void test_item_ops() {
     CHECK(!mgmp::team_item_op_decode(aw.data(), aw.size(), back));
     CHECK(!mgmp::team_item_ack_decode(w.data(), w.size(), ab));
 
-    // L'empreinte : les memes champs, la meme ; un champ change, une autre ;
-    // jamais 0 ; le nom et le texte ne se confondent pas.
-    mgmp::ItemFields f1; f1.name = "tk_GlowingCoin"; f1.text = ""; f1.a = 1; f1.b = 2; f1.c = 3; f1.d = 4; f1.e = 5; f1.f = 6;
+    // L'empreinte : les memes champs, la meme ; un champ de l'objet change, une
+    // autre ; ce que ce joueur en a vu (sa place d, les bits « nouvel objet » de
+    // c) ne la change pas, ni ce que la save ne garde pas de f ; jamais 0 ; le
+    // nom et le texte ne se confondent pas.
+    mgmp::ItemFields f1; f1.name = "tk_GlowingCoin"; f1.text = ""; f1.a = 1; f1.b = 2; f1.c = 0x23; f1.d = 4; f1.e = 5; f1.f = 6;
     mgmp::ItemFields f2 = f1;
     CHECK(mgmp::item_digest(f1) == mgmp::item_digest(f2) && mgmp::item_digest(f1) != 0);
-    f2.d = 9; CHECK(mgmp::item_digest(f1) != mgmp::item_digest(f2));
+    f2.d = 1002; CHECK(mgmp::item_digest(f1) == mgmp::item_digest(f2));
+    f2 = f1; f2.d = 4000001; f2.c &= ~0x2u; CHECK(mgmp::item_digest(f1) == mgmp::item_digest(f2));
+    f2 = f1; f2.c &= ~0x6u; CHECK(mgmp::item_digest(f1) == mgmp::item_digest(f2));
+    f2 = f1; f2.c |= 0x4u; CHECK(mgmp::item_digest(f1) == mgmp::item_digest(f2));
+    f2 = f1; f2.f = 6 + 0x100; CHECK(mgmp::item_digest(f1) == mgmp::item_digest(f2));
+    f2 = f1; f2.c &= ~0x1u; CHECK(mgmp::item_digest(f1) != mgmp::item_digest(f2));
+    f2 = f1; f2.c ^= 0x20u; CHECK(mgmp::item_digest(f1) != mgmp::item_digest(f2));
+    f2 = f1; f2.a = 0xFFFFFFFFu; CHECK(mgmp::item_digest(f1) != mgmp::item_digest(f2));
+    f2 = f1; f2.b = 3; CHECK(mgmp::item_digest(f1) != mgmp::item_digest(f2));
     f2 = f1; f2.e = 0; CHECK(mgmp::item_digest(f1) != mgmp::item_digest(f2));
     f2 = f1; f2.f = 0; CHECK(mgmp::item_digest(f1) != mgmp::item_digest(f2));
+    f2 = f1; f2.text = "x"; CHECK(mgmp::item_digest(f1) != mgmp::item_digest(f2));
     mgmp::ItemFields n1; n1.name = "ab"; n1.text = "c";
     mgmp::ItemFields n2; n2.name = "a";  n2.text = "bc";
     CHECK(mgmp::item_digest(n1) != mgmp::item_digest(n2));

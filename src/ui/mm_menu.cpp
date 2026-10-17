@@ -2385,34 +2385,40 @@ bool mm_panel_set_text(void* panel, const char* child, const std::string& text_u
     return true;
 }
 
-bool mm_panel_get_text(void* panel, const char* child, std::string& out_utf8) {
+int mm_panel_read_text(void* panel, const char* child, std::string& out_utf8, std::string* why) {
     out_utf8.clear();
-    if (!panel || !child || strlen(child) > 15) return false;
+    auto fail = [&](const char* reason, int r = -1) {
+        if (why) *why = reason;
+        return r;
+    };
+    if (!panel || !child || strlen(child) > 15) return fail("pas de panneau");
     auto find = call_target<FnFindChild>(C_SwfFindChild);
-    if (!find) return false;
+    if (!find) return fail("recherche d'un champ introuvable");
     void* clip = nullptr;
-    if (!mem_read((char*)panel + kPanel_Clip, &clip, sizeof(clip)) || !clip) return false;
+    if (!mem_read((char*)panel + kPanel_Clip, &clip, sizeof(clip)) || !clip) return fail("panneau sans clip");
     GameString n = small_string(child);
     void* field = find(clip, &n);
-    if (!field) return false;
+    if (!field) return fail("pas de champ de ce nom", 0);
     // Le texte du champ, tel que le setter l'a recopie (std::wstring a +0xB8, voir
     // C_SwfSetText) : balises comprises, il se reecrit tel quel.
     constexpr uintptr_t kField_Text = 0xB8;
     GameWString w{};
-    if (!mem_read((char*)field + kField_Text, &w, sizeof(w)) || w.size > 4096) return false;
+    if (!mem_read((char*)field + kField_Text, &w, sizeof(w))) return fail("champ illisible");
+    if (w.size > 4096) return fail("texte trop long ou pas un texte");
     std::wstring text(w.size, L'\0');
     if (w.cap > 7) {
-        if (!w.ptr || (w.size && !mem_read(w.ptr, &text[0], w.size * sizeof(wchar_t)))) return false;
+        if (!w.ptr || (w.size && !mem_read(w.ptr, &text[0], w.size * sizeof(wchar_t))))
+            return fail("texte illisible");
     } else if (w.size) {
-        if (w.size > 7) return false;
+        if (w.size > 7) return fail("texte incoherent");
         memcpy(&text[0], w.buf, w.size * sizeof(wchar_t));
     }
-    if (text.empty()) return true;
+    if (text.empty()) return 1;
     const int n8 = WideCharToMultiByte(CP_UTF8, 0, text.data(), (int)text.size(), nullptr, 0, nullptr, nullptr);
-    if (n8 <= 0) return false;
+    if (n8 <= 0) return fail("texte pas en UTF-16");
     out_utf8.assign((size_t)n8, '\0');
     WideCharToMultiByte(CP_UTF8, 0, text.data(), (int)text.size(), &out_utf8[0], n8, nullptr, nullptr);
-    return true;
+    return 1;
 }
 
 int mm_sign_click_kind() { return g_sign_click_at == g_frame ? g_sign_click : 0; }
