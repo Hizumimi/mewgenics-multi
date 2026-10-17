@@ -84,7 +84,11 @@ def make_sig(path, rva):
         r, m = masked_insn(ins, base, size)
         raw += r
         mask += m
-        if sum(mask) >= 8 and count_matches(data, raw, mask) == 1:
+        # Jamais sur un joker : sig_parse, dans la DLL, refuse un motif qui en
+        # finit par un (mgmp_sigscan.cpp), et 256 octets au plus.
+        if len(raw) > 256:
+            return None
+        if mask[-1] and sum(mask) >= 8 and count_matches(data, raw, mask) == 1:
             return " ".join(f"{b:02X}" if k else "?" for b, k in zip(raw, mask))
     return None
 

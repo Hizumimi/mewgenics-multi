@@ -62,6 +62,11 @@ enum DataSym : int {
     // CacheInReward ajoute pieces (+0xB4) et nourriture (+0xB0) ; remise a nul
     // par le destructeur de la maison (0x140205E6C). Nulle hors de la maison.
     D_HouseInstance,
+    // Mewgenics Multi : la Nemesis a plusieurs, lus dans TickNemesis (0x140393CDC) :
+    // la fonction qui pose son pion (un appel, rel32 : la meme arithmetique qu'une
+    // globale) et la vtable de son rappel de marche (lambda_2, un lea).
+    D_NemesisMarkerFn,
+    D_NemesisWalkVt,
     D_COUNT
 };
 uintptr_t addr_of_data(DataSym d);

@@ -67,6 +67,18 @@ void* follow_map_update(void* map_screen);
 
 void follow_on_message(const EnterNodeMsg& m);
 
+// Mewgenics Multi (protocole 57) : le combat de la Nemesis, chez l'hote, des
+// invites dans l'aventure -- publie comme une case (ENTERNODE kEnterNemesis, `id`
+// l'id du combat ; mm_nemesis.h). Faux si le message n'a pas pu partir.
+bool follow_on_nemesis_fight(void* map_screen, void* node, uint64_t id);
+// L'index d'une case dans le vecteur de la carte, et la case d'un index.
+bool  follow_index_of_node(void* map, void* node, uint32_t& out);
+void* follow_node_at(void* map, uint32_t index);
+// La fin de case en cours est celle de la case que ce joueur joue -- et non
+// Espace sur un pion au repos, que MapScreen::update appelle lui-meme
+// (0x14038F508). A appeler pendant la fin de case.
+bool  follow_node_end_counts();
+
 // HOST: tell a peer that just joined which node the run is standing in. ENTERNODE
 // is otherwise published only at the instant of entry, so a peer connecting
 // afterwards would sit on the map forever.

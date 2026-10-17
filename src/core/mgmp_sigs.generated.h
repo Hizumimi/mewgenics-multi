@@ -151,6 +151,10 @@ static const SigTargetDesc kTargetSigs[] = {
       "48 83 EC 68 80 79 7B 00 74 10 48 8B 05 ? ? ? ? 44 8B 80 B4 00 00 00" },
     { 0x00797EA0, "SHOPUPD",
       "48 89 5C 24 10 48 89 74 24 18 48 89 7C 24 20 55 41 56 41 57 48 8B EC 48 81 EC 80 00 00 00 48 8B F9" },
+    { 0x00392ED0, "NEMFIGHT",
+      "40 53 48 83 EC 50 48 8B 81 A8 00 00 00" },
+    { 0x0039D510, "NEMFIGHTGO",
+      "48 89 5C 24 10 57 48 83 EC 70 48 8B 05 ? ? ? ? 4C 8D 44 24 30" },
 };
 
 // INDEXED BY enum Call -- order is load-bearing.
@@ -232,6 +236,12 @@ static const SigTargetDesc kCallSigs[] = {
       "89 54 24 10 48 89 4C 24 08 55 53 56 57 41 54 41 55 41 56 41 57 48 8D 6C 24 E1 48 81 EC B8 00 00 00 4C 8B F9" },
     { 0x00082B00, "Uncontrollable AI choice",
       "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 81 EC F0 00 00 00 48 8B FA 48 8B F1 33 ED 48 8B 41 38" },
+    { 0x0096B3E0, "Scene::NewEntity",
+      "40 57 48 83 EC 20 80 B9 B0 04 00 00 00 48 8B F9 74 ? 33 C0 48 83 C4 20 5F C3 B9 40 00 00 00" },
+    { 0x000490D0, "std::function swap",
+      "48 89 5C 24 18 55 57 41 56 48 83 EC 60" },
+    { 0x0094EBA0, "Component::Destroy",
+      "40 56 48 83 EC 20 48 8B 71 18" },
 };
 
 // Globals, recovered from a referencing instruction's own
@@ -255,7 +265,13 @@ static const SigDataDesc kSigData[] = {
     { 0x013DA9A0, "HouseInstance",
       "40 53 48 83 EC 20 48 8B D9 E8 ? ? ? ? 48 8B 93 E0 02 00 00 48 8B 0D ? ? ? ? E8 ? ? ? ? 48 8B CB",
       24, 28 },  // via 0x1402EFC05 in sub_1402EFBF0
+    { 0x0039CCC0, "NemesisMarkerFn",
+      "48 8B 46 18 48 8B 58 08 80 BB B0 04 00 00 00 75 1D 48 8B CB E8 ? ? ? ? 4C 8D 8D 80 00 00 00 48 8B D0 48 8B CB E8 ? ? ? ? 4C 8B E8 4C 89 AE A8 00 00 00 48 B8 00 00 00 00 00 00 F0 3F 49 89 45 70 FF 86 1C 02 00 00 48 8B 96 A8 00 00 00 48 83 EA 80 48 8D 05 ? ? ? ? 48 89 45 F0",
+      39, 43 },  // le call en 0x140393D02 dans TickNemesis (sub_140393590)
+    { 0x00F14DC0, "NemesisWalkVt",
+      "48 8B 46 18 48 8B 58 08 80 BB B0 04 00 00 00 75 1D 48 8B CB E8 ? ? ? ? 4C 8D 8D 80 00 00 00 48 8B D0 48 8B CB E8 ? ? ? ? 4C 8B E8 4C 89 AE A8 00 00 00 48 B8 00 00 00 00 00 00 F0 3F 49 89 45 70 FF 86 1C 02 00 00 48 8B 96 A8 00 00 00 48 83 EA 80 48 8D 05 ? ? ? ? 48 89 45 F0",
+      87, 91 },  // le lea en 0x140393D30 dans TickNemesis (vtable du lambda_2)
 };
-static const int kSigDataCount = 6;
+static const int kSigDataCount = 8;
 
 } // namespace mgmp

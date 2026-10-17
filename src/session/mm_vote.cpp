@@ -106,10 +106,6 @@ struct State {
     // Journal.
     uint8_t    told_blocked   = 0;            // « vote retenu » deja ecrit pour ce tour
 
-    // La Nemesis (hote) : un invite est venu dans cette aventure -- jusqu'au
-    // retour a la maison, meme s'il s'en va (il peut revenir par une copie).
-    bool       coop_run       = false;
-    bool       nemesis_said   = false;
 };
 
 State g;
@@ -127,8 +123,6 @@ void new_round_seen() {
 
 using FnNodeClick = void (__fastcall*)(void* self);
 FnNodeClick o_NodeClick = nullptr;
-using FnTickNemesis = void (__fastcall*)(void* map);
-FnTickNemesis o_TickNemesis = nullptr;
 
 // --- lire la carte ----------------------------------------------------------------
 
@@ -673,52 +667,6 @@ void __fastcall h_NodeClick(void* self) {
     o_NodeClick(self);
 }
 
-// La Nemesis, en aventure ensemble : chez personne (voir mm_vote.h).
-//
-// Chez un invite dans la copie, elle partirait d'un autre compte (rien n'en est
-// sauve, une copie chargee en cours de carte repart de zero), le rattraperait a
-// un autre moment et le lancerait seul dans son combat ; et la fin de case, qui
-// la detruit sur la case du pion au lieu de marquer celle-ci visitee, ferait
-// diverger sa carte.
-//
-// Chez l'hote, son combat commence a l'arrivee du pion (0x140392ED0 ->
-// 0x14039CAE0), sans EnterNode : pas d'ENTERNODE, pas de combat en commun, les
-// invites restent sur la carte pendant que l'hote se bat seul -- l'aventure ne
-// se rattrape plus. Tant que ce combat ne se suit pas, elle ne vient donc plus
-// dans une aventure ou un invite est venu. Rien d'autre ne lit ce qu'elle
-// compte (MapScreen+0x218/+0x21C/+0x220 : seulement TickNemesis et le rappel de
-// son pion, 0x14039B050), et sans elle MapScreen+0xA8 reste vide : l'arrivee du
-// pion ne trouve jamais de Nemesis sur sa case.
-void track_coop_run() {
-    if (!savefile_adventure_is_loaded()) {
-        g.coop_run     = false;
-        g.nemesis_said = false;
-        return;
-    }
-    if (mm_run_peers_mask()) g.coop_run = true;
-}
-
-void __fastcall h_TickNemesis(void* map) {
-    if (net_role() == NetRole::Client && savefile_in_coop()) {
-        static bool told = false;
-        if (!told) {
-            told = true;
-            log_line("VOTE", "Nemesis : seulement chez l'hote (rien chez ce joueur, dans sa copie)");
-        }
-        return;
-    }
-    if (net_role() == NetRole::Host && (g.coop_run || mm_run_peers_mask())) {
-        g.coop_run = true;
-        if (!g.nemesis_said) {
-            g.nemesis_said = true;
-            log_line("VOTE", "Nemesis : pas dans cette aventure, un invite y est venu "
-                             "(son combat ne se joue pas encore ensemble)");
-        }
-        return;
-    }
-    o_TickNemesis(map);
-}
-
 const VoteState* current_state(Mode md) {
     if (md == Mode::Host) return &g.host.state();
     if (md == Mode::Guest && g.have_gs) return &g.gs;
@@ -758,11 +706,6 @@ bool vote_binding(Target t, void** detour, void*** original) {
         *original = (void**)&o_NodeClick;
         return true;
     }
-    if (t == T_TickNemesis) {
-        *detour   = (void*)&h_TickNemesis;
-        *original = (void**)&o_TickNemesis;
-        return true;
-    }
     return false;
 }
 
@@ -770,7 +713,6 @@ void vote_pump() {
     const uint64_t now = GetTickCount64();
     switch (net_role()) {
         case NetRole::Host:
-            track_coop_run();
             host_pump(now);
             break;
         case NetRole::Client:
@@ -791,6 +733,11 @@ void vote_map_update(void* map) {
     if (net_role() != NetRole::Host || !o_NodeClick) return;
     const VoteState& s = g.host.state();
     if (s.phase == VotePhase::Idle) return;
+    // Mewgenics Multi (protocole 57) : pas pendant une case ou le combat de la
+    // Nemesis (sa transition laisse la carte tourner, et le rappel de la marche de
+    // la Nemesis vient de liberer le pion) : un clic rejoue ferait marcher le pion
+    // sous la transition.
+    if (follow_inside_node() || follow_node_live()) return;
 
     // Une autre carte (le chapitre suivant) : le tour etait celui de l'autre.
     if (g.round_map && map != g.round_map) {

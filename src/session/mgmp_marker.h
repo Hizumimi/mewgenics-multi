@@ -38,14 +38,10 @@ constexpr uintptr_t kMk_EntityPos  = 0x80;    // Vec3D (3 doubles)
 constexpr uintptr_t kMk_NodeVisual = 0x160;   // MapNode -> son image
 constexpr uintptr_t kMk_VisualXY   = 0x70;    // 2 floats
 
-// Le pion de `map` est sur `node`, au repos. Vrai = ecrit.
-inline bool marker_arrive(void* map, void* node) {
-    void* marker = nullptr;
-    if (!map || !node ||
-        !mem_read((const uint8_t*)map + kMk_MapMarker, &marker, sizeof(marker)) || !marker) {
-        log_line("FOLLOW", "!! pion de la carte introuvable : il reste ou il est");
-        return false;
-    }
+// Ce pion (MapMarker : celui du joueur, ou celui de la Nemesis -- meme classe)
+// est sur `node`, au repos. Vrai = ecrit.
+inline bool marker_place(void* marker, void* node) {
+    if (!marker || !node) return false;
     void* const  none = nullptr;
     const double rest = 0.0;
     bool ok = mem_write((uint8_t*)marker + kMk_At, &node, sizeof(node)) &&
@@ -62,6 +58,18 @@ inline bool marker_arrive(void* map, void* node) {
         const double pos[3] = { (double)xy[0], (double)xy[1], 0.0 };
         mem_write((uint8_t*)entity + kMk_EntityPos, pos, sizeof(pos));
     }
+    return ok;
+}
+
+// Le pion de `map` est sur `node`, au repos. Vrai = ecrit.
+inline bool marker_arrive(void* map, void* node) {
+    void* marker = nullptr;
+    if (!map || !node ||
+        !mem_read((const uint8_t*)map + kMk_MapMarker, &marker, sizeof(marker)) || !marker) {
+        log_line("FOLLOW", "!! pion de la carte introuvable : il reste ou il est");
+        return false;
+    }
+    const bool ok = marker_place(marker, node);
     if (!ok) log_line("FOLLOW", "!! pion de la carte : ecriture impossible");
     return ok;
 }

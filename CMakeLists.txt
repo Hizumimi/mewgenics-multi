@@ -91,6 +91,7 @@ add_library(mgmp SHARED
     src/session/mm_collars.cpp
     src/session/mm_gear.cpp
     src/session/mm_vote.cpp
+    src/session/mm_nemesis.cpp
     src/session/mm_rungear.cpp
     src/session/mm_purse.cpp
     src/session/mm_purse_core.cpp

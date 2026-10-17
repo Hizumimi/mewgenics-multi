@@ -60,28 +60,16 @@
 //     votes des autres font ou defont un chemin en tete ; « Même chemin » sans
 //     chemin en tete ne vote rien et la rouvre avec « Choisir ».
 //   - Seul dans l'aventure (ou hors session) : le clic est celui du jeu.
-//   - La Nemesis (MapScreen::TickNemesis, 0x140393590, apres chaque combat de
-//     la carte) ne vient plus dans une aventure ou un invite est venu : ni chez
-//     l'invite, ni chez l'hote. Chez l'invite, son compte n'est pas sauve avec
-//     la carte (une copie chargee en cours de route repartirait de zero) et
-//     elle l'emmenerait seul en combat a un autre moment que celle de l'hote ;
-//     la fin de case, qui la detruit sur la case du pion au lieu de la marquer
-//     visitee, ferait aussi diverger sa carte. Chez l'hote, son combat commence
-//     sans EnterNode (0x140392ED0 -> 0x14039CAE0) : les invites ne le suivaient
-//     pas, et l'aventure ne se rattrapait plus. Une aventure ou aucun invite
-//     n'est venu la garde.
+//   - La Nemesis se joue ensemble depuis le protocole 57 (mm_nemesis.h) : elle
+//     marche chez tous, et son combat est publie par l'hote comme une case.
 //   - Un vote rejoue pendant que le pion est fige (la Nemesis marche,
 //     MapMarker+0x78 : le jeu efface alors la destination a chaque image)
-//     attend qu'il soit libre -- seulement si elle etait deja la avant
-//     l'arrivee d'un invite.
+//     attend qu'il soit libre.
 //
 // LIMITES. Seul le chemin se vote pour l'instant : les evenements et les
 // montees de niveau restent decides par l'hote (mgmp_choice). La position
 // (« en haut », « à gauche »...) qui distingue deux cases du meme type est lue
-// sur la carte telle que le jeu la dessine. Pas de Nemesis en aventure
-// ensemble (voir plus haut) ; une Nemesis deja apparue chez l'hote avant
-// qu'un invite le rejoigne en cours de carte reste sur sa case, et y passer
-// lancerait son combat chez l'hote seul. Le retour anticipe a la maison est
+// sur la carte telle que le jeu la dessine. Le retour anticipe a la maison est
 // recopie chez l'invite (ENTERNODE kEnterEarlyHome, mgmp_follow).
 
 #include <cstdint>

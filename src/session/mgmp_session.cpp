@@ -18,6 +18,7 @@
 #include "mm_world.h"         // Mewgenics Multi : le monde partage
 #include "mm_npc.h"           // Mewgenics Multi : les PNJ en direct
 #include "mm_team.h"          // Mewgenics Multi : l'equipe mixte
+#include "mm_nemesis.h"
 #include "mm_embark.h"        // Mewgenics Multi : le depart ensemble
 #include "mgmp_config.h"
 #include "mgmp_hooks.h"     // hooks_install_late, for a session started from the panel
@@ -504,6 +505,7 @@ void session_shutdown() {
     npc_shutdown();
     embark_shutdown();
     team_shutdown();
+    nemesis_shutdown();               // Mewgenics Multi : la Nemesis a plusieurs
     catsync_shutdown();
     invsync_shutdown();
     runhist_shutdown();

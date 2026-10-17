@@ -50,6 +50,7 @@
 #include "mm_vote.h"    // Mewgenics Multi : le vote du chemin (vote_binding)
 #include "mm_rungear.h" // Mewgenics Multi : les objets en aventure (rungear_binding)
 #include "mm_purse.h"   // Mewgenics Multi : les bourses de l'aventure (purse_binding)
+#include "mm_nemesis.h" // Mewgenics Multi : la Nemesis a plusieurs (nemesis_binding)
 #include "mgmp_log.h"
 #include "mgmp_mem.h"
 #include "mgmp_record.h"
@@ -825,7 +826,7 @@ const Binding kBindings[] = {
     // (gear_binding).
     { T_InvItemUpdate,  nullptr, nullptr },
     // Mewgenics Multi : le vote du chemin, detour dans src/session/mm_vote.cpp
-    // (vote_binding).
+    // (vote_binding) ; TickNemesis : src/session/mm_nemesis.cpp (nemesis_binding).
     { T_MapNodeClick,   nullptr, nullptr },
     { T_TickNemesis,    nullptr, nullptr },
     // Mewgenics Multi : les objets en aventure, detours dans
@@ -870,6 +871,10 @@ const Binding kBindings[] = {
     // src/session/mm_shop.cpp (shop_binding).
     { T_ShopBuy,         nullptr, nullptr },
     { T_ShopUpdate,      nullptr, nullptr },
+    // Mewgenics Multi : la Nemesis a plusieurs, detours dans
+    // src/session/mm_nemesis.cpp (nemesis_binding, avec T_TickNemesis).
+    { T_NemesisFight,    nullptr, nullptr },
+    { T_NemesisFightGo,  nullptr, nullptr },
 };
 
 // Resolves the three RNG bindings, which are not static initialisers because
@@ -926,6 +931,7 @@ bool install_one(const Binding& b, bool announce_off) {
     choice_binding(b.target, &detour, &original);
     npcgift_binding(b.target, &detour, &original);
     shop_binding(b.target, &detour, &original);
+    nemesis_binding(b.target, &detour, &original);
     if (!detour || !original) {
         log_raw("  [!] %-9s no detour bound", t.name);
         return false;

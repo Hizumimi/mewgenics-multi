@@ -8,6 +8,7 @@
 #include "mgmp_follow.h"
 #include "mgmp_marker.h"     // Mewgenics Multi : le pion arrive sur la case suivie
 #include "mm_rungear.h"      // Mewgenics Multi : les objets en aventure
+#include "mm_nemesis.h"      // Mewgenics Multi : la Nemesis a plusieurs (protocole 57)
 #include "mm_menu.h"         // mm_run_peers_mask : les membres d'un combat (Mewgenics Multi)
 #include "mgmp_savefile.h"   // savefile_in_coop (Mewgenics Multi)
 #include "mgmp_lockstep.h"
@@ -94,8 +95,12 @@ struct State {
         uint64_t seed  = 0;
         uint64_t at    = 0;         // tick the host's choice arrived
         bool     held  = false;     // ...and whether we have said we are holding
-        uint8_t  flags = 0;         // EnterNodeMsg::flags (kEnterEarlyHome)
+        uint8_t  flags = 0;         // EnterNodeMsg::flags (kEnterEarlyHome, kEnterNemesis)
         uint32_t epoch = 0;         // Mewgenics Multi : son rang parmi les ENTERNODE recus (follow_epoch)
+        NemesisState nem;           // Mewgenics Multi : la Nemesis de l'hote avant la case (protocole 57)
+        bool     live_held = false; // Mewgenics Multi : « attend la fin de sa case » deja dit
+        uint64_t nem_since = 0;     // Mewgenics Multi : premiere tentative de recopier la Nemesis
+        bool     nem_said  = false; // Mewgenics Multi : l'ecart d'id du combat de la Nemesis deja dit
     };
     PendingNode pending_q[kMaxPendingNodes];
     uint32_t    pending_head  = 0;
@@ -115,6 +120,9 @@ struct State {
     // that had already been sent. Measured 2026-08-26.
     bool     have_here      = false;
     uint32_t here_index     = 0;
+    // Mewgenics Multi (protocole 57) : ce n'est pas une case mais le combat de la
+    // Nemesis (here_seed est alors son id) -- un arrivant le recoit comme tel.
+    bool     here_nemesis   = false;
 
     // Last tick MapScreen::update ran. See follow_on_map: this is what tells
     // the save flush whether the run is between nodes or inside one.
@@ -286,13 +294,14 @@ bool follow_suppresses_local_input() { return g.on && g.is_client && savefile_in
 
 // Where this peer is now. Recorded on BOTH peers -- the host so it can tell a
 // joiner, the client so its own log says where it thinks it is.
-void remember_node(uint32_t index, uint32_t count, uint32_t type, uint64_t seed) {
+void remember_node(uint32_t index, uint32_t count, uint32_t type, uint64_t seed, bool nemesis = false) {
     const bool moved = !g.have_here || g.here_seed != seed;
-    g.have_here  = true;
-    g.here_index = index;
-    g.here_count = count;
-    g.here_type  = type;
-    g.here_seed  = seed;
+    g.have_here    = true;
+    g.here_index   = index;
+    g.here_count   = count;
+    g.here_type    = type;
+    g.here_seed    = seed;
+    g.here_nemesis = nemesis;
 
     // Tell the choice layer where the run now is. It holds a choice that has
     // not found its screen yet, and a choice belongs to exactly one node -- see
@@ -319,11 +328,30 @@ void remember_node(uint32_t index, uint32_t count, uint32_t type, uint64_t seed)
     // Mewgenics Multi : la premiere case d'une carte qui vient d'etre chargee
     // chez ce joueur (une aventure qui commence, la copie de l'invite, une
     // reprise) ne compare pas le flux : il vient du chargement, pas d'une case.
+    //
+    // Le combat de la Nemesis (protocole 57) ne compare pas le flux non plus :
+    // pas d'EnterNode pour le recharger, et son rappel le refait depuis l'id du
+    // combat, chez tous (mm_nemesis). La case suivante, elle, le compare.
     if (moved) {
-        const bool fresh = g.next_fresh;
-        g.next_fresh = false;
+        const bool fresh = nemesis || g.next_fresh;
+        if (!nemesis) g.next_fresh = false;
         nodehash_on_node(seed, index, fresh);
     }
+}
+
+// Mewgenics Multi : qui joue les combats d'une case ou du combat de la Nemesis --
+// l'hote et les invites qui sont dans son aventure maintenant (protocole 48). Un
+// invite rentre chez lui ne bloque plus le combat : ses chats sont a l'hote. Sauf
+// un invite arrete en regardant un combat d'avant (desynchronise, son jeu fige) :
+// la barriere l'attendrait pour toujours. Il le redevient en revenant
+// (lockstep_catchup).
+static uint8_t entry_members() {
+    const uint8_t in_run  = (uint8_t)(mm_run_peers_mask() & 0x0Fu);
+    const uint8_t halted  = lockstep_halted_peers(in_run);
+    if (halted)
+        log_line("FOLLOW", "joueur(s) arrete(s) dans un combat precedent (masque %02x) : pas membres de cette case",
+                 (unsigned)halted);
+    return (uint8_t)(((1u << kHostPeer) | in_run) & ~halted);
 }
 
 // Mewgenics Multi : ce joueur entre dans une case de ce type (voir `live`).
@@ -383,18 +411,8 @@ bool follow_on_enter_node(void* map_screen, void* node, bool* sent) {
     // same id from the same field of the same node in follow_map_update.
     const uint64_t seed = node_seed0(node);
     lockstep_enter_battle(seed);
-    // Mewgenics Multi : qui joue les combats de cette case -- l'hote et les
-    // invites qui sont dans son aventure maintenant (protocole 48). Un invite
-    // rentre chez lui ne bloque plus le combat : ses chats sont a l'hote.
-    // Sauf un invite arrete en regardant un combat d'avant (desynchronise, son
-    // jeu fige) : la barriere l'attendrait pour toujours. Il le redevient en
-    // revenant (lockstep_catchup).
-    const uint8_t in_run  = (uint8_t)(mm_run_peers_mask() & 0x0Fu);
-    const uint8_t halted  = lockstep_halted_peers(in_run);
-    const uint8_t members = (uint8_t)(((1u << kHostPeer) | in_run) & ~halted);
-    if (halted)
-        log_line("FOLLOW", "joueur(s) arrete(s) dans un combat precedent (masque %02x) : pas membres de cette case",
-                 (unsigned)halted);
+    // Mewgenics Multi : qui joue les combats de cette case (entry_members).
+    const uint8_t members = entry_members();
     lockstep_note_members(seed, members);
     remember_node(index, count, type, seed);
     g.inside    = true;
@@ -430,6 +448,13 @@ bool follow_on_enter_node(void* map_screen, void* node, bool* sent) {
     m.type       = type;
     m.seed0      = seed;
     m.members    = members;
+    // Mewgenics Multi (protocole 57) : la Nemesis avant cette case -- la fin de
+    // case fera chez l'invite le meme TickNemesis (mm_nemesis).
+    {
+        NemesisState ns;
+        nemesis_read(map_screen, ns);
+        nemesis_fill(ns, m);
+    }
     // Mewgenics Multi : la maison prise avant la fin de la carte (kEnterEarlyHome).
     uint8_t early = 0;
     if (type == kNodeType_Home &&
@@ -444,6 +469,72 @@ bool follow_on_enter_node(void* map_screen, void* node, bool* sent) {
     }
     return true;
 }
+
+// Mewgenics Multi (protocole 57) : le combat de la Nemesis, chez l'hote -- publie
+// comme une case (mm_nemesis.h). Meme ordre que follow_on_enter_node : l'id du
+// combat et ses membres d'abord (la couche des combats en a besoin avant qu'il se
+// construise, apres la transition), puis les poussees, puis le message. Le pion de
+// l'hote n'a pas fait d'EnterNode : celui de l'invite sera amene sur la case.
+bool follow_on_nemesis_fight(void* map_screen, void* node, uint64_t id) {
+    if (!g.on || g.is_client || !map_screen) return false;
+
+    Guard guard;
+    g.map = map_screen;
+    // Le combat a son id dans tous les cas. Une case illisible : les invites ne le
+    // suivront pas -- l'hote le joue seul, sans les attendre.
+    uint32_t index = 0;
+    if (!node || !index_of_node(map_screen, node, index)) {
+        lockstep_enter_battle(id);
+        lockstep_note_members(id, (uint8_t)(1u << kHostPeer));
+        log_line("FOLLOW", "!! combat de la Nemesis sur une case introuvable -- l'hote le joue seul, les invites "
+                           "ne le suivront pas");
+        return false;
+    }
+    lockstep_enter_battle(id);
+    const uint8_t members = entry_members();
+    lockstep_note_members(id, members);
+    uint32_t count = 0; void* data = nullptr;
+    read_nodes(map_screen, count, data);
+    const uint32_t type = node_type(node);
+
+    remember_node(index, count, type, id, /*nemesis=*/true);
+    g.inside    = true;
+    g.inside_at = GetTickCount64();
+    start_live(5 /* un combat : la fin de case suit */, 0);
+
+    rungear_before_node_push();
+    catsync_publish("the Nemesis fight");
+    invsync_publish("the Nemesis fight");
+    runhist_publish("the Nemesis fight");
+    rungear_on_node_entered(id);
+
+    EnterNodeMsg m{};
+    m.index      = index;
+    m.node_count = count;
+    m.type       = type;
+    m.seed0      = id;
+    m.members    = members;
+    m.flags      = kEnterNemesis;
+    {
+        NemesisState ns;
+        nemesis_read(map_screen, ns);
+        nemesis_fill(ns, m);
+    }
+    if (!net_send_enter_node(m)) {
+        log_line("FOLLOW", "!! combat de la Nemesis : le message n'a pas pu partir");
+        return false;
+    }
+    ++g.published;
+    log_line("FOLLOW", "-> combat de la Nemesis sur la case %u/%u -- combat %016llx, membres %02x",
+             index, count, (unsigned long long)id, (unsigned)members);
+    return true;
+}
+
+bool follow_index_of_node(void* map, void* node, uint32_t& out) {
+    return map && node && index_of_node(map, node, out);
+}
+
+void* follow_node_at(void* map, uint32_t index) { return map ? node_at(map, index) : nullptr; }
 
 // A peer connected or reconnected: tell it which node the run is standing in.
 //
@@ -554,6 +645,22 @@ void follow_catchup(uint8_t peer) {
     // Mewgenics Multi : les membres de ce combat maintenant -- celui qui arrive
     // n'en est pas (il regarde jusqu'a la case suivante).
     m.members    = lockstep_members_of(g.here_seed);
+    // Mewgenics Multi (protocole 57) : la Nemesis maintenant (dans une case, la fin
+    // de case n'a pas encore fait son TickNemesis) ; et le combat de la Nemesis
+    // part comme tel.
+    if (g.here_nemesis) m.flags |= kEnterNemesis;
+    {
+        NemesisState ns;
+        nemesis_read(g.map, ns);
+        // Le combat de la Nemesis est fini (sa fin de case l'a retiree) : rien a
+        // rejouer, la case suivante sera publiee normalement.
+        if (g.here_nemesis && ns.valid && ns.node == kNemNoNode) {
+            log_line("FOLLOW", "peer %u joined just after the Nemesis fight -- nothing to catch it up to",
+                     (unsigned)peer);
+            return;
+        }
+        nemesis_fill(ns, m);
+    }
     if (!net_send_enter_node_to(peer, m)) return;
 
     log_line("FOLLOW", "-> re-sent the CURRENT node %u/%u (%s) seed0=%016llx to"
@@ -626,6 +733,12 @@ void follow_on_node_end() {
     g.live_end_ticks = g.map_ticks;
 }
 
+bool follow_node_end_counts() {
+    Guard guard;
+    if (!g.live) return false;
+    return !(g.in_map_update && g.map_update_seq != g.live_entry_seq);
+}
+
 void follow_note_map_update(bool inside_original) {
     Guard guard;
     if (inside_original) ++g.map_update_seq;
@@ -683,16 +796,25 @@ void follow_on_message(const EnterNodeMsg& m) {
     p.seed  = m.seed0;
     p.flags = m.flags;
     p.epoch = g.epoch;
+    p.nem     = nemesis_from(m);
     // Timed from ARRIVAL, not from the first map update that sees it: the point
     // of the delay is to put a known gap between the host entering a node and
     // this peer entering it, and the map screen may not be ready for a while
     // either way.
     p.at    = GetTickCount64();
     p.held  = false;
-    log_line("FOLLOW", "<- host entered node %u/%u (%s) seed0=%016llx%s",
-             m.index, m.node_count, node_type_name(m.type),
-             (unsigned long long)m.seed0,
-             g.pending_count > 1 ? " -- QUEUED, this peer is still behind" : "");
+    p.live_held = false;
+    p.nem_since = 0;
+    p.nem_said  = false;
+    if (m.flags & kEnterNemesis)
+        log_line("FOLLOW", "<- host began the Nemesis fight on node %u/%u -- battle %016llx%s",
+                 m.index, m.node_count, (unsigned long long)m.seed0,
+                 g.pending_count > 1 ? " -- QUEUED, this peer is still behind" : "");
+    else
+        log_line("FOLLOW", "<- host entered node %u/%u (%s) seed0=%016llx%s",
+                 m.index, m.node_count, node_type_name(m.type),
+                 (unsigned long long)m.seed0,
+                 g.pending_count > 1 ? " -- QUEUED, this peer is still behind" : "");
 }
 
 void* follow_map_update(void* map_screen) {
@@ -782,6 +904,20 @@ void* follow_map_update(void* map_screen) {
     if (g.is_client && rungear_hold_follow()) return nullptr;
     State::PendingNode& p = pending_front();
 
+    // Mewgenics Multi (protocole 57) : pas avant la fin de sa case en cours. Un
+    // evenement fait parfois tourner la carte ; suivre l'hote a ce moment-la
+    // entrerait dans la case suivante avant la fin de celle-ci, dont la fin de
+    // case viendrait apres coup : elle referait le TickNemesis par-dessus l'etat
+    // de la Nemesis recopie pour la case suivante (un tirage de plus dans le flux,
+    // chez ce joueur seul) et marquerait sa case visitee hors d'ordre.
+    if (g.is_client && g.live) {
+        if (!p.live_held) {
+            p.live_held = true;
+            log_line("FOLLOW", "node %u held until this peer's current node has ended", p.index);
+        }
+        return nullptr;
+    }
+
     // --- the deliberate late-join delay (test knob) -------------------------
     //
     // Holding the node here rather than dropping it is what makes this a test
@@ -832,6 +968,59 @@ void* follow_map_update(void* map_screen) {
         return nullptr;
     }
 
+    // Mewgenics Multi (protocole 57) : pas une case mais le combat de la Nemesis
+    // de l'hote, sur cette case (seed0 = l'id du combat, pas la graine de la
+    // case). Le pion de ce joueur y est amene, sa Nemesis recopiee sur celle de
+    // l'hote, puis le combat est rejoue (mm_nemesis) -- pas d'EnterNode.
+    if (p.flags & kEnterNemesis) {
+        marker_arrive(map_screen, node);
+        const uint64_t now = GetTickCount64();
+        if (!p.nem_since) p.nem_since = now;
+        const uint64_t waited = now - p.nem_since;
+        const NemApply na = nemesis_apply(map_screen, p.nem, waited, "combat de la Nemesis");
+        if (na == NemApply::Wait) return nullptr;
+        const uint64_t id       = p.seed;
+        const uint32_t entering = p.index;
+        const uint32_t epoch    = p.epoch;
+        const uint32_t type     = node_type(node);
+        // Rejoue d'abord : l'id du combat, la case vivante et les poussees ne
+        // changent qu'une fois le combat parti (il se construit apres la
+        // transition, quelques images plus tard). Sinon on reessaie un moment.
+        bool started = false;
+        if (na == NemApply::Done) {
+            const uint64_t mine = nemesis_battle_id(map_screen, node);
+            if (mine != id && !p.nem_said) {
+                p.nem_said = true;
+                log_line("FOLLOW", "!! combat de la Nemesis : id %016llx ici, %016llx chez l'hote -- celui de l'hote "
+                                   "est pris", (unsigned long long)mine, (unsigned long long)id);
+            }
+            started = nemesis_replay_fight(map_screen, id);
+        }
+        if (!started) {
+            // L'etat recopie, TryBeginNemesisFight peut encore refuser une image ou
+            // deux (une transition en cours) : on reessaie. Un etat impossible a
+            // recopier ne s'arrangera pas : abandon tout de suite.
+            if (na == NemApply::Done && waited < kNemesisFightRetryMs) return nullptr;
+            pending_pop();
+            log_line("FOLLOW", "!! combat de la Nemesis sur la case %u : impossible a rejouer ici apres %llu ms -- "
+                               "abandonne, ce joueur ne le suivra pas", entering, (unsigned long long)waited);
+            choice_on_node_skipped(id);
+            return nullptr;
+        }
+        pending_pop();
+        start_live(5 /* un combat : la fin de case suit */, epoch);
+        ++g.entered;
+        log_line("FOLLOW", "following host into the Nemesis fight on node %u -- battle %016llx%s",
+                 entering, (unsigned long long)id, pending_any() ? " -- more nodes still queued" : "");
+        lockstep_enter_battle(id);
+        invsync_apply_pending_before(epoch, "about to follow the host into the Nemesis fight");
+        catsync_apply_pending_before(epoch, "about to follow the host into the Nemesis fight");
+        runhist_apply_pending_before(epoch, "about to follow the host into the Nemesis fight");
+        rungear_on_followed(id);
+        remember_node(entering, count, type, id, /*nemesis=*/true);
+        return nullptr;
+    }
+
     // Identity check, and it is the strong one: the node's stored seed is the
     // 32 bytes EnterNode is about to load into the simulation stream, so if it
     // differs the battle would start from a different RNG state and desync on
@@ -854,6 +1043,13 @@ void* follow_map_update(void* map_screen) {
         log_line("FOLLOW", "!! node %u is '%s' here but '%s' on the host --"
                            " entering anyway, the seed matched",
                  p.index, node_type_name(type), node_type_name(p.type));
+
+    // Mewgenics Multi (protocole 57) : la Nemesis de l'hote d'avant cette case,
+    // recopiee -- la fin de case fera ici le meme TickNemesis. Une Nemesis qui
+    // marche encore vers une autre case est attendue un moment (mm_nemesis).
+    if (!p.nem_since) p.nem_since = GetTickCount64();
+    if (nemesis_apply(map_screen, p.nem, GetTickCount64() - p.nem_since, "avant la case") == NemApply::Wait)
+        return nullptr;
 
     const uint32_t entering = p.index;
     const uint8_t  flags    = p.flags;

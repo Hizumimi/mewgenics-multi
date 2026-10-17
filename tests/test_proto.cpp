@@ -340,6 +340,30 @@ int main() {
         check(r.pos == r.len, "early home: consumed exactly the frame");
     }
     {
+        // Mewgenics Multi (57) : la Nemesis de l'hote avant la case, et son combat.
+        EnterNodeMsg m{};
+        m.index = 7; m.node_count = 22; m.type = 9; m.seed0 = 0x8877665544332211ULL;
+        m.flags = kEnterNemesis; m.members = 0x05;
+        m.nem_flags = kNemValid; m.nem_battles = 3; m.nem_spawns = 1; m.nem_advance = 2; m.nem_node = 11;
+        uint32_t n = enc_enter_node(buf, sizeof(buf), m);
+        Reader r(buf, n);
+        check(r.u8v() == MSG_ENTERNODE, "nemesis: message type");
+        EnterNodeMsg o{};
+        check(dec_enter_node(r, o), "nemesis: decodes");
+        check((o.flags & kEnterNemesis) && o.members == 0x05, "nemesis: the fight flag and members survive");
+        check(o.nem_flags == kNemValid && o.nem_battles == 3 && o.nem_spawns == 1 &&
+              o.nem_advance == 2 && o.nem_node == 11, "nemesis: its counters and node survive");
+        check(r.pos == r.len, "nemesis: consumed exactly the frame");
+
+        EnterNodeMsg d{};
+        check(d.nem_node == kNemNoNode && d.nem_flags == 0, "nemesis: none by default (no state to apply)");
+        uint32_t n2 = enc_enter_node(buf, sizeof(buf), d);
+        Reader r2(buf, n2 - 1);
+        r2.u8v();
+        EnterNodeMsg o2{};
+        check(!dec_enter_node(r2, o2), "nemesis: one byte short is rejected");
+    }
+    {
         // Mewgenics Multi (48) : qui joue les combats de la case.
         EnterNodeMsg m{};
         m.index = 3; m.node_count = 22; m.type = 5; m.seed0 = 0x1122334455667788ULL;

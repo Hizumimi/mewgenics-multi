@@ -129,6 +129,9 @@ enum Target : int {
     // --- Mewgenics Multi : les achats en boutique (src/session/mm_shop.cpp) --
     T_ShopBuy,           // sub_14079A600 -- Shop::BuyItem(ShopItem&) : l'achat, le prix verifie par le bouton
     T_ShopUpdate,        // sub_140797EA0 -- Shop::update (entree 10 de sa vtable) : la boutique ouverte
+    // --- Mewgenics Multi : la Nemesis a plusieurs (src/session/mm_nemesis.cpp) --
+    T_NemesisFight,      // sub_140392ED0 -- MapScreen::TryBeginNemesisFight : son combat, si elle est sur la case du pion
+    T_NemesisFightGo,    // sub_14039D510 -- son rappel (lambda_1, apres la transition) : le combat se construit
     T_COUNT
 };
 
@@ -747,6 +750,17 @@ static const TargetDesc kTargets[T_COUNT] = {
     // Shop::update (vtable 0x140F03A88, entree 10) : la boutique vivante, ou
     // l'hote achete pour un invite et ou une copie rejoue les achats.
     { 0x00797EA0, "SHOPUPD",   "glaiel::Shop::update (sub_140797EA0)" },
+    // Mewgenics Multi : la Nemesis a plusieurs (mm_nemesis.h decrit les deux).
+    // MapScreen::TryBeginNemesisFight (nom de son lambda_1, vtable 0x140F14830) :
+    // la Nemesis (MapScreen+0xA8) sur la case du pion (MapScreen+0xA0, +0x50 des
+    // deux pions) -> une CircleTransition dont le rappel lance son combat ; vrai
+    // si c'est parti. Appelee par le rappel de la marche de la Nemesis
+    // (0x14039B06F) et par celui du pion (0x14039B194), avant EnterNode.
+    { 0x00392ED0, "NEMFIGHT",  "glaiel::MapScreen::TryBeginNemesisFight (sub_140392ED0)" },
+    // Son rappel (_Do_call du lambda_1, capture +8 MewDirector, +0x10 MapScreen) :
+    // 0x140394450(map, out, "nemesis", 0, 0) construit le combat (GON levels),
+    // puis 0x1403B6D10 le lance (tirage d'embuscade dans le flux de la simulation).
+    { 0x0039D510, "NEMFIGHTGO","TryBeginNemesisFight lambda_1 (sub_14039D510)" },
 };
 
 // Coarse module guard, checked before the per-target signatures.
@@ -861,6 +875,11 @@ enum Call : int {
 
     // --- Mewgenics Multi : l'IA pour les chats d'un absent (src/session/mm_ai.cpp)
     C_AiChoice,              // TurnAction*(Passive*, TurnAction* out) -- sub_140082B00
+
+    // --- Mewgenics Multi : la Nemesis a plusieurs (src/session/mm_nemesis.cpp) --
+    C_SceneNewEntity,        // Entity*(Scene*) -- sub_14096B3E0
+    C_FunctionSwap,          // void(std::function* a, std::function* b) -- sub_1400490D0
+    C_ComponentDestroy,      // void(Component*) -- sub_14094EBA0
     C_COUNT
 };
 
@@ -1188,6 +1207,16 @@ static const CallDesc kCalls[C_COUNT] = {
     // oriente le chat : Brain+0x2B1 « auto_orient ») ; sinon une TurnAction de
     // type 0. Mewgenics Multi : chez l'hote, pour les chats d'un absent (mm_ai).
     { 0x00082B00, "Uncontrollable AI choice" },
+    // Mewgenics Multi : la Nemesis a plusieurs. Ce qu'il faut pour la faire
+    // apparaitre chez un invite arrive en cours de carte, comme TickNemesis
+    // (0x140393CDC-0x140393D6D) : une entite neuve dans la scene de la carte
+    // (Scene::NewEntity, vtable Entity), le pion de la Nemesis dessus
+    // (D_NemesisMarkerFn), puis son rappel de marche pose dans le pion+0x80 par
+    // l'echange de deux std::function (0x1400490D0, dont _Impl est a +0x38) ; et
+    // pour la retirer, la fin d'un composant (0x14094EBA0, comme la fin de case).
+    { 0x0096B3E0, "Scene::NewEntity" },
+    { 0x000490D0, "std::function swap" },
+    { 0x0094EBA0, "Component::Destroy" },
 };
 
 // sub_140138A10 IS NOT A DRAW ROUTINE, and it is in the table above only
