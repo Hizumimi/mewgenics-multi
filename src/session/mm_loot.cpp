@@ -934,7 +934,7 @@ void guest_pump(uint64_t now) {
     // Il a amene des chats a l'aventure en cours (retenu jusqu'a la victoire de sa
     // copie, que l'hote ait deja dit ou non la fin) ; plus dans la copie : oublie.
     if (!savefile_in_coop()) g.brought = false;
-    else if (mm_guest_in_run() && team_guest_has_cats_in_run()) g.brought = true;
+    else if (mm_guest_in_run() && team_guest_brought_cats()) g.brought = true;   // pas une recrue seule
     if (g.expect_until && now >= g.expect_until) {
         log_line("BUTIN", "!! le defile du butin n'est pas venu de l'hote -- tu peux rentrer");
         g.expect_until = 0;

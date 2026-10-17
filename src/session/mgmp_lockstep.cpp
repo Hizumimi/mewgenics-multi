@@ -299,6 +299,14 @@ struct State {
     // font que diminuer : l'hote prend les chats de ceux qui partent et renvoie
     // son CONTROL avec les membres a jour, que les invites adoptent tels quels.
     uint8_t  controller[kMaxCats] = {};  // qui dirige chaque chat humain (kMemberNone sinon)
+    uint8_t  split_controller[kMaxCats] = {};  // ... d'apres le partage de la photo, avant tout depart
+    uint64_t snap_battle       = kNoBattle;    // le combat de la photo (snapped reste vrai jusqu'au
+                                               // premier tour du suivant : elle peut etre perimee)
+    uint64_t gone_since[kMaxPeers] = {}; // hote : membre absent depuis (ms), pour ne pas le juger sur une image
+    bool     out_of_run        = false;  // invite : sorti de l'aventure de l'hote (lockstep_leave_run)
+    bool     halted_watching   = false;  // invite : arrete alors qu'il ne faisait que regarder ce combat
+    uint8_t  halted_peers      = 0;      // hote : invites arretes en regardant un combat -- pas membres des
+                                         // combats suivants tant qu'ils ne sont pas revenus (catch-up)
     uint8_t  entry_members     = 0;      // les membres a l'entree : la base du partage
     bool     entry_from_run    = false;  // ... choisis par l'hote d'apres son aventure
     uint8_t  members           = 0;      // les membres maintenant (invite : ceux de l'hote)
@@ -456,26 +464,60 @@ void publish_control() {
     }
 }
 
+// La photo est-elle celle du combat en cours ? `snapped` reste vrai jusqu'au
+// premier tour du combat suivant (lockstep_turn_boundary) : entre l'entree dans
+// la case et ce tour-la, la photo, le partage et les membres sont ceux d'avant.
+bool snap_current() { return g.snapped && g.snap_battle == g.battles.current && g.battles.current != kNoBattle; }
+
+// Les chats de chacun d'apres le partage de la photo, moins ceux des membres
+// sortis (a l'hote) -- recalcule a chaque fois, jamais cumule : un masque
+// d'hote perime puis le bon redonnent le bon partage.
+void controller_from_members(uint8_t members) {
+    for (uint32_t i = 0; i < g.cat_count; ++i) g.controller[i] = g.split_controller[i];
+    const uint8_t gone = (uint8_t)(g.entry_members & ~members);
+    if (gone) members_takeover(g.controller, g.human_cat, g.cat_count, gone, kHostPeer);
+    local_from_controller();
+}
+
+bool local_changed(const bool* before) {
+    for (uint32_t i = 0; i < g.cat_count; ++i)
+        if (before[i] != g.local_cat[i]) return true;
+    return false;
+}
+
 // Hote : un membre parti depuis l'entree dans la case (deconnecte, ou plus dans
-// son aventure -- MM_PEER_RUN) laisse ses chats a l'hote, qui les joue. `resend` :
-// en plein combat, le CONTROL de l'hote repart aussitot avec les membres a jour
-// (au debut du combat, snapshot_cats l'envoie juste apres).
+// son aventure -- MM_PEER_RUN) laisse ses chats a l'hote, qui les joue. Une
+// absence ne compte qu'apres une demi-seconde d'affilee (la liste des joueurs
+// est ecrite par le fil du reseau : une lecture a cheval n'evince personne).
+// `resend` : en plein combat, le CONTROL de l'hote repart aussitot avec les
+// membres a jour (au debut du combat, snapshot_cats l'envoie juste apres).
 void members_tick(bool resend) {
-    if (!lockstep_is_host() || !g.snapped || g.halted || !g.members) return;
+    if (!lockstep_is_host() || !snap_current() || g.halted || !g.members) return;
     const uint8_t self = net_self();
     if (self >= kMaxPeers) return;
-    const uint8_t run  = (uint8_t)(mm_run_peers_mask() & 0xFFu);
-    const uint8_t now  = members_now(g.entry_members, connected_mask(), member_bit(self), run, g.entry_from_run);
-    const uint8_t gone = (uint8_t)(g.members & ~now);
+    const uint8_t  run  = (uint8_t)(mm_run_peers_mask() & 0xFFu);
+    const uint8_t  raw  = members_now(g.entry_members, connected_mask(), member_bit(self), run, g.entry_from_run);
+    const uint64_t now  = GetTickCount64();
+    uint8_t gone = 0;
+    for (uint8_t p = 0; p < kMaxPeers; ++p) {
+        if (!member_in(g.members, p) || member_in(raw, p)) { g.gone_since[p] = 0; continue; }
+        if (!g.gone_since[p]) g.gone_since[p] = now ? now : 1;
+        // Au debut du combat (photo), pas d'attente : il n'etait deja plus la.
+        if (!resend || now - g.gone_since[p] >= 500) gone |= member_bit(p);
+    }
     if (!gone) return;
-    const uint32_t moved = members_takeover(g.controller, g.human_cat, g.cat_count, gone, self);
-    g.members = now;
-    local_from_controller();
+    const uint8_t members = (uint8_t)(g.members & ~gone);
+    bool before[kMaxCats];
+    for (uint32_t i = 0; i < g.cat_count; ++i) before[i] = g.local_cat[i];
+    g.members = members;
+    controller_from_members(members);
+    uint32_t moved = 0;
+    for (uint32_t i = 0; i < g.cat_count; ++i) moved += (!before[i] && g.local_cat[i]) ? 1u : 0u;
     char left[32], who[32];
     log_line("LOCKSTEP", "joueur(s) %s parti(s) %s : l'hote dirige leurs %u chat(s) jusqu'a la fin du "
                          "combat -- membres maintenant %s",
              members_text(gone, left, sizeof(left)), resend ? "en plein combat" : "avant le debut du combat",
-             moved, members_text(now, who, sizeof(who)));
+             moved, members_text(members, who, sizeof(who)));
     if (resend) {
         publish_control();
         verify_control();
@@ -484,26 +526,49 @@ void members_tick(bool resend) {
 
 // Invite : les membres que l'hote annonce pour ce combat. Ceux qui en sont sortis
 // laissent leurs chats a l'hote ; si ce joueur n'en est pas (arrive en plein
-// combat, ou revenu apres en etre parti), il ne dirige rien dans ce combat.
-void apply_host_members(uint8_t mask) {
-    if (!mask) return;
+// combat, ou revenu apres en etre parti), il ne dirige rien dans ce combat. Sa
+// propre liste change : il la redit.
+void apply_host_members(uint8_t mask, bool publish = true) {
+    if (!mask || !snap_current()) return;
     const uint8_t self   = net_self();
     const uint8_t before = g.members_from_host ? g.members : g.entry_members;
-    const uint32_t local_before = g.stats.local_cats;
+    bool local_before[kMaxCats];
+    for (uint32_t i = 0; i < g.cat_count; ++i) local_before[i] = g.local_cat[i];
     g.members           = mask;
     g.members_from_host = true;
-    const uint8_t gone = (uint8_t)(g.entry_members & ~mask);
-    if (gone) members_takeover(g.controller, g.human_cat, g.cat_count, gone, kHostPeer);
-    local_from_controller();
-    if (mask == before && g.stats.local_cats == local_before) return;
+    controller_from_members(mask);
+    const bool changed = local_changed(local_before);
+    if (changed && publish) publish_control();
+    if (mask == before && !changed) return;
     char who[32];
     if (!member_in(mask, self))
         log_line("LOCKSTEP", "membres de ce combat selon l'hote : %s -- ce joueur n'en est pas, "
-                             "l'hote dirige ses chats jusqu'a la fin du combat (%u avant)",
-                 members_text(mask, who, sizeof(who)), local_before);
-    else
-        log_line("LOCKSTEP", "membres de ce combat selon l'hote : %s -- les chats des partis sont a l'hote",
+                             "l'hote dirige ses chats jusqu'a la fin du combat",
                  members_text(mask, who, sizeof(who)));
+    else
+        log_line("LOCKSTEP", "membres de ce combat selon l'hote : %s%s",
+                 members_text(mask, who, sizeof(who)), changed ? " -- ce joueur retrouve ses chats" :
+                                                                 " -- les chats des partis sont a l'hote");
+}
+
+// Un joueur membre de ce combat ? Chez l'hote, ses membres ; chez un invite,
+// ceux de l'hote (avant son CONTROL : tout le monde, comme avant).
+bool battle_member(uint8_t peer) {
+    if (peer >= kMaxPeers) return false;
+    if (!snap_current() || !g.members) return true;
+    if (!lockstep_is_host() && !g.members_from_host) return true;
+    return member_in(g.members, peer);
+}
+
+// Invite hors de l'aventure de l'hote (chez lui, sans la rejoindre) : les
+// combats de l'hote ne le concernent pas, leurs messages ne servent a rien et
+// rempliraient sa file pour le combat ou il reviendrait (lockstep_leave_run).
+bool out_of_host_run() {
+    if (lockstep_is_host()) return false;
+    if (!savefile_in_coop() && !savefile_join_armed()) return true;
+    // Il quitte l'aventure (« Quitter l'aventure », en route vers le menu) : la
+    // copie est encore la, mais il ne joue plus ses combats.
+    return g.out_of_run && !savefile_join_armed();
 }
 
 // --- FNV-1a, the same hash the protocol note specifies ----------------------
@@ -966,6 +1031,9 @@ bool split_by_owner() {
 
 void snapshot_cats(void* turn_control) {
     if (g.snapped || !turn_control) return;
+    // Mewgenics Multi : un invite sorti de l'aventure de l'hote ne joue plus ses
+    // combats (il quitte celui-ci par le menu) -- rien a photographier.
+    if (g.out_of_run) return;
 
     const void* list = resolve_char_list(turn_control);
     if (!list) return;
@@ -1000,6 +1068,7 @@ void snapshot_cats(void* turn_control) {
         g.cats[g.cat_count++] = c;
     }
     g.snapped      = true;
+    g.snap_battle  = g.battles.current;
     g.snapped_list = list;
 
     // Mewgenics Multi : un nouveau combat -- ses marques repartent de zero.
@@ -1110,11 +1179,16 @@ void snapshot_cats(void* turn_control) {
     } else {
         for (uint32_t i = 0; i < cfg.net_control_count; ++i) {
             uint8_t idx = cfg.net_control[i];
-            if (idx < g.cat_count) g.local_cat[idx] = true;
+            if (idx < g.cat_count) {
+                g.local_cat[idx]  = true;
+                g.controller[idx] = net_self();   // Mewgenics Multi : le partage recalcule s'en sert
+            }
             else log_line("LOCKSTEP", "!! net_control names cat %u but the battle has %u",
                           (unsigned)idx, g.cat_count);
         }
     }
+    // Mewgenics Multi : le partage de la photo, la base des changements de membres.
+    for (uint32_t i = 0; i < kMaxCats; ++i) g.split_controller[i] = g.controller[i];
 
     uint32_t local = 0;
     for (uint32_t i = 0; i < g.cat_count; ++i) if (g.local_cat[i]) ++local;
@@ -1249,7 +1323,7 @@ void snapshot_cats(void* turn_control) {
     } else if (g.have_peer_control[kHostPeer] &&
                g.peer_control[kHostPeer].battle_id == g.battles.current &&
                g.peer_control[kHostPeer].members) {
-        apply_host_members(g.peer_control[kHostPeer].members);
+        apply_host_members(g.peer_control[kHostPeer].members, false);
     }
     publish_control();
 
@@ -1269,6 +1343,18 @@ void snapshot_cats(void* turn_control) {
 // than no check at all.
 void verify_control() {
     if (g.control_checked || !g.snapped) return;
+
+    // Mewgenics Multi : un invite qui n'est pas membre de ce combat (arrive en
+    // plein combat, ou revenu) ne dirige rien : il n'a pas a voir la liste de
+    // chaque membre (celui qui arrive ne recoit que celle de l'hote), il applique
+    // leurs decisions dans l'ordre. La barriere s'ouvre sur celle de l'hote.
+    if (!lockstep_is_host() && g.members_from_host && !member_in(g.members, net_self()) &&
+        g.have_peer_control[kHostPeer] && g.peer_control[kHostPeer].battle_id == g.battles.current) {
+        g.control_checked = true;
+        log_line("LOCKSTEP", "ce joueur regarde ce combat (pas membre) : la barriere s'ouvre sur la liste "
+                             "de l'hote");
+        return;
+    }
 
     // Every member must have spoken for THIS battle before anything can be
     // concluded. With two players that was one message; with four it is three,
@@ -1749,7 +1835,12 @@ void halt(const char* why) {
     g.halted = true;
     g.stats.halted = true;
     ++g.stats.desyncs;
-    log_line("LOCKSTEP", "!! HALT at turn %u: %s", g.turn, why);
+    // Mewgenics Multi : un invite qui ne faisait que regarder ce combat s'arrete
+    // seul (les membres ignorent son HALT) ; son combat a lui est fige pour
+    // toujours -- mm_menu le fait rentrer chez lui, il pourra revenir.
+    g.halted_watching = !lockstep_is_host() && !battle_member(net_self());
+    log_line("LOCKSTEP", "!! HALT at turn %u: %s%s", g.turn, why,
+             g.halted_watching ? " (ce joueur ne faisait que regarder : le combat des autres continue)" : "");
 
     HaltMsg m{};
     m.turn = g.turn;
@@ -2004,6 +2095,14 @@ void report_pair(const HashMsg& mine, const HashMsg& theirs, uint8_t peer) {
                                  " turn %u to see what.",
                      g.first_mismatch, mine.turn, g.first_mismatch);
         }
+        return;
+    }
+    // Mewgenics Multi : la copie d'un joueur qui regarde (pas membre de ce
+    // combat) peut avoir diverge seule (arrivee en plein combat) : on le dit, le
+    // combat des membres continue.
+    if (!battle_member(peer)) {
+        log_line("LOCKSTEP", "!! turn %u: the copy of peer %u (watching, not a member) disagrees -- ignored, "
+                             "the members' battle goes on", mine.turn, (unsigned)peer);
         return;
     }
     log_line("LOCKSTEP", "!! the disagreement is with peer %u", (unsigned)peer);
@@ -2366,12 +2465,13 @@ void lockstep_pump() {
         Guard guard;
         switch (m.type) {
             case MSG_ACTION:
+                if (out_of_host_run()) break;          // Mewgenics Multi : chez lui, pas dans ce combat
                 if (stale_battle(m.action.battle_id, "an action")) break;
                 pend_push(m.action);
                 break;
 
             case MSG_HASH: {
-                if (g.halted) break;
+                if (g.halted || out_of_host_run()) break;
                 if (stale_battle(m.hash.battle_id, "a hash")) break;
 
                 // Match against a turn we have ALREADY passed. Without this the
@@ -2493,6 +2593,7 @@ void lockstep_pump() {
                 break;
 
             case MSG_CONTROL:
+                if (out_of_host_run()) break;          // Mewgenics Multi : chez lui, pas dans ce combat
                 // A CONTROL for the NEXT battle is kept, not acted on: it is
                 // held until our own epoch catches up, and verify_control is
                 // what gates that. Dropping it would leave the split unchecked
@@ -2510,7 +2611,7 @@ void lockstep_pump() {
                 // Mewgenics Multi : celui de l'hote porte les membres du combat ;
                 // pour un combat pas encore commence ici, la photo les appliquera.
                 if (!lockstep_is_host() && m.from == kHostPeer && m.control.members &&
-                    g.snapped && m.control.battle_id == g.battles.current)
+                    snap_current() && m.control.battle_id == g.battles.current)
                     apply_host_members(m.control.members);
                 verify_control();
                 break;
@@ -2527,6 +2628,18 @@ void lockstep_pump() {
                 break;
 
             case MSG_HALT:
+                // Mewgenics Multi : la copie d'un joueur qui regarde le combat (pas
+                // membre) n'arrete pas celui des membres -- elle seule a diverge.
+                if (!battle_member(m.from) || out_of_host_run()) {
+                    log_line("LOCKSTEP", "!! le joueur %u (pas membre de ce combat) s'est arrete : %s -- "
+                                         "le combat continue sans lui", (unsigned)m.from, m.halt.reason);
+                    // Hote : son jeu est fige dans ce combat, il n'enverra jamais le
+                    // CONTROL du suivant -- il n'en sera pas membre (la barriere
+                    // l'attendrait pour toujours) avant d'etre revenu.
+                    if (lockstep_is_host() && m.from < kMaxPeers && m.from != net_self())
+                        g.halted_peers |= member_bit(m.from);
+                    break;
+                }
                 if (!g.halted) {
                     g.halted = true;
                     g.stats.halted = true;
@@ -3008,9 +3121,105 @@ void lockstep_note_members(uint64_t battle_id, uint8_t mask) {
     slot.mask   = mask;
 }
 
+void lockstep_leave_run() {
+    Guard guard;
+    if (!g.active || lockstep_is_host() || g.out_of_run) return;
+    const uint64_t was = g.battles.current;
+    g.out_of_run = true;
+    // Arrete dans ce combat (desynchronise) : c'est fini avec lui. S'il revient,
+    // la reprise de l'hote le refait du debut -- sans quoi il annoncerait ses
+    // chats puis ne jouerait aucune decision, et les membres l'attendraient.
+    if (g.halted)
+        log_line("LOCKSTEP", "ce joueur s'etait arrete (desynchronise) : il repart de zero s'il revient");
+    g.halted          = false;
+    g.stats.halted    = false;
+    g.halted_watching = false;
+    // La file et les empreintes : rien de ce combat ne lui servira, et s'il y
+    // revient, la reprise de l'hote le refait depuis le debut. Seulement ce
+    // combat-la (et les combats retires) : des decisions d'un combat ou il
+    // n'est pas encore entre sont celles d'une reprise deja arrivee.
+    {
+        static ActionMsg keep[kMaxPending];
+        uint32_t kept = 0;
+        for (uint32_t i = 0; i < g.pend_count; ++i) {
+            const ActionMsg& a = g.pending[(g.pend_head + i) % kMaxPending];
+            if ((was != kNoBattle && a.battle_id == was) || g.battles.is_retired(a.battle_id)) continue;
+            keep[kept++] = a;
+        }
+        for (uint32_t i = 0; i < kept; ++i) g.pending[i] = keep[i];
+        g.pend_head  = 0;
+        g.pend_count = kept;
+    }
+    for (uint32_t p = 0; p < kMaxPeers; ++p) {
+        g.peer_hash[p].clear();
+        g.peer_hash_full_warned[p] = false;
+    }
+    g.my_hash.clear();
+    // La photo, le partage, la barriere, les membres.
+    g.snapped           = false;
+    g.snapped_list      = nullptr;
+    g.snap_battle       = kNoBattle;
+    g.turn              = 0;
+    g.outstanding       = false;
+    g.control_checked   = false;
+    g.state_hash_on     = false;
+    for (uint32_t p = 0; p < kMaxPeers; ++p) g.have_peer_control[p] = false;
+    for (uint32_t i = 0; i < kMaxCats; ++i) g.local_cat[i] = false;
+    g.barrier_waits     = 0;
+    g.barrier_said_open = false;
+    g.entry_members     = 0;
+    g.entry_from_run    = false;
+    g.members           = 0;
+    g.members_from_host = false;
+    g.sent_log_n        = 0;
+    g.sent_log_full     = false;
+    g.have_prev         = false;
+    g.mismatches        = 0;
+    g.first_mismatch    = 0;
+    g.diverged          = false;
+    // Le combat n'est PAS retire : s'il y revient, la reprise de l'hote pour ce
+    // combat-la doit passer (un combat retire jette ses messages).
+    g.battles.current = kNoBattle;
+    log_line("LOCKSTEP", "ce joueur sort de l'aventure de l'hote -- le combat %016llx est oublie ici "
+                         "(repris du debut s'il y revient)", (unsigned long long)was);
+}
+
+void lockstep_rejoin_run() {
+    Guard guard;
+    if (!g.out_of_run) return;
+    g.out_of_run = false;
+    log_line("LOCKSTEP", "ce joueur revient dans l'aventure de l'hote -- ses combats le concernent de nouveau");
+}
+
+bool lockstep_halted_watching() { return g.halted && g.halted_watching; }
+
+uint8_t lockstep_halted_peers(uint8_t still) {
+    Guard guard;
+    g.halted_peers &= still;                 // parti de l'aventure ou de la session : oublie
+    return g.halted_peers;
+}
+
+void lockstep_drop_queued(uint64_t battle_id) {
+    Guard guard;
+    if (battle_id == kNoBattle || lockstep_is_host()) return;
+    uint32_t kept = 0, dropped = 0;
+    static ActionMsg keep[kMaxPending];
+    for (uint32_t i = 0; i < g.pend_count; ++i) {
+        const ActionMsg& a = g.pending[(g.pend_head + i) % kMaxPending];
+        if (a.battle_id == battle_id) { ++dropped; continue; }
+        keep[kept++] = a;
+    }
+    if (!dropped) return;
+    for (uint32_t i = 0; i < kept; ++i) g.pending[i] = keep[i];
+    g.pend_head  = 0;
+    g.pend_count = kept;
+    log_line("LOCKSTEP", "%u decision(s) du combat %016llx recue(s) avant la reprise de l'hote : oubliee(s), "
+                         "la reprise les redonne toutes", dropped, (unsigned long long)battle_id);
+}
+
 uint8_t lockstep_members_of(uint64_t battle_id) {
     Guard guard;
-    if (g.active && g.snapped && battle_id == g.battles.current && g.members) return g.members;
+    if (g.active && snap_current() && battle_id == g.battles.current && g.members) return g.members;
     return noted_members(battle_id);
 }
 bool     lockstep_local_actor(){ return g.active && g.snapped && g.local_actor; }
@@ -3035,6 +3244,7 @@ bool lockstep_peer_owns_character(const void* character) {
 void lockstep_enter_battle(uint64_t seed0) {
     Guard guard;
     if (seed0 == kNoBattle) return;
+    g.out_of_run = false;          // Mewgenics Multi : il suit de nouveau l'hote
     if (seed0 == g.battles.current) return;      // same node; not a transition
 
     const uint64_t left = g.battles.current;
@@ -3067,11 +3277,17 @@ void lockstep_enter_battle(uint64_t seed0) {
 // it.
 void lockstep_catchup(uint8_t peer) {
     Guard guard;
+    // Mewgenics Multi : il (re)vient -- un arret d'avant ne compte plus pour lui.
+    if (lockstep_is_host() && peer < kMaxPeers && (g.halted_peers & member_bit(peer))) {
+        g.halted_peers &= (uint8_t)~member_bit(peer);
+        log_line("LOCKSTEP", "le joueur %u revient apres s'etre arrete : il sera de nouveau membre des combats",
+                 (unsigned)peer);
+    }
     if (!g.active || g.battles.current == kNoBattle) return;
     // Mewgenics Multi : l'hote redit sa liste de chats et les membres de ce
     // combat -- celui qui arrive n'en est pas, il regarde ; s'il revient sans
     // avoir quitte le combat, il lache ainsi les chats que l'hote a repris.
-    if (lockstep_is_host() && g.snapped) publish_control();
+    if (lockstep_is_host() && snap_current()) publish_control();
     if (g.sent_log_n == 0) {
         log_line("LOCKSTEP", "peer %u joined battle %016llx -- nothing to replay,"
                              " it can derive this battle from the node seed alone",

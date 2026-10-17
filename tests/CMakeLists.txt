@@ -96,6 +96,13 @@ target_link_libraries(test_loot PRIVATE mm_sqlite)
 target_compile_options(test_loot PRIVATE /utf-8)
 add_test(NAME test_loot COMMAND test_loot)
 
-foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_battleid test_config test_world_merge test_team_merge test_vote test_purse test_loot)
+# Mewgenics Multi : les recrues -- a qui va un chat qui rejoint l'equipe en route
+# (spectateur sans chat depuis le plus longtemps, sinon le moins de chats ; au sort).
+add_executable(test_recruit test_recruit.cpp ${CMAKE_SOURCE_DIR}/src/session/mm_recruit_core.cpp)
+target_include_directories(test_recruit PRIVATE ${CMAKE_SOURCE_DIR}/src/session)
+target_compile_options(test_recruit PRIVATE /utf-8)
+add_test(NAME test_recruit COMMAND test_recruit)
+
+foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_members test_battleid test_config test_world_merge test_team_merge test_vote test_purse test_loot test_recruit)
     target_compile_options(${t} PRIVATE /W3)
 endforeach()

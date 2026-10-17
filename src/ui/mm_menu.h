@@ -112,6 +112,9 @@ bool     mm_loot_popup_open();
 bool     mm_other_popup_open();
 uint32_t mm_run_peers_mask();
 bool     mm_guest_in_run();
+// Invite : il a choisi « Rentrer » dans « Quitter l'aventure » et n'est pas
+// encore sorti de la copie -- il ne suit plus l'hote dans ses cases.
+bool     mm_guest_quitting();
 // Le nom d'un joueur de la session (pseudo Steam, « Joueur N » a defaut).
 std::string mm_peer_name(uint8_t id);
 

@@ -45,6 +45,7 @@ struct Peer {
     uint8_t              members = 0;
     bool                 from_host = false;
     std::vector<uint8_t> controller;
+    std::vector<uint8_t> split_ctl;     // le partage de la photo (g.split_controller)
     std::vector<bool>    local;
     Control              got[8];        // les CONTROL recus (le sien compris)
 
@@ -59,6 +60,17 @@ struct Peer {
         for (uint32_t i = 0; i < n; ++i) { human[i] = b.human[i]; owner[i] = b.owner[i]; }
         if (by_owner) members_split_by_owner(owner, human, n, entry, kHost, controller.data());
         else          members_split_by_seat(human, n, entry, controller.data());
+        split_ctl = controller;
+        refresh(b);
+    }
+    // controller_from_members : le partage de la photo moins les membres sortis,
+    // recalcule a chaque fois (jamais cumule).
+    void from_members(const Battle& b, uint8_t mask) {
+        controller = split_ctl;
+        bool human[64] = {};
+        for (size_t i = 0; i < b.human.size(); ++i) human[i] = b.human[i];
+        const uint8_t gone = (uint8_t)(entry & ~mask);
+        if (gone) members_takeover(controller.data(), human, (uint32_t)b.human.size(), gone, kHost);
         refresh(b);
     }
     void refresh(const Battle& b) {
@@ -77,28 +89,26 @@ struct Peer {
         const uint8_t now  = members_now(entry, connected, member_bit(self), in_run, check_run);
         const uint8_t gone = (uint8_t)(members & ~now);
         if (!gone) return 0;
-        bool human[64] = {};
-        for (size_t i = 0; i < b.human.size(); ++i) human[i] = b.human[i];
-        const uint32_t moved = members_takeover(controller.data(), human, (uint32_t)b.human.size(), gone, self);
-        members = now;
-        refresh(b);
+        const std::vector<bool> before = local;
+        members = (uint8_t)(members & ~gone);
+        from_members(b, members);
+        uint32_t moved = 0;
+        for (size_t i = 0; i < local.size(); ++i) moved += (!before[i] && local[i]) ? 1u : 0u;
         return moved;
     }
     // Invite : les membres annonces par l'hote.
     void apply_host(const Battle& b, uint8_t mask) {
-        if (controller.empty()) return;     // pas dans ce combat (lockstep : g.snapped)
+        if (controller.empty()) return;     // pas dans ce combat (lockstep : snap_current)
         members = mask;
         from_host = true;
-        const uint8_t gone = (uint8_t)(entry & ~mask);
-        bool human[64] = {};
-        for (size_t i = 0; i < b.human.size(); ++i) human[i] = b.human[i];
-        if (gone) members_takeover(controller.data(), human, (uint32_t)b.human.size(), gone, kHost);
-        refresh(b);
+        from_members(b, mask);
     }
     // La verification de verify_control : -2 pas encore (une liste manque),
     // -1 bon, sinon le premier chat fautif.
     int tally(const Battle& b) const {
         if (!host && !from_host) return -2;
+        // Un invite qui n'est pas membre : la liste de l'hote suffit (il regarde).
+        if (!host && !member_in(members, self) && got[kHost].have) return -1;
         for (uint8_t p = 0; p < 8; ++p)
             if (member_in(members, p) && !got[p].have) return -2;
         for (size_t i = 0; i < b.human.size(); ++i) {
@@ -284,6 +294,41 @@ int main() {
         broadcast(peers, 0, b);                 // lockstep_catchup : l'hote redit son CONTROL
         check(local_count(peers[1]) == 0, "after it, the guest lets go of its cat");
         check(local_count(peers[0]) == 2, "the host drives both");
+    }
+
+    printf("\n-- un masque perime de l'hote, puis le bon (relecture du 17 octobre) --\n");
+    {
+        Battle b;
+        b.human = { true, true, true };
+        b.owner = { 0, 1, 2 };
+        auto peers = make_peers({ 0, 1, 2 });
+        for (Peer& p : peers) p.split(b, 0x07, true);
+        // Un CONTROL de l'hote avec les membres d'un autre combat (sans A) arrive...
+        peers[1].apply_host(b, 0x05);
+        check(local_count(peers[1]) == 0, "a stale mask without A takes A's cat away for now");
+        // ... puis le vrai : A retrouve son chat (le partage est recalcule, pas cumule).
+        peers[1].apply_host(b, 0x07);
+        check(local_count(peers[1]) == 1 && peers[1].controller[1] == 1, "the right mask gives it back");
+        for (size_t i = 0; i < peers.size(); ++i) broadcast(peers, i, b);
+        check(peers[0].tally(b) == -1 && peers[1].tally(b) == -1 && peers[2].tally(b) == -1,
+              "everyone agrees afterwards");
+    }
+
+    printf("\n-- celui qui regarde n'attend pas la liste de chaque membre --\n");
+    {
+        Battle b;
+        b.human = { true, true, true };
+        b.owner = { 0, 1, 2 };
+        auto peers = make_peers({ 0, 1, 2 });
+        peers[0].split(b, 0x03, true);          // membres : l'hote et A ; B arrive en plein combat
+        peers[1].split(b, 0x03, true);
+        broadcast(peers, 0, b);
+        broadcast(peers, 1, b);
+        peers[2].split(b, 0x03, true);          // B : l'ENTERNODE renvoye ; il ne recoit que la liste de l'hote
+        peers[2].got[1] = Control{};            // celle de A ne lui est jamais renvoyee
+        peers[2].apply_host(b, peers[0].members);
+        check(local_count(peers[2]) == 0, "B drives nothing");
+        check(peers[2].tally(b) == -1, "B's barrier opens on the host's list alone");
     }
 
     printf("\n-- partage par place (sans equipe mixte) --\n");

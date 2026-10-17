@@ -218,6 +218,8 @@ static const SigTargetDesc kCallSigs[] = {
       "48 89 5C 24 08 4C 89 44 24 18 48 89 54 24 10 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 20 F8 FF FF" },
     { 0x00052290, "std::wstring::_Tidy_deallocate",
       "40 53 48 83 EC 20 48 8B 51 18 48 8B D9 48 83 FA 07" },
+    { 0x00772AC0, "Pedigree::add",
+      "48 89 5C 24 18 48 89 6C 24 20 48 89 54 24 10 56 57 41 56 48 83 EC 60 49 8B D8" },
 };
 
 // Globals, recovered from a referencing instruction's own

@@ -242,6 +242,165 @@ void test_house() {
     CHECK(mgmp::house_state_remove(bad, { 5 }) == -1 && bad == bad0);
 }
 
+void test_house_add() {
+    std::printf("house_state_add\n");
+    // A la piece et a la place du premier chat, la troisieme valeur la plus grande + 1.
+    Bytes hs = house({ 5, 11, 9 });
+    CHECK(mgmp::house_state_add(hs, 40));
+    std::vector<uint64_t> keys;
+    CHECK(mgmp::house_state_keys(hs, keys) && keys == std::vector<uint64_t>({ 5, 11, 9, 40 }));
+    Bytes want = house({ 5, 11, 9 });
+    want[4] = 4;
+    u64(want, 40);
+    u64(want, 5);
+    want.insert(want.end(), (const uint8_t*)"Attic", (const uint8_t*)"Attic" + 5);   // la piece du chat 5
+    f64(want, 7.5); f64(want, 1.0); f64(want, 12.0);                                // sa place, 11 + 1
+    CHECK(hs == want);
+    // Une maison vide : Floor1_Large.
+    Bytes empty = house({});
+    CHECK(mgmp::house_state_add(empty, 3));
+    CHECK(mgmp::house_state_keys(empty, keys) && keys == std::vector<uint64_t>({ 3 }));
+    Bytes want0 = house({});
+    want0[4] = 1;
+    u64(want0, 3);
+    u64(want0, 12);
+    want0.insert(want0.end(), (const uint8_t*)"Floor1_Large", (const uint8_t*)"Floor1_Large" + 12);
+    f64(want0, 6.5); f64(want0, 1.0); f64(want0, 0.0);
+    CHECK(empty == want0);
+    // Un bloc abime reste tel quel.
+    Bytes bad = house({ 5 });
+    bad.resize(bad.size() - 3);
+    const Bytes bad0 = bad;
+    CHECK(!mgmp::house_state_add(bad, 7) && bad == bad0);
+}
+
+void test_new_cats() {
+    std::printf("recrues ajoutees a la save d'un invite\n");
+    sqlite3* db = new_save();
+    put_cat(db, 3, cat(1003, "Lou", 0));
+    put_cat(db, 8, cat(1008, "Max", mgmp::kCatDead));          // un mort garde sa ligne
+    put_file(db, "house_state", house({ 3 }));
+    exec(db, "INSERT INTO properties VALUES('catid_counter', 12)");
+    std::vector<mgmp::TeamCat> recruits(3);
+    recruits[0].data = cat(2001, "Pip", mgmp::kCatAway | mgmp::kCatGuest | 0x10);
+    recruits[1].data = cat(1008, "Max", 0);                    // deja dans la save : pas une seconde fois
+    recruits[2].data = cat(2002, "Zoe", 0);
+    mgmp::TeamNewCats got;
+    CHECK(mgmp::team_add_new_cats(db, recruits, got));
+    CHECK(got.added == std::vector<std::string>({ "Pip", "Zoe" }));
+    CHECK(got.already == std::vector<std::string>({ "Max" }));
+    CHECK(got.keys == std::vector<uint64_t>({ 13, 0, 14 }));   // au-dessus du compteur du jeu
+    CHECK(got.unplaced == 0 && got.skipped == 0);
+    mgmp::CatInfo info;
+    CHECK(mgmp::cat_info(get_cat(db, 13), info) && info.id == 2001 && info.flags == 0x10);
+    CHECK(mgmp::cat_info(get_cat(db, 14), info) && info.id == 2002);
+    std::vector<uint64_t> keys;
+    CHECK(mgmp::house_state_keys(get_file(db, "house_state"), keys) &&
+          keys == std::vector<uint64_t>({ 3, 13, 14 }));
+    int64_t counter = 0;
+    {
+        sqlite3_stmt* st = nullptr;
+        sqlite3_prepare_v2(db, "SELECT data FROM properties WHERE key = 'catid_counter'", -1, &st, nullptr);
+        if (sqlite3_step(st) == SQLITE_ROW) counter = sqlite3_column_int64(st, 0);
+        sqlite3_finalize(st);
+    }
+    CHECK(counter == 14);
+    // Une deuxieme fois : rien de plus.
+    CHECK(mgmp::team_add_new_cats(db, recruits, got) && got.added.empty() && got.already.size() == 3);
+    CHECK(count_cats(db) == 4);
+    sqlite3_close(db);
+
+    // Sans compteur ni house_state : la plus grande cle + 1, pas de place dans la maison.
+    sqlite3* db2 = new_save();
+    put_cat(db2, 20, cat(1, "A", 0));
+    std::vector<mgmp::TeamCat> one(1);
+    one[0].data = cat(9, "Neuf", 0);
+    CHECK(mgmp::team_add_new_cats(db2, one, got) && got.keys == std::vector<uint64_t>({ 21 }) && got.unplaced == 1);
+    // Un chat illisible est compte, les autres passent.
+    std::vector<mgmp::TeamCat> odd(2);
+    odd[0].data = Bytes{ 1, 2, 3 };
+    odd[1].data = cat(10, "Dix", 0);
+    CHECK(mgmp::team_add_new_cats(db2, odd, got) && got.skipped == 1 && got.keys == std::vector<uint64_t>({ 0, 22 }));
+    sqlite3_close(db2);
+}
+
+// Un chat serialise avec ses jours a leur place : apres une partie variable,
+// suivis de 103 octets (24 variables + 79 fixes, comme dans les saves du jeu).
+Bytes cat_days(uint64_t id, const char* name, int64_t born, int64_t died) {
+    Bytes b;
+    u32(b, 19);
+    u64(b, id);
+    u64(b, strlen(name));
+    for (const char* c = name; *c; ++c) u16(b, (uint16_t)(unsigned char)*c);
+    u64(b, 0);
+    u32(b, 1); u32(b, 1);
+    u64(b, 0);                                  // les drapeaux
+    for (int i = 0; i < 120; ++i) b.push_back((uint8_t)(0x40 + i));
+    u64(b, (uint64_t)born);
+    u64(b, (uint64_t)died);
+    for (int i = 0; i < 103; ++i) b.push_back((uint8_t)(0x90 + i));
+    return b;
+}
+
+void test_recruits() {
+    std::printf("recrues : messages et jours\n");
+    mgmp::RecruitNote n;
+    n.seq = 7; n.cat_id = 0xABCDEF0102ull; n.host_key = 88; n.owner = 2; n.name = "Pip l'\xC3\xA9" "clair";
+    const Bytes nb = mgmp::team_recruit_encode(n);
+    CHECK(mgmp::team_kind(nb.data(), nb.size()) == mgmp::kTeamRecruit);
+    mgmp::RecruitNote n2;
+    CHECK(mgmp::team_recruit_decode(nb.data(), nb.size(), n2));
+    CHECK(n2.seq == 7 && n2.cat_id == n.cat_id && n2.host_key == 88 && n2.owner == 2 && n2.name == n.name);
+    for (size_t cut = 0; cut < nb.size(); ++cut) CHECK(!mgmp::team_recruit_decode(nb.data(), cut, n2));
+    Bytes nb_more = nb;
+    nb_more.push_back(0);
+    CHECK(!mgmp::team_recruit_decode(nb_more.data(), nb_more.size(), n2));
+
+    mgmp::NewCatsMsg m;
+    m.seq = 7; m.host_day = 37;
+    m.cats.resize(2);
+    m.cats[0].host_key = 88; m.cats[0].born = 30; m.cats[0].died = -1; m.cats[0].data = cat_days(2001, "Pip", 30, -1);
+    m.cats[1].host_key = 89; m.cats[1].born = 12; m.cats[1].died = -1; m.cats[1].data = cat_days(2002, "Zoe", 12, -1);
+    const Bytes mb = mgmp::team_newcats_encode(m);
+    CHECK(mgmp::team_kind(mb.data(), mb.size()) == mgmp::kTeamNewCats);
+    mgmp::NewCatsMsg m2;
+    CHECK(mgmp::team_newcats_decode(mb.data(), mb.size(), m2));
+    CHECK(m2.seq == 7 && m2.host_day == 37 && m2.cats.size() == 2);
+    CHECK(m2.cats[1].host_key == 89 && m2.cats[1].born == 12 && m2.cats[1].data == m.cats[1].data);
+    for (size_t cut = 0; cut < mb.size(); cut += 5) CHECK(!mgmp::team_newcats_decode(mb.data(), cut, m2));
+    CHECK(!mgmp::team_recruit_decode(mb.data(), mb.size(), n2));   // pas le meme genre
+
+    // Les jours : l'hote est au jour 37, l'invite au jour 18 -> 19 de moins.
+    Bytes c = cat_days(2001, "Pip", 30, -1);
+    const Bytes c0 = c;
+    CHECK(mgmp::cat_shift_days(c, 30, -1, 19));
+    Bytes want = cat_days(2001, "Pip", 11, -1);
+    CHECK(c == want);
+    // Mort en route (pas transmis en pratique, mais recale aussi).
+    Bytes dead = cat_days(5, "Max", 20, 33);
+    CHECK(mgmp::cat_shift_days(dead, 20, 33, 19) && dead == cat_days(5, "Max", 1, 14));
+    // Introuvables, ou deux fois : rien ne change.
+    Bytes miss = c0;
+    CHECK(!mgmp::cat_shift_days(miss, 31, -1, 19) && miss == c0);
+    Bytes twice = c0;
+    {
+        // une seconde copie du motif, plus tot dans la partie variable
+        const int64_t b = 30, dd = -1;
+        memcpy(twice.data() + 60, &b, 8);       // apres les drapeaux (octets 42 a 49)
+        memcpy(twice.data() + 68, &dd, 8);
+    }
+    const Bytes twice0 = twice;
+    CHECK(!mgmp::cat_shift_days(twice, 30, -1, 19) && twice == twice0);
+    // Trop pres de la fin (moins de 79 octets apres) : pas une place possible.
+    Bytes tail = cat(9, "Neuf", 0);
+    tail.resize(tail.size() - 200);
+    const int64_t b9 = 4, d9 = -1;
+    const size_t at = tail.size() - 16 - 40;
+    memcpy(tail.data() + at, &b9, 8);
+    memcpy(tail.data() + at + 8, &d9, 8);
+    CHECK(!mgmp::cat_shift_days(tail, 4, -1, 1));
+}
+
 void test_owners() {
     std::printf("proprietaires\n");
     std::vector<mgmp::TeamOwner> own(3);
@@ -946,6 +1105,27 @@ void test_loot_apply() {
     // Vide : un fichier valide.
     const Bytes none = mgmp::team_pending_encode({}, {});
     CHECK(mgmp::team_pending_decode(none.data(), none.size(), pl2, pp2) && pl2.empty() && pp2.empty());
+
+    // Version 2 : les recrues de l'aventure (protocole 49).
+    std::vector<mgmp::PendingNewCat> pc(2), pc2;
+    pc[0].seq = 3; pc[0].host_day = 41; pc[0].born = 30; pc[0].died = -1; pc[0].cat = cat(2001, "Pip", 0);
+    pc[1].seq = 4; pc[1].host_day = -1; pc[1].born = -2; pc[1].died = 9; pc[1].cat = cat(2002, "Zoe", mgmp::kCatAway);
+    const Bytes file2 = mgmp::team_pending_encode(pl, pp, &pc);
+    CHECK(file2[4] == 2);
+    CHECK(mgmp::team_pending_decode(file2.data(), file2.size(), pl2, pp2, &pc2));
+    CHECK(pl2.size() == 2 && pp2.size() == 1 && pc2.size() == 2);
+    CHECK(pc2[0].seq == 3 && pc2[0].host_day == 41 && pc2[0].born == 30 && pc2[0].died == -1 && pc2[0].cat == pc[0].cat);
+    CHECK(pc2[1].seq == 4 && pc2[1].host_day == -1 && pc2[1].born == -2 && pc2[1].died == 9 && pc2[1].cat == pc[1].cat);
+    for (size_t cut = 0; cut < file2.size(); cut += 11) {
+        CHECK(!mgmp::team_pending_decode(file2.data(), cut, pl2, pp2, &pc2));
+        CHECK(pl2.empty() && pp2.empty() && pc2.empty());
+    }
+    // Sans recrue : toujours la version 1, lisible avec ou sans la liste.
+    const Bytes file1 = mgmp::team_pending_encode(pl, pp, &pc2);
+    CHECK(file1 == file && file1[4] == 1);
+    CHECK(mgmp::team_pending_decode(file1.data(), file1.size(), pl2, pp2, &pc2) && pc2.empty() && pl2.size() == 2);
+    // Une version 2 se lit aussi sans demander les recrues (elles sont ignorees).
+    CHECK(mgmp::team_pending_decode(file2.data(), file2.size(), pl2, pp2) && pl2.size() == 2);
 }
 
 } // namespace
@@ -957,6 +1137,9 @@ int main() {
     test_cat();
     test_blob();
     test_house();
+    test_house_add();
+    test_new_cats();
+    test_recruits();
     test_owners();
     test_embark();
     test_gear();

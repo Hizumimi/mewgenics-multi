@@ -6,6 +6,7 @@
 #include "mm_gear.h"
 #include "mm_loot.h"
 #include "mm_purse_core.h"
+#include "mm_recruit_core.h"
 #include "mm_rungear.h"
 #include "mm_world.h"
 
@@ -67,6 +68,10 @@ constexpr uintptr_t kCat_Flags     = 0xBF8;
 constexpr uintptr_t kCat_Born      = 0xC38;
 constexpr uintptr_t kCat_Died      = 0xC40;
 constexpr uint64_t  kNoLink        = ~0ull;
+// Le registre des chats (MewDirector+0x598) : son pedigree a +0x38, celui que
+// Registry::NewCat complete (Pedigree::add, 0x1400D71EC) et que Registry::Load
+// relit du fichier « pedigree » de la save (0x1400D8DC6).
+constexpr uintptr_t kRegistry_Pedigree = 0x38;
 constexpr int       kBoxSlots      = 4;
 constexpr int       kTeamSize      = 4;
 // Les Variant de SQLSaveFile (0x1400D879C, 0x140A0E8E0) : 1 = blob, 5 = entier.
@@ -125,6 +130,11 @@ bool safe_team_box(FnTeamBox f, void* house, void** out) {
 bool safe_upsert(FnSqlUpsert f, void* sql, GameStr* table, Variant* key, Variant* value) {
     __try { f(sql, table, key, value); return true; }
     __except (EXCEPTION_EXECUTE_HANDLER) { return false; }
+}
+
+using FnPedigreeAddRaw = void (__fastcall*)(void* pedigree, uint64_t key, uint64_t pa, uint64_t pb);
+bool safe_pedigree_add(FnPedigreeAddRaw f, void* pedigree, uint64_t key) {
+    __try { f(pedigree, key, ~0ull, ~0ull); return true; } __except (EXCEPTION_EXECUTE_HANDLER) { return false; }
 }
 
 bool safe_depart_go(FnDepartGo f, DepartCapture* c) {
@@ -214,6 +224,35 @@ struct LootItem {                    // invite : un objet gagne au defile du but
 };
 constexpr size_t kMaxLoot = 256;
 
+struct Recruit {                     // hote : un chat qui a rejoint l'equipe en route (mm_recruit_core)
+    uint64_t    host_key = 0;
+    uint64_t    cat_id   = 0;
+    std::string name;
+    uint8_t     owner    = kHostPeer;    // son attributaire, par son numero...
+    std::string owner_name;              // ... et par son nom (il peut revenir sous un autre numero)
+    uint8_t     first_owner = kHostPeer; // son numero quand la recrue lui a ete donnee
+};
+
+struct NewCat {                      // invite : une recrue qui rentre chez lui, a ajouter a sa save
+    uint8_t              seq      = 0;   // le vote du depart de l'aventure
+    std::string          save;           // sa save ("" : inconnue -- la prochaine qui se charge)
+    int64_t              host_day = INT64_MIN;
+    int64_t              born     = 0;   // ses jours chez l'hote, recales sur sa save (cat_shift_days)
+    int64_t              died     = -1;
+    std::vector<uint8_t> data;           // serialise, non compresse
+    std::string          name;
+};
+
+struct PedigreeDue {                 // une recrue ajoutee a une save : le jeu l'inscrit a son pedigree
+    std::string save;                // la save ou elle a ete ajoutee (rien ailleurs : une autre save
+                                     // peut avoir un autre chat sous la meme cle)
+    uint64_t    key  = 0;
+    bool        fix_days = false;    // ses jours n'ont pas pu etre recales dans la ligne (cat_shift_days) :
+    int64_t     born = 0;            // ... ils le sont en memoire, une fois la save chargee
+    int64_t     died = -1;
+};
+constexpr size_t kMaxNewCats = 32;
+
 // Le temps d'une session.
 struct State {
     bool                     on       = false;
@@ -243,8 +282,18 @@ struct Keep {
     std::vector<std::string> home_infos;     // invite : le retour, une fois chez lui
     std::vector<Payout>      payouts;        // invite : ses bourses, a ajouter a sa save (mm_purse)
     std::vector<LootItem>    loot;           // invite : son butin, a ajouter au rangement de sa save (mm_loot)
+    std::vector<Recruit>     recruits;       // hote : les recrues de l'aventure en cours, et a qui elles sont
+    std::vector<uint64_t>    team_seen;      // hote : les cles deja vues dans l'equipe de cette aventure
+    uint64_t                 catless_since[8] = {};   // hote : sans chat vivant depuis (ms) ; 0 : il en a
+    void*                    return_house = nullptr; // hote : la maison ou le jeu ramenait l'equipe
+    std::vector<uint64_t>    withheld;       // hote, fin d'aventure : recrues d'invites gardees hors de sa
+                                             // maison (h_ReturnCat) -- envoyees, ou rendues a sa maison
+    std::vector<std::string> map_infos;      // fenetres a montrer sur la carte (une recrue)
+    std::vector<NewCat>      newcats;        // invite : ses recrues, a ajouter a sa save
+    std::vector<PedigreeDue> pedigree_due;   // recrues ajoutees a une save, a inscrire au pedigree du jeu
     bool                     backed_up = false;   // invite : copie de securite faite pour ce chargement
     uint32_t departs_made = 0, refused = 0, returned = 0, applied = 0;
+    uint32_t recruits_made = 0, recruits_sent = 0, recruits_added = 0;
 };
 
 State g;
@@ -474,6 +523,33 @@ int peer_for(const RunCat& rc) {
     return found;
 }
 
+// Le joueur a qui est cette recrue, s'il est la : son numero s'il porte toujours
+// son nom, sinon le seul autre joueur de ce nom ; l'hote pour les siennes ; -1
+// s'il est parti.
+int recruit_peer(const Recruit& r) {
+    if (r.owner == kHostPeer) return kHostPeer;
+    if (peer_present(r.owner) && mm_peer_name(r.owner) == r.owner_name) return r.owner;
+    uint8_t ids[8] = {};
+    const uint8_t n = net_peer_count();
+    if (!n || !net_peer_ids(ids, 8)) return -1;
+    int found = -1;
+    for (uint8_t i = 0; i < n && i < 8; ++i) {
+        const uint8_t id = ids[i];
+        if (id == kHostPeer || mm_peer_name(id) != r.owner_name) continue;
+        // Un autre joueur du meme nom, qui dirige deja ses propres chats (un
+        // autre numero au depart) : ce n'est pas lui qui revient (comme peer_for).
+        bool taken = false;
+        for (const RunCat& o : k.run)
+            if (o.owner_name == r.owner_name && o.first_owner != r.first_owner && o.owner == id &&
+                peer_present(o.owner))
+                taken = true;
+        if (taken) continue;
+        if (found >= 0) return -1;           // deux candidats : on ne devine pas
+        found = id;
+    }
+    return found;
+}
+
 // La liste des proprietaires, refaite d'apres les joueurs presents. Vrai si
 // elle a change.
 bool rebuild_owners() {
@@ -484,6 +560,17 @@ bool rebuild_owners() {
         if (peer >= 0) rc.owner = (uint8_t)peer;
         fresh.push_back(TeamOwner{ rc.cat_id, rc.host_key, peer >= 0 ? (uint8_t)peer : kHostPeer });
     }
+    // Les recrues (mm_recruit_core) : a leur attributaire tant qu'il est la.
+    bool guest_recruit = false;
+    for (Recruit& r : k.recruits) {
+        const int peer = recruit_peer(r);
+        if (peer >= 0) r.owner = (uint8_t)peer;
+        guest_recruit |= peer >= 0 && peer != (int)kHostPeer;
+        fresh.push_back(TeamOwner{ r.cat_id, r.host_key, peer >= 0 ? (uint8_t)peer : kHostPeer });
+    }
+    // Aventure sans chat d'invite et sans recrue a un invite : pas de liste, le
+    // partage des combats reste celui de mgmp (par place).
+    if (k.run.empty() && k.host_cats.empty() && !guest_recruit) fresh.clear();
     bool same = fresh.size() == k.owners.size();
     for (size_t i = 0; same && i < fresh.size(); ++i)
         same = fresh[i].cat_id == k.owners[i].cat_id && fresh[i].host_key == k.owners[i].host_key &&
@@ -492,16 +579,182 @@ bool rebuild_owners() {
     return !same;
 }
 
+// Hote : une nouvelle aventure (ou plus d'aventure du tout) -- les recrues de la
+// precedente ne comptent plus, ni sa photo de l'equipe : la premiere photo de la
+// suivante sera son depart. Sans cela, les chats d'une aventure sans chat
+// d'invite ni recrue restaient « vus », et toute l'equipe de la suivante passait
+// pour des recrues (relecture du 17 octobre) -- chaque depart en session, la fin
+// de chaque aventure et chaque chargement d'une save repartent donc d'ici.
+void reset_recruits() {
+    k.recruits.clear();
+    k.team_seen.clear();
+    for (uint64_t& t : k.catless_since) t = 0;
+    k.return_house = nullptr;
+    k.withheld.clear();
+}
+
 void forget_run(const char* why) {
-    const bool had = !k.owners.empty() || !k.run.empty() || !k.host_cats.empty();
+    const bool had = !k.owners.empty() || !k.run.empty() || !k.host_cats.empty() || !k.recruits.empty();
     k.owners.clear();
     k.run.clear();
     k.host_cats.clear();
     k.run_save.clear();
+    reset_recruits();
     if (had) {
         log_line("TEAM", "plus d'equipe mixte en cours (%s)", why);
         send_owners(k.run_seq, why);
     }
+}
+
+// --- hote : les recrues (mm_recruit_core) ------------------------------------------------
+
+// L'equipe de l'aventure : ses cles (MewDirector+0x5C0, que parcourt le CatSelector).
+bool team_keys(std::vector<uint64_t>& out) {
+    out.clear();
+    const uint8_t*  dir  = (const uint8_t*)director();
+    uint32_t        n    = 0;
+    const uint64_t* keys = nullptr;
+    if (!dir || !mem_read(dir + kDir_CatIdCount, &n, sizeof(n)) ||
+        !mem_read(dir + kDir_CatIdData, &keys, sizeof(keys)) || n > 16 || (n && !keys))
+        return false;
+    out.resize(n);
+    return n == 0 || mem_read(keys, out.data(), n * sizeof(uint64_t));
+}
+
+bool cat_alive_at(uint64_t key) {
+    void*    cat   = catsync_cat_by_key(key);
+    uint64_t flags = 0;
+    return cat && mem_read((const char*)cat + kCat_Flags, &flags, sizeof(flags)) && !(flags & kCatDead);
+}
+
+// A qui est ce chat de l'equipe : un invite present pour les siens et ses
+// recrues, l'hote pour tous les autres.
+int key_owner(uint64_t key) {
+    for (const RunCat& rc : k.run)
+        if (rc.host_key == key) {
+            const int p = peer_for(rc);
+            return p >= 0 ? p : kHostPeer;
+        }
+    for (const Recruit& r : k.recruits)
+        if (r.host_key == key) {
+            const int p = recruit_peer(r);
+            return p >= 0 ? p : kHostPeer;
+        }
+    return kHostPeer;
+}
+
+std::string no_markup(std::string s) {
+    for (char& c : s)
+        if (c == '[') c = '(';
+        else if (c == ']') c = ')';
+    return s;
+}
+
+// Le nom d'un chat, tel que le jeu le serialise (sans [ ] : balises).
+std::string cat_display_name(void* cat) {
+    std::vector<uint8_t> raw;
+    CatInfo info;
+    if (cat && catsync_serialize_cat(cat, raw) && cat_info(raw, info) && !info.name.empty())
+        return no_markup(info.name);
+    return u8"Un nouveau chat";
+}
+
+// Le tirage au sort de l'hote, hors du flux du jeu (il ne doit rien lui prendre).
+uint32_t recruit_roll(uint32_t n, void*) {
+    static uint64_t s = 0;
+    if (!s) s = GetTickCount64() ^ 0x9E3779B97F4A7C15ull;
+    s ^= s << 13;
+    s ^= s >> 7;
+    s ^= s << 17;
+    return n ? (uint32_t)(s % n) : 0;
+}
+
+// La fenetre de chacun quand une recrue arrive.
+std::string recruit_text(const std::string& cat, int owner) {
+    const uint8_t self = net_self();
+    if (owner == (int)self && self != kHostPeer)
+        return fmt(u8"Nouveau chat dans l'équipe\n\n"
+                   u8"%s rejoint l'équipe : ce chat est à toi !\n"
+                   u8"Tu le diriges, et il rentrera chez toi\n"
+                   u8"à la fin de l'aventure.", cat.c_str());
+    if (owner == (int)self)
+        return fmt(u8"Nouveau chat dans l'équipe\n\n"
+                   u8"%s rejoint l'équipe : ce chat est à toi.", cat.c_str());
+    return fmt(u8"Nouveau chat dans l'équipe\n\n"
+               u8"%s rejoint l'équipe : ce chat est à %s.", cat.c_str(),
+               no_markup(mm_peer_name((uint8_t)owner)).c_str());
+}
+
+// Hote, a chaque image d'une aventure en session : un chat de l'equipe que
+// l'aventure n'avait pas a son depart est une recrue (un evenement, un
+// suiveur qui prend une place libre...). Elle va a un spectateur -- celui qui
+// est sans chat vivant depuis le plus longtemps --, sinon au joueur qui a le
+// moins de chats vivants (mm_recruit_core, egalites au sort). Chacun le sait par
+// la liste des proprietaires (le partage des combats, les choix) et par une
+// fenetre ; a la fin, elle rentre chez son attributaire (send_new_cats).
+void recruits_tick() {
+    if (!g.on || !g.host || !in_session() || !savefile_run_published()) return;
+    std::vector<uint64_t> keys;
+    if (!team_keys(keys) || keys.empty()) return;
+    // La premiere photo d'une aventure : l'equipe de son depart (reset_recruits
+    // l'efface a chaque depart, a chaque fin d'aventure et a chaque chargement).
+    if (k.team_seen.empty()) {
+        k.team_seen = keys;
+        return;
+    }
+    const uint64_t now    = GetTickCount64();
+    const uint8_t  in_run = (uint8_t)(mm_run_peers_mask() & 0xFFu);
+    // Les chats vivants de chacun, sans ceux qui arrivent a cette image : une
+    // recrue pas encore attribuee n'est a personne (key_owner la donnerait a
+    // l'hote, qui ne serait alors jamais spectateur).
+    int living[8] = {};
+    for (uint64_t key : keys) {
+        if (std::find(k.team_seen.begin(), k.team_seen.end(), key) == k.team_seen.end()) continue;
+        const int o = key_owner(key);
+        if (o >= 0 && o < 8 && cat_alive_at(key)) ++living[o];
+    }
+    auto playing = [&](uint8_t p) { return p == kHostPeer || ((in_run >> p) & 1u) != 0; };
+    for (uint8_t p = 0; p < 8; ++p) {
+        if (!playing(p) || living[p] > 0) k.catless_since[p] = 0;
+        else if (!k.catless_since[p]) k.catless_since[p] = now;
+    }
+    bool added = false;
+    for (uint64_t key : keys) {
+        if (std::find(k.team_seen.begin(), k.team_seen.end(), key) != k.team_seen.end()) continue;
+        k.team_seen.push_back(key);
+        void* cat = catsync_cat_by_key(key);
+        const uint64_t id = cat_id_of(cat);
+        if (!id) continue;
+        std::vector<RecruitPlayer> players;
+        for (uint8_t p = 0; p < 8; ++p)
+            if (playing(p)) players.push_back(RecruitPlayer{ p, living[p], k.catless_since[p] });
+        const int pick = recruit_owner(players, recruit_roll, nullptr);
+        Recruit r;
+        r.host_key   = key;
+        r.cat_id     = id;
+        r.name       = cat_display_name(cat);
+        r.owner      = pick >= 0 && pick < 8 ? (uint8_t)pick : kHostPeer;
+        r.owner_name = mm_peer_name(r.owner);
+        r.first_owner = r.owner;
+        ++living[r.owner];
+        k.catless_since[r.owner] = 0;
+        k.recruits.push_back(r);
+        ++k.recruits_made;
+        added = true;
+        log_line("TEAM", "recrue : %s (cle %llu) rejoint l'equipe -- elle est a %s (%s)", r.name.c_str(),
+                 (unsigned long long)key, r.owner_name.c_str(),
+                 players.size() < 2 ? "seul joueur de l'aventure" : "spectateur, sinon le moins de chats");
+        RecruitNote note;
+        note.seq      = k.run_seq;
+        note.cat_id   = id;
+        note.host_key = key;
+        note.owner    = r.owner;
+        note.name     = r.name;
+        if (!send_team(team_recruit_encode(note), -1))
+            log_line("TEAM", "!! recrue : la fenetre des invites n'a pas pu partir");
+        k.map_infos.push_back(recruit_text(r.name, r.owner));
+    }
+    if (added && rebuild_owners()) send_owners(k.run_seq, "une recrue");
 }
 
 // --- hote : le depart -------------------------------------------------------------------
@@ -815,6 +1068,115 @@ bool is_guest_cat(uint64_t key) {
     return false;
 }
 
+// Hote : la recrue a cette cle, si elle est a un invite encore la.
+const Recruit* guest_recruit_at(uint64_t key) {
+    for (const Recruit& r : k.recruits) {
+        if (r.host_key != key || r.owner == kHostPeer || cat_id_at(key) != r.cat_id) continue;
+        const int p = recruit_peer(r);
+        return p >= 0 && p != (int)kHostPeer ? &r : nullptr;
+    }
+    return nullptr;
+}
+
+// Hote, a la fin de l'aventure : les recrues que le jeu ramenait a la maison et
+// qui sont a un invite encore la partent chez lui (kTeamNewCats), sans liens (ce
+// seraient des chats de l'hote), avec leurs jours tels quels et le jour de
+// l'hote (l'invite les recale sur sa save) ; elles restent dans la save de
+// l'hote marquees kCatGuest, hors de sa maison, comme les chats d'invites. Un
+// envoi qui echoue : elles rentrent chez l'hote (o_ReturnCat, avant la fin de
+// course du jeu, comme les autres).
+void send_new_cats(void* dir) {
+    // Une recrue gardee hors de la maison de l'hote (h_ReturnCat) qui ne part pas
+    // finalement -- son joueur est parti entre-temps, elle est illisible, l'envoi
+    // echoue -- rentre chez l'hote, comme le jeu le voulait : rien ne se perd.
+    auto give_back = [](uint64_t key, const char* why) {
+        if (k.return_house) {
+            o_ReturnCat(k.return_house, key);
+            log_line("TEAM", "recrue (cle %llu) : %s -- elle rentre chez l'hote", (unsigned long long)key, why);
+        } else {
+            log_line("TEAM", "!! recrue (cle %llu) : %s, et la maison de l'hote est inconnue", (unsigned long long)key,
+                     why);
+        }
+    };
+    std::vector<int> owners;
+    for (uint64_t key : k.withheld) {
+        const Recruit* r = guest_recruit_at(key);
+        if (!r) { give_back(key, "son joueur n'est plus la"); continue; }
+        const int p = recruit_peer(*r);
+        if (std::find(owners.begin(), owners.end(), p) == owners.end()) owners.push_back(p);
+    }
+    for (int p : owners) {
+        NewCatsMsg msg;
+        msg.seq      = k.run_seq;
+        msg.host_day = save_day(dir);
+        std::vector<std::string> names;
+        std::vector<uint64_t>    keys;
+        std::vector<CatDays>     was_days;   // pour tout remettre si l'envoi echoue
+        std::vector<uint64_t>    was_flags;
+        for (uint64_t key : k.withheld) {
+            const Recruit* r = guest_recruit_at(key);
+            if (!r || recruit_peer(*r) != p) continue;
+            void* cat = catsync_cat_by_key(key);
+            CatDays days;
+            uint64_t flags = 0;
+            if (!cat) {
+                give_back(key, "introuvable a la fin de l'aventure");
+                continue;
+            }
+            if (!read_days(cat, days) || !mem_read((const char*)cat + kCat_Flags, &flags, sizeof(flags))) {
+                give_back(key, "illisible");
+                continue;
+            }
+            if (days.died != -1 || (flags & kCatDead)) {
+                give_back(key, "morte");             // le jeu la ramenait quand meme : il decide
+                continue;
+            }
+            CatDays bare = days;
+            bare.la = kNoLink;
+            bare.lb = kNoLink;
+            const uint64_t marked = flags | kCatGuest;
+            NewCatEntry e;
+            e.host_key = key;
+            e.born     = days.born;
+            e.died     = days.died;
+            if (!write_days(cat, bare) || !mem_write((char*)cat + kCat_Flags, &marked, sizeof(marked)) ||
+                !catsync_serialize_cat(cat, e.data)) {
+                write_days(cat, days);
+                mem_write((char*)cat + kCat_Flags, &flags, sizeof(flags));
+                give_back(key, "copie impossible");
+                continue;
+            }
+            msg.cats.push_back(std::move(e));
+            names.push_back(r->name);
+            keys.push_back(key);
+            was_days.push_back(days);
+            was_flags.push_back(flags);
+        }
+        if (msg.cats.empty()) continue;
+        const std::string who = no_markup(mm_peer_name((uint8_t)p));
+        if (send_team(team_newcats_encode(msg), p)) {
+            k.recruits_sent += (uint32_t)msg.cats.size();
+            log_line("TEAM", "-> recrue(s) %s envoyee(s) chez %s (jour de l'hote %lld)", join_names(names).c_str(),
+                     who.c_str(), (long long)msg.host_day);
+            say(fmt(u8"Fin de l'aventure\n\n%s %s chez %s.", join_names(names).c_str(),
+                    names.size() > 1 ? u8"rentrent" : u8"rentre", who.c_str()));
+            continue;
+        }
+        // Pas envoye : chez l'hote, comme si elles etaient les siennes -- leurs
+        // liens et leurs drapeaux d'avant remis.
+        for (size_t i = 0; i < keys.size(); ++i) {
+            if (void* cat = catsync_cat_by_key(keys[i])) {
+                write_days(cat, was_days[i]);
+                mem_write((char*)cat + kCat_Flags, &was_flags[i], sizeof(was_flags[i]));
+            }
+            give_back(keys[i], "envoi impossible");
+        }
+        log_line("TEAM", "!! les recrues de %s n'ont pas pu partir (%s) -- elles restent chez l'hote", who.c_str(),
+                 join_names(names).c_str());
+    }
+    k.withheld.clear();
+}
+
 void send_results() {
     // Un message par joueur : son nom ET son numero au depart (deux joueurs
     // peuvent porter le meme nom).
@@ -959,7 +1321,11 @@ bool __fastcall h_ButchDepart(void* box) {
     // En session, l'hote ne part qu'apres le vote de depart (mm_menu) : c'est
     // son clic, rejoue, qui arrive ici. L'equipe a ete preparee au vote (depart
     // ensemble : les invites ont charge sa partie et le suivent), ou se prepare
-    // maintenant.
+    // maintenant. Une nouvelle aventure : ses recrues repartent de zero, et
+    // elle porte ce vote (la note d'une recrue, les proprietaires et les
+    // recrues qui rentrent le donnent aux invites), meme sans chat d'invite.
+    reset_recruits();
+    k.run_seq = g.vote_seq;
     const bool prepared = g.prepared && g.prepared_seq == g.vote_seq;
     g.prepared = false;
     const bool brought = prepared ? g.prepared_brought : has_pending_cats();
@@ -1032,19 +1398,33 @@ void __fastcall h_ReturnCat(void* house, uint64_t key) {
                  (unsigned long long)key);
         return;
     }
+    // Une recrue d'un invite encore la : elle rentre chez lui (send_new_cats,
+    // qui la rend a la maison de l'hote si elle ne peut pas partir).
+    if (const Recruit* r = guest_recruit_at(key)) {
+        k.came_home.push_back(key);
+        if (std::find(k.withheld.begin(), k.withheld.end(), key) == k.withheld.end()) k.withheld.push_back(key);
+        k.return_house = house;
+        log_line("TEAM", "recrue %s (cle %llu) : elle rentre chez %s et pas chez l'hote", r->name.c_str(),
+                 (unsigned long long)key, r->owner_name.c_str());
+        return;
+    }
     o_ReturnCat(house, key);
 }
 
 void __fastcall h_RunCleared(void* dir) {
     // Avant l'original : les listes de la course sont encore la, et les chats
     // d'invites, nettoyes par la fin de course, sont dans le registre du jeu.
-    if (!k.run.empty()) {
+    if (!k.run.empty() || !k.recruits.empty()) {
         send_results();
+        send_new_cats(dir);
         forget_run("fin d'aventure");
     } else {
         copy_results(dir);                   // chez un invite, dans sa copie
         if (!g.host) k.owners.clear();       // l'hote enverra la sienne, vide
     }
+    // Toujours : une aventure sans chat d'invite ni recrue a aussi sa photo de
+    // l'equipe, qui ne doit pas servir a la suivante.
+    reset_recruits();
     k.came_home.clear();
     o_RunCleared(dir);
 }
@@ -1281,12 +1661,23 @@ bool pending_store(const char* save) {
             e.food  = p.food;
             pay.push_back(e);
         }
-    if (loot.empty() && pay.empty()) {
+    std::vector<PendingNewCat> cats;
+    for (const NewCat& c : k.newcats)
+        if (same_save(c.save, save)) {
+            PendingNewCat e;
+            e.seq      = c.seq;
+            e.host_day = c.host_day;
+            e.born     = c.born;
+            e.died     = c.died;
+            e.cat      = c.data;
+            cats.push_back(std::move(e));
+        }
+    if (loot.empty() && pay.empty() && cats.empty()) {
         if (!DeleteFileW(path) && GetLastError() != ERROR_FILE_NOT_FOUND)
             log_line("TEAM", "!! %s.mgmp-attente ne s'efface pas (win32 %lu)", save, GetLastError());
         return true;
     }
-    const std::vector<uint8_t> body = team_pending_encode(loot, pay);
+    const std::vector<uint8_t> body = team_pending_encode(loot, pay, &cats);
     wchar_t tmp[MAX_PATH];
     _snwprintf_s(tmp, _TRUNCATE, L"%s.tmp", path);
     HANDLE h = CreateFileW(tmp, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -1322,7 +1713,8 @@ void pending_load(const char* save) {
     CloseHandle(h);
     std::vector<PendingLoot>   loot;
     std::vector<PendingPayout> pay;
-    if (body.empty() || !team_pending_decode(body.data(), body.size(), loot, pay)) {
+    std::vector<PendingNewCat> cats;
+    if (body.empty() || !team_pending_decode(body.data(), body.size(), loot, pay, &cats)) {
         log_line("TEAM", "!! %s.mgmp-attente illisible -- laisse tel quel", save);
         return;
     }
@@ -1354,9 +1746,29 @@ void pending_load(const char* save) {
         k.payouts.push_back(p);
         ++added;
     }
+    for (PendingNewCat& e : cats) {
+        CatInfo info;
+        if (!cat_info(e.cat, info)) continue;
+        bool have = false;
+        for (const NewCat& c : k.newcats) {
+            CatInfo h2;
+            have = have || (c.seq == e.seq && same_save(c.save, save) && cat_info(c.data, h2) && h2.id == info.id);
+        }
+        if (have || k.newcats.size() >= kMaxNewCats) continue;
+        NewCat c;
+        c.seq      = e.seq;
+        c.save     = save;
+        c.host_day = e.host_day;
+        c.born     = e.born;
+        c.died     = e.died;
+        c.data     = std::move(e.cat);
+        c.name     = no_markup(info.name);
+        k.newcats.push_back(std::move(c));
+        ++added;
+    }
     if (added)
-        log_line("TEAM", "%s.mgmp-attente : %zu objet(s) de butin et %zu bourse(s) en attente pour cette save "
-                         "(%zu repris)", save, loot.size(), pay.size(), added);
+        log_line("TEAM", "%s.mgmp-attente : %zu objet(s) de butin, %zu bourse(s) et %zu recrue(s) en attente pour "
+                         "cette save (%zu repris)", save, loot.size(), pay.size(), cats.size(), added);
 }
 
 // Son butin (mm_loot) pour cette save : ajoute au rangement, en une transaction,
@@ -1405,6 +1817,139 @@ void apply_loot(const char* name, size_t home_before) {
     const std::string line = u8"Ton butin est dans ton rangement : " + join_names(names) + ".";
     if (k.home_infos.size() > home_before) k.home_infos.back() += "\n" + line;
     else k.home_infos.push_back(u8"Retour de l'aventure\n\n" + line);
+}
+
+// Ses recrues (kTeamNewCats) pour cette save : ajoutees en une transaction,
+// apres la copie de securite de ce chargement (et apres le retour de ses chats
+// de la meme aventure, comme le butin). Leurs jours sont recales sur le
+// calendrier de cette save (cat_shift_days : le jour de l'hote a la fin, celui
+// de la save maintenant) ; une fois la save chargee, le jeu les inscrit a son
+// pedigree (pedigree_pump).
+void apply_new_cats(const char* name, size_t home_before) {
+    auto waits = [name](const NewCat& c) {
+        for (const GuestDepart& d : k.departs)
+            if (d.seq == c.seq && (d.save.empty() || _stricmp(d.save.c_str(), name) == 0)) return true;
+        return false;
+    };
+    auto mine = [name, &waits](const NewCat& c) {
+        return (c.save.empty() || _stricmp(c.save.c_str(), name) == 0) && !waits(c);
+    };
+    bool any = false;
+    for (const NewCat& c : k.newcats) any = any || mine(c);
+    if (!any) return;
+    if (!back_up_own(name)) return;
+    sqlite3* db = open_own(name, true);
+    if (!db) return;
+    // Le jour de cette save (propriete current_day, celle que le jeu lit).
+    int64_t day = kNoDay;
+    {
+        sqlite3_stmt* st = nullptr;
+        if (sqlite3_prepare_v2(db, "SELECT data FROM properties WHERE key = 'current_day'", -1, &st, nullptr) ==
+            SQLITE_OK) {
+            if (sqlite3_step(st) == SQLITE_ROW && sqlite3_column_type(st, 0) == SQLITE_INTEGER)
+                day = (int64_t)sqlite3_column_int64(st, 0);
+            sqlite3_finalize(st);
+        }
+    }
+    std::vector<TeamCat>     cats;
+    std::vector<std::string> unshifted;
+    std::vector<PedigreeDue> due;            // dans l'ordre de `cats`
+    for (const NewCat& c : k.newcats) {
+        if (!mine(c)) continue;
+        TeamCat t;
+        t.data = c.data;
+        PedigreeDue pd;
+        pd.save = name;
+        const bool can_shift = day != kNoDay && c.host_day != kNoDay;
+        if (!can_shift || !cat_shift_days(t.data, c.born, c.died, c.host_day - day)) {
+            unshifted.push_back(c.name);
+            // Le recalage se fera en memoire (pedigree_pump), si le jour est connu.
+            if (can_shift) {
+                pd.fix_days = true;
+                pd.born     = c.born - (c.host_day - day);
+                pd.died     = c.died == -1 ? -1 : c.died - (c.host_day - day);
+            }
+        }
+        cats.push_back(std::move(t));
+        due.push_back(pd);
+    }
+    TeamNewCats res;
+    const bool ok = team_add_new_cats(db, cats, res);
+    sqlite3_close(db);
+    if (!ok) {
+        log_line("TEAM", "!! tes recrues n'ont pas pu etre ajoutees a %s -- on reessaiera au prochain chargement", name);
+        return;
+    }
+    for (size_t i = 0; i < res.keys.size() && i < due.size(); ++i)
+        if (res.keys[i]) {
+            due[i].key = res.keys[i];
+            k.pedigree_due.push_back(due[i]);
+        }
+    k.newcats.erase(std::remove_if(k.newcats.begin(), k.newcats.end(), mine), k.newcats.end());
+    pending_store(name);
+    k.recruits_added += (uint32_t)res.added.size();
+    log_line("TEAM", "recrue(s) ajoutee(s) a %s : %s%s%s%s", name,
+             res.added.empty() ? "aucune" : join_names(res.added).c_str(),
+             res.already.empty() ? "" : (" ; deja la : " + join_names(res.already)).c_str(),
+             unshifted.empty() ? "" : (" ; jours laisses tels quels : " + join_names(unshifted)).c_str(),
+             res.unplaced ? " ; pas de maison ou les placer" : "");
+    if (res.added.empty()) return;
+    const std::string line = fmt(u8"%s, %s pendant l'aventure, %s dans ta maison.",
+                                 join_names(res.added).c_str(),
+                                 res.added.size() > 1 ? u8"recrutés" : u8"recruté",
+                                 res.added.size() > 1 ? u8"arrivent" : u8"arrive");
+    if (k.home_infos.size() > home_before) k.home_infos.back() += "\n" + line;
+    else k.home_infos.push_back(u8"Retour de l'aventure\n\n" + line);
+}
+
+// Chez soi, la save ou on les a ajoutees chargee (invite, ou ancien invite qui
+// heberge maintenant) : les recrues entrent au pedigree du jeu
+// (Pedigree::add(registre+0x38, cle, -1, -1), ce que fait Registry::NewCat a la
+// naissance d'un chat ; sans parents), et leurs jours sont recales en memoire si
+// la ligne n'a pas pu l'etre. Une seule fois, et jamais dans une autre save : la
+// meme cle y est peut-etre un autre chat (relecture du 17 octobre).
+std::string loaded_own_save() {
+    char name[64] = {};
+    if (savefile_in_coop()) return std::string();
+    if (savefile_own_save_name(name, sizeof(name)) || savefile_host_save_name(name, sizeof(name))) return name;
+    return std::string();
+}
+
+void pedigree_pump() {
+    if (k.pedigree_due.empty() || savefile_in_coop() || !mm_house()) return;
+    const std::string loaded = loaded_own_save();
+    if (loaded.empty()) return;
+    bool any = false;
+    for (const PedigreeDue& d : k.pedigree_due) any = any || _stricmp(d.save.c_str(), loaded.c_str()) == 0;
+    if (!any) return;
+    auto add = (FnPedigreeAddRaw)addr_of_call(C_PedigreeAdd);
+    const uint8_t* dir = (const uint8_t*)director();
+    void* registry = nullptr;
+    const bool ready = add && dir && mem_read(dir + kDir_CatRegistry, &registry, sizeof(registry)) && registry;
+    if (!ready)
+        log_line("TEAM", "!! pedigree : registre ou fonction introuvable -- les recrues de %s n'y sont pas inscrites",
+                 loaded.c_str());
+    size_t done = 0, fixed = 0, total = 0;
+    for (const PedigreeDue& d : k.pedigree_due) {
+        if (_stricmp(d.save.c_str(), loaded.c_str()) != 0) continue;
+        ++total;
+        void* cat = catsync_cat_by_key(d.key);
+        if (!cat) continue;
+        if (ready && safe_pedigree_add(add, (char*)registry + kRegistry_Pedigree, d.key)) ++done;
+        CatDays days;
+        if (d.fix_days && read_days(cat, days)) {
+            days.born = d.born;
+            if (days.died != -1 || d.died != -1) days.died = d.died;
+            if (write_days(cat, days)) ++fixed;
+        }
+    }
+    log_line("TEAM", "pedigree : %zu recrue(s) inscrite(s) sur %zu dans %s%s", done, total, loaded.c_str(),
+             fixed ? fmt(" (%zu recalee(s) sur ton calendrier)", fixed).c_str() : "");
+    k.pedigree_due.erase(std::remove_if(k.pedigree_due.begin(), k.pedigree_due.end(),
+                                        [&](const PedigreeDue& d) {
+                                            return _stricmp(d.save.c_str(), loaded.c_str()) == 0;
+                                        }),
+                         k.pedigree_due.end());
 }
 
 // --- messages --------------------------------------------------------------------------------------
@@ -1564,6 +2109,86 @@ void on_result(uint8_t from, const SaveFileMsg& m) {
 
 } // namespace
 
+// Une recrue rejoint l'equipe (hote -> tous) : la fenetre, sur la carte.
+void on_recruit(uint8_t from, const SaveFileMsg& m) {
+    RecruitNote n;
+    if (net_role() != NetRole::Client || from != kHostPeer || !team_recruit_decode(m.data, m.size, n)) {
+        log_line("TEAM", "!! recrue : message inattendu ou illisible -- ignore");
+        return;
+    }
+    const std::string cat = n.name.empty() ? std::string(u8"Un nouveau chat") : no_markup(n.name);
+    log_line("TEAM", "<- recrue : %s rejoint l'equipe -- elle est a %s%s", cat.c_str(),
+             mm_peer_name(n.owner).c_str(), n.owner == net_self() ? " (ce joueur)" : "");
+    // Dans l'aventure : la fenetre sur la carte. Hors de l'aventure (chez lui),
+    // seulement si la recrue est a lui, et tout de suite -- sa carte suivante
+    // serait une autre aventure.
+    if (mm_guest_in_run()) {
+        k.map_infos.push_back(recruit_text(cat, n.owner));
+    } else if (n.owner == net_self()) {
+        k.infos.push_back(fmt(u8"Nouveau chat dans l'équipe\n\n"
+                              u8"%s rejoint l'équipe de %s : ce chat est\n"
+                              u8"à toi ! Tant que tu n'es pas là, %s le dirige,\n"
+                              u8"et il rentrera chez toi à la fin de l'aventure.", cat.c_str(),
+                              no_markup(mm_peer_name(kHostPeer)).c_str(),
+                              no_markup(mm_peer_name(kHostPeer)).c_str()));
+    }
+}
+
+// Les recrues qui rentrent chez lui (hote -> cet invite, a la fin) : gardees
+// sur le disque avec sa save, ajoutees a son prochain chargement.
+void on_newcats(uint8_t from, const SaveFileMsg& m) {
+    NewCatsMsg msg;
+    if (net_role() != NetRole::Client || from != kHostPeer || !team_newcats_decode(m.data, m.size, msg) ||
+        msg.cats.empty()) {
+        log_line("TEAM", "!! recrues : message inattendu ou illisible -- ignore");
+        return;
+    }
+    std::string save;
+    if (const GuestDepart* d = departure(msg.seq)) save = d->save;
+    if (save.empty()) {
+        char own[64] = {};
+        if (savefile_own_save_name(own, sizeof(own))) save = own;
+    }
+    std::vector<std::string> names;
+    for (NewCatEntry& e : msg.cats) {
+        CatInfo info;
+        if (!cat_info(e.data, info)) continue;
+        bool dup = false;
+        for (const NewCat& c : k.newcats) {
+            CatInfo have;
+            dup = dup || (c.seq == msg.seq && cat_info(c.data, have) && have.id == info.id);
+        }
+        if (dup) continue;
+        if (k.newcats.size() >= kMaxNewCats) {
+            log_line("TEAM", "!! trop de recrues en attente : %s n'est pas gardee", info.name.c_str());
+            break;
+        }
+        NewCat c;
+        c.seq      = msg.seq;
+        c.save     = save;
+        c.host_day = msg.host_day;
+        c.born     = e.born;
+        c.died     = e.died;
+        c.data     = std::move(e.data);
+        c.name     = no_markup(info.name);
+        names.push_back(c.name);
+        k.newcats.push_back(std::move(c));
+    }
+    if (names.empty()) return;
+    if (!save.empty() && !pending_store(save.c_str()))
+        log_line("TEAM", "!! recrues : pas gardees sur le disque -- elles attendent en memoire (ne ferme pas le jeu "
+                         "avant de recharger ta save)");
+    log_line("TEAM", "<- recrue(s) qui rentrent chez toi : %s -- ajoutee(s) a %s a son prochain chargement",
+             join_names(names).c_str(), save.empty() ? "ta save" : save.c_str());
+    // Deja chez lui : sa save est ouverte par le jeu, on ne peut rien y ecrire.
+    if (mm_house() && !savefile_in_coop())
+        say(fmt(u8"Nouveaux chats\n\n"
+                u8"%s %s chez toi, mais ta save est déjà\n"
+                u8"ouverte : retourne au menu principal et\n"
+                u8"recharge-la pour %s.", join_names(names).c_str(),
+                names.size() > 1 ? u8"arrivent" : u8"arrive", names.size() > 1 ? u8"les trouver" : u8"le trouver"));
+}
+
 // ---------------------------------------------------------------------------------------------------
 
 void team_init() {
@@ -1576,6 +2201,7 @@ void team_init() {
         k.run.clear();
         k.host_cats.clear();
         k.run_save.clear();
+        reset_recruits();
     }
     log_line("TEAM", g.host
         ? "arme -- equipe mixte : les chats des invites rejoindront l'equipe de l'hote au depart"
@@ -1592,6 +2218,7 @@ void team_shutdown() {
 
 void team_pump() {
     if (!g.on || !g.host) return;
+    recruits_tick();
     const uint32_t roster = roster_mask();
     if (roster == g.roster) return;
     g.roster = roster;
@@ -1599,15 +2226,26 @@ void team_pump() {
         g.pending.erase(std::remove_if(g.pending.begin(), g.pending.end(),
                                        [](const PendingTeam& p) { return !peer_present(p.peer); }),
                         g.pending.end());
-    if (!k.run.empty() && rebuild_owners()) send_owners(k.run_seq, "un joueur est arrive ou parti");
+    if ((!k.run.empty() || !k.recruits.empty()) && rebuild_owners())
+        send_owners(k.run_seq, "un joueur est arrive ou parti");
 }
 
 void team_ui_pump() {
+    pedigree_pump();
     if (mm_info_busy()) return;
     if (!k.infos.empty()) {
         mm_show_info(k.infos.front());
         k.infos.erase(k.infos.begin());
         return;
+    }
+    // Une recrue : sur la carte, pas par-dessus l'evenement qui l'amene.
+    if (!k.map_infos.empty()) {
+        if (mm_scene_running("Map") && !mm_scene_alive("Event")) {
+            mm_show_info(k.map_infos.front(), kInfoYieldToFollow);
+            k.map_infos.erase(k.map_infos.begin());
+            return;
+        }
+        if (!mm_in_game()) k.map_infos.clear();   // retour au menu : trop tard
     }
     // Le retour d'aventure, une fois chez lui -- session ou pas (elle a pu
     // tomber pendant qu'il rentrait).
@@ -1620,7 +2258,7 @@ void team_ui_pump() {
 void team_catchup(uint8_t peer) {
     if (!g.on || !g.host || (k.run.empty() && k.owners.empty())) return;
     // Le nom de l'arrivant est deja connu (HELLO) : il retrouve ses chats.
-    if (!k.run.empty() && rebuild_owners()) {
+    if ((!k.run.empty() || !k.recruits.empty()) && rebuild_owners()) {
         g.roster = roster_mask();
         send_owners(k.run_seq, "un joueur revient");
         return;
@@ -1649,6 +2287,8 @@ void team_on_message(uint8_t from, const SaveFileMsg& m) {
         case kTeamItemSync:
         case kTeamItemSyncReq: rungear_on_team(from, m.data, m.size); break;
         case kTeamLoot: loot_on_team(from, m.data, m.size); break;
+        case kTeamRecruit: on_recruit(from, m); break;
+        case kTeamNewCats: on_newcats(from, m); break;
         default:
             log_line("TEAM", "!! message d'equipe inconnu (%u octets) -- ignore", m.size);
             break;
@@ -1705,6 +2345,8 @@ bool team_embark_prepare(uint8_t seq) {
     g.prepared         = true;
     g.prepared_seq     = seq;
     g.prepared_brought = has_pending_cats();
+    reset_recruits();                        // une nouvelle aventure (voir h_ButchDepart)
+    k.run_seq = seq;
     if (!g.prepared_brought)
         drop_mixed();                        // une aventure d'avant ne decide rien pour celle-ci
     else if (!prepare_mixed(box))
@@ -1924,6 +2566,19 @@ bool team_guest_has_cats_in_run() {
     return false;
 }
 
+bool team_guest_brought_cats() {
+    const uint8_t self = net_self();
+    for (const TeamOwner& o : k.owners) {
+        if (o.peer != self) continue;
+        for (const GuestDepart& d : k.departs) {
+            if (!d.departed) continue;
+            for (const DepartCat& dc : d.cats)
+                if (dc.id == o.cat_id) return true;
+        }
+    }
+    return false;
+}
+
 std::string team_run_guest_names() {
     std::vector<std::string> names;
     for (const RunCat& rc : k.run) {
@@ -1953,6 +2608,10 @@ void team_prepare_own_save(const char* name) {
     // decide plus rien (ses chats d'invites restent marques dans leur save).
     if (!k.run.empty() && !k.run_save.empty() && _stricmp(k.run_save.c_str(), name) != 0)
         forget_run("une autre save se charge");
+    // Une save qui se charge : les recrues d'une aventure en memoire ne la
+    // concernent plus (une aventure sans chat d'invite n'a pas de run_save), et
+    // la premiere photo de l'equipe se refera.
+    reset_recruits();
     k.backed_up = false;                     // une copie de securite par chargement
     const size_t home_before = k.home_infos.size();
     // Ce qui attendait d'etre ajoute a cette save, peut-etre d'une partie d'avant
@@ -1984,9 +2643,11 @@ void team_prepare_own_save(const char* name) {
         }
         ++i;
     }
-    // Et ce qu'il a rapporte de ses aventures gagnees (mm_purse, mm_loot).
+    // Et ce qu'il a rapporte de ses aventures gagnees (mm_purse, mm_loot), et
+    // ses recrues.
     apply_payouts(name, home_before);
     apply_loot(name, home_before);
+    apply_new_cats(name, home_before);
 }
 
 // --- mm_purse ----------------------------------------------------------------------------------------
@@ -2006,6 +2667,12 @@ uint8_t team_run_seq() { return k.run_seq; }
 uint8_t team_slot_of_cat(uint64_t cat_id) {
     for (const RunCat& rc : k.run)
         if (rc.cat_id == cat_id) return rc.first_owner;
+    // Une recrue : la bourse de son attributaire, s'il en a une (il a amene des chats).
+    for (const Recruit& r : k.recruits) {
+        if (r.cat_id != cat_id || r.owner == kHostPeer) continue;
+        for (const RunCat& rc : k.run)
+            if (rc.owner_name == r.owner_name) return rc.first_owner;
+    }
     return kHostPeer;
 }
 

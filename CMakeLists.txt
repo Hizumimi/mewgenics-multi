@@ -96,6 +96,7 @@ add_library(mgmp SHARED
     src/session/mm_purse_core.cpp
     src/session/mm_loot.cpp
     src/session/mm_loot_core.cpp
+    src/session/mm_recruit_core.cpp
     src/session/mm_vote_core.cpp
     src/session/mm_team.cpp
     src/session/mm_team_merge.cpp

@@ -1379,6 +1379,12 @@ bool     g_run_offer_quiet = false;
 bool     g_quit_wanted     = false;
 uint32_t g_quit_asked_at   = 0;
 bool     g_abandon_note    = false;
+bool     g_opening_quit    = false;   // la fenetre « Quitter l'aventure » se construit (par-dessus un combat)
+// « Rentrer » choisi : il n'est plus dans l'aventure des maintenant (MM_PEER_RUN
+// 0 part tout de suite, l'hote prend ses chats sans attendre son arrivee au
+// menu), jusqu'a ce qu'il soit sorti de la copie.
+bool     g_quitting        = false;
+bool     g_halt_note_due   = false;   // il est rentre parce que sa copie du combat s'est arretee
 bool     g_home_offer      = false;   // proposer de rentrer
 // L'aventure de l'hote est finie (abandon, victoire, defaite, connexion coupee)
 // et ce joueur n'est pas encore rentre chez lui : vrai dans la copie, et encore
@@ -1430,8 +1436,8 @@ bool trip_active() { return g_trip.active; }
 // plus « Client », mais sa copie, elle, est toujours la.)
 bool battle_popups_ok() {
     // « Quitter l'aventure », demande depuis le menu pause d'un combat : le menu
-    // met deja le combat en pause chez ce joueur, la fenetre n'y change rien.
-    if (g_quit_wanted) {
+    // met deja le combat en pause chez ce joueur, cette fenetre-la n'y change rien.
+    if (g_opening_quit) {
         bool paused = false;
         if (find_scene("Battle", &paused) && paused) return true;
     }
@@ -1830,6 +1836,7 @@ void start_join(const char* why) {
     // serait chargee avant la bonne : on la jette, la nouvelle va arriver.
     savefile_drop_pending();
     savefile_set_join(true);
+    lockstep_rejoin_run();                   // la reprise de l'hote va arriver : elle compte
     g_dep_offer = false;
     g_run_offer = false;
     if (g_night_ready) set_night_ready(false);   // il part : plus pret pour la nuit
@@ -1884,9 +1891,16 @@ void client_adventure_pump() {
     if (others) {
         // Seulement tant que l'hote y est : la copie d'une aventure finie n'est
         // plus son aventure (l'hote compterait sinon un arrivant fantome).
+        if (g_quitting && !savefile_in_coop()) g_quitting = false;   // sorti de la copie
         const int in_run =
-            (savefile_in_coop() && savefile_adventure_is_loaded() && g_host_in_run) ? 1 : 0;
-        if (in_run != g_peer_run_sent) {
+            (savefile_in_coop() && savefile_adventure_is_loaded() && g_host_in_run && !g_quitting) ? 1 : 0;
+        // Une sortie qui n'est pas voulue (pas « Quitter l'aventure ») doit tenir
+        // une demi-seconde : une image a 0 en plein combat effacerait l'etat de ce
+        // combat ici (lockstep_leave_run) alors qu'il continue.
+        static uint32_t zero_frames = 0;
+        zero_frames = in_run ? 0 : zero_frames + 1;
+        const bool settled = in_run || g_quitting || g_peer_run_sent != 1 || zero_frames >= 30;
+        if (in_run != g_peer_run_sent && settled) {
             // Arrive : ce que l'hote a pousse pendant le trajet (chats,
             // historique) a ete garde ; on l'applique tout de suite, hors combat.
             // L'inventaire, lui, attend la premiere case suivie (mgmp_follow).
@@ -1895,9 +1909,44 @@ void client_adventure_pump() {
                 runhist_apply_pending("arrived in the host's adventure");
             }
             send_simple(MM_PEER_RUN, (uint8_t)in_run);
+            // Les combats de l'hote : plus les siens en sortant (son etat du combat
+            // en cours est oublie, il le reprendrait du debut), de nouveau en arrivant.
+            // A chaque passage a 0, meme sans 1 envoye juste avant (ce numero est
+            // remis a -1 a chaque nouvelle de l'hote ou coupure) : la sortie est
+            // sans effet si elle est deja faite. Pas en route pour la rejoindre :
+            // la reprise de l'hote (sa file) arrive pendant le trajet.
+            if (in_run) lockstep_rejoin_run();
+            else if (g_peer_run_sent == 1 || !savefile_join_armed()) lockstep_leave_run();
             g_peer_run_sent = in_run;
             log_line("MULTI", "aventure : %s", in_run ? "ce joueur est dans l'aventure de l'hote"
                                                       : "ce joueur n'est pas dans l'aventure de l'hote");
+        }
+        // Sa copie du combat s'est arretee seule (desynchronisee alors qu'il ne
+        // faisait que le regarder) : le combat des autres continue, le sien est
+        // fige pour toujours. Il rentre chez lui comme par « Quitter
+        // l'aventure » (ses chats restent dans l'equipe) ; un panneau de sa
+        // maison le ramene, et la reprise de l'hote refait le combat.
+        if (lockstep_halted_watching() && savefile_in_coop() && !g_quitting && !g_trip.active) {
+            log_line("MULTI", "aventure : la copie du combat de ce joueur s'est desynchronisee (il regardait) -- "
+                              "il quitte l'aventure, il pourra la rejoindre");
+            g_quitting        = true;
+            g_run_offer_quiet = true;
+            g_run_offer       = false;
+            g_home_offer      = false;
+            g_home_due        = false;
+            g_halt_note_due   = true;
+            savefile_go_home();
+            start_menu_trip("copie du combat desynchronisee");
+        }
+        if (g_halt_note_due && !savefile_in_coop() && !g_trip.active && mm_house()) {
+            g_halt_note_due = false;
+            show_info(fmt(u8"Retour à la maison\n\n"
+                          u8"Ta copie du combat s'est désynchronisée de\n"
+                          u8"celle de %s : le combat continuait sans toi,\n"
+                          u8"alors tu es rentré. Tes chats restent dans\n"
+                          u8"son équipe, il les dirige.\n\n"
+                          u8"Pour revenir dans l'aventure, clique sur\n"
+                          u8"un panneau de ta maison.", host_display().c_str()));
         }
     } else {
         g_peer_run_sent = -1;
@@ -1997,6 +2046,26 @@ bool open_depart_wait() {
 
 void adventure_popups() {
     if (g_live.alive) return;
+    // « Abandonner l'aventure » dans la copie : notre fenetre a la place de celle
+    // du jeu, par-dessus le menu pause encore ouvert (meme en plein combat : le
+    // menu le met deja en pause). La demande passe avant tout le reste et ne vaut
+    // que quelques instants (le menu ferme entre-temps : le joueur recliquera).
+    if (g_quit_wanted) {
+        if (!savefile_in_coop() || g_frame - g_quit_asked_at > 120 || g_trip.active) {
+            g_quit_wanted = false;
+        } else if (popup_parent_scene()) {
+            g_opening_quit = true;
+            const bool open = open_popup(Screen::QuitRun, quit_run_text(), u8"Rentrer", u8"Rester", false,
+                                         Action::QuitRun, Action::None);
+            g_opening_quit = false;
+            if (open) {
+                g_quit_wanted = false;
+                log_line("MULTI", "aventure : fenetre « Quitter l'aventure » ouverte%s",
+                         find_scene("Battle") ? " (en plein combat)" : "");
+            }
+        }
+        return;
+    }
     if (g_trip.active && !g_info_wanted) return;     // en route pour le menu
     // Entre deux ecrans (chargement, fondu), rien ou s'afficher : on attend, sans
     // rien ecrire au journal a chaque image. Pendant un combat, seulement chez
@@ -2051,21 +2120,6 @@ void adventure_popups() {
         return;
     }
     if (host) return;
-
-    // « Abandonner l'aventure » dans la copie : notre fenetre a la place de celle
-    // du jeu, par-dessus le menu pause encore ouvert. La demande ne vaut que
-    // quelques instants (le menu ferme entre-temps : le joueur recliquera).
-    if (g_quit_wanted) {
-        if (!savefile_in_coop() || g_frame - g_quit_asked_at > 120) {
-            g_quit_wanted = false;
-        } else if (open_popup(Screen::QuitRun, quit_run_text(), u8"Rentrer", u8"Rester", false,
-                              Action::QuitRun, Action::None)) {
-            g_quit_wanted = false;
-            log_line("MULTI", "aventure : fenetre « Quitter l'aventure » ouverte%s",
-                     find_scene("Battle") ? " (en plein combat)" : "");
-        }
-        return;
-    }
 
     // Le defile du butin d'abord : rentrer pendant qu'il passe ferait manquer
     // les objets (le chargement de sa save), et il ne dure que quelques minutes.
@@ -2303,7 +2357,7 @@ void __fastcall h_TryAbandonRun(void* pause_menu) {
     // L'abandon du jeu y serait une defaite dans sa copie seulement -- ses chats
     // « pas revenus » dans sa propre save (journal du 17 octobre), pendant que
     // l'aventure de l'hote continue avec eux. On lui propose de la quitter.
-    if (net_role() == NetRole::Client && savefile_in_coop()) {
+    if (savefile_in_coop()) {               // un invite, ou un ancien invite dont la connexion vient de tomber
         g_quit_wanted   = true;
         g_quit_asked_at = g_frame;
         log_line("MULTI", "aventure : « Abandonner » dans la copie de l'hote -- remplace par "
@@ -2521,6 +2575,8 @@ uint32_t mm_run_peers_mask() {
     return peer_run_mask() & peers_mask_others();
 }
 
+bool mm_guest_quitting() { return g_quitting; }
+
 bool mm_guest_in_run() {
     return net_role() == NetRole::Client && session_has_others() && savefile_in_coop() &&
            savefile_adventure_is_loaded() && g_host_in_run;
@@ -2701,6 +2757,7 @@ void mm_menu_pump() {
         case Action::QuitRun:
             log_line("MULTI", "aventure : ce joueur quitte l'aventure de l'hote (ses chats restent dans "
                               "l'equipe, l'hote les dirige)");
+            g_quitting        = savefile_in_coop();
             g_run_offer_quiet = true;
             g_run_offer       = false;
             g_home_offer = false;

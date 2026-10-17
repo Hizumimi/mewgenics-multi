@@ -172,6 +172,9 @@ void team_guest_storage_after(uint8_t seq, const std::vector<uint8_t>& post);
 // Ses chats sont-ils dans l'aventure en cours de l'hote ? (Faux sans equipe
 // mixte.) Pour la fenetre « Rejoindre l'aventure ».
 bool team_guest_has_cats_in_run();
+// Invite : des chats qu'il a amenes lui-meme sont dans l'equipe (pas seulement
+// des recrues qu'on lui a donnees en route) -- il est du defile du butin.
+bool team_guest_brought_cats();
 // Hote : les joueurs dont des chats sont dans l'aventure mixte en cours (« Lou et
 // Max », sans [ ] : balises du jeu), "" sans chat d'invite. Pour la confirmation
 // de l'abandon : c'est une defaite pour toute l'equipe.

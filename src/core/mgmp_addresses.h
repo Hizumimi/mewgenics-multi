@@ -824,6 +824,9 @@ enum Call : int {
     C_ItemName,              // wstring(SpawnDatabase*, Equipment*) -- par valeur -- sub_1407B4BE0
     C_ItemTooltip,           // wstring(SpawnDatabase*, Equipment*) -- par valeur -- sub_1407B5480
     C_WStrTidy,              // void(std::wstring*) -- _Tidy_deallocate -- sub_140052290
+
+    // --- Mewgenics Multi : les recrues (src/session/mm_team.cpp) -------------
+    C_PedigreeAdd,           // void(Pedigree*, u64 cle, u64 pa, u64 pb) -- sub_140772AC0
     C_COUNT
 };
 
@@ -1128,6 +1131,10 @@ static const CallDesc kCalls[C_COUNT] = {
     // std::wstring::_Tidy_deallocate : libere le tampon (capacite > 7) avec
     // l'operator delete du jeu et remet la chaine vide.
     { 0x00052290, "std::wstring::_Tidy_deallocate" },
+    // Pedigree::add(registre+0x38, cle, pa, pb) : map[cle] = {pa, pb, coef} par
+    // operator[] (le reecrire ne double rien). Registry::NewCat l'appelle avec
+    // -1, -1 pour un chat sans parents (0x1400D71EC).
+    { 0x00772AC0, "Pedigree::add" },
 };
 
 // sub_140138A10 IS NOT A DRAW ROUTINE, and it is in the table above only

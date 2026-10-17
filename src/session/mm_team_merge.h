@@ -77,7 +77,9 @@ enum : uint8_t {
     kTeamItemSync = 11, // hote -> invite : le sac, la poubelle et les chats de l'aventure, pour repartir juste
     kTeamItemSyncReq = 12, // invite -> hote : demande kTeamItemSync (apres ses mouvements numerotes jusqu'a seq)
     kTeamLoot    = 13,  // les deux sens : le defile du butin (mm_loot, protocole 47 ; corps : mm_loot_core)
-    kTeamLast    = kTeamLoot,
+    kTeamRecruit = 14,  // hote -> tous : une recrue rejoint l'equipe en route, et a qui elle est (protocole 49)
+    kTeamNewCats = 15,  // hote -> un invite : a la fin, les recrues qui rentrent chez lui (protocole 49)
+    kTeamLast    = kTeamNewCats,
 };
 
 // Le message MSG_TEAM : des chats (kTeamDepart, kTeamResult)...
@@ -270,8 +272,61 @@ struct PendingPayout {
     int32_t coins = 0;
     int32_t food  = 0;
 };
-std::vector<uint8_t> team_pending_encode(const std::vector<PendingLoot>& loot, const std::vector<PendingPayout>& pay);
-bool team_pending_decode(const uint8_t* p, size_t n, std::vector<PendingLoot>& loot, std::vector<PendingPayout>& pay);
+// Version 2 (protocole 49) : puis u32 c, c x { u8 vote, i64 jour de l'hote a la
+// fin, i64 naissance, i64 mort, u32 n + le chat serialise } -- les recrues de
+// l'aventure qui lui reviennent (team_add_new_cats). Ecrit en version 1 sans
+// recrue.
+struct PendingNewCat {
+    uint8_t              seq      = 0;
+    int64_t              host_day = 0;    // pour recaler ses jours (cat_shift_days)
+    int64_t              born     = 0;    // ... tels que la serialisation les porte
+    int64_t              died     = -1;
+    std::vector<uint8_t> cat;             // serialise, non compresse
+};
+std::vector<uint8_t> team_pending_encode(const std::vector<PendingLoot>& loot, const std::vector<PendingPayout>& pay,
+                                         const std::vector<PendingNewCat>* cats = nullptr);
+bool team_pending_decode(const uint8_t* p, size_t n, std::vector<PendingLoot>& loot, std::vector<PendingPayout>& pay,
+                         std::vector<PendingNewCat>* cats = nullptr);
+
+// Une recrue (kTeamRecruit) : le vote du depart de l'aventure, son id
+// (CatData+0x00), sa cle chez l'hote, le joueur a qui elle va et son nom (UTF-8,
+// pour la fenetre de chacun).
+struct RecruitNote {
+    uint8_t     seq      = 0;
+    uint64_t    cat_id   = 0;
+    uint64_t    host_key = 0;
+    uint8_t     owner    = 0;
+    std::string name;
+};
+std::vector<uint8_t> team_recruit_encode(const RecruitNote& n);
+bool team_recruit_decode(const uint8_t* p, size_t n, RecruitNote& out);
+
+// Les recrues qui rentrent chez un invite (kTeamNewCats) : le vote du depart, le
+// jour de l'hote a la fin, puis pour chacune sa cle chez l'hote, ses jours de
+// naissance et de mort tels que la serialisation les porte (pour les recaler
+// sur le calendrier de l'invite : cat_shift_days) et le chat serialise (sans
+// liens : ils seraient des chats de l'hote).
+struct NewCatEntry {
+    uint64_t             host_key = 0;
+    int64_t              born     = 0;
+    int64_t              died     = -1;
+    std::vector<uint8_t> data;
+};
+struct NewCatsMsg {
+    uint8_t                  seq      = 0;
+    int64_t                  host_day = 0;
+    std::vector<NewCatEntry> cats;
+};
+std::vector<uint8_t> team_newcats_encode(const NewCatsMsg& m);
+bool team_newcats_decode(const uint8_t* p, size_t n, NewCatsMsg& out);
+
+// Recale les jours d'un chat serialise sur un autre calendrier : naissance et
+// mort (mort = -1 : vivant, reste -1) moins `shift`. Ils sont ecrits l'un apres
+// l'autre (CatData+0xC38 puis +0xC40) apres une partie de longueur variable, et
+// suivis d'au moins 79 octets (0x14022FE35..0x14022FFD9) : on cherche, apres les
+// drapeaux, la seule place ou ils sont avec leurs valeurs connues. Faux (rien
+// n'est change) s'ils n'y sont pas exactement une fois.
+bool cat_shift_days(std::vector<uint8_t>& raw, int64_t born, int64_t died, int64_t shift);
 
 // Le genre d'un message MSG_TEAM, 0 si ce n'en est pas un.
 uint8_t team_kind(const uint8_t* p, size_t n);
@@ -300,6 +355,11 @@ bool cat_blob_unpack(const uint8_t* p, size_t n, std::vector<uint8_t>& raw);
 // retire, -1 si le format n'est pas celui attendu -- le bloc reste alors tel quel).
 bool house_state_keys(const std::vector<uint8_t>& hs, std::vector<uint64_t>& keys);
 int  house_state_remove(std::vector<uint8_t>& hs, const std::vector<uint64_t>& keys);
+// Ajoute un chat (cle `key`) a la maison : a la piece et a la place du premier
+// chat qui y est (les chats s'y promenent ensuite), sinon dans Floor1_Large ; sa
+// troisieme valeur (un entier par chat, House+0xF8) est la plus grande + 1. Faux
+// si le format n'est pas celui attendu (le bloc reste tel quel).
+bool house_state_add(std::vector<uint8_t>& hs, uint64_t key);
 
 // Hote, avant d'ecrire les chats de ses invites dans sa save (une copie en
 // memoire, lue seulement) : la cle de chacun, dans l'ordre de `cats`.
@@ -380,5 +440,22 @@ struct TeamPurseApply {
     int64_t food_before = 0, food_after = 0;
 };
 bool team_apply_purse(sqlite3* own, int64_t coins, int64_t food, TeamPurseApply* out = nullptr);
+
+// Invite : les chats recrutes en route qui lui reviennent (le resultat d'une
+// aventure, own_key 0), ajoutes a sa save en une transaction : chacun une cle
+// neuve (au-dessus de la plus grande de la table cats et du compteur du jeu, la
+// propriete catid_counter, que Registry::Load compare), sa ligne dans cats (sans
+// « en aventure » ni la marque kCatGuest) et sa place dans la maison
+// (house_state_add ; sans house_state, il est compte dans `unplaced`). Un chat
+// dont l'id est deja dans la save n'est pas ajoute une deuxieme fois (`already`).
+// Faux = rien n'est change.
+struct TeamNewCats {
+    std::vector<uint64_t>    keys;          // dans l'ordre de `cats` ; 0 : pas ajoute
+    std::vector<std::string> added;
+    std::vector<std::string> already;
+    int                      skipped  = 0;  // format inattendu
+    int                      unplaced = 0;  // ajoute, mais pas dans house_state
+};
+bool team_add_new_cats(sqlite3* own, const std::vector<TeamCat>& cats, TeamNewCats& out);
 
 } // namespace mgmp

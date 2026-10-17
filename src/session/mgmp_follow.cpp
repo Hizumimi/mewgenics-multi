@@ -386,7 +386,15 @@ bool follow_on_enter_node(void* map_screen, void* node, bool* sent) {
     // Mewgenics Multi : qui joue les combats de cette case -- l'hote et les
     // invites qui sont dans son aventure maintenant (protocole 48). Un invite
     // rentre chez lui ne bloque plus le combat : ses chats sont a l'hote.
-    const uint8_t members = (uint8_t)((1u << kHostPeer) | (mm_run_peers_mask() & 0x0Fu));
+    // Sauf un invite arrete en regardant un combat d'avant (desynchronise, son
+    // jeu fige) : la barriere l'attendrait pour toujours. Il le redevient en
+    // revenant (lockstep_catchup).
+    const uint8_t in_run  = (uint8_t)(mm_run_peers_mask() & 0x0Fu);
+    const uint8_t halted  = lockstep_halted_peers(in_run);
+    const uint8_t members = (uint8_t)(((1u << kHostPeer) | in_run) & ~halted);
+    if (halted)
+        log_line("FOLLOW", "joueur(s) arrete(s) dans un combat precedent (masque %02x) : pas membres de cette case",
+                 (unsigned)halted);
     lockstep_note_members(seed, members);
     remember_node(index, count, type, seed);
     g.inside    = true;
@@ -644,8 +652,17 @@ void follow_on_message(const EnterNodeMsg& m) {
     // pleine les marquerait « sautees » pour la couche des choix) ; il recevra
     // la case actuelle en rejoignant (session_catchup_peer).
     if (!savefile_in_coop() && !savefile_join_armed()) return;
+    // Mewgenics Multi : il quitte l'aventure (« Quitter l'aventure », en route
+    // vers le menu) -- plus de case a suivre.
+    if (mm_guest_quitting()) return;
     // Mewgenics Multi : qui joue les combats de cette case (protocole 48).
     lockstep_note_members(m.seed0, m.members);
+    // Mewgenics Multi : il rejoint l'aventure (pas encore dans la copie). Les
+    // decisions de cette case arrivees avant elle sont celles que l'hote jouait
+    // pendant que sa demande voyageait : la reprise qui suit cette case (la
+    // sienne) les redonne toutes, dans l'ordre -- gardees, elles seraient
+    // jouees deux fois (relecture du 17 octobre).
+    if (savefile_join_armed() && !savefile_in_coop()) lockstep_drop_queued(m.seed0);
     // A full queue means this peer is eight nodes behind, which no amount of
     // waiting is going to fix. Refuse the newest and SAY SO: the run is already
     // wrong, and the one thing that must not happen is what used to -- losing a
@@ -759,6 +776,12 @@ void* follow_map_update(void* map_screen) {
     // l'hote sont celles de SA course, pas de celle-ci.
     if (g.is_client && !savefile_in_coop()) return nullptr;
     if (!pending_any()) return nullptr;
+    // Mewgenics Multi : il quitte l'aventure -- les cases en attente ne le
+    // concernent plus (il les reprendrait en revenant : follow_catchup).
+    if (g.is_client && mm_guest_quitting()) {
+        pending_clear();
+        return nullptr;
+    }
     // Mewgenics Multi : pas tant que son ecran des objets est ouvert (ses
     // boites tiennent les objets que la case relirait) ; et ce que l'hote ne
     // prendra jamais revient comme avant, ici, avant de suivre (mm_rungear).

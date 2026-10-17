@@ -547,6 +547,107 @@ uint64_t item_digest(const ItemFields& it) {
     return h ? h : 1;
 }
 
+// --- les recrues (protocole 49) ------------------------------------------------
+
+std::vector<uint8_t> team_recruit_encode(const RecruitNote& n) {
+    std::vector<uint8_t> b;
+    put_head(b, kTeamRecruit);
+    put<uint8_t>(b, n.seq);
+    put<uint64_t>(b, n.cat_id);
+    put<uint64_t>(b, n.host_key);
+    put<uint8_t>(b, n.owner);
+    const size_t len = std::min(n.name.size(), (size_t)255);
+    put<uint8_t>(b, (uint8_t)len);
+    b.insert(b.end(), n.name.begin(), n.name.begin() + (ptrdiff_t)len);
+    return b;
+}
+
+bool team_recruit_decode(const uint8_t* p, size_t n, RecruitNote& out) {
+    if (!p) return false;
+    Reader r{p, n};
+    if (r.get<uint32_t>() != kTeamMagic || r.get<uint8_t>() != kTeamFormat || r.get<uint8_t>() != kTeamRecruit)
+        return false;
+    RecruitNote v;
+    v.seq      = r.get<uint8_t>();
+    v.cat_id   = r.get<uint64_t>();
+    v.host_key = r.get<uint64_t>();
+    v.owner    = r.get<uint8_t>();
+    const uint8_t len = r.get<uint8_t>();
+    if (!r.ok || !r.need(len)) return false;
+    v.name.assign((const char*)p + r.pos, len);
+    r.pos += len;
+    if (!r.ok || r.pos != n || !v.cat_id || !v.host_key) return false;
+    out = std::move(v);
+    return true;
+}
+
+std::vector<uint8_t> team_newcats_encode(const NewCatsMsg& m) {
+    std::vector<uint8_t> b;
+    put_head(b, kTeamNewCats);
+    put<uint8_t>(b, m.seq);
+    put<int64_t>(b, m.host_day);
+    const size_t count = std::min(m.cats.size(), kMaxTeam);
+    put<uint8_t>(b, (uint8_t)count);
+    for (size_t i = 0; i < count; ++i) {
+        const NewCatEntry& c = m.cats[i];
+        put<uint64_t>(b, c.host_key);
+        put<int64_t>(b, c.born);
+        put<int64_t>(b, c.died);
+        put<uint32_t>(b, (uint32_t)c.data.size());
+        b.insert(b.end(), c.data.begin(), c.data.end());
+    }
+    return b;
+}
+
+bool team_newcats_decode(const uint8_t* p, size_t n, NewCatsMsg& out) {
+    if (!p) return false;
+    Reader r{p, n};
+    if (r.get<uint32_t>() != kTeamMagic || r.get<uint8_t>() != kTeamFormat || r.get<uint8_t>() != kTeamNewCats)
+        return false;
+    NewCatsMsg m;
+    m.seq      = r.get<uint8_t>();
+    m.host_day = r.get<int64_t>();
+    const uint8_t count = r.get<uint8_t>();
+    if (!r.ok || count > kMaxTeam) return false;
+    m.cats.resize(count);
+    for (NewCatEntry& c : m.cats) {
+        c.host_key = r.get<uint64_t>();
+        c.born     = r.get<int64_t>();
+        c.died     = r.get<int64_t>();
+        const uint32_t sz = r.get<uint32_t>();
+        if (!r.ok || sz == 0 || sz > kMaxCatBytes || !r.need(sz)) return false;
+        c.data.assign(p + r.pos, p + r.pos + sz);
+        r.pos += sz;
+    }
+    if (!r.ok || r.pos != n) return false;
+    out = std::move(m);
+    return true;
+}
+
+bool cat_shift_days(std::vector<uint8_t>& raw, int64_t born, int64_t died, int64_t shift) {
+    CatInfo info;
+    if (!cat_info(raw, info)) return false;
+    constexpr size_t kTail = 79;                // ce qui suit la mort, au moins
+    const size_t from = info.flags_at + 8;
+    if (raw.size() < from + 16 + kTail) return false;
+    uint8_t want[16];
+    memcpy(want, &born, 8);
+    memcpy(want + 8, &died, 8);
+    size_t at = 0;
+    int found = 0;
+    for (size_t i = from; i + 16 + kTail <= raw.size(); ++i)
+        if (memcmp(raw.data() + i, want, 16) == 0) {
+            at = i;
+            ++found;
+        }
+    if (found != 1) return false;
+    const int64_t nb = born - shift;
+    const int64_t nd = died == -1 ? -1 : died - shift;
+    memcpy(raw.data() + at, &nb, 8);
+    memcpy(raw.data() + at + 8, &nd, 8);
+    return true;
+}
+
 uint8_t team_kind(const uint8_t* p, size_t n) {
     if (!p) return 0;
     Reader r{p, n};
@@ -705,6 +806,47 @@ int house_state_remove(std::vector<uint8_t>& hs, const std::vector<uint64_t>& ke
     memcpy(out.data() + 4, &kept, 4);
     hs = std::move(out);
     return removed;
+}
+
+bool house_state_add(std::vector<uint8_t>& hs, uint64_t key) {
+    std::vector<HouseEntry> es;
+    if (!house_entries(hs, es)) return false;
+    // La troisieme valeur (un entier du chat, House+0xF8, ecrit en double) est
+    // differente pour chaque chat de la maison : la plus grande + 1.
+    double top = -1.0;
+    for (const HouseEntry& e : es) {
+        uint64_t n = 0;
+        memcpy(&n, hs.data() + e.at + 8, 8);
+        double z = 0;
+        memcpy(&z, hs.data() + e.at + 16 + (size_t)n + 16, 8);
+        if (z > top) top = z;
+    }
+    std::vector<uint8_t> entry;
+    if (!es.empty()) {
+        // La piece et la place du premier chat : les chats s'y promenent ensuite.
+        const HouseEntry& e = es.front();
+        entry.assign(hs.begin() + (ptrdiff_t)e.at, hs.begin() + (ptrdiff_t)(e.at + e.len));
+        memcpy(entry.data(), &key, 8);
+        uint64_t n = 0;
+        memcpy(&n, entry.data() + 8, 8);
+        const double z = top + 1.0;
+        memcpy(entry.data() + 16 + (size_t)n + 16, &z, 8);
+    } else {
+        // Une maison vide : la grande piece du rez-de-chaussee, ou le jeu met le
+        // premier chat d'une partie (6,5 ; 1).
+        static const char kRoom[] = "Floor1_Large";
+        put<uint64_t>(entry, key);
+        put<uint64_t>(entry, (uint64_t)(sizeof(kRoom) - 1));
+        entry.insert(entry.end(), kRoom, kRoom + sizeof(kRoom) - 1);
+        put<double>(entry, 6.5);
+        put<double>(entry, 1.0);
+        put<double>(entry, 0.0);
+    }
+    const size_t tail = es.empty() ? 8 : es.back().at + es.back().len;
+    hs.insert(hs.begin() + (ptrdiff_t)tail, entry.begin(), entry.end());
+    const uint32_t count = (uint32_t)es.size() + 1;
+    memcpy(hs.data() + 4, &count, 4);
+    return true;
 }
 
 // --- hote : les cles des chats d'invites -----------------------------------------------
@@ -1046,13 +1188,17 @@ bool team_item_parse(const uint8_t* p, size_t n, size_t& pos, ItemFields& out) {
 namespace {
 constexpr uint32_t kPendingMagic   = 0x5454414D;   // « MATT »
 constexpr uint8_t  kPendingVersion = 1;
+constexpr uint8_t  kPendingVersionCats = 2;   // + les recrues (protocole 49)
+constexpr uint32_t kMaxPendingCatBytes = 64 * 1024;
 constexpr uint32_t kMaxPending     = 4096;
 } // namespace
 
-std::vector<uint8_t> team_pending_encode(const std::vector<PendingLoot>& loot, const std::vector<PendingPayout>& pay) {
+std::vector<uint8_t> team_pending_encode(const std::vector<PendingLoot>& loot, const std::vector<PendingPayout>& pay,
+                                         const std::vector<PendingNewCat>* cats) {
+    const bool with_cats = cats && !cats->empty();
     std::vector<uint8_t> b;
     put<uint32_t>(b, kPendingMagic);
-    put<uint8_t>(b, kPendingVersion);
+    put<uint8_t>(b, with_cats ? kPendingVersionCats : kPendingVersion);
     put<uint32_t>(b, (uint32_t)loot.size());
     for (const PendingLoot& l : loot) {
         put<uint8_t>(b, l.seq);
@@ -1070,18 +1216,33 @@ std::vector<uint8_t> team_pending_encode(const std::vector<PendingLoot>& loot, c
         put<int32_t>(b, p.coins);
         put<int32_t>(b, p.food);
     }
+    if (with_cats) {
+        put<uint32_t>(b, (uint32_t)cats->size());
+        for (const PendingNewCat& c : *cats) {
+            put<uint8_t>(b, c.seq);
+            put<int64_t>(b, c.host_day);
+            put<int64_t>(b, c.born);
+            put<int64_t>(b, c.died);
+            put<uint32_t>(b, (uint32_t)c.cat.size());
+            b.insert(b.end(), c.cat.begin(), c.cat.end());
+        }
+    }
     return b;
 }
 
 bool team_pending_decode(const uint8_t* p, size_t n, std::vector<PendingLoot>& loot_out,
-                         std::vector<PendingPayout>& pay_out) {
+                         std::vector<PendingPayout>& pay_out, std::vector<PendingNewCat>* cats_out) {
     loot_out.clear();
     pay_out.clear();
+    if (cats_out) cats_out->clear();
     if (!p) return false;
     std::vector<PendingLoot>   loot;
     std::vector<PendingPayout> pay;
+    std::vector<PendingNewCat> cats;
     Reader r{p, n};
-    if (r.get<uint32_t>() != kPendingMagic || r.get<uint8_t>() != kPendingVersion) return false;
+    if (r.get<uint32_t>() != kPendingMagic) return false;
+    const uint8_t version = r.get<uint8_t>();
+    if (!r.ok || (version != kPendingVersion && version != kPendingVersionCats)) return false;
     const uint32_t nl = r.get<uint32_t>();
     if (!r.ok || nl > kMaxPending) return false;
     for (uint32_t i = 0; i < nl; ++i) {
@@ -1108,9 +1269,26 @@ bool team_pending_decode(const uint8_t* p, size_t n, std::vector<PendingLoot>& l
         q.food  = r.get<int32_t>();
         pay.push_back(q);
     }
+    if (version == kPendingVersionCats) {
+        const uint32_t nc = r.get<uint32_t>();
+        if (!r.ok || nc > kMaxPending) return false;
+        for (uint32_t i = 0; i < nc; ++i) {
+            PendingNewCat c;
+            c.seq      = r.get<uint8_t>();
+            c.host_day = r.get<int64_t>();
+            c.born     = r.get<int64_t>();
+            c.died     = r.get<int64_t>();
+            const uint32_t cl = r.get<uint32_t>();
+            if (!r.ok || cl == 0 || cl > kMaxPendingCatBytes || !r.need(cl)) return false;
+            c.cat.assign(p + r.pos, p + r.pos + cl);
+            r.pos += cl;
+            cats.push_back(std::move(c));
+        }
+    }
     if (!r.ok || r.pos != n) return false;
     loot_out = std::move(loot);
     pay_out  = std::move(pay);
+    if (cats_out) *cats_out = std::move(cats);
     return true;
 }
 
@@ -1146,6 +1324,98 @@ int team_apply_loot(sqlite3* own, const std::vector<ItemFields>& items, uint32_t
         return 1;
     exec(own, "ROLLBACK");
     return -1;
+}
+
+// --- invite : les recrues de l'aventure dans sa save ---------------------------------
+
+bool team_add_new_cats(sqlite3* own, const std::vector<TeamCat>& cats, TeamNewCats& out) {
+    out = TeamNewCats{};
+    if (!own || cats.empty()) return false;
+    if (!exec(own, "BEGIN IMMEDIATE")) return false;
+    auto fail = [&]() {
+        exec(own, "ROLLBACK");
+        out = TeamNewCats{};
+        return false;
+    };
+    TeamNewCats res;
+    res.keys.assign(cats.size(), 0);
+
+    // La plus grande cle de la table et les ids deja la (morts compris).
+    sqlite3_stmt* st = nullptr;
+    if (sqlite3_prepare_v2(own, "SELECT key, data FROM cats", -1, &st, nullptr) != SQLITE_OK) return fail();
+    int64_t top = 0;
+    std::set<uint64_t> ids;
+    std::vector<uint8_t> raw;
+    int rc;
+    while ((rc = sqlite3_step(st)) == SQLITE_ROW) {
+        if (sqlite3_column_type(st, 0) != SQLITE_INTEGER) continue;
+        const int64_t key = (int64_t)sqlite3_column_int64(st, 0);
+        top = std::max<int64_t>(top, key);
+        const uint8_t* p = (const uint8_t*)sqlite3_column_blob(st, 1);
+        const int      n = sqlite3_column_bytes(st, 1);
+        CatInfo have;
+        if (p && n > 0 && cat_blob_unpack(p, (size_t)n, raw) && cat_info(raw, have) && have.id)
+            ids.insert(have.id);
+    }
+    sqlite3_finalize(st);
+    if (rc != SQLITE_DONE) return fail();
+
+    // Le compteur du jeu : au chargement, il prend la plus grande des deux
+    // (Registry::Load, 0x1400D8C2E) -- une cle au-dessus des deux ne rencontre
+    // jamais ses prochains chats.
+    int64_t counter = 0;
+    const int cf = get_property_int(own, "catid_counter", 0, counter);
+    if (cf < 0) return fail();
+    uint64_t next = (uint64_t)std::max<int64_t>(std::max<int64_t>(top, counter), 0) + 1;
+
+    std::vector<uint8_t> hs;
+    const int hf = get_row(own, "SELECT data FROM files WHERE key = ?1", "house_state", 0, hs);
+    if (hf < 0) return fail();
+    bool hs_dirty = false;
+
+    sqlite3_stmt* ins = nullptr;
+    if (sqlite3_prepare_v2(own, "INSERT INTO cats(key, data) VALUES(?1, ?2)", -1, &ins, nullptr) != SQLITE_OK)
+        return fail();
+    for (size_t i = 0; i < cats.size(); ++i) {
+        CatInfo info;
+        if (!cat_info(cats[i].data, info) || !info.id) { ++res.skipped; continue; }
+        if (ids.count(info.id)) { res.already.push_back(info.name); continue; }
+        std::vector<uint8_t> cat = cats[i].data;
+        cat_set_flags(cat, info.flags & ~(kCatAway | kCatGuest));
+        const std::vector<uint8_t> blob = cat_blob_pack(cat);
+        const uint64_t key = next++;
+        sqlite3_reset(ins);
+        sqlite3_bind_int64(ins, 1, (sqlite3_int64)key);
+        sqlite3_bind_blob(ins, 2, blob.data(), (int)blob.size(), SQLITE_TRANSIENT);
+        if (sqlite3_step(ins) != SQLITE_DONE) {
+            sqlite3_finalize(ins);
+            return fail();
+        }
+        if (hf == 1 && house_state_add(hs, key)) hs_dirty = true;
+        else ++res.unplaced;
+        ids.insert(info.id);
+        res.keys[i] = key;
+        res.added.push_back(info.name);
+    }
+    sqlite3_finalize(ins);
+    if (hs_dirty) {
+        sqlite3_stmt* up = nullptr;
+        if (sqlite3_prepare_v2(own, "INSERT OR REPLACE INTO files(key, data) VALUES('house_state', ?1)", -1, &up,
+                               nullptr) != SQLITE_OK)
+            return fail();
+        sqlite3_bind_blob(up, 1, hs.data(), (int)hs.size(), SQLITE_TRANSIENT);
+        const bool ok = sqlite3_step(up) == SQLITE_DONE;
+        sqlite3_finalize(up);
+        if (!ok) return fail();
+    }
+    // Une ligne catid_counter deja la reste juste (le jeu la reecrira a sa
+    // prochaine sauvegarde de toute facon).
+    if (cf == 1 && !res.added.empty() && counter < (int64_t)(next - 1) &&
+        !put_property_int(own, "catid_counter", (int64_t)(next - 1)))
+        return fail();
+    if (!exec(own, "COMMIT")) return fail();
+    out = std::move(res);
+    return true;
 }
 
 } // namespace mgmp

@@ -99,6 +99,26 @@ void    lockstep_note_members(uint64_t battle_id, uint8_t mask);
 // Les membres de ce combat maintenant (le combat en cours : apres les departs),
 // sinon ceux notes ; 0 si inconnus.
 uint8_t lockstep_members_of(uint64_t battle_id);
+// Mewgenics Multi : un invite sort de l'aventure de l'hote (il rentre chez lui,
+// « Quitter l'aventure ») : son etat du combat en cours (file, empreintes,
+// photo, partage, barriere) est oublie sans retirer ce combat -- s'il y revient,
+// la reprise de l'hote le refait du debut. Les combats de l'hote ne le
+// concernent plus jusqu'a sa prochaine case suivie (lockstep_enter_battle).
+void    lockstep_leave_run();
+// ... et il y revient (il demande a la rejoindre, ou il y est arrive) : les
+// combats de l'hote le concernent de nouveau.
+void    lockstep_rejoin_run();
+// Invite : arrete (desynchronise) dans un combat qu'il ne faisait que regarder --
+// le combat des autres continue, le sien est fige (mm_menu le fait rentrer).
+bool    lockstep_halted_watching();
+// Hote : les invites arretes en regardant un combat, parmi `still` (ceux encore
+// dans son aventure et connectes ; les autres sont oublies). Ils ne sont pas
+// membres des combats suivants avant d'etre revenus (lockstep_catchup).
+uint8_t lockstep_halted_peers(uint8_t still);
+// Invite qui rejoint l'aventure : la case de la reprise de l'hote est arrivee --
+// les decisions de ce combat recues avant elle (en direct, pendant que sa
+// demande voyageait) sont oubliees, la reprise les redonne toutes, dans l'ordre.
+void    lockstep_drop_queued(uint64_t battle_id);
 
 // A peer joined or reconnected: replay this battle's decisions to it so it can
 // fast-forward into a fight already under way. To that peer only.
