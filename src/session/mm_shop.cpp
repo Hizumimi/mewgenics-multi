@@ -58,7 +58,7 @@ constexpr uint64_t kReqWaitMs    = 25000;    // hote : une demande que sa boutiq
 constexpr uint64_t kReqGoneMs    = 1500;     // ... et une fois sa scene « Shop » partie
 constexpr uint64_t kArriveMs     = 15000;    // hote : un invite de l'aventure qui n'a pas encore dit sa
                                              //   boutique ouverte, depuis l'entree de l'hote, « arrive encore »
-constexpr uint64_t kInsideMs     = 2000;     // hote : sa boutique a tourne il y a moins que ca (bonbons)
+constexpr uint64_t kInsideMs     = 2000;     // hote : sa boutique a tourne il y a moins que ca
 constexpr size_t   kMaxPending   = 8;        // invite : demandes en attente (une par objet)
 constexpr uint64_t kReplayMaxMs  = 120000;   // invite : un achat a rejouer, au plus
 constexpr uint64_t kReplayGoneMs = 3000;     // ... et pas plus une fois sorti de cette case
@@ -149,8 +149,10 @@ struct State {
     std::vector<std::string> home_notes;
     uint64_t           rng = 0;
     Here               here[8];                // la boutique de chaque invite (kShopHere)
-    uint64_t           exit_asked_at = 0;      // « Sortir » retenu une fois, a ce moment
-    uint64_t           host_shop_node  = 0;    // sa boutique d'aventure : sa case...
+    uint64_t           exit_asked_at = 0;      // « Sortir » retenu une fois, a ce moment...
+    uint64_t           exit_closed_at = 0;     // ... et sa fenetre refermee (la boutique tourne de nouveau)
+    void*              host_shop_ptr   = nullptr; // sa boutique d'aventure (le composant)...
+    uint64_t           host_shop_node  = 0;    // ... sa case...
     uint64_t           host_shop_since = 0;    // ... depuis (sa premiere image)
     uint64_t           host_shop_at    = 0;    // ... et sa derniere image
     // --- invite ---
@@ -833,12 +835,19 @@ void __fastcall h_ShopUpdate(void* shop) {
     if (is_host()) {
         const uint64_t now  = GetTickCount64();
         const uint64_t node = follow_here_seed();
-        if (node != g.host_shop_node || !g.host_shop_at || now - g.host_shop_at > kOpenMs * 10) {
+        // Une autre boutique : une autre case, ou un autre composant. (Pas un trou
+        // dans les images : une fenetre par-dessus -- celle du « Sortir » retenu, le
+        // sac, un bonbon -- met la boutique en pause, c'est la meme.)
+        if (node != g.host_shop_node || shop != g.host_shop_ptr) {
             g.host_shop_node  = node;
+            g.host_shop_ptr   = shop;
             g.host_shop_since = now;
             g.exit_asked_at   = 0;
+            g.exit_closed_at  = 0;
         }
         g.host_shop_at = now;
+        // La fenetre du « Sortir » retenu est refermee : la boutique tourne de nouveau.
+        if (g.exit_asked_at && !g.exit_closed_at && !mm_info_busy()) g.exit_closed_at = now;
         while (!g.reqs.empty()) {
             const Req r = g.reqs.front();
             g.reqs.pop_front();
@@ -1039,9 +1048,12 @@ void shop_victory_after() {
 }
 
 bool shop_host_inside() {
-    if (!g.armed || !is_host() || !g.host_shop_at) return false;
-    return GetTickCount64() - g.host_shop_at < kInsideMs && follow_node_live() &&
-           follow_here_seed() == g.host_shop_node;
+    if (!g.armed || !is_host() || !g.host_shop_node) return false;
+    if (!follow_node_live() || follow_here_seed() != g.host_shop_node) return false;
+    // Sa scene « Shop » est la, meme en pause : un bonbon ouvre la montee de niveau
+    // par-dessus et met la boutique en pause (0x14079C96F) -- plus de Shop::update
+    // tant que l'hote choisit (relecture de la build 30).
+    return mm_scene_alive("Shop") || (g.host_shop_at && GetTickCount64() - g.host_shop_at < kInsideMs);
 }
 
 bool shop_on_click(void* button) {
@@ -1054,12 +1066,16 @@ bool shop_on_click(void* button) {
     int count = 0;
     const std::string names = guests_still_here(now, count);
     if (!count) return false;
-    if (g.exit_asked_at && now - g.exit_asked_at < kExitConfirmMs) {
-        log_line("SHOP", "l'hote sort de la boutique quand meme (%s y achete encore)", names.c_str());
-        g.exit_asked_at = 0;
+    // Le second clic : dans les 10 s apres la fermeture de la fenetre (le temps de
+    // la lire ne compte pas -- elle met la boutique en pause).
+    if (g.exit_asked_at && (!g.exit_closed_at || now - g.exit_closed_at < kExitConfirmMs)) {
+        log_line("SHOP", "l'hote sort de la boutique quand meme (%s n'a pas fini)", names.c_str());
+        g.exit_asked_at  = 0;
+        g.exit_closed_at = 0;
         return false;
     }
-    g.exit_asked_at = now;
+    g.exit_asked_at  = now;
+    g.exit_closed_at = 0;
     log_line("SHOP", "« Sortir » retenu : %s achete encore dans cette boutique", names.c_str());
     say(shop_wait_text(names, count > 1));
     return true;
