@@ -2689,6 +2689,8 @@ bool mm_binding(Target t, void** detour, void*** original) {
     }
 }
 
+static void defense_pump();      // Mewgenics Multi : plus bas, avec MM_PEER_DEFEND
+
 void mm_menu_pump() {
     ++g_frame;
     game_prompt_alive();                 // oubliee des que sa scene s'en va
@@ -2834,6 +2836,7 @@ void mm_menu_pump() {
     loot_pump();                    // Mewgenics Multi : le defile du butin
     npcgift_pump();                 // Mewgenics Multi : les dons des invites aux PNJ
     shop_pump();                    // Mewgenics Multi : les achats en boutique avec sa bourse
+    defense_pump();                 // Mewgenics Multi : la defense de la maison, seul
     team_ui_pump();                 // Mewgenics Multi : fenetres de l'equipe mixte
     trip_pump();
     night_pump();
@@ -3033,8 +3036,53 @@ void mm_on_host_left() {
     }
 }
 
+// --- Mewgenics Multi (protocole 54) : la defense de la maison ------------------------
+//
+// Chacun defend sa maison, seul (mm_team.h). Ce joueur dit aux autres quand son
+// combat commence et finit (MM_PEER_DEFEND : a = 1 / 0, b = son numero ; l'hote
+// relaie celui d'un invite aux autres) : sans cela, celui qui attend -- l'hote qui
+// propose de partir, un invite pret pour la nuit -- ne saurait pas pourquoi il ne
+// repond plus. La transition se lit sur le jeu (MewDirector+0x70C) : aussi pour
+// une defense reprise d'une save.
+static bool g_defending = false;
+
+static void defense_pump() {
+    const bool now = team_house_defense_running();
+    if (now == g_defending) return;
+    g_defending = now;
+    log_line("MULTI", "defense de la maison : %s", now ? "le combat commence -- ce joueur le joue seul, "
+                                                         "la session n'y entre pas"
+                                                       : "le combat est fini");
+    if (!session_has_others()) return;
+    MmMsg m{};
+    m.kind = MM_PEER_DEFEND;
+    m.a    = now ? 1 : 0;
+    m.b    = net_self();
+    net_send_mm(m);
+}
+
+static void on_peer_defend(uint8_t from, const MmMsg& m) {
+    // L'hote : de l'invite lui-meme (son numero de connexion fait foi), relaye aux
+    // autres. Un invite : de l'hote, qui dit pour qui.
+    const uint8_t who = net_role() == NetRole::Host ? from : m.b;
+    if (who >= 8 || who == net_self()) return;
+    if (net_role() == NetRole::Host) {
+        MmMsg relay = m;
+        relay.b = who;
+        net_send_mm(relay);
+    }
+    log_line("MULTI", "defense de la maison : %s %s", peer_name(who).c_str(),
+             m.a ? "defend sa maison (un combat a lui seul)" : "a fini de defendre sa maison");
+    show_info(m.a ? fmt(u8"%s défend sa maison : un combat qu'il joue\n"
+                        u8"seul, avec ses chats. Il revient ensuite.", peer_name(who).c_str())
+                  : fmt(u8"%s a fini de défendre sa maison.", peer_name(who).c_str()));
+}
+
 void mm_on_message(uint8_t from, const MmMsg& m) {
     switch (m.kind) {
+        case MM_PEER_DEFEND:
+            on_peer_defend(from, m);
+            break;
         case MM_NIGHT_READY:
             if (net_role() == NetRole::Host && from < 8) {
                 g_host_ready[from] = m.a != 0;
@@ -3213,15 +3261,15 @@ bool mm_on_button_click(void* button) {
         return true;
     }
     if (kind == 2) {
-        // « Défendre ! » : la maison de ce joueur est attaquee. Un combat ou
-        // l'autre joueur n'est pas attendrait sa presence pour toujours (mgmp
-        // synchronise tous les combats d'une session) : pas encore en multi.
+        // « Défendre ! » (protocole 54) : la maison de CE joueur est attaquee (le
+        // boss de la maison est a chacun). Il la defend comme seul, avec les chats
+        // de sa boite : le depart du jeu passe tel quel (h_ButchDepart, chez
+        // l'hote), la session n'entre pas dans ce combat (mgmp_lockstep :
+        // team_house_defense_running), et les autres le savent (MM_PEER_DEFEND,
+        // defense_pump).
         if (house_boss_defend()) {
-            log_line("MULTI", "panneau « Defendre » en session : refuse pour l'instant");
-            show_info(u8"Défendre la maison n'est pas encore prévu\n"
-                      u8"en multijoueur : quitte la session pour la défendre,\n"
-                      u8"puis reconnecte-toi.");
-            return true;
+            log_line("MULTI", "panneau « Defendre » en session : ce joueur defend sa maison, seul");
+            return false;
         }
         // « À l'aventure ! » : l'hote propose le depart, l'invite ne part pas seul.
         if (net_role() == NetRole::Host) return depart_start(button);

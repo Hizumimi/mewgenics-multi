@@ -439,6 +439,13 @@ const char* members_text(uint8_t mask, char* buf, size_t n) {
 
 bool lockstep_is_host() { return net_role() == NetRole::Host; }
 
+// Mewgenics Multi (protocole 54) : la defense de la maison -- un combat a ce joueur
+// seul, chez lui (chacun defend sa maison : mm_team.h). La session n'y entre pas :
+// ni photo, ni empreinte, ni decision envoyee ou attendue, ni IA pour un absent,
+// ni barre grisee ; le jeu le joue comme seul. La photo du dernier combat commun
+// reste telle quelle : le premier tour du combat commun suivant la refait.
+bool solo_battle() { return team_house_defense_running(); }
+
 // Les joueurs dont le CONTROL compte pour ce combat, par numero croissant :
 // chez l'hote, ses membres ; chez un invite, ceux que l'hote a annonces dans le
 // sien (aucun avant : l'hote est toujours membre, son CONTROL est attendu de
@@ -546,6 +553,7 @@ bool local_changed(const bool* before) {
 // membres a jour (au debut du combat, snapshot_cats l'envoie juste apres).
 void members_tick(bool resend) {
     if (!lockstep_is_host() || !snap_current() || g.halted || !g.members) return;
+    if (solo_battle()) return;           // Mewgenics Multi : sa defense, seul -- rien de commun
     const uint8_t self = net_self();
     if (self >= kMaxPeers) return;
     const uint8_t  run  = (uint8_t)(mm_run_peers_mask() & 0xFFu);
@@ -2372,7 +2380,7 @@ bool lockstep_in_battle() { return g.active && g.snapped && !g.halted; }
 // locally on BOTH peers, so they are neither published nor drawn. Treating one
 // as remote would paint a preview over a cat that is about to move on its own.
 bool lockstep_aim_subject(const void* character, uint8_t& cat, bool& peer_owns) {
-    if (!g.active || !g.snapped || !character) return false;
+    if (!g.active || !g.snapped || !character || solo_battle()) return false;
     const uint8_t i = cat_index_of(character);
     if (i == kNoCat)     return false;   // a summon: in nobody's roster
     if (!g.human_cat[i]) return false;   // an AI cat: both peers drive it
@@ -2420,8 +2428,9 @@ PreviewFacing g_pf;
 void lockstep_preview_facing_begin(void* brain) {
     g_pf.have = false;
     // Only inside a net session: a solo game has nobody to diverge from, and
-    // the preview is a real piece of feedback to the player.
-    if (!brain || !lockstep_active()) return;
+    // the preview is a real piece of feedback to the player. (Mewgenics Multi :
+    // sa defense de la maison est un combat seul, meme en session.)
+    if (!brain || !lockstep_active() || solo_battle()) return;
 
     uint8_t* ch = nullptr;
     if (!mem_read((const uint8_t*)brain + kBrain_Character, &ch, sizeof(ch)) || !ch)
@@ -2580,7 +2589,7 @@ ChoicePinStats g_cp;
 void lockstep_choice_pin(void* brain, ChoicePin& pin) {
     pin.armed = false;
     g_cp.moved = false;
-    if (!g.active || !g.snapped || !brain) return;
+    if (!g.active || !g.snapped || !brain || solo_battle()) return;
     const void* actor = nullptr;
     if (!mem_read((const uint8_t*)brain + kBrain_Owner, &actor, sizeof(actor)) || !actor) return;
     Guard guard;
@@ -3011,6 +3020,12 @@ static bool ai_turn(void* brain, const void* actor, uint8_t cat, void* out) {
 
 bool lockstep_fill_choice(void* brain, void* out) {
     if (!g.active || !brain || !out) return false;
+    // Mewgenics Multi (protocole 54) : sa defense de la maison -- son cerveau decide,
+    // comme seul (meme apres un combat commun arrete : celui-ci n'en est pas un).
+    if (solo_battle()) {
+        g.local_actor = true;
+        return false;
+    }
     if (g.halted) {
         // Freeze both peers rather than let one run on. Forcing type=1 parks
         // the game in its normal "waiting for a decision" state, which is a
@@ -3269,6 +3284,21 @@ void lockstep_on_applied(const void* action, const void* actor) {
 
 void lockstep_turn_boundary(void* turn_control) {
     if (!g.active) return;
+
+    // Mewgenics Multi (protocole 54) : la defense de la maison, seul -- rien a
+    // photographier ni a comparer. Dit une fois par defense.
+    {
+        static bool said = false;
+        if (solo_battle()) {
+            if (!said) {
+                said = true;
+                log_line("LOCKSTEP", "defense de la maison : un combat a ce joueur seul -- la session n'y entre "
+                                     "pas (ni photo, ni empreinte, ni decision partagee)");
+            }
+            return;
+        }
+        said = false;
+    }
 
     // A new battle means a new character list, and the old roster describes
     // cats that no longer exist. Detecting it matters more now than it did in
@@ -3550,10 +3580,10 @@ uint8_t lockstep_members_of(uint64_t battle_id) {
     if (g.active && snap_current() && battle_id == g.battles.current && g.members) return g.members;
     return noted_members(battle_id);
 }
-bool     lockstep_local_actor(){ return g.active && g.snapped && g.local_actor; }
+bool     lockstep_local_actor(){ return g.active && (solo_battle() || (g.snapped && g.local_actor)); }
 
 bool lockstep_peer_owns_character(const void* character) {
-    if (!g.active || !g.snapped || !character) return false;
+    if (!g.active || !g.snapped || !character || solo_battle()) return false;
     const uint8_t cat = cat_index_of(character);
     if (cat == kNoCat)      return false;   // a summon: nobody's, both AIs drive it
     if (!g.human_cat[cat])  return false;   // an AI cat: decided locally on both
@@ -3563,7 +3593,7 @@ bool lockstep_peer_owns_character(const void* character) {
 }
 
 bool lockstep_ai_character(const void* character) {
-    if (!g.active || !g.snapped || !character) return false;
+    if (!g.active || !g.snapped || !character || solo_battle()) return false;
     const uint8_t cat = cat_index_of(character);
     return cat != kNoCat && g.ai_cat[cat];
 }

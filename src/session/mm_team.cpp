@@ -788,6 +788,15 @@ bool house_defense_pending() {
     return busy == 0;
 }
 
+// MewDirector+0x70C : le combat de la defense de la maison (mm_team.h).
+constexpr uintptr_t kDir_DefenseRun = 0x70C;
+
+bool house_defense_running() {
+    void* d = director();
+    uint8_t on = 0;
+    return d && mem_read((const char*)d + kDir_DefenseRun, &on, sizeof(on)) && on != 0;
+}
+
 // Une ligne de la table cats, par la connexion du jeu (comme Registry::Save).
 bool write_cat_row(void* dir, uint64_t key, const std::vector<uint8_t>& blob) {
     auto f = (FnSqlUpsert)addr_of_call(C_SqlUpsert);
@@ -1338,10 +1347,15 @@ bool __fastcall h_ButchDepart(void* box) {
     // depart d'un joueur seul. Plus d'aventure mixte en cours dans ces cas-la
     // (une d'avant, jamais terminee ici, ne doit rien decider pour la suite).
     const int sign = mm_sign_click_kind();
-    if (!g.on || !g.host || !in_session() || sign != 2) {
+    // Mewgenics Multi (protocole 54) : « Défendre ! » -- la maison de l'hote est
+    // attaquee. Le depart du jeu lance sa defense, un combat a lui seul (chacun
+    // defend sa maison) : ni vote, ni equipe mixte, comme seul.
+    const bool defense = sign == 2 && house_defense_pending();
+    if (!g.on || !g.host || !in_session() || sign != 2 || defense) {
         g.pending.clear();
         g.prepared = false;
-        forget_run(sign == 1 ? "fin de journee" : "depart sans autre joueur");
+        forget_run(sign == 1 ? "fin de journee" : defense ? "defense de la maison" : "depart sans autre joueur");
+        if (defense) log_line("TEAM", "defense de la maison : depart du jeu, avec les chats de ta boite");
         return o_ButchDepart(box);
     }
     // En session, l'hote ne part qu'apres le vote de depart (mm_menu) : c'est
@@ -2156,6 +2170,9 @@ void on_result(uint8_t from, const SaveFileMsg& m) {
 }
 
 } // namespace
+
+bool team_house_defense_pending() { return house_defense_pending(); }
+bool team_house_defense_running() { return house_defense_running(); }
 
 // Une recrue rejoint l'equipe (hote -> tous) : la fenetre, sur la carte.
 void on_recruit(uint8_t from, const SaveFileMsg& m) {

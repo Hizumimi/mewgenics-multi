@@ -180,6 +180,26 @@ bool team_guest_brought_cats();
 // de l'abandon : c'est une defaite pour toute l'equipe.
 std::string team_run_guest_names();
 
+// --- la defense de la maison (protocole 54) -------------------------------------
+//
+// Le boss de la maison est a chaque joueur (sa save : mm_world le laisse a
+// l'invite). Quand il attaque, le panneau dit « Défendre ! » et le depart du jeu
+// (ButchBox::depart, 0x1400AE3E1) lance la defense au lieu d'une aventure
+// (0x1403B1680) : un combat dans la maison, avec les chats de la boite. En
+// session, chacun defend la sienne, seul : le depart passe tel quel
+// (h_ButchDepart), et la session n'entre pas dans ce combat (mgmp_lockstep).
+
+// Un boss attaque la maison de ce joueur : la progression (MewDirector+0x5A8),
+// +0x468 non nul et +0x478 nul -- le test du depart du jeu (0x1400AE3E1).
+bool team_house_defense_pending();
+// Le combat de la defense de la maison est en cours chez ce joueur :
+// MewDirector+0x70C (un octet), pose par le jeu au debut de ce combat
+// (0x1403B1A37, 0x1403191C3) ou a la reprise d'une defense sauvee
+// (ContinueAdventure, 0x1403BCEF5), remis a zero par ClearRunState (0x1403B6494) ;
+// ClearRunState et les fins d'aventure le lisent (0x1403B477E : une defense
+// ramene son equipe meme perdue).
+bool team_house_defense_running();
+
 // --- mgmp_lockstep ------------------------------------------------------------
 
 // Une equipe mixte est en cours : les chats se partagent par proprietaire.
