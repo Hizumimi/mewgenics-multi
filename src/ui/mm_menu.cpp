@@ -862,6 +862,8 @@ std::string client_lobby_text() {
                 what = u8"Vous n'avez pas la même version du jeu :\nmettez Mewgenics à jour tous les deux (Steam).";
             else if (strstr(reason, "gpak"))
                 what = u8"Les fichiers du jeu ne sont pas les mêmes :\nvérifiez-les dans Steam (Propriétés, Fichiers installés).";
+            else if (strstr(reason, "net.control") || strstr(reason, "net_control"))
+                what = u8"Le réglage net.control de mgmp.json donne le même chat\naux deux joueurs : remettez-le sur \"auto\".";
             return fmt(u8"Salon multijoueur\n\n"
                        u8"[c:red]La connexion a été refusée.[/c]\n"
                        u8"%s\n(%s)", what, reason);

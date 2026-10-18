@@ -432,6 +432,9 @@ void leave_pump() {
     g.announced  = true;
     g.was_in_run = false;
     ++g.sent;
+    // Mewgenics Multi (protocole 61) : son etat des combats aussi (un arret
+    // surtout : l'aventure rechargee rentre dans le meme combat).
+    lockstep_host_left_run();
 
     HostLeftMsg m{};
     strncpy_s(m.scene, out ? out : "", _TRUNCATE);

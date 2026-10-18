@@ -2875,10 +2875,10 @@ void lockstep_pump() {
             default:
                 break;
         }
-        // Some frames own memory (SAVEFILE, CATDATA, INVENTORY, RUNHIST,
-        // STATEDUMP). Releasing every frame unconditionally -- including the
-        // ones this switch ignored -- keeps that fact in net_msg_release
-        // instead of one place per case.
+        // Some frames own memory (SAVEFILE, WORLD, NPC, TEAM, CATDATA,
+        // INVENTORY, RUNHIST, STATEDUMP). Releasing every frame
+        // unconditionally -- including the ones this switch ignored -- keeps
+        // that fact in net_msg_release instead of one place per case.
         net_msg_release(m);
     }
 
@@ -3586,6 +3586,58 @@ void lockstep_leave_run() {
     g.battles.current = kNoBattle;
     log_line("LOCKSTEP", "ce joueur sort de l'aventure de l'hote -- le combat %016llx est oublie ici "
                          "(repris du debut s'il y revient)", (unsigned long long)was);
+}
+
+void lockstep_host_left_run() {
+    Guard guard;
+    if (!g.active || !lockstep_is_host()) return;
+    const uint64_t was = g.battles.current;
+    if (g.halted)
+        log_line("LOCKSTEP", "l'hote s'etait arrete (desynchronise) dans le combat %016llx : la prochaine "
+                             "aventure (ou la meme, rechargee) repart de zero", (unsigned long long)g.halted_battle);
+    g.halted          = false;
+    g.stats.halted    = false;
+    g.halted_watching = false;
+    g.halted_battle   = kNoBattle;
+    // Les decisions gardees et vues, les empreintes : de l'aventure quittee. Le
+    // meme combat, rejoue apres un rechargement, a les memes numeros de tour.
+    g.pend_head  = 0;
+    g.pend_count = 0;
+    seen_forget(kNoBattle);
+    for (uint32_t p = 0; p < kMaxPeers; ++p) {
+        g.peer_hash[p].clear();
+        g.peer_hash_full_warned[p] = false;
+    }
+    g.my_hash.clear();
+    g.have_first = false;
+    // La photo, le partage, la barriere, les membres : repris au premier tour du
+    // prochain combat.
+    g.snapped           = false;
+    g.snapped_list      = nullptr;
+    g.snap_battle       = kNoBattle;
+    g.turn              = 0;
+    g.outstanding       = false;
+    g.control_checked   = false;
+    g.state_hash_on     = false;
+    for (uint32_t p = 0; p < kMaxPeers; ++p) g.have_peer_control[p] = false;
+    for (uint32_t i = 0; i < kMaxCats; ++i) g.local_cat[i] = false;
+    g.barrier_waits     = 0;
+    g.barrier_said_open = false;
+    g.entry_members     = 0;
+    g.entry_from_run    = false;
+    g.members           = 0;
+    g.members_from_host = false;
+    g.sent_log_n        = 0;
+    g.sent_log_full     = false;
+    g.have_prev         = false;
+    g.mismatches        = 0;
+    g.first_mismatch    = 0;
+    g.diverged          = false;
+    // Pas retire : rejoue apres un rechargement, ses messages doivent passer.
+    g.battles.current = kNoBattle;
+    if (was != kNoBattle)
+        log_line("LOCKSTEP", "l'hote est sorti de son aventure -- le combat %016llx est oublie ici",
+                 (unsigned long long)was);
 }
 
 void lockstep_rejoin_run() {

@@ -56,7 +56,8 @@ struct NetMsg {
     EnterNodeMsg enter_node;
     ChoiceMsg    choice;
     // The messages that do not fit the "flat, no allocation" rule above
-    // (SAVEFILE, CATDATA, INVENTORY, RUNHIST, STATEDUMP). Their `data` is
+    // (SAVEFILE -- and WORLD, NPC and TEAM, which decode into it --, CATDATA,
+    // INVENTORY, RUNHIST, STATEDUMP). Their `data` is
     // heap-allocated by the decoder and owned by whoever pops the frame, so
     // EVERY net_poll caller must pass the frame to net_msg_release when it is
     // done with it -- including the ones that ignored it.
@@ -106,12 +107,12 @@ bool net_send(const uint8_t* payload, uint32_t len);
 // and REFUSE, and the per-peer PEERS copies.
 bool net_send_peer(uint8_t peer, const uint8_t* payload, uint32_t len);
 
-// Mewgenics Multi (protocole 61), hote : ferme le lien de ce pair. `after_ms` = 0 :
-// tout de suite (son fil le voit partir et republie la liste des joueurs). Sinon
-// (un pair refuse, kRefuseGraceMs) : il sort de la liste des joueurs tout de suite,
-// ne recoit plus rien et n'est plus ecoute, et sa connexion se ferme `after_ms`
-// plus tard -- le temps de lire pourquoi (une version d'avant du mod affiche
-// « connexion coupee » des la fermeture, et non plus le refus).
+// Mewgenics Multi (protocole 61), hote : un pair refuse (apres son REFUSE). Il
+// sort de la liste des joueurs tout de suite, ne recoit plus rien et n'est plus
+// ecoute ; sa connexion est coupee `after_ms` plus tard (0 : au prochain
+// net_poll), ou des qu'un joueur a besoin de sa place. kRefuseGraceMs : le temps
+// de lire pourquoi -- une version d'avant du mod affiche « connexion coupee » des
+// que la connexion se ferme, et non plus le refus.
 constexpr uint32_t kRefuseGraceMs = 30000;
 void net_drop_peer(uint8_t peer, uint32_t after_ms);
 

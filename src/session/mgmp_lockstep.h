@@ -108,6 +108,12 @@ void    lockstep_leave_run();
 // ... et il y revient (il demande a la rejoindre, ou il y est arrive) : les
 // combats de l'hote le concernent de nouveau.
 void    lockstep_rejoin_run();
+// Mewgenics Multi (protocole 61) : l'HOTE est sorti de son aventure (mgmp_leave :
+// abandon, fin, retour au menu) -- le meme oubli que lockstep_leave_run chez un
+// invite, arret compris, sans retirer le combat en cours. Rechargee, l'aventure
+// repart de la carte d'avant ce combat : y rentrer (la meme graine) est alors un
+// combat neuf, et non plus « la meme case » figee par l'arret d'avant.
+void    lockstep_host_left_run();
 // Invite : arrete (desynchronise) dans un combat qu'il ne faisait que regarder --
 // le combat des autres continue, le sien est fige (mm_menu le fait rentrer).
 bool    lockstep_halted_watching();

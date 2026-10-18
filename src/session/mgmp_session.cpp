@@ -133,19 +133,19 @@ void set_status(const char* fmt, ...) {
 bool check_peer(const Hello& h, char* why, size_t why_size) {
     if (h.proto != kProtoVersion) {
         _snprintf_s(why, why_size, _TRUNCATE,
-                    "version du mod differente (protocole %u d'un cote, %u de l'autre)",
+                    "version du mod différente (protocole %u d'un côté, %u de l'autre)",
                     h.proto, kProtoVersion);
         return false;
     }
     if (g.build_hash && h.build_hash && h.build_hash != g.build_hash) {
         _snprintf_s(why, why_size, _TRUNCATE,
-                    "version du jeu differente (%016llx / %016llx)",
+                    "version du jeu différente (%016llx / %016llx)",
                     (unsigned long long)h.build_hash, (unsigned long long)g.build_hash);
         return false;
     }
     if (g.gpak_hash && h.gpak_hash && h.gpak_hash != g.gpak_hash) {
         _snprintf_s(why, why_size, _TRUNCATE,
-                    "fichiers du jeu differents (resources.gpak %016llx / %016llx)",
+                    "fichiers du jeu différents (resources.gpak %016llx / %016llx)",
                     (unsigned long long)h.gpak_hash, (unsigned long long)g.gpak_hash);
         return false;
     }
@@ -630,7 +630,7 @@ void session_update() {
                             if (m.welcome.cats[i] != cfg.net_control[j]) continue;
                             char why[160];
                             _snprintf_s(why, sizeof(why), _TRUNCATE,
-                                        "both peers claim cat %u in net_control",
+                                        "réglage net.control : le chat %u est demandé des deux côtés (mgmp.json)",
                                         (unsigned)m.welcome.cats[i]);
                             refuse_peer(m.from, why);
                             return;

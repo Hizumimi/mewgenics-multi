@@ -2733,15 +2733,18 @@ Steam presence) and kept one of the three client ids. Worse, a REFUSE *received*
 by the host before Ready (a client of another version refusing the host's HELLO)
 put the host's whole session in `Phase::Refused`: the next friend never got an
 answer. Now the host takes the refused peer out of the roster at once, stops
-sending to it and listening to it, and closes its connection 30 s later
-(`net_drop_peer(peer, kRefuseGraceMs)`: `Link::drop_at`, closed by `pump_refused`
+sending to it and listening to it, and cuts its connection 30 s later
+(`net_drop_peer(peer, kRefuseGraceMs)`: `Link::drop_at`, cut by `pump_refused`
 from `net_poll`) — time to read the reason, since build 41's lobby shows
-"connexion coupée" as soon as the link closes. The lobby stays open. The reasons are
-in French, and the client's lobby names the cause (session full, mod version,
-game version, `resources.gpak`), English reasons from older builds included. The
-refusal is shown BEFORE "connection lost" (the host now closes right after its
-REFUSE, and through Steam the bridge reports a cut connection), and
-`session_update` no longer overwrites a refusal status with "peer disconnected".
+"connexion coupée" as soon as the link closes. A player joining a full session
+takes precedence: the accept thread cuts a refused link to free its id
+(`evict_refused`). The lobby stays open. The reasons are in French, and the
+client's lobby names the cause (session full, mod version, game version,
+`resources.gpak`, a `net.control` overlap), English reasons from older builds
+included. The refusal is shown BEFORE "connection lost" (the host closes after
+its REFUSE: 30 s later, at once for a full session; through Steam the bridge
+reports a cut connection), and `session_update` no longer overwrites a refusal
+status with "peer disconnected".
 
 **One malformed CURSOR or AIM closed links.** The host relays before decoding,
 and a frame the decoder refused (an aim target outside ±1000, a direction outside
@@ -2751,20 +2754,31 @@ host. Both only carry a drawing: an undecodable one is dropped (logged once), an
 
 **Link sockets were closed racily.** The link thread cleared `live`, then closed
 `link.sock`: an accept in between took the free slot and the late close closed
-the NEW peer's socket. Every closer (link thread, `net_drop_peer`, `pump_refused`,
-`net_shutdown`) now takes the socket with one atomic exchange (`take_link_socket`), and the link
-thread closes before it clears `live`, reading its id first. The previous link
+the NEW peer's socket. A slot's lifecycle (socket, id, `drop_at`, `live`) now
+changes only under `send_cs`, the lock every send already takes: `start_link`
+fills it, its own link thread empties it (takes the socket with one atomic
+exchange, `take_link_socket`, closes it, then clears `live`, reading its id
+first). Other threads never close a live link's socket, they shut it down
+(`pump_refused`, `evict_refused`) and the owner closes — a handle closed under a
+thread still reading it can be reused by the next accept. `net_shutdown` alone
+closes everything, after setting `g.stop`; `recv_exact` no longer retries on
+`WSAEINTR`, which on Windows only comes from such a close. The previous link
 thread's handle is closed when the slot is reused (one handle leaked per
 reconnect). An arrival and a departure at the same instant (two transport
 threads) could queue their rosters out of order and leave the older one last:
-`host_publish_roster` now runs under `send_cs`.
+`host_publish_roster` now runs under `send_cs` too.
 
 **A battle halt outlived its battle.** `halted` was only cleared by
 `lockstep_leave_run`, which is a guest's. On the host, after a desynced battle and
 an abandoned run, the next run of the same session froze at its first battle (the
 new-battle detection is skipped while halted: no decisions, no CONTROL). A halt
 now remembers its battle (`halted_battle`) and `lockstep_enter_battle` clears it
-on another one. The turn boundary also re-snapshots when the snapshot's battle is
+on another one. And the host now forgets its battle state when it leaves its run
+(`lockstep_host_left_run`, from `mgmp_leave`'s announcement), as a guest does in
+`lockstep_leave_run`: reloaded, the run resumes on the map before the halted
+battle (the game saves at ReturnToMap), and re-entering it with the same seed was
+"the same node, not a transition" — frozen again, with that battle's held
+decisions still queued. The turn boundary also re-snapshots when the snapshot's battle is
 not the battle entered (`snap_battle`): a new battle's character list can reuse
 the freed list's address.
 

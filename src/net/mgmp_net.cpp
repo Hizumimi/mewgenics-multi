@@ -154,11 +154,22 @@ void queue_push(const NetMsg& m) {
 
 // --- link table -------------------------------------------------------------
 //
-// No lock: `live` is the publication flag (Interlocked), and a slot's socket is
-// only ever taken out with an atomic exchange (take_link_socket), so the accept
-// thread, a link's own thread and net_shutdown never close the same socket twice
-// or close a slot's NEW socket. A slow peer must not be able to stall the accept
-// thread or another peer's relay.
+// `live` is the lock-free publication flag that readers test (sends, relays,
+// the roster). A slot's LIFECYCLE -- its socket, id, drop_at and `live` going
+// up or down -- changes only under send_cs, the lock every send already takes:
+// start_link fills a slot (accept thread), the slot's own link thread empties
+// it (takes its socket, closes it, then clears `live`), and the game thread
+// marks a refused peer (net_drop_peer) or ends its grace (pump_refused).
+//
+// Mewgenics Multi (protocole 61) : no other thread CLOSES a live link's socket;
+// it shuts it down, under send_cs. The owner's recv then returns and the owner
+// closes. Closing a handle under a thread still using it is how a handle VALUE
+// gets reused by the next accept while the dying thread reads from it.
+// net_shutdown is the one exception: it closes everything, after setting
+// g.stop, which every receive loop tests before each recv.
+//
+// A slow peer must still not be able to stall the accept thread or another
+// peer's relay beyond what a blocking send already does.
 
 // Mewgenics Multi (protocole 61) : prend la socket d'un lien et la laisse
 // INVALID_SOCKET, en une operation -- celui qui la recoit est le seul a la fermer.
@@ -170,20 +181,32 @@ SOCKET take_link_socket(Link& l) {
 // Mewgenics Multi (protocole 61) : ce lien est celui d'un pair refuse (net_drop_peer).
 bool link_dropping(Link& l) { return InterlockedCompareExchange64(&l.drop_at, 0, 0) != 0; }
 
-// Hote, sur le fil du jeu (net_poll) : ferme les liens refuses dont l'heure est venue.
+// drop_at d'un lien refuse deja coupe (shutdown) : jamais plus « l'heure ».
+constexpr LONG64 kDropDone = 0x7FFFFFFFFFFFFFFFLL;
+
+// Sous send_cs : coupe (shutdown seulement) le lien refuse du slot `i`. Son fil
+// sort de recv, ferme la socket et libere le slot.
+void cut_refused_locked(int i, const char* why) {
+    Link& l = g.links[i];
+    if (l.sock != INVALID_SOCKET) shutdown(l.sock, SD_BOTH);
+    InterlockedExchange64(&l.drop_at, kDropDone);
+    log_line("NET", "peer %u (refused) -- connection closed (%s)", (unsigned)l.id, why);
+}
+
+// Hote, sur le fil du jeu (net_poll) : la fin du delai des pairs refuses.
 void pump_refused() {
-    if (g.role != NetRole::Host) return;
+    if (g.role != NetRole::Host || !g.send_cs_ready) return;
     const uint64_t now = GetTickCount64();
     for (int i = 0; i < kMaxPeers; ++i) {
         Link& l = g.links[i];
-        if (!InterlockedCompareExchange(&l.live, 0, 0)) continue;
         const LONG64 at = InterlockedCompareExchange64(&l.drop_at, 0, 0);
-        if (!at || now < (uint64_t)at) continue;
-        const SOCKET s = take_link_socket(l);
-        if (s == INVALID_SOCKET) continue;           // deja fermee (son fil finit)
-        shutdown(s, SD_BOTH);
-        closesocket(s);
-        log_line("NET", "peer %u (refused) -- connection closed", (unsigned)l.id);
+        if (!at || at == kDropDone || now < (uint64_t)at) continue;
+        EnterCriticalSection(&g.send_cs);
+        // Relu sous le verrou : le meme lien (start_link remet drop_at a 0), encore la.
+        if (InterlockedCompareExchange(&l.live, 0, 0) &&
+            InterlockedCompareExchange64(&l.drop_at, 0, 0) == at)
+            cut_refused_locked(i, "the 30 s to read the refusal are over");
+        LeaveCriticalSection(&g.send_cs);
     }
 }
 
@@ -207,11 +230,11 @@ bool recv_exact(SOCKET s, uint8_t* p, uint32_t n) {
         if (InterlockedCompareExchange(&g.stop, 0, 0)) return false;
         int r = recv(s, (char*)(p + got), (int)(n - got), 0);
         if (r == 0)  return false;                  // orderly shutdown
-        if (r < 0) {
-            int e = WSAGetLastError();
-            if (e == WSAEINTR) continue;
-            return false;
-        }
+        // Mewgenics Multi (protocole 61) : toute erreur finit le lien, WSAEINTR
+        // compris -- sous Windows il ne vient que d'une socket fermee par un autre
+        // fil (net_shutdown), et la relire serait lire un handle peut-etre deja
+        // celui d'une autre connexion.
+        if (r < 0) return false;
         got += (uint32_t)r;
     }
     return true;
@@ -434,11 +457,17 @@ void recv_loop(Link& link) {
     // et cette fermeture fermait SA socket. Le numero est lu avant : une fois le
     // drapeau baisse, le lien peut deja etre celui d'un nouvel arrivant.
     const uint8_t id = link.id;
+    // Sous send_cs (le cycle de vie d'un slot, voir la table des liens) ; pas
+    // pendant net_shutdown, qui a deja pris et ferme chaque socket et detruira
+    // le verrou apres l'attente des fils.
+    const bool stopping = InterlockedCompareExchange(&g.stop, 0, 0) != 0;
+    if (!stopping) EnterCriticalSection(&g.send_cs);
     {
         const SOCKET s = take_link_socket(link);
         if (s != INVALID_SOCKET) closesocket(s);
     }
     InterlockedExchange(&link.live, 0);
+    if (!stopping) LeaveCriticalSection(&g.send_cs);
 
     if (!InterlockedCompareExchange(&g.stop, 0, 0)) {
         log_line("NET", "peer %u disconnected", (unsigned)id);
@@ -472,20 +501,57 @@ bool start_link(int slot, SOCKET s, uint8_t id) {
     // Mewgenics Multi : le fil de la connexion d'avant sur ce lien (fini, ou qui
     // finit) -- sa poignee etait perdue a chaque reconnexion.
     if (l.thread) { CloseHandle(l.thread); l.thread = nullptr; }
+    nodelay_on(s);
+    EnterCriticalSection(&g.send_cs);            // Mewgenics Multi : le cycle de vie du slot
     l.sock = s;
     l.id   = id;
-    InterlockedExchange64(&l.drop_at, 0);        // Mewgenics Multi : avant `live`
+    InterlockedExchange64(&l.drop_at, 0);        // avant `live`
     InterlockedExchange(&l.live, 1);
-    nodelay_on(s);
+    LeaveCriticalSection(&g.send_cs);
     l.thread = CreateThread(nullptr, 0, link_thread, &l, 0, nullptr);
     if (!l.thread) {
+        EnterCriticalSection(&g.send_cs);
+        const SOCKET t = take_link_socket(l);
         InterlockedExchange(&l.live, 0);
-        closesocket(s);
-        l.sock = INVALID_SOCKET;
+        LeaveCriticalSection(&g.send_cs);
+        if (t != INVALID_SOCKET) closesocket(t);
         fail("CreateThread", (int)GetLastError());
         return false;
     }
     return true;
+}
+
+// Lowest free id rather than a monotonic counter, so an id is always below
+// kMaxPeers and every per-peer table in the mod can be a flat array indexed by
+// it. Reuse is safe because the roster is republished on every membership
+// change, and because position -- not id -- is what the control split is
+// derived from.
+uint8_t lowest_free_id() {
+    for (uint8_t cand = kHostPeer + 1; cand < kMaxPeers; ++cand)
+        if (link_slot_of(cand) < 0) return cand;
+    return kNoPeer;
+}
+
+// Mewgenics Multi (protocole 61) : un joueur arrive et toutes les places sont
+// prises, dont une par un pair refuse qui lit encore son refus -- le joueur passe
+// avant lui. Vrai si une place s'est liberee (le fil du refuse a ferme).
+bool evict_refused() {
+    int victim = -1;
+    EnterCriticalSection(&g.send_cs);
+    for (int i = 0; i < kMaxPeers && victim < 0; ++i) {
+        Link& l = g.links[i];
+        if (!InterlockedCompareExchange(&l.live, 0, 0) || !link_dropping(l)) continue;
+        cut_refused_locked(i, "a player is joining a full session");
+        victim = i;
+    }
+    LeaveCriticalSection(&g.send_cs);
+    if (victim < 0) return false;
+    for (int t = 0; t < 100; ++t) {                  // une seconde au plus
+        if (!InterlockedCompareExchange(&g.links[victim].live, 0, 0)) return true;
+        if (InterlockedCompareExchange(&g.stop, 0, 0)) return false;
+        Sleep(10);
+    }
+    return false;
 }
 
 DWORD WINAPI accept_thread(LPVOID) {
@@ -502,17 +568,12 @@ DWORD WINAPI accept_thread(LPVOID) {
             break;
         }
 
-        // Lowest free id rather than a monotonic counter, so an id is always
-        // below kMaxPeers and every per-peer table in the mod can be a flat
-        // array indexed by it. Reuse is safe because the roster is republished
-        // on every membership change, and because position -- not id -- is what
-        // the control split is derived from.
-        uint8_t id = kNoPeer;
-        for (uint8_t cand = kHostPeer + 1; cand < kMaxPeers; ++cand) {
-            if (link_slot_of(cand) < 0) { id = cand; break; }
+        uint8_t id   = lowest_free_id();
+        int     slot = free_link_slot();
+        if ((slot < 0 || id == kNoPeer) && evict_refused()) {
+            id   = lowest_free_id();
+            slot = free_link_slot();
         }
-
-        int slot = free_link_slot();
         if (slot < 0 || id == kNoPeer) {
             // Refuse politely rather than dropping the socket: a player who
             // turns up to a full session should be told, not left staring at a
@@ -681,26 +742,22 @@ bool net_join(const char* addr, uint16_t port) {
 uint8_t net_self() { return g.self; }
 
 void net_drop_peer(uint8_t peer, uint32_t after_ms) {
-    if (g.role != NetRole::Host || peer == kHostPeer) return;
+    if (g.role != NetRole::Host || peer == kHostPeer || !g.send_cs_ready) return;
+    // Hors de la liste des joueurs tout de suite ; la connexion, elle, est coupee
+    // par pump_refused a l'heure dite (au prochain net_poll pour 0). La premiere
+    // heure dite reste. Sous send_cs : le slot de ce numero ne peut pas changer
+    // de connexion entre la recherche et la marque.
+    EnterCriticalSection(&g.send_cs);
     const int slot = link_slot_of(peer);
-    if (slot < 0) return;
-    Link& l = g.links[slot];
-    if (after_ms) {
-        // Hors de la liste des joueurs tout de suite ; la connexion, elle, se ferme
-        // plus tard (pump_refused). La premiere heure dite reste.
+    if (slot >= 0) {
         const LONG64 at = (LONG64)(GetTickCount64() + after_ms);
-        if (InterlockedCompareExchange64(&l.drop_at, at, 0) == 0) {
+        if (InterlockedCompareExchange64(&g.links[slot].drop_at, at, 0) == 0) {
             log_line("NET", "peer %u refused -- out of the roster now, connection closed in %u s",
                      (unsigned)peer, after_ms / 1000);
-            host_publish_roster();
+            host_publish_roster();               // meme fil : send_cs se reprend
         }
-        return;
     }
-    // shutdown laisse partir ce qui est deja envoye ; le fil du lien sort de recv,
-    // ferme, et republie la liste des joueurs.
-    const SOCKET s = take_link_socket(l);
-    if (s != INVALID_SOCKET) { shutdown(s, SD_BOTH); closesocket(s); }
-    log_line("NET", "peer %u dropped by the host", (unsigned)peer);
+    LeaveCriticalSection(&g.send_cs);
 }
 uint8_t net_peer_count() { return g.roster_valid ? g.roster.count : 0; }
 
@@ -817,6 +874,7 @@ bool net_send(const uint8_t* payload, uint32_t len) {
 bool net_send_peer(uint8_t peer, const uint8_t* payload, uint32_t len) {
     int slot = link_slot_of(peer);
     if (slot < 0) return false;
+    if (link_dropping(g.links[slot])) return false;  // Mewgenics Multi : un pair refuse
     return send_framed(g.links[slot].sock, g.self, payload, len);
 }
 
