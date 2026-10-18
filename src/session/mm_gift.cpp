@@ -276,16 +276,21 @@ bool storage_held() {
     return net_role() != NetRole::Client && (loot_storage_refs() || npcgift_storage_refs() || shop_storage_refs());
 }
 
-// Invite : ses chats sont encore dans l'aventure de l'hote (il en est parti avant
-// la fin) -- son rangement attend leur retour : mm_team ne le remet a jour au
-// retour que s'il n'a pas change depuis le depart.
-bool cats_away() { return net_role() == NetRole::Client && team_guest_has_cats_in_run(); }
+// Son rangement attend ce que ses chats rapportent d'une aventure de l'hote : ils
+// y sont encore (il en est parti avant la fin), ou ils sont rentres mais ne sont pas
+// encore recopies dans sa save (au prochain chargement, team_guest_storage_pending).
+// mm_team ne le remet a jour que s'il n'a pas change depuis le depart.
+bool cats_away() {
+    return (net_role() == NetRole::Client && team_guest_has_cats_in_run()) || team_guest_storage_pending();
+}
 
 // Les objets de son rangement ne peuvent pas changer de maison maintenant ;
 // `why` (UTF-8).
 bool items_blocked(std::string* why) {
     if (cats_away()) {
-        if (why) *why = u8"tes chats sont encore dans l'aventure de l'hôte : ton rangement attend leur retour";
+        if (why)
+            *why = u8"ton rangement attend ce que tes chats rapportent de l'aventure de l'hôte (s'ils sont "
+                   u8"rentrés, recharge ta save depuis le menu)";
         return true;
     }
     if (storage_held()) {
@@ -298,6 +303,37 @@ bool items_blocked(std::string* why) {
 // Un objet que le message couperait (son nom ou son texte trop longs) : ce ne
 // serait plus le meme objet chez l'autre -- il ne se donne pas.
 bool item_fits(const ItemFields& f) { return f.name.size() <= kGiftMaxName && f.text.size() <= kGiftMaxText; }
+
+// Les objets du rangement promis par ses dons pas encore finis (le don en cours, le
+// dernier reste sans reponse a temps, ceux qui attendent d'etre retires) : ils ne se
+// redonnent pas. Par leur id, sinon par leur empreinte (le rangement relu entre-temps).
+std::vector<bool> promised_mask(const std::vector<LootStoredItem>& store) {
+    std::vector<const OutItem*> promised;
+    auto add = [&](const std::vector<OutItem>& v) {
+        for (const OutItem& o : v) promised.push_back(&o);
+    };
+    if (g.out.on) add(g.out.items);
+    if (g.late.on) add(g.late.items);
+    for (const Removal& r : g.removals) add(r.items);
+    std::vector<bool> mask(store.size(), false);
+    if (promised.empty()) return mask;
+    std::vector<uint64_t> dig(store.size());
+    for (size_t j = 0; j < store.size(); ++j) dig[j] = item_digest(store[j].f);
+    std::vector<bool> found(promised.size(), false);
+    for (size_t p = 0; p < promised.size(); ++p)
+        for (size_t j = 0; j < store.size() && !found[p]; ++j)
+            if (!mask[j] && store[j].id == promised[p]->id && dig[j] == promised[p]->digest) {
+                mask[j]  = true;
+                found[p] = true;
+            }
+    for (size_t p = 0; p < promised.size(); ++p)
+        for (size_t j = 0; j < store.size() && !found[p]; ++j)
+            if (!mask[j] && dig[j] == promised[p]->digest) {
+                mask[j]  = true;
+                found[p] = true;
+            }
+    return mask;
+}
 
 bool seh_save(FnDirSave fn, void* dir) {
     __try {
@@ -605,12 +641,15 @@ void house_request(const Request& r) {
     std::vector<LootStoredItem> store;
     if (!r.items.empty() && !loot_storage_items(store))
         return fail(u8"Ton rangement est illisible : pas de don.", "rangement illisible");
+    const std::vector<bool> promised = promised_mask(store);
     std::vector<OutItem> items;
     for (uint64_t id : r.items) {
         const LootStoredItem* s = nullptr;
-        for (const LootStoredItem& x : store)
-            if (x.id == id) {
-                s = &x;
+        for (size_t j = 0; j < store.size(); ++j)
+            if (store[j].id == id) {
+                s = &store[j];
+                if (promised[j])
+                    return fail(u8"Un objet choisi est déjà promis à un don pas encore fini.", "objet deja promis");
                 break;
             }
         bool twice = false;
@@ -707,11 +746,16 @@ void removals_pump() {
             }
         }
         if (!r.items.empty()) {
-            if (screens_busy() || mm_departure_busy() || team_house_defense_running()) {
+            const bool screen = screens_busy();
+            if (screen || mm_departure_busy() || team_house_defense_running() || items_blocked(nullptr)) {
                 if (!r.told_wait) {
                     r.told_wait = true;
-                    note(purse_safe(r.name) + u8" a bien reçu ton don : tes objets quitteront ton rangement dès que "
-                                              u8"l'écran des objets sera fermé.", true, false, true);
+                    note(purse_safe(r.name) +
+                             (screen ? u8" a bien reçu ton don : tes objets quitteront ton rangement dès que l'écran "
+                                       u8"des objets sera fermé."
+                                     : u8" a bien reçu ton don : tes objets quitteront ton rangement dès que possible "
+                                       u8"(après le départ, la défense de ta maison ou le retour de tes chats)."),
+                         true, false, true);
                 }
                 ++i;
                 continue;
@@ -801,7 +845,14 @@ void on_answer(uint8_t from, const GiftMsg& m, const uint8_t* raw, size_t n) {
         g.removals.erase(g.removals.begin());
     }
     g.removals.push_back(std::move(rm));
+    const std::string who  = g.removals.back().name;
+    const std::string save = g.removals.back().save;
     removals_pump();
+    // Pas dans la save d'ou il est parti (une autre, le menu, une aventure) : il le
+    // saura, et le retrait attend son retour.
+    if (!giver_here(save))
+        note(purse_safe(who) + u8" a bien reçu ton don : ce que tu as donné quittera ta maison à ton retour "
+                               u8"dans cette save.", true, true, true);
 }
 
 void outgoing_pump() {
@@ -912,11 +963,12 @@ void publish(bool window) {
             std::vector<LootStoredItem> store;
             if (loot_storage_items(store)) {
                 v.items_ready = true;
-                for (const LootStoredItem& s : store) {
-                    if (!item_fits(s.f)) continue;
+                const std::vector<bool> promised = promised_mask(store);
+                for (size_t j = 0; j < store.size(); ++j) {
+                    if (promised[j] || !item_fits(store[j].f)) continue;
                     TradeItem t;
-                    t.id    = s.id;
-                    t.label = label_of(s.f);
+                    t.id    = store[j].id;
+                    t.label = label_of(store[j].f);
                     v.items.push_back(std::move(t));
                 }
                 std::stable_sort(v.items.begin(), v.items.end(), [](const TradeItem& a, const TradeItem& b) {

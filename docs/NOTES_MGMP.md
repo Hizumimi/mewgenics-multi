@@ -2831,12 +2831,14 @@ debug panel — is not a supported path: the four findings that need it are not
 hardened. One diagnostics-only observation (what the log says, not what the game
 does) is unchanged.
 
-### Protocol 62 — gifts between players (Mewgenics Multi)
+### Protocols 62–63 — gifts between players (Mewgenics Multi)
 
 Players give each other gold, food and storage items, with an "Échanger" button
 (`src/ui/mm_trade_ui.cpp`, logic in `src/session/mm_gift.cpp`, wire format and
 rules in `mm_gift_core.h`). At home both players must be in their OWN house; in a
-mixed run only purse money moves (items already live in the shared bag).
+mixed run only purse money moves (items already live in the shared bag). 62 was
+the first draft (build 46, a CI pre-release never delivered); the review made
+`kGiftGot` carry the receiver's name and added `kGiftWhyRun`, hence 63.
 
 **What the game has (1.1.21239).** House gold and food are `House+0xB4` and
 `+0xB0` (int32). The house is `*(MewDirector+0x5A0)`: `0x1403C2400` creates it,
@@ -2867,7 +2869,8 @@ short enough for the message — a cut item would not be the same item), sends
 `kGiftOffer` (a guest's goes to the host, which relays it only if `giver == the
 link it came from`) and waits. The receiver: in its own house (not the coop
 copy, no departure — the collar choice included: `ClassChooser` opens over the
-house, which goes only when it closes — no house defence), with neither the
+house, which goes only when it closes (not `g_dep_passing`, which an abandoned
+replayed click leaves raised) — no house defence), with neither the
 inventory screen nor a game confirmation open (it waits up to 20 s, then refuses
 "busy"; a leave of the house shorter than 2 s is waited too), serializes its
 storage, appends the items (the "new item" bits `0x6` of `c` set), reloads,
@@ -2882,7 +2885,8 @@ nothing left the giver's house; an answer up to five minutes late still counts
 
 **Removal follows the answer, in the giver's own save.** The giver records the
 save it gave from (`savefile_own_save_name` / `savefile_host_save_name`; the
-director is a singleton and proves nothing). On `kGiftGot`, in that save and in
+director is a singleton and proves nothing — and a host slot click whose names
+cannot be read now forgets the previous slot instead of keeping its name). On `kGiftGot`, in that save and in
 its house, the gold and food leave at once (not below zero: it may have spent
 some meanwhile; two int writes need no closed screen), the items as soon as the
 inventory screen, a game confirmation, a departure or a defence is no longer in
@@ -2891,16 +2895,21 @@ it. Another save loaded, or outside its house: the removal waits for that save,
 without a time limit — a duplicate only if the giver never comes back to it
 before closing the game. An offer seen again is answered `kGiftGot` without
 being applied twice (a ring of the last 32 `{giver, id}`; ids start at a random
-number per process).
+number per process). The items of an unfinished gift — the one in flight, the
+last one left without an answer, those waiting to be removed — are PROMISED: the
+window hides them and a new gift refuses them (by id, else by digest), or one
+item would go to two players.
 
-**No items while the host's run holds them.** A guest that left a mixed run
-early is at home while its cats are still in the run (`team_guest_has_cats_in_run`);
-at the end, `mm_team` updates its storage only if it did not change since the
-departure (`kStorageChanged`), so an item gift either way would leave the items
-its cats took in its storage too. Such a guest gives and receives gold and food
-only (`kGiftWhyRun`). On the host, the items that the loot parade, the shop
-deliveries or the NPC rewards hold by id are promised: no item gift while
-`*_storage_refs()`.
+**No items while the host's run holds them.** A guest's storage must not change
+between its departure and the moment `mm_team` writes back what its cats took
+(`apply_results`, at the NEXT load of its save — not when the run ends):
+`mm_team` writes it back only if it did not change (`kStorageChanged`), else the
+items its cats took stay in storage too. So while its cats are in the run
+(`team_guest_has_cats_in_run`) or a departure with a storage photo waits for that
+load (`team_guest_storage_pending`), the player gives and receives gold and food
+only (`kGiftWhyRun`), and a pending item removal waits. On the host, the items
+that the loot parade, the shop deliveries or the NPC rewards hold by id are
+promised: no item gift, and no item removal, while `*_storage_refs()`.
 
 **Presence (`MM_GIFT = 14`).** Each guest tells the host whether it can receive
 (`a = 1`, `c` = 1/0: `at_home`), the host tells everyone the mask (`a = 2`,

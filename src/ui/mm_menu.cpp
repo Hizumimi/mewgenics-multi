@@ -2724,11 +2724,12 @@ std::string mm_peer_name(uint8_t id) { return peer_name(id); }
 bool mm_departure_busy() {
     // Le choix des colliers (ClassChooser) s'ouvre sur la maison : elle ne s'en va
     // qu'a sa fermeture (0x1403B0550), apres le clic rejoue -- les drapeaux du vote
-    // sont deja retombes.
+    // sont deja retombes. (Pas g_dep_passing : un clic rejoue abandonne le laisse
+    // leve jusqu'au prochain clic du panneau.)
     if (find_scene("ClassChooser")) return true;
     if (net_role() == NetRole::Client)
         return g_dep_req_live || savefile_join_armed() || savefile_home_armed() || embark_guest_active();
-    return g_dep_active || g_dep_embark || g_dep_go || g_dep_passing;
+    return g_dep_active || g_dep_embark || g_dep_go;
 }
 
 bool mm_panel_set_text(void* panel, const char* child, const std::string& text_utf8) {

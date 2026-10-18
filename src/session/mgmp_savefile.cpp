@@ -881,6 +881,11 @@ bool savefile_on_slot_click(void* ss, int slot) {
     if (!have_names || (uint32_t)slot >= names.count) {
         log_line("SAVEFILE", "!! could not read the save-file names off SaveSelection "
                              "%p (slot %d) -- nothing to share", ss, slot);
+        // Mewgenics Multi (protocole 63) : oublier l'emplacement d'avant -- sinon
+        // son nom passerait pour celui de la save qui se charge (publiee pour une
+        // aventure, ou la save d'ou part un don, mm_gift).
+        g.have_slot = false;
+        g.name[0]   = 0;
         return true;
     }
 

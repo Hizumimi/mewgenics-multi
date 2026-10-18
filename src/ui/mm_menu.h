@@ -118,9 +118,9 @@ bool     mm_guest_quitting();
 // Le nom d'un joueur de la session (pseudo Steam, « Joueur N » a defaut).
 std::string mm_peer_name(uint8_t id);
 // Mewgenics Multi (protocole 62, mm_gift) : un depart en aventure est en cours pour
-// ce joueur -- le choix des colliers ouvert ; hote : son vote, le depart ensemble,
-// le clic rejoue ; invite : la proposition de l'hote, « J'arrive » dit, le
-// chargement de la copie ou le retour chez lui.
+// ce joueur -- le choix des colliers ouvert ; hote : son vote, le depart ensemble ;
+// invite : la proposition de l'hote, « J'arrive » dit, le chargement de la copie
+// ou le retour chez lui.
 bool mm_departure_busy();
 
 // Ecrit un texte (UTF-8, balises du jeu permises : [ ] a eviter dans les noms)

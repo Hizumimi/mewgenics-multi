@@ -2899,6 +2899,17 @@ bool team_guest_has_cats_in_run() {
     return false;
 }
 
+bool team_guest_storage_pending() {
+    char own[64] = {};
+    const std::string save = savefile_own_save_name(own, sizeof(own)) ? own : "";
+    for (const GuestDepart& d : k.departs) {
+        if (!d.departed || !d.storage_ok) continue;
+        // Une save inconnue d'un cote ou de l'autre : on ne sait pas -- prudence.
+        if (d.save.empty() || save.empty() || _stricmp(d.save.c_str(), save.c_str()) == 0) return true;
+    }
+    return false;
+}
+
 bool team_guest_brought_cats() {
     const uint8_t self = net_self();
     for (const TeamOwner& o : k.owners) {
