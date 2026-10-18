@@ -46,6 +46,9 @@ struct Link {
     // le temps de lire le refus (une version d'avant affiche « connexion coupee »
     // des que la connexion se ferme).
     volatile LONG64 drop_at = 0;
+    // ... et l'heure ou elle a ete coupee (shutdown), 0 sinon : sans fin de son
+    // cote apres kForceCloseMs (un jeu fige), elle est fermee pour de bon.
+    volatile LONG64 cut_at  = 0;
 };
 
 struct State {
@@ -184,12 +187,28 @@ bool link_dropping(Link& l) { return InterlockedCompareExchange64(&l.drop_at, 0,
 // drop_at d'un lien refuse deja coupe (shutdown) : jamais plus « l'heure ».
 constexpr LONG64 kDropDone = 0x7FFFFFFFFFFFFFFFLL;
 
-// Sous send_cs : coupe (shutdown seulement) le lien refuse du slot `i`. Son fil
-// sort de recv, ferme la socket et libere le slot.
+// Un lien refuse coupe et toujours la apres ce delai : son pair ne ferme pas (un
+// jeu fige qui ne lit plus) -- fermee ici. Son fil est alors bloque dans recv,
+// qui rend une erreur ; et recv_exact ne relit jamais apres une erreur.
+constexpr uint64_t kForceCloseMs = 10000;
+
+// Sous send_cs : coupe (shutdown seulement) le lien refuse du slot `i`. Le pair
+// recoit la fin de connexion et ferme la sienne ; le fil du lien sort alors de
+// recv, ferme la socket et libere le slot.
 void cut_refused_locked(int i, const char* why) {
     Link& l = g.links[i];
     if (l.sock != INVALID_SOCKET) shutdown(l.sock, SD_BOTH);
     InterlockedExchange64(&l.drop_at, kDropDone);
+    InterlockedExchange64(&l.cut_at, (LONG64)GetTickCount64());
+    log_line("NET", "peer %u (refused) -- connection cut (%s)", (unsigned)l.id, why);
+}
+
+// Sous send_cs : ferme pour de bon le lien refuse et deja coupe du slot `i`.
+void close_cut_locked(int i, const char* why) {
+    Link& l = g.links[i];
+    const SOCKET s = take_link_socket(l);
+    if (s != INVALID_SOCKET) closesocket(s);
+    InterlockedExchange64(&l.cut_at, 0);
     log_line("NET", "peer %u (refused) -- connection closed (%s)", (unsigned)l.id, why);
 }
 
@@ -199,13 +218,20 @@ void pump_refused() {
     const uint64_t now = GetTickCount64();
     for (int i = 0; i < kMaxPeers; ++i) {
         Link& l = g.links[i];
-        const LONG64 at = InterlockedCompareExchange64(&l.drop_at, 0, 0);
-        if (!at || at == kDropDone || now < (uint64_t)at) continue;
+        const LONG64 at  = InterlockedCompareExchange64(&l.drop_at, 0, 0);
+        const LONG64 cut = InterlockedCompareExchange64(&l.cut_at, 0, 0);
+        const bool due_cut   = at && at != kDropDone && now >= (uint64_t)at;
+        const bool due_close = at == kDropDone && cut && now >= (uint64_t)cut + kForceCloseMs;
+        if (!due_cut && !due_close) continue;
         EnterCriticalSection(&g.send_cs);
-        // Relu sous le verrou : le meme lien (start_link remet drop_at a 0), encore la.
+        // Relu sous le verrou : le meme lien (start_link remet drop_at et cut_at a
+        // 0), encore la.
         if (InterlockedCompareExchange(&l.live, 0, 0) &&
-            InterlockedCompareExchange64(&l.drop_at, 0, 0) == at)
-            cut_refused_locked(i, "the 30 s to read the refusal are over");
+            InterlockedCompareExchange64(&l.drop_at, 0, 0) == at &&
+            InterlockedCompareExchange64(&l.cut_at, 0, 0) == cut) {
+            if (due_cut) cut_refused_locked(i, "the 30 s to read the refusal are over");
+            else         close_cut_locked(i, "it did not end on its side");
+        }
         LeaveCriticalSection(&g.send_cs);
     }
 }
@@ -298,6 +324,19 @@ bool send_framed(SOCKET s, uint8_t from, const uint8_t* payload, uint32_t len) {
     return ok;
 }
 
+// Mewgenics Multi (protocole 61) : envoyer sur un lien. `live`, drop_at et la
+// socket relus sous send_cs, le verrou du cycle de vie des slots : la socket ne
+// peut pas etre fermee (et son handle repris par une autre connexion) entre la
+// lecture et l'envoi. 1 envoye, 0 echec, -1 lien absent ou refuse.
+int send_link(Link& l, uint8_t from, const uint8_t* payload, uint32_t len) {
+    EnterCriticalSection(&g.send_cs);
+    int r = -1;
+    if (InterlockedCompareExchange(&l.live, 0, 0) && !link_dropping(l) && l.sock != INVALID_SOCKET)
+        r = send_framed(l.sock, from, payload, len) ? 1 : 0;   // send_cs se reprend
+    LeaveCriticalSection(&g.send_cs);
+    return r;
+}
+
 // Which messages the host passes on to the other clients.
 //
 // Only the ones a CLIENT can author and another client needs. Everything else
@@ -329,8 +368,7 @@ void host_relay(uint8_t from, const uint8_t* payload, uint32_t len) {
         Link& l = g.links[i];
         if (!InterlockedCompareExchange(&l.live, 0, 0)) continue;
         if (l.id == from) continue;              // not back to its author
-        if (link_dropping(l)) continue;          // Mewgenics Multi : un pair refuse
-        send_framed(l.sock, from, payload, len);
+        send_link(l, from, payload, len);        // Mewgenics Multi : pas un pair refuse
     }
 }
 
@@ -506,6 +544,7 @@ bool start_link(int slot, SOCKET s, uint8_t id) {
     l.sock = s;
     l.id   = id;
     InterlockedExchange64(&l.drop_at, 0);        // avant `live`
+    InterlockedExchange64(&l.cut_at, 0);
     InterlockedExchange(&l.live, 1);
     LeaveCriticalSection(&g.send_cs);
     l.thread = CreateThread(nullptr, 0, link_thread, &l, 0, nullptr);
@@ -538,11 +577,18 @@ uint8_t lowest_free_id() {
 bool evict_refused() {
     int victim = -1;
     EnterCriticalSection(&g.send_cs);
-    for (int i = 0; i < kMaxPeers && victim < 0; ++i) {
-        Link& l = g.links[i];
-        if (!InterlockedCompareExchange(&l.live, 0, 0) || !link_dropping(l)) continue;
-        cut_refused_locked(i, "a player is joining a full session");
-        victim = i;
+    // Un lien pas encore coupe d'abord ; sinon un lien deja coupe et toujours la
+    // (son pair ne ferme pas) : ferme pour de bon.
+    for (int pass = 0; pass < 2 && victim < 0; ++pass) {
+        for (int i = 0; i < kMaxPeers && victim < 0; ++i) {
+            Link& l = g.links[i];
+            if (!InterlockedCompareExchange(&l.live, 0, 0) || !link_dropping(l)) continue;
+            const bool cut = InterlockedCompareExchange64(&l.drop_at, 0, 0) == kDropDone;
+            if (pass == 0 && !cut) cut_refused_locked(i, "a player is joining a full session");
+            else if (pass == 1)    close_cut_locked(i, "a player is joining a full session");
+            else                   continue;
+            victim = i;
+        }
     }
     LeaveCriticalSection(&g.send_cs);
     if (victim < 0) return false;
@@ -863,9 +909,9 @@ bool net_send(const uint8_t* payload, uint32_t len) {
     for (int i = 0; i < kMaxPeers; ++i) {
         Link& l = g.links[i];
         if (!InterlockedCompareExchange(&l.live, 0, 0)) continue;
-        if (link_dropping(l)) continue;          // Mewgenics Multi : un pair refuse
-        if (send_framed(l.sock, g.self, payload, len)) any = true;
-        else failed = true;
+        const int r = send_link(l, g.self, payload, len);   // Mewgenics Multi : pas un pair refuse
+        if (r > 0) any = true;
+        else if (r == 0) failed = true;
     }
     if (failed) log_line("NET", "!! send failed (WSA %d)", WSAGetLastError());
     return any;
@@ -874,8 +920,13 @@ bool net_send(const uint8_t* payload, uint32_t len) {
 bool net_send_peer(uint8_t peer, const uint8_t* payload, uint32_t len) {
     int slot = link_slot_of(peer);
     if (slot < 0) return false;
-    if (link_dropping(g.links[slot])) return false;  // Mewgenics Multi : un pair refuse
-    return send_framed(g.links[slot].sock, g.self, payload, len);
+    // Mewgenics Multi : pas un pair refuse ; et l'id relu sous le verrou (send_link
+    // le prend) -- le slot a pu changer de connexion depuis link_slot_of.
+    EnterCriticalSection(&g.send_cs);
+    const bool same = g.links[slot].id == peer;
+    const int  r    = same ? send_link(g.links[slot], g.self, payload, len) : -1;
+    LeaveCriticalSection(&g.send_cs);
+    return r > 0;
 }
 
 // Every encoder writes into a stack buffer and hands the result to net_send.

@@ -322,6 +322,8 @@ struct State {
                                                // premier tour du suivant : elle peut etre perimee)
     uint64_t gone_since[kMaxPeers] = {}; // hote : membre absent depuis (ms), pour ne pas le juger sur une image
     bool     out_of_run        = false;  // invite : sorti de l'aventure de l'hote (lockstep_leave_run)
+    bool     host_left         = false;  // hote : sorti de son aventure (lockstep_host_left_run), jusqu'a
+                                         // sa prochaine case -- les messages de ses combats sont d'avant
     bool     halted_watching   = false;  // invite : arrete alors qu'il ne faisait que regarder ce combat
     uint64_t halted_battle     = kNoBattle; // Mewgenics Multi (protocole 61) : le combat de l'arret
     uint8_t  halted_peers      = 0;      // hote : invites arretes en regardant un combat -- pas membres des
@@ -637,7 +639,11 @@ bool battle_member(uint8_t peer) {
 // combats de l'hote ne le concernent pas, leurs messages ne servent a rien et
 // rempliraient sa file pour le combat ou il reviendrait (lockstep_leave_run).
 bool out_of_host_run() {
-    if (lockstep_is_host()) return false;
+    // Mewgenics Multi (protocole 61) : l'hote sorti de son aventure -- ce qu'un
+    // invite envoyait encore pour ses combats (avant d'apprendre HOSTLEFT) ne doit
+    // pas revenir dans la file oubliee : rejoue apres un rechargement, le meme
+    // combat a les memes numeros de tour.
+    if (lockstep_is_host()) return g.host_left;
     if (!savefile_in_coop() && !savefile_join_armed()) return true;
     // Il quitte l'aventure (« Quitter l'aventure », en route vers le menu) : la
     // copie est encore la, mais il ne joue plus ses combats.
@@ -2274,6 +2280,7 @@ void lockstep_init() {
     g.halted  = false;
     g.halted_watching = false;
     g.halted_battle   = kNoBattle;
+    g.host_left       = false;
     if (!rejoin_in_battle) {
         g.snapped = false;
         // Turn numbering is per battle and the HASH messages are keyed on it.
@@ -3633,8 +3640,10 @@ void lockstep_host_left_run() {
     g.mismatches        = 0;
     g.first_mismatch    = 0;
     g.diverged          = false;
-    // Pas retire : rejoue apres un rechargement, ses messages doivent passer.
+    // Pas retire : rejoue apres un rechargement, ses messages doivent passer. Les
+    // messages en route pour lui sont laisses jusqu'a la prochaine case (host_left).
     g.battles.current = kNoBattle;
+    g.host_left       = true;
     if (was != kNoBattle)
         log_line("LOCKSTEP", "l'hote est sorti de son aventure -- le combat %016llx est oublie ici",
                  (unsigned long long)was);
@@ -3700,6 +3709,7 @@ void lockstep_enter_battle(uint64_t seed0) {
     Guard guard;
     if (seed0 == kNoBattle) return;
     g.out_of_run = false;          // Mewgenics Multi : il suit de nouveau l'hote
+    g.host_left  = false;          // Mewgenics Multi : l'hote est dans une case de son aventure
     if (seed0 == g.battles.current) return;      // same node; not a transition
 
     const uint64_t left = g.battles.current;

@@ -2758,10 +2758,14 @@ the NEW peer's socket. A slot's lifecycle (socket, id, `drop_at`, `live`) now
 changes only under `send_cs`, the lock every send already takes: `start_link`
 fills it, its own link thread empties it (takes the socket with one atomic
 exchange, `take_link_socket`, closes it, then clears `live`, reading its id
-first). Other threads never close a live link's socket, they shut it down
-(`pump_refused`, `evict_refused`) and the owner closes — a handle closed under a
-thread still reading it can be reused by the next accept. `net_shutdown` alone
-closes everything, after setting `g.stop`; `recv_exact` no longer retries on
+first). Sends read the slot's socket under that lock too (`send_link`). Other
+threads never close a live link's socket, they shut it down (`pump_refused`,
+`evict_refused`): the peer gets the end of the connection and closes its side,
+and the owner's recv returns and the owner closes — a handle closed under a
+thread still reading it can be reused by the next accept. A refused link still
+live 10 s after the cut (a frozen game that never closes) is closed for good; its
+thread is then parked in recv, which fails. `net_shutdown` alone closes
+everything, after setting `g.stop`; `recv_exact` no longer retries on
 `WSAEINTR`, which on Windows only comes from such a close. The previous link
 thread's handle is closed when the slot is reused (one handle leaked per
 reconnect). An arrival and a departure at the same instant (two transport
@@ -2778,7 +2782,10 @@ on another one. And the host now forgets its battle state when it leaves its run
 `lockstep_leave_run`: reloaded, the run resumes on the map before the halted
 battle (the game saves at ReturnToMap), and re-entering it with the same seed was
 "the same node, not a transition" — frozen again, with that battle's held
-decisions still queued. The turn boundary also re-snapshots when the snapshot's battle is
+decisions still queued. Until its next node the host also drops what guests were
+still sending for its battles (`host_left`, tested by `out_of_host_run` like a
+guest's `out_of_run`): sent before they learnt HOSTLEFT, it would come back into
+the forgotten queue — and a replayed battle has the same turn numbers. The turn boundary also re-snapshots when the snapshot's battle is
 not the battle entered (`snap_battle`): a new battle's character list can reuse
 the freed list's address.
 
