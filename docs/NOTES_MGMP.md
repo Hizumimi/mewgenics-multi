@@ -2943,7 +2943,7 @@ handler, which would `SetCapture` on every click while SDL manages the capture.
 Like the F1 panel and the address field of the Multijoueur window, the button
 needs `ui.enabled` (default `true`): it is what installs the WndProc subclass.
 
-### Protocols 64–65 — the aim preview's turn animation, and battles that end on one side (Mewgenics Multi)
+### Protocols 64–66 — the aim preview's turn animation, and battles that end on one side (Mewgenics Multi)
 
 **The report.** 2026-10-18 19:23, battle `e15743b8b1852f54`: the host's battle
 ended (victory, level-up screen) while the guest's copy went on to a turn 21 that
@@ -3021,10 +3021,17 @@ siblings, i.e. for `TurnAround`-like statuses.
 of the simulation: of 14 two-player battles in the logs of Oct 13–18, 13 have their last
 hash on the same turn on both peers, sometimes one or two boundaries after the
 last action; the 14th is this one. Node ends (`T_NodeEnd`) come after every
-boundary; only the one `follow_node_end_counts()` accepts is used (Space on an idle
-pawn makes `MapScreen::update` call the node end too). Each side announces its end
+boundary, and BEFORE the level-up screens: ReturnToMap `0x1403624A0` (the callback
+of the end-of-battle entity built by `0x140366ED0`) first calls `0x1403B3D60`,
+which activates the "Map" scene and calls the node end, and only then
+`0x1403B7720`, which opens the "LevelUp" scene — so the level-ups, which wait on
+the other peer (`mgmp_choice`), never delay the announcement. Only the node end
+`follow_node_end_counts()` accepts is used (Space on an idle pawn makes
+`MapScreen::update` call it too). Each side announces its end
 with `MM_BATTLE_END {battle, g.turn}` — `a = 1` host to all, `a = 2` guest to host —
-and three rules act, each only on a copy that is actually WAITING, so that a copy
+and three rules act, each only on a copy that is actually WAITING (polls of the same
+cat in the same turn with no gap over 250 ms — a frozen frame or a window in the
+background restarts the clock), so that a copy
 which diverged but ends its battle by itself is merely logged (the host's push at
 the next node resyncs cats, inventory and history; the stream restarts from the
 node seed):
@@ -3033,10 +3040,13 @@ node seed):
    `lockstep_fill_choice` for another player's cat with nothing queued: nobody will
    ever send it. The guest goes home (`kOrphanHostDone`), like a spectator whose copy
    halted, with a note, and can rejoin from a house sign.
-2. A guest ended at `M`; the host at turn `>= M` has waited 2 s for one of that
-   guest's cats with nothing queued (the guest's decisions precede its announcement
-   on the same link). The host drops it from this battle's members
-   (`g.ended_peers`, read by `members_tick`); the game AI plays its cats.
+2. A guest ended at `M`; the host waits for one of that guest's cats with nothing
+   queued (the guest's decisions precede its announcement on the same link) — 2 s
+   at turn `> M`, 10 s at turn `M` itself (the game may poll a cat in the turn a
+   battle ends before it sees the victory, longer on a slow host), counted from the
+   later of the wait's start and the announcement's arrival. The host drops it from
+   this battle's members (`g.ended_peers`, read by `members_tick`); the game AI plays
+   its cats.
 3. That guest then sees a host hash for a turn `> M` (one turn of margin: a single
    extra trailing boundary is not enough) — the host went on without it; it goes
    home (`kOrphanMineDone`): its level-ups, loot and deaths belong to another battle
@@ -3046,9 +3056,10 @@ A battle id is a node seed, so a battle replayed after a reload has the same id:
 the markers are forgotten at each fresh roster snapshot (the host's announced end,
 everyone's own end, the guests' ends on the host — not, on a guest, the host's end,
 which may already be this instance's when the guest is catching up), on `HOSTLEFT`,
-in `lockstep_host_left_run`, when a guest leaves the run, and at session start; the
-host re-sends its end to a peer that arrives in a battle it has already finished
-(`lockstep_catchup`).
+in `lockstep_host_left_run`, when a guest leaves the run, and at session start —
+but kept across a reconnect that never left the battle (`rejoin_in_battle`, like the
+roster). The host re-sends its last end to any peer that joins or reconnects, on
+the map path of `catchup_peer` as well as in `lockstep_catchup`.
 
 **Residual risk.** The action's own `Face` (`now=0`) on a character with turn
 animations still writes `+0x388` later, from a frame-timed callback. A read in the

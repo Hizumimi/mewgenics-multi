@@ -291,6 +291,10 @@ void catchup_peer(uint8_t from) {
         // a peer whose process restarted has the history that was in the save,
         // which is the run's state at the last checkpoint rather than now.
         runhist_publish("a peer joined or reconnected");
+        // Mewgenics Multi (protocole 66) : la fin du dernier combat, deja passee --
+        // un invite reconnecte dont la copie y attend encore doit la voir
+        // (mgmp_orphan.h, regle 1).
+        lockstep_resend_battle_end(from);
         return;
     }
 

@@ -227,6 +227,9 @@ void    lockstep_on_node_end();
 // MM_BATTLE_END (mm_on_message) : chez un invite celui de l'hote, chez l'hote
 // celui d'un invite.
 void    lockstep_on_battle_end(uint8_t from, const MmMsg& m);
+// Hote : redit sa derniere fin de combat annoncee (a tous) pour `peer` qui arrive
+// ou se reconnecte -- elle a pu passer pendant son absence (mgmp_orphan.h).
+void    lockstep_resend_battle_end(uint8_t peer);
 // Invite : sa copie du combat et celle de l'hote ne finissent pas ensemble --
 // OrphanKind (mgmp_orphan.h), 0 sinon. mm_menu le fait alors rentrer chez lui.
 // Remis a zero quand il sort de l'aventure (lockstep_leave_run).

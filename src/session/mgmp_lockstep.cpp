@@ -377,10 +377,12 @@ struct State {
     uint32_t my_end_turn     = 0;
     uint64_t peer_end_battle[kMaxPeers] = {};
     uint32_t peer_end_turn[kMaxPeers]   = {};
+    uint64_t peer_end_at[kMaxPeers]     = {};   // l'arrivee de l'annonce (GetTickCount64)
     uint8_t  ended_peers     = 0;
     uint8_t  wait_cat        = kNoCat;   // rien d'attendu
     uint32_t wait_turn       = 0;
     uint64_t wait_since      = 0;
+    uint64_t wait_last       = 0;        // la derniere demande du jeu pour ce chat
     uint8_t  orphan          = 0;
     uint64_t orphan_battle   = kNoBattle;
 
@@ -401,11 +403,13 @@ void ends_forget_all() {
     for (uint32_t p = 0; p < kMaxPeers; ++p) {
         g.peer_end_battle[p] = kNoBattle;
         g.peer_end_turn[p]   = 0;
+        g.peer_end_at[p]     = 0;
     }
     g.ended_peers   = 0;
     g.wait_cat      = kNoCat;
     g.wait_turn     = 0;
     g.wait_since    = 0;
+    g.wait_last     = 0;
     g.orphan        = kOrphanNone;
     g.orphan_battle = kNoBattle;
 }
@@ -2348,10 +2352,13 @@ void lockstep_init() {
     g.halted_watching = false;
     g.halted_battle   = kNoBattle;
     g.host_left       = false;
-    // Mewgenics Multi (protocoles 64-65) : les fins de combat d'une session
-    // d'avant. Un invite qui revient en plein combat recoit celle de l'hote, si
-    // elle est passee (lockstep_catchup).
-    ends_forget_all();
+    // Mewgenics Multi (protocoles 64-66) : les fins de combat d'une session
+    // d'avant -- sauf pour un joueur reconnecte qui n'a pas quitte son combat :
+    // comme la photo, elles decrivent ce combat-la. L'hote redit la sienne a qui
+    // arrive (lockstep_resend_battle_end), au cas ou elle serait passee pendant la
+    // coupure.
+    if (!rejoin_in_battle) ends_forget_all();
+    else                   g.wait_cat = kNoCat;
     if (!rejoin_in_battle) {
         g.snapped = false;
         // Turn numbering is per battle and the HASH messages are keyed on it.
@@ -3541,37 +3548,44 @@ static void orphan_note_late_end() {
 static void orphan_wait_done() {
     g.wait_cat   = kNoCat;
     g.wait_since = 0;
+    g.wait_last  = 0;
 }
 
 // lockstep_fill_choice attend la decision du chat `cat`, qu'un autre joueur
-// dirige, et la file n'a rien pour lui. Depuis quand (par chat et par tour), et ce
-// qu'en disent les regles 1 (invite) et 2 (hote).
+// dirige, et la file n'a rien pour lui. Depuis quand (par chat et par tour, d'une
+// demande du jeu a la suivante sans trou de plus de kOrphanPollGapMs), et ce qu'en
+// disent les regles 1 (invite) et 2 (hote).
 static void orphan_on_wait(uint8_t cat) {
     if (g.halted || cat >= kMaxCats) return;
-    const uint64_t now = GetTickCount64();
-    if (g.wait_cat != cat || g.wait_turn != g.turn || !g.wait_since) {
+    uint64_t now = GetTickCount64();
+    if (!now) now = 1;
+    const bool gap = g.wait_last && now - g.wait_last > kOrphanPollGapMs;
+    g.wait_last = now;
+    if (g.wait_cat != cat || g.wait_turn != g.turn || !g.wait_since || gap) {
         g.wait_cat   = cat;
         g.wait_turn  = g.turn;
-        g.wait_since = now ? now : 1;
+        g.wait_since = now;
         return;
     }
-    const uint64_t waited = now - g.wait_since;
-    if (waited < kOrphanWaitMs || !snap_current()) return;
+    if (now - g.wait_since < kOrphanWaitMs || !snap_current()) return;
     const uint64_t battle = g.battles.current;
 
     if (!lockstep_is_host()) {
         // Regle 1 : l'hote a fini ce combat, ce joueur en est plus loin et attend.
         if (g.orphan || out_of_host_run()) return;
         if (g.host_end_battle != battle || g.my_end_battle == battle) return;
-        if (orphan_stuck_past_host_end(g.host_end_turn, g.turn, waited))
+        if (orphan_stuck_past_host_end(g.host_end_turn, g.turn, now - g.wait_since))
             orphan_note(kOrphanHostDone, g.host_end_turn, g.turn);
         return;
     }
 
-    // Regle 2 : l'invite qui dirige ce chat a fini ce combat chez lui.
+    // Regle 2 : l'invite qui dirige ce chat a fini ce combat chez lui -- l'attente
+    // comptee au plus tot depuis l'arrivee de son annonce.
     const uint8_t p = g.controller[cat];
     if (p >= kMaxPeers || p == net_self() || (g.ended_peers & member_bit(p))) return;
     if (g.peer_end_battle[p] != battle) return;
+    const uint64_t from = g.wait_since > g.peer_end_at[p] ? g.wait_since : g.peer_end_at[p];
+    const uint64_t waited = now > from ? now - from : 0;
     if (!orphan_peer_left_behind(g.peer_end_turn[p], g.turn, waited)) return;
     g.ended_peers |= member_bit(p);
     log_line_lvl(LogLevel::Error, "LOCKSTEP",
@@ -3636,6 +3650,7 @@ void lockstep_on_battle_end(uint8_t from, const MmMsg& m) {
         if (e.from != kBattleEndFromGuest || from >= kMaxPeers || from == net_self()) return;
         g.peer_end_battle[from] = e.battle;
         g.peer_end_turn[from]   = e.turn;
+        g.peer_end_at[from]     = GetTickCount64();
         log_line_lvl(LogLevel::Trace, "LOCKSTEP", "le joueur %u a fini le combat %016llx a son tour %u (ici : %s, tour %u)",
                      (unsigned)from, (unsigned long long)e.battle, e.turn,
                      e.battle == g.battles.current ? "ce combat" : "un autre combat", g.turn);
@@ -3651,6 +3666,17 @@ void lockstep_on_battle_end(uint8_t from, const MmMsg& m) {
 }
 
 uint8_t lockstep_orphan() { return g.active ? g.orphan : (uint8_t)kOrphanNone; }
+
+void lockstep_resend_battle_end(uint8_t peer) {
+    Guard guard;
+    if (!g.active || !lockstep_is_host() || g.host_end_battle == kNoBattle) return;
+    // A tous (le message n'a pas de forme « a un seul ») : chez les autres, une
+    // valeur deja connue. Chez l'arrivant, elle compte seulement s'il est encore
+    // dans ce combat-la (orphan_on_wait compare le numero).
+    if (net_send_mm(battle_end_encode(BattleEnd{g.host_end_battle, g.host_end_turn, kBattleEndFromHost})))
+        log_line("LOCKSTEP", "-> fin du combat %016llx (tour %u) redite pour le joueur %u",
+                 (unsigned long long)g.host_end_battle, g.host_end_turn, (unsigned)peer);
+}
 
 void lockstep_turn_boundary(void* turn_control) {
     if (!g.active) return;
@@ -4117,13 +4143,11 @@ void lockstep_catchup(uint8_t peer) {
         net_send_hash_to(peer, g.first_hash))
         log_line("LOCKSTEP", "-> hash of turn 0 of battle %016llx sent to peer %u (it checks its own battle "
                              "against it)", (unsigned long long)g.battles.current, (unsigned)peer);
-    // Mewgenics Multi (protocole 65) : ce combat est deja fini ici -- l'arrivant
+    // Mewgenics Multi (protocoles 65-66) : ce combat est deja fini ici -- l'arrivant
     // (une reconnexion, une reprise) doit le savoir pour voir sa copie le depasser
-    // (mgmp_orphan.h, regle 1). A tous : chez les autres, la meme valeur.
-    if (lockstep_is_host() && g.host_end_battle == g.battles.current &&
-        net_send_mm(battle_end_encode(BattleEnd{g.host_end_battle, g.host_end_turn, kBattleEndFromHost})))
-        log_line("LOCKSTEP", "-> fin du combat %016llx (tour %u) redite pour le joueur %u",
-                 (unsigned long long)g.host_end_battle, g.host_end_turn, (unsigned)peer);
+    // (mgmp_orphan.h, regle 1). Le chemin « sur la carte » de catchup_peer la
+    // redit aussi.
+    if (lockstep_is_host() && g.host_end_battle == g.battles.current) lockstep_resend_battle_end(peer);
     if (g.sent_log_n == 0) {
         log_line("LOCKSTEP", "peer %u joined battle %016llx -- nothing to replay,"
                              " it can derive this battle from the node seed alone",

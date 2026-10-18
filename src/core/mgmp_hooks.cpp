@@ -708,19 +708,9 @@ void __fastcall h_CharFace(void* ch, uint64_t dir, unsigned char now, unsigned c
 // detour laisse tout passer -- la remise de lockstep_preview_facing_end reste.
 constexpr uint32_t kUpdateDecisionScan = 0x900;
 
-uintptr_t find_preview_face_ret() {
-    const uintptr_t upd  = addr_of(T_UpdateDecision);
-    const uintptr_t face = addr_of(T_CharFace);
-    if (!upd || !face) return 0;
-    size_t len = kUpdateDecisionScan;
-    DWORD64 image = 0;
-    if (const PRUNTIME_FUNCTION rf = RtlLookupFunctionEntry((DWORD64)upd, &image, nullptr)) {
-        const uintptr_t end = (uintptr_t)image + rf->EndAddress;
-        if (end > upd && end - upd < len) len = (size_t)(end - upd);
-    }
-    static uint8_t body[kUpdateDecisionScan];
-    if (len < 5 || !mem_read((const void*)upd, body, len)) return 0;
-    uintptr_t ret = 0;
+// Les appels a Face dans les `len` premiers octets de `body` (lus a `upd`) :
+// combien, et l'adresse de retour du dernier.
+int count_face_calls(const uint8_t* body, size_t len, uintptr_t upd, uintptr_t face, uintptr_t& ret) {
     int found = 0;
     for (size_t i = 0; i + 5 <= len; ++i) {
         if (body[i] != 0xE8) continue;
@@ -730,6 +720,27 @@ uintptr_t find_preview_face_ret() {
         ret = upd + i + 5;
         ++found;
     }
+    return found;
+}
+
+uintptr_t find_preview_face_ret() {
+    const uintptr_t upd  = addr_of(T_UpdateDecision);
+    const uintptr_t face = addr_of(T_CharFace);
+    if (!upd || !face) return 0;
+    static uint8_t body[kUpdateDecisionScan];
+    if (!mem_read((const void*)upd, body, sizeof(body))) return 0;
+    // D'abord dans les bornes de la fonction ; si son entree de .pdata n'en est
+    // qu'un morceau qui s'arrete avant l'appel (une fonction decoupee), toute la
+    // fenetre -- un seul appel trouve, sinon rien.
+    size_t len = kUpdateDecisionScan;
+    DWORD64 image = 0;
+    if (const PRUNTIME_FUNCTION rf = RtlLookupFunctionEntry((DWORD64)upd, &image, nullptr)) {
+        const uintptr_t end = (uintptr_t)image + rf->EndAddress;
+        if (end > upd && end - upd < len) len = (size_t)(end - upd);
+    }
+    uintptr_t ret = 0;
+    int found = count_face_calls(body, len, upd, face, ret);
+    if (found == 0 && len < sizeof(body)) found = count_face_calls(body, sizeof(body), upd, face, ret);
     return found == 1 ? ret : 0;
 }
 

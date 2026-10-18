@@ -14,6 +14,12 @@
 // l'a jamais calculee) : rien ne s'est arrete, l'invite est reste fige devant un
 // combat que plus personne ne jouait.
 //
+// LA FIN D'UNE CASE. ReturnToMap (0x1403624A0, le rappel de l'ecran de fin de
+// combat) appelle d'abord 0x1403B3D60, qui rend la scene « Map » et appelle la fin
+// de case (T_NodeEnd), puis seulement 0x1403B7720, qui ouvre la scene « LevelUp ».
+// Les montees de niveau, qui attendent l'autre joueur (mgmp_choice), viennent donc
+// APRES l'annonce : elles ne la retardent pas.
+//
 // LES TOURS. Chez chacun, g.turn est le numero du tour EN COURS : l'empreinte du
 // tour T part a la fin de T, puis T+1 commence. Les fins de tour font partie de
 // la simulation : deux copies d'accord en font autant, et finissent un combat avec
@@ -35,10 +41,11 @@
 //      T > H qui attend depuis kOrphanWaitMs la decision d'un chat d'un autre
 //      joueur : personne ne la lui enverra. Il rentre chez lui (kOrphanHostDone).
 //   2. Un invite a fini avec g.turn = M (sa fin de case ; MM_BATTLE_END, a = 2,
-//      vers l'hote). L'hote, au tour T >= M, attend depuis kOrphanWaitMs la
-//      decision d'un chat de cet invite, sans rien de lui dans la file : ses
-//      decisions passaient avant son annonce, sur le meme lien. L'hote le retire
-//      des membres de ce combat, l'IA du jeu joue ses chats.
+//      vers l'hote). L'hote attend la decision d'un chat de cet invite, sans rien
+//      de lui dans la file -- ses decisions passaient avant son annonce, sur le
+//      meme lien -- depuis kOrphanWaitMs au tour T > M, ou kOrphanWaitSameTurnMs
+//      au tour M meme. L'hote le retire des membres de ce combat, l'IA du jeu joue
+//      ses chats.
 //   3. Cet invite voit alors une empreinte de l'hote pour un tour > M : l'hote a
 //      fini M et le tour d'apres, il a continue sans lui. Sa copie a diverge ; il
 //      rentre chez lui (kOrphanMineDone) -- ses montees de niveau, son butin, ses
@@ -73,8 +80,16 @@ enum OrphanKind : uint8_t {
 // Combien de temps une decision attendue doit manquer avant qu'une regle tranche.
 // Une decision deja partie arrive en quelques dizaines de millisecondes ; la
 // longueur d'une reflexion n'y change rien, puisque chaque regle demande aussi que
-// le combat de l'autre soit fini.
-constexpr uint32_t kOrphanWaitMs = 2000;
+// le combat de l'autre soit fini. L'attente se compte d'une demande du jeu a la
+// suivante : un trou de plus de kOrphanPollGapMs entre deux (une image figee, la
+// fenetre en arriere-plan) la fait repartir de zero.
+constexpr uint32_t kOrphanWaitMs    = 2000;
+constexpr uint32_t kOrphanPollGapMs = 250;
+// Regle 2 au tour meme de la fin de l'invite : le jeu peut demander la decision
+// d'un chat au tour ou le combat se finit, avant de voir la victoire (une fin de
+// tour apres la derniere action, une mort encore animee) -- chez un hote lent, plus
+// longtemps que chez l'invite. Une attente bien plus longue y est demandee.
+constexpr uint32_t kOrphanWaitSameTurnMs = 10000;
 
 // Regle 1 (invite) : l'hote a fini avec g.turn = `host_turn` ; ce joueur, au tour
 // `my_turn`, attend depuis `waited_ms` la decision d'un chat d'un autre joueur.
@@ -83,9 +98,12 @@ inline bool orphan_stuck_past_host_end(uint32_t host_turn, uint32_t my_turn, uin
 }
 
 // Regle 2 (hote) : l'invite a fini avec g.turn = `peer_end_turn` ; l'hote, au tour
-// `my_turn`, attend depuis `waited_ms` la decision d'un chat de cet invite.
+// `my_turn`, attend depuis `waited_ms` la decision d'un chat de cet invite (compte
+// au plus tot depuis l'arrivee de l'annonce de l'invite).
 inline bool orphan_peer_left_behind(uint32_t peer_end_turn, uint32_t my_turn, uint64_t waited_ms) {
-    return my_turn >= peer_end_turn && waited_ms >= kOrphanWaitMs;
+    if (my_turn > peer_end_turn)  return waited_ms >= kOrphanWaitMs;
+    if (my_turn == peer_end_turn) return waited_ms >= kOrphanWaitSameTurnMs;
+    return false;
 }
 
 // Regle 3 (invite) : ce joueur a fini avec g.turn = `my_end_turn` ; une empreinte de

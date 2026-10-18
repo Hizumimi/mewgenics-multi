@@ -1,4 +1,4 @@
-// test_orphan.cpp -- Mewgenics Multi (protocoles 64-65) : un combat fini chez l'un
+// test_orphan.cpp -- Mewgenics Multi (protocoles 64-66) : un combat fini chez l'un
 // et pas chez l'autre (mgmp_orphan.h). Les trois regles sur les numeros de tour et
 // l'attente, avec les nombres du 18 octobre 2026 (combat e15743b8b1852f54 : l'hote
 // a fini a son tour 20, l'invite attendait au tour 21 la decision d'un chat de
@@ -31,10 +31,13 @@ void rule1() {
 
 void rule2() {
     printf("regle 2 : un invite a fini, l'hote attend un de ses chats\n");
-    check(orphan_peer_left_behind(20, 20, 3000), "l'hote attend au tour de la fin de l'invite -- diverge");
-    check(orphan_peer_left_behind(20, 25, 3000), "et plus loin");
-    check(!orphan_peer_left_behind(20, 19, 60000), "l'hote en retard sur l'invite : ses decisions sont dans la file");
-    check(!orphan_peer_left_behind(20, 20, kOrphanWaitMs - 1), "une attente courte : rien encore");
+    check(orphan_peer_left_behind(20, 21, 3000), "l'hote attend un tour apres la fin de l'invite -- diverge");
+    check(orphan_peer_left_behind(20, 25, kOrphanWaitMs), "et plus loin, a kOrphanWaitMs tout juste");
+    check(!orphan_peer_left_behind(20, 21, kOrphanWaitMs - 1), "une attente courte : rien encore");
+    check(!orphan_peer_left_behind(20, 20, 3000), "au tour meme de la fin : 3 s ne suffisent pas (une victoire lente)");
+    check(!orphan_peer_left_behind(20, 20, kOrphanWaitSameTurnMs - 1), "ni presque 10 s");
+    check(orphan_peer_left_behind(20, 20, kOrphanWaitSameTurnMs), "10 s au tour meme : diverge (l'hote fige)");
+    check(!orphan_peer_left_behind(20, 19, 600000), "l'hote en retard sur l'invite : ses decisions sont dans la file");
 }
 
 void rule3() {
