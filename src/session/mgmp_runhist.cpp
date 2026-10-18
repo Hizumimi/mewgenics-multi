@@ -402,8 +402,6 @@ static bool stash_pending(const RunHistMsg& m) {
 // while the client's map-follow tick is guaranteed to drain the queue.
 static bool defer_applies() { return g.is_client && config().net_follow; }
 
-bool runhist_has_pending() { return g.pend_count != 0; }
-
 bool runhist_has_pending_before_arrival(uint32_t limit) {
     for (uint32_t k = 0; k < g.pend_count; ++k)
         if (g.pend[k].arrival < limit) return true;

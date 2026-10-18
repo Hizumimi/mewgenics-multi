@@ -133,8 +133,9 @@ uint32_t follow_epoch();
 uint32_t follow_apply_bound();
 
 // Mewgenics Multi (invite) : un numero d'arrivee, commun a toutes les poussees de
-// l'hote (mgmp_catsync, mgmp_invsync) et aux operations d'objets (mm_rungear) --
-// +1 a chaque appel. Une poussee appliquee contient tout ce que l'hote avait fait
+// l'hote (mgmp_catsync, mgmp_invsync, mgmp_runhist), a la copie gardee au depart
+// (mgmp_savefile, mm_embark) et aux operations d'objets (mm_rungear) -- +1 a
+// chaque appel. Une poussee appliquee contient tout ce que l'hote avait fait
 // avant de l'envoyer : une operation arrivee avant elle est deja dedans.
 uint32_t follow_note_arrival();
 

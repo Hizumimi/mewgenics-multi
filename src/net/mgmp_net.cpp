@@ -40,6 +40,12 @@ struct Link {
     HANDLE        thread = nullptr;
     uint8_t       id     = kNoPeer;
     volatile LONG live   = 0;
+    // Mewgenics Multi (protocole 61), hote : un pair refuse -- sa connexion se
+    // ferme a cette heure (GetTickCount64), 0 sinon. D'ici la il n'est plus dans
+    // la liste des joueurs, ne recoit plus rien et n'est plus ecoute : seulement
+    // le temps de lire le refus (une version d'avant affiche « connexion coupee »
+    // des que la connexion se ferme).
+    volatile LONG64 drop_at = 0;
 };
 
 struct State {
@@ -148,9 +154,38 @@ void queue_push(const NetMsg& m) {
 
 // --- link table -------------------------------------------------------------
 //
-// Guarded by link_cs. Held only around table reads and writes, never across a
-// send or a recv: a slow peer must not be able to stall the accept thread or
-// another peer's relay.
+// No lock: `live` is the publication flag (Interlocked), and a slot's socket is
+// only ever taken out with an atomic exchange (take_link_socket), so the accept
+// thread, a link's own thread and net_shutdown never close the same socket twice
+// or close a slot's NEW socket. A slow peer must not be able to stall the accept
+// thread or another peer's relay.
+
+// Mewgenics Multi (protocole 61) : prend la socket d'un lien et la laisse
+// INVALID_SOCKET, en une operation -- celui qui la recoit est le seul a la fermer.
+SOCKET take_link_socket(Link& l) {
+    static_assert(sizeof(SOCKET) == sizeof(PVOID), "SOCKET is pointer-sized on x64");
+    return (SOCKET)InterlockedExchangePointer((PVOID volatile*)&l.sock, (PVOID)INVALID_SOCKET);
+}
+
+// Mewgenics Multi (protocole 61) : ce lien est celui d'un pair refuse (net_drop_peer).
+bool link_dropping(Link& l) { return InterlockedCompareExchange64(&l.drop_at, 0, 0) != 0; }
+
+// Hote, sur le fil du jeu (net_poll) : ferme les liens refuses dont l'heure est venue.
+void pump_refused() {
+    if (g.role != NetRole::Host) return;
+    const uint64_t now = GetTickCount64();
+    for (int i = 0; i < kMaxPeers; ++i) {
+        Link& l = g.links[i];
+        if (!InterlockedCompareExchange(&l.live, 0, 0)) continue;
+        const LONG64 at = InterlockedCompareExchange64(&l.drop_at, 0, 0);
+        if (!at || now < (uint64_t)at) continue;
+        const SOCKET s = take_link_socket(l);
+        if (s == INVALID_SOCKET) continue;           // deja fermee (son fil finit)
+        shutdown(s, SD_BOTH);
+        closesocket(s);
+        log_line("NET", "peer %u (refused) -- connection closed", (unsigned)l.id);
+    }
+}
 
 int link_slot_of(uint8_t peer) {
     for (int i = 0; i < kMaxPeers; ++i)
@@ -271,6 +306,7 @@ void host_relay(uint8_t from, const uint8_t* payload, uint32_t len) {
         Link& l = g.links[i];
         if (!InterlockedCompareExchange(&l.live, 0, 0)) continue;
         if (l.id == from) continue;              // not back to its author
+        if (link_dropping(l)) continue;          // Mewgenics Multi : un pair refuse
         send_framed(l.sock, from, payload, len);
     }
 }
@@ -286,6 +322,13 @@ void host_relay(uint8_t from, const uint8_t* payload, uint32_t len) {
 void host_publish_roster() {
     if (g.role != NetRole::Host) return;
 
+    // Mewgenics Multi (protocole 61) : une arrivee (fil d'acceptation) et un
+    // depart (fil du lien) au meme instant publiaient chacun leur liste, et
+    // l'ordre des deux files pouvait laisser la plus ancienne en dernier -- un
+    // joueur parti encore compte, ou un arrivant oublie. Une liste a la fois :
+    // la derniere calculee est la derniere envoyee. send_cs, que chaque envoi
+    // prend deja (meme fil : il se reprend sans attendre).
+    EnterCriticalSection(&g.send_cs);
     PeersMsg roster{};
     roster.ids[roster.count++] = kHostPeer;
     for (uint8_t want = 0; want < 255 && roster.count < kMaxPeers; ++want) {
@@ -293,6 +336,7 @@ void host_publish_roster() {
             Link& l = g.links[i];
             if (!InterlockedCompareExchange(&l.live, 0, 0)) continue;
             if (l.id != want || l.id == kHostPeer) continue;
+            if (link_dropping(l)) continue;      // Mewgenics Multi : refuse, plus un joueur
             roster.ids[roster.count++] = l.id;   // ascending by construction
         }
     }
@@ -303,6 +347,7 @@ void host_publish_roster() {
     for (int i = 0; i < kMaxPeers; ++i) {
         Link& l = g.links[i];
         if (!InterlockedCompareExchange(&l.live, 0, 0)) continue;
+        if (link_dropping(l)) continue;
         PeersMsg mine = roster;
         mine.you = l.id;
         uint8_t p[64];
@@ -316,6 +361,7 @@ void host_publish_roster() {
     self.peers     = roster;
     self.peers.you = kHostPeer;
     queue_push(self);
+    LeaveCriticalSection(&g.send_cs);
 }
 
 // The receive loop for ONE link. Owns that link's socket for its lifetime.
@@ -338,6 +384,10 @@ void recv_loop(Link& link) {
             break;
         }
         if (!recv_exact(link.sock, buf, len)) break;
+        // Mewgenics Multi (protocole 61) : un pair refuse n'est plus ecoute (ni
+        // relaye, ni mis dans la file) -- la trame est lue en entier, pour rester
+        // cale sur le flux, puis laissee.
+        if (g.role == NetRole::Host && link_dropping(link)) continue;
 
         uint8_t         from    = buf[0];
         const uint8_t*  payload = buf + kEnvelopeBytes;
@@ -356,6 +406,18 @@ void recv_loop(Link& link) {
 
         NetMsg m{};
         if (!decode_into(payload, plen, m)) {
+            // Mewgenics Multi (protocole 61) : un curseur ou une visee hors des
+            // bornes ne coupe plus personne. L'hote relaie AVANT de decoder : une
+            // seule visee mal formee fermait le lien de son auteur chez l'hote, et
+            // celui de chaque autre invite vers l'hote. Ils ne portent qu'un
+            // dessin ; on les laisse tomber (dit une fois).
+            if (payload[0] == MSG_CURSOR || payload[0] == MSG_AIM) {
+                static volatile LONG said = 0;
+                if (InterlockedExchange(&said, 1) == 0)
+                    log_line("NET", "!! undecodable %s frame from peer %u, %u bytes -- dropped (only a drawing; "
+                                    "said once)", msg_name(payload[0]), (unsigned)from, plen);
+                continue;
+            }
             log_line("NET", "!! undecodable %s frame from peer %u, %u bytes -- closing",
                      msg_name(payload[0]), (unsigned)from, plen);
             break;
@@ -367,11 +429,19 @@ void recv_loop(Link& link) {
 
     free(buf);
 
+    // Mewgenics Multi (protocole 61) : la socket d'abord, PUIS le drapeau. Dans
+    // l'autre ordre, une connexion acceptee entre les deux prenait ce lien libre,
+    // et cette fermeture fermait SA socket. Le numero est lu avant : une fois le
+    // drapeau baisse, le lien peut deja etre celui d'un nouvel arrivant.
+    const uint8_t id = link.id;
+    {
+        const SOCKET s = take_link_socket(link);
+        if (s != INVALID_SOCKET) closesocket(s);
+    }
     InterlockedExchange(&link.live, 0);
-    if (link.sock != INVALID_SOCKET) { closesocket(link.sock); link.sock = INVALID_SOCKET; }
 
     if (!InterlockedCompareExchange(&g.stop, 0, 0)) {
-        log_line("NET", "peer %u disconnected", (unsigned)link.id);
+        log_line("NET", "peer %u disconnected", (unsigned)id);
         if (g.role == NetRole::Host) {
             // One client leaving is not the end of the session for the others.
             // Whether the RUN can continue is the session layer's call; the
@@ -399,8 +469,12 @@ void nodelay_on(SOCKET s) {
 
 bool start_link(int slot, SOCKET s, uint8_t id) {
     Link& l = g.links[slot];
+    // Mewgenics Multi : le fil de la connexion d'avant sur ce lien (fini, ou qui
+    // finit) -- sa poignee etait perdue a chaque reconnexion.
+    if (l.thread) { CloseHandle(l.thread); l.thread = nullptr; }
     l.sock = s;
     l.id   = id;
+    InterlockedExchange64(&l.drop_at, 0);        // Mewgenics Multi : avant `live`
     InterlockedExchange(&l.live, 1);
     nodelay_on(s);
     l.thread = CreateThread(nullptr, 0, link_thread, &l, 0, nullptr);
@@ -444,7 +518,7 @@ DWORD WINAPI accept_thread(LPVOID) {
             // turns up to a full session should be told, not left staring at a
             // connect that appears to succeed and then does nothing.
             uint8_t p[128];
-            uint32_t n = enc_refuse(p, sizeof(p), "session is full");
+            uint32_t n = enc_refuse(p, sizeof(p), "partie complète (4 joueurs au plus)");
             if (n) send_framed(c, kHostPeer, p, n);
             log_line("NET", "!! refused a connection -- the session already has "
                             "%u peer(s), the maximum", (unsigned)kMaxPeers);
@@ -602,18 +676,41 @@ bool net_join(const char* addr, uint16_t port) {
     return true;
 }
 
-// The transport learns our own id from the same PEERS message the session layer
-// sees; net_poll calls this so the two can never disagree.
-void net_note_self(uint8_t id) { g.self = id; }
+// A client learns its own id from the PEERS message, when net_poll hands it to
+// the game thread (below), so the transport and the session layer agree on it.
 uint8_t net_self() { return g.self; }
+
+void net_drop_peer(uint8_t peer, uint32_t after_ms) {
+    if (g.role != NetRole::Host || peer == kHostPeer) return;
+    const int slot = link_slot_of(peer);
+    if (slot < 0) return;
+    Link& l = g.links[slot];
+    if (after_ms) {
+        // Hors de la liste des joueurs tout de suite ; la connexion, elle, se ferme
+        // plus tard (pump_refused). La premiere heure dite reste.
+        const LONG64 at = (LONG64)(GetTickCount64() + after_ms);
+        if (InterlockedCompareExchange64(&l.drop_at, at, 0) == 0) {
+            log_line("NET", "peer %u refused -- out of the roster now, connection closed in %u s",
+                     (unsigned)peer, after_ms / 1000);
+            host_publish_roster();
+        }
+        return;
+    }
+    // shutdown laisse partir ce qui est deja envoye ; le fil du lien sort de recv,
+    // ferme, et republie la liste des joueurs.
+    const SOCKET s = take_link_socket(l);
+    if (s != INVALID_SOCKET) { shutdown(s, SD_BOTH); closesocket(s); }
+    log_line("NET", "peer %u dropped by the host", (unsigned)peer);
+}
 uint8_t net_peer_count() { return g.roster_valid ? g.roster.count : 0; }
 
 // Our INDEX in the sorted membership list, not our id.
 //
-// The two differ once anyone has disconnected: ids are never reused, so a
-// session that loses peer 1 keeps ids {0,2,3} while the positions stay {0,1,2}.
-// The control split is computed from position precisely so that the departure
-// of one player does not silently hand another player somebody else's cats.
+// The two differ once anyone has disconnected: a session that loses peer 1
+// keeps ids {0,2,3} while the positions become {0,1,2} (the next arrival takes
+// the lowest free id, 1, again -- see accept_thread). The control split is
+// computed from position precisely so that the departure of one player does
+// not silently hand another player somebody else's cats.
 uint8_t net_peer_pos() {
     if (!g.roster_valid) return 0;
     for (uint8_t i = 0; i < g.roster.count; ++i)
@@ -637,8 +734,8 @@ void net_shutdown() {
     // listener is what releases the accept thread.
     if (g.listener != INVALID_SOCKET) { closesocket(g.listener); g.listener = INVALID_SOCKET; }
     for (int i = 0; i < kMaxPeers; ++i) {
-        Link& l = g.links[i];
-        if (l.sock != INVALID_SOCKET) { shutdown(l.sock, SD_BOTH); closesocket(l.sock); l.sock = INVALID_SOCKET; }
+        const SOCKET s = take_link_socket(g.links[i]);
+        if (s != INVALID_SOCKET) { shutdown(s, SD_BOTH); closesocket(s); }
     }
 
     if (g.accept_thread) {
@@ -663,8 +760,8 @@ void net_shutdown() {
              s.sent, s.received, s.dropped,
              (unsigned long long)s.bytes_sent, (unsigned long long)s.bytes_received);
 
-    // Anything still queued is ours to free. Only SAVEFILE owns memory, but
-    // draining unconditionally keeps that fact in one place.
+    // Anything still queued is ours to free. Only some frames own memory (see
+    // NetMsg); releasing every one keeps that knowledge in net_msg_release.
     if (g.cs_ready) {
         EnterCriticalSection(&g.cs);
         for (uint32_t i = 0; i < g.queue.count; ++i) net_msg_release(g.queue.at(i));
@@ -709,6 +806,7 @@ bool net_send(const uint8_t* payload, uint32_t len) {
     for (int i = 0; i < kMaxPeers; ++i) {
         Link& l = g.links[i];
         if (!InterlockedCompareExchange(&l.live, 0, 0)) continue;
+        if (link_dropping(l)) continue;          // Mewgenics Multi : un pair refuse
         if (send_framed(l.sock, g.self, payload, len)) any = true;
         else failed = true;
     }
@@ -938,6 +1036,7 @@ void net_msg_release(NetMsg& m) {
 bool net_poll(NetMsg& out) {
     if (!g.cs_ready) return false;
     net_pump_connect();
+    pump_refused();
     EnterCriticalSection(&g.cs);
     // Hand the allocation over rather than sharing it: pop zeroes the slot, so
     // the queue never holds a second owner of one pointer (a double free waiting

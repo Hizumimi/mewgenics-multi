@@ -2721,6 +2721,94 @@ host's adventure. The detour forwards three arguments: `MapScreen::init` sets
 only rcx, rdx (the by-value `std::string`'s copy) and r8b before the call, and
 the prologue spills exactly those.
 
+### Protocol 61 — a second global audit (Mewgenics Multi)
+
+A second independent read of the whole mod on 2026-10-18 (protocol 60 code),
+in three parts: transport and session, the run's synchronisation, the departure
+and the saves. What it found, and what changed:
+
+**A refused peer stayed connected.** `refuse_peer` only sent REFUSE: the refused
+client stayed in the host's roster (counted by the night vote, the lobby and the
+Steam presence) and kept one of the three client ids. Worse, a REFUSE *received*
+by the host before Ready (a client of another version refusing the host's HELLO)
+put the host's whole session in `Phase::Refused`: the next friend never got an
+answer. Now the host takes the refused peer out of the roster at once, stops
+sending to it and listening to it, and closes its connection 30 s later
+(`net_drop_peer(peer, kRefuseGraceMs)`: `Link::drop_at`, closed by `pump_refused`
+from `net_poll`) — time to read the reason, since build 41's lobby shows
+"connexion coupée" as soon as the link closes. The lobby stays open. The reasons are
+in French, and the client's lobby names the cause (session full, mod version,
+game version, `resources.gpak`), English reasons from older builds included. The
+refusal is shown BEFORE "connection lost" (the host now closes right after its
+REFUSE, and through Steam the bridge reports a cut connection), and
+`session_update` no longer overwrites a refusal status with "peer disconnected".
+
+**One malformed CURSOR or AIM closed links.** The host relays before decoding,
+and a frame the decoder refused (an aim target outside ±1000, a direction outside
+±8) closed the author's link at the host and every other guest's link to the
+host. Both only carry a drawing: an undecodable one is dropped (logged once), and
+`mgmp_aim` publishes "stop" instead of an aim outside those bounds.
+
+**Link sockets were closed racily.** The link thread cleared `live`, then closed
+`link.sock`: an accept in between took the free slot and the late close closed
+the NEW peer's socket. Every closer (link thread, `net_drop_peer`, `pump_refused`,
+`net_shutdown`) now takes the socket with one atomic exchange (`take_link_socket`), and the link
+thread closes before it clears `live`, reading its id first. The previous link
+thread's handle is closed when the slot is reused (one handle leaked per
+reconnect). An arrival and a departure at the same instant (two transport
+threads) could queue their rosters out of order and leave the older one last:
+`host_publish_roster` now runs under `send_cs`.
+
+**A battle halt outlived its battle.** `halted` was only cleared by
+`lockstep_leave_run`, which is a guest's. On the host, after a desynced battle and
+an abandoned run, the next run of the same session froze at its first battle (the
+new-battle detection is skipped while halted: no decisions, no CONTROL). A halt
+now remembers its battle (`halted_battle`) and `lockstep_enter_battle` clears it
+on another one. The turn boundary also re-snapshots when the snapshot's battle is
+not the battle entered (`snap_battle`): a new battle's character list can reuse
+the freed list's address.
+
+**A guest whose connection dropped kept playing its cats alone.** The host hands
+them to the game's AI, so a decision taken locally meanwhile made another battle.
+The guest's own human cats now get TA_None while `!net_active()` (the home window
+opens). A peer hash for an older turn of the current battle that has left our
+16-turn ring (a joiner replaying a long battle) is dropped instead of held as
+"ahead", which filled the ring and logged that the peer was 16 turns ahead.
+
+**Departure together.** (1) The host masks its joiners, ready and followers with
+the present roster: a guest who left during the departure screens was waited for
+until the delay ran out, and nobody could put the collars on his cats meanwhile.
+(2) A guest comparing its departure aborts as soon as the host's state says
+`c = 0`, without waiting for the end of its own departure screens. (3) A kept
+adventure clears the linger window (a host abandoning right after would have held
+the guest's home window for two minutes). (4) On arrival in the host's adventure
+the held cats and history are not applied while the save is set aside
+(`savefile_keep_waiting`) or the inventory screen holds pushes
+(`rungear_hold_pushes`). (5) "J'arrive" refused because the 4th place is on its
+way to this guest: the question comes back after 2 s, not 30. (6) After a
+cancelled departure in the host's house, the home window says the departure did
+not happen, not that the adventure is over.
+
+**A new run forgot its last node only half.** Protocol 59's (5) cleared `inside`
+and the host's choice node, not `have_here`: `follow_here_seed()` kept returning
+the previous run's last node, which stamped the host's choices and is what a
+joiner gets from `follow_catchup`. `follow_forget_map` now clears `have_here` and
+`here_nemesis` too.
+
+**Cleanup.** Five functions nobody called (`runhist_has_pending`,
+`embark_waiting`, `savefile_publish_count` and its counter, `gear_apply_cats`,
+`net_note_self`), two unused locals, and comments that no longer matched the code
+(client ids ARE reused, lowest free first; which frames own memory; when a send
+can block; the arrival number shared by every held push; `kEventSettleMs`; the
+meta layer's per-node hash exists). CI uses `actions/checkout@v5` (Node 24).
+
+**Left as they are.** Joining is only possible from the main menu (the
+Multijoueur button; a Steam request waits for the main menu), so a guest that only
+lost its socket and reconnects from INSIDE a copy — possible only from the F1
+debug panel — is not a supported path: the four findings that need it are not
+hardened. One diagnostics-only observation (what the log says, not what the game
+does) is unchanged.
+
 ### Steam transport (Mewgenics Multi, `src/net/mgmp_steam.cpp`)
 
 **The mod's transport stays TCP; Steam is a byte pipe beside it.** The host's

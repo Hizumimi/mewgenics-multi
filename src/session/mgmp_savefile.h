@@ -171,7 +171,8 @@ bool savefile_take_fresh_in_coop();
 // cet invite a fait avec la graine commune (mm_embark) : elle est mise de cote au
 // lieu de faire recharger. mm_embark compare son aventure a celle de l'hote ;
 // commit : la sienne reste (la copie est jetee) ; abort : la copie se charge,
-// comme avant (savefile_take_fresh_in_coop devient vrai).
+// comme avant (en attente ; savefile_take_fresh_in_coop devient vrai s'il joue
+// dans une copie), sauf s'il rentre chez lui : elle est alors jetee.
 bool     savefile_keep_waiting();
 uint64_t savefile_keep_since();
 // Le numero d'arrivee (follow_note_arrival) pris a l'arrivee de la copie : les
@@ -202,9 +203,6 @@ bool savefile_run_published();
 // nouvelle partie (fresh). Les invites qui ont dit « J'arrive » la chargent et
 // suivent son depart ; l'aventure, elle, sera publiee sur la carte comme avant.
 bool savefile_publish_embark();
-// Hote : nombre de publications de la save depuis le lancement (une de plus a
-// chaque depart, et a chaque demande d'un invite en cours de route).
-uint32_t savefile_publish_count();
 
 // Le dossier des saves du jeu (celui que le jeu ouvre), faux s'il est introuvable.
 bool savefile_save_dir(wchar_t* out, size_t n);

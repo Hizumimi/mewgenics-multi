@@ -104,10 +104,6 @@ void runhist_apply_pending_before(uint32_t bound, const char* why);
 // boundaries and nowhere else.
 uint64_t runhist_hash();
 
-// Mewgenics Multi (protocole 60) : un historique de l'hote attend encore d'etre
-// applique chez ce joueur.
-bool runhist_has_pending();
-
 // Mewgenics Multi (protocole 60) : voir catsync_pending_before_arrival ; et
 // appliquer le plus recent de ceux d'avant `limit` (et d'avant la prochaine case
 // a suivre).

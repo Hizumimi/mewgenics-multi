@@ -66,8 +66,9 @@
 //     MapMarker+0x78 : le jeu efface alors la destination a chaque image)
 //     attend qu'il soit libre.
 //
-// LIMITES. Seul le chemin se vote pour l'instant : les evenements et les
-// montees de niveau restent decides par l'hote (mgmp_choice). La position
+// LIMITES. Seul le chemin se vote : les choix d'evenement et les montees de
+// niveau ne se votent pas, ils reviennent au proprietaire du chat concerne
+// (mgmp_choice, protocoles 44 et 45). La position
 // (« en haut », « à gauche »...) qui distingue deux cases du meme type est lue
 // sur la carte telle que le jeu la dessine. Le retour anticipe a la maison est
 // recopie chez l'invite (ENTERNODE kEnterEarlyHome, mgmp_follow).

@@ -57,7 +57,7 @@
 // That is all that crosses the wire, and it is why this file is short and
 // RUNSTATE does not exist.
 //
-// A LIMIT WORTH STATING. Three of the lower-frequency commands' RNG sources
+// A LIMIT WORTH STATING. Some of the lower-frequency commands' RNG sources
 // (weather_roll, add_weather, next_fight_from_set, next_event_from_set,
 // scramble_*, make_old, upgrade_*) were NOT traced to a primitive -- a two-level
 // scan found none and the deeper scan was skipped by choice. They are assumed
@@ -101,13 +101,13 @@
 // WHAT THIS DOES NOT DO
 // ---------------------------------------------------------------------------
 //
-// There is NO per-node hash yet, and that is the real debt this design takes
-// on. State-push sync is self-correcting: a divergence gets overwritten by the
-// next CATDATA. Determinism sync is not -- a divergence compounds silently,
-// which is exactly why the battle layer carries a per-turn hash and halts. The
-// meta layer now needs the same and does not have it. Until it does, the
-// existing per-node CATDATA/INVENTORY pushes will paper over a divergence
-// rather than report it.
+// It does not HALT on a divergence. State-push sync is self-correcting: a
+// divergence gets overwritten by the next CATDATA. Determinism sync is not -- a
+// divergence compounds silently, which is why the battle layer carries a
+// per-turn hash and halts. The meta layer has its own per-node hash now
+// (mgmp_nodehash: rng, run history, cats and inventory at every map node), but
+// it REPORTS (tune::kNodeHashHalt is off): the per-node CATDATA/INVENTORY pushes
+// still overwrite a divergence, and the log says that one happened.
 //
 // ---------------------------------------------------------------------------
 // MEWGENICS MULTI : CHACUN CHOISIT POUR SES CHATS (protocole 44)
@@ -156,7 +156,8 @@
 //     grandi entre les deux) est prise si son nom et son type sont a leur place,
 //     et publiee avec la liste de l'hote.
 //   - Un choix d'evenement ne se joue pas sur la liste ou le precedent vient de
-//     l'etre (2 s au plus) : l'etape suivante n'est peut-etre pas encore batie.
+//     l'etre (kEventSettleMs, 10 s au plus) : l'etape suivante n'est peut-etre
+//     pas encore batie.
 //   - Le delai de 60 s d'une tete de file court aussi quand elle retient un choix
 //     pour l'ecran qui est la (plus loin dans la file) ; en quittant une case, les
 //     choix de cette case qui attendent encore sont laisses.

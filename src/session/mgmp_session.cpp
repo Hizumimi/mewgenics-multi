@@ -127,21 +127,25 @@ void set_status(const char* fmt, ...) {
     va_end(ap);
 }
 
+// Mewgenics Multi : les raisons partent chez l'autre joueur et s'affichent dans
+// son salon -- en francais (mm_menu les reconnait aussi en anglais, celles d'une
+// version d'avant).
 bool check_peer(const Hello& h, char* why, size_t why_size) {
     if (h.proto != kProtoVersion) {
         _snprintf_s(why, why_size, _TRUNCATE,
-                    "protocol %u, this build speaks %u", h.proto, kProtoVersion);
+                    "version du mod differente (protocole %u d'un cote, %u de l'autre)",
+                    h.proto, kProtoVersion);
         return false;
     }
     if (g.build_hash && h.build_hash && h.build_hash != g.build_hash) {
         _snprintf_s(why, why_size, _TRUNCATE,
-                    "different Mewgenics build (%016llx vs %016llx)",
+                    "version du jeu differente (%016llx / %016llx)",
                     (unsigned long long)h.build_hash, (unsigned long long)g.build_hash);
         return false;
     }
     if (g.gpak_hash && h.gpak_hash && h.gpak_hash != g.gpak_hash) {
         _snprintf_s(why, why_size, _TRUNCATE,
-                    "different resources.gpak (%016llx vs %016llx)",
+                    "fichiers du jeu differents (resources.gpak %016llx / %016llx)",
                     (unsigned long long)h.gpak_hash, (unsigned long long)g.gpak_hash);
         return false;
     }
@@ -203,6 +207,12 @@ void refuse_peer(uint8_t peer, const char* why) {
     if (net_role() != NetRole::Host) {
         g.phase = Phase::Refused;
         set_status("refused: %s", why);
+    } else {
+        // Mewgenics Multi (protocole 61) : hors de la liste des joueurs, et son lien
+        // ferme 30 s plus tard (le temps de lire le refus). Avant, il restait
+        // connecte : il comptait dans la liste (la nuit votee l'attendait, le salon
+        // et Steam le comptaient) et gardait l'un des trois numeros.
+        net_drop_peer(peer, kRefuseGraceMs);
     }
 }
 
@@ -686,6 +696,16 @@ void session_update() {
                 break;
 
             case MSG_REFUSE:
+                // Mewgenics Multi (protocole 61) : chez l'hote, le refus d'UN
+                // invite (une autre version) ne ferme pas le salon -- avant, le
+                // premier ami mal a jour mettait l'hote en « refuse » pour toute la
+                // session, et les suivants n'avaient jamais de reponse.
+                if (net_role() == NetRole::Host) {
+                    log_line("SESSION", "!! peer %u refused this host: %s -- dropped, the lobby stays open",
+                             (unsigned)m.from, m.refuse);
+                    net_drop_peer(m.from, kRefuseGraceMs);
+                    break;
+                }
                 g.phase = Phase::Refused;
                 set_status("peer refused: %s", m.refuse);
                 log_line("SESSION", "!! peer refused us: %s", m.refuse);
@@ -716,6 +736,10 @@ void session_update() {
         net_msg_release(m);
     }
 
+    // Mewgenics Multi (protocole 61) : un refus garde sa raison -- l'hote ferme la
+    // connexion apres son REFUSE (net_drop_peer ; une partie complete, tout de
+    // suite, souvent avant cette ligne).
+    if (g.phase == Phase::Refused) return;
     if (net_state() == NetState::Failed) set_status("failed: %s", net_error());
     else if (net_state() == NetState::Closed) set_status("peer disconnected");
 }

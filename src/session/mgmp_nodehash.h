@@ -36,8 +36,8 @@
 // battle layer halts. A battle desync means every subsequent turn is fiction; a
 // meta divergence usually means one number differs and the run is still
 // playable, and stopping a co-op session dead over a coin count would be worse
-// than telling the players. `net_nodehash_halt` exists for a session that wants
-// the strict behaviour, and defaults off.
+// than telling the players. tune::kNodeHashHalt (mgmp_tuning.h) exists for a
+// build that wants the strict behaviour, and is off.
 //
 // SYMMETRIC. Both peers compute and send their own; each compares arrivals
 // against a ring of what it sent, in both directions, for the reason

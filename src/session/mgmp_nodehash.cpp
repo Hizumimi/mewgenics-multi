@@ -261,7 +261,7 @@ void report(uint8_t from, const NodeHashMsg& a, const NodeHashMsg& b) {
                  a.event, b.event, (unsigned)from);
 
     if (g.halt)
-        log_line("NODEHASH", "!! net_nodehash_halt is set -- treat this run as over; "
+        log_line("NODEHASH", "!! tune::kNodeHashHalt is set -- treat this run as over; "
                              "the meta layer has diverged");
 }
 
@@ -329,14 +329,13 @@ void nodehash_set_base(uintptr_t base) {
 
 void nodehash_init() {
     if (!g.cs_ready) { InitializeCriticalSection(&g.cs); g.cs_ready = true; }
-    const Config& c = config();
     g.on   = tune::kNodeHash;
     g.halt = tune::kNodeHashHalt;
     g.book.clear();
     for (bool& b : g.evict_said) b = false;
     g.peers_mask = 0;
     g.sampled_screen = nullptr;
-    if (!g.on) { log_line("NODEHASH", "meta-layer hashing disabled by net_nodehash = 0"); return; }
+    if (!g.on) { log_line("NODEHASH", "meta-layer hashing disabled (tune::kNodeHash)"); return; }
     log_line_lvl(LogLevel::Trace, "NODEHASH",
                  "armed -- hashing rng, run history, cat roster and "
                  "inventory at every map node%s",

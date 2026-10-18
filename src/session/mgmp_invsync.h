@@ -210,8 +210,9 @@ void invsync_drop_pending_before_arrival(uint32_t limit);
 // Mewgenics Multi (mm_rungear, invite) : le plus grand numero d'arrivee
 // (follow_note_arrival) des inventaires appliques ou laisses parce qu'identiques.
 uint32_t invsync_last_applied_arrival();
-// Mewgenics Multi (mm_rungear, invite) : seulement les inventaires arrives avant
-// le numero `arrival_limit` (et d'avant la prochaine case a suivre).
+// Mewgenics Multi (mm_rungear, mm_embark ; invite) : seulement les inventaires
+// arrives avant le numero `arrival_limit` (et d'avant la prochaine case a
+// suivre).
 void invsync_apply_pending_before_arrival(uint32_t arrival_limit, const char* why);
 // Mewgenics Multi (mm_rungear, invite) : laisse les inventaires gardes qui
 // s'appliqueraient maintenant si le plus recent est identique a celui de ce

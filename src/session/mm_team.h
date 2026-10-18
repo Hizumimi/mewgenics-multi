@@ -171,6 +171,10 @@ std::string team_guest_offer_line();
 // Faux, avec le texte d'une fenetre pour le joueur, s'il ne peut pas partir
 // ainsi (trop de chats, chats illisibles, envoi impossible).
 bool team_guest_send(uint8_t seq, std::string& problem_utf8);
+// Mewgenics Multi (protocole 61) : team_guest_send vient de refuser parce que la
+// 4e place est en train d'etre attribuee a ce joueur -- la question peut revenir
+// tout de suite (vrai une fois).
+bool team_take_slot_wait();
 // Il ne vient plus au vote `seq` (« pas encore », annulation, vote annule) :
 // pas de fenetre « tes chats n'ont pas pu partir » pour ce depart.
 void team_guest_withdraw(uint8_t seq);

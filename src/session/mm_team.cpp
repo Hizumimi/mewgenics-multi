@@ -275,6 +275,7 @@ struct State {
     // Mewgenics Multi (protocole 58) : la 4e place a 3 joueurs (mm_slot_core.h).
     SlotArbiter slot;                         // hote : l'ordre des demandes
     uint8_t     slot_owner  = kSlotNobody;    // tous : a qui elle est, dit par l'hote
+    bool        slot_wait_answer = false;     // invite : « J'arrive » refuse, la 4e place en route
     uint32_t    slot_seq    = 0;              // hote : numero de sa derniere annonce
     uint32_t    slot_roster = 0;              // hote : les presents au dernier arbitrage
     bool        slot_told   = false;          // ce joueur : 2 chats ou plus, dit a l'hote
@@ -2728,6 +2729,12 @@ std::string team_guest_offer_line() {
     return u8"Tu emmènes " + join_names(names) + ".";
 }
 
+bool team_take_slot_wait() {
+    const bool w = g.slot_wait_answer;
+    g.slot_wait_answer = false;
+    return w;
+}
+
 bool team_guest_send(uint8_t seq, std::string& problem) {
     problem.clear();
     const char* head = u8"Départ en aventure\n\n";
@@ -2745,7 +2752,8 @@ bool team_guest_send(uint8_t seq, std::string& problem) {
     // encore -- sa demande est en route chez l'hote.
     if (n == 2 && players == 3 && g.slot_owner == kSlotNobody) {
         problem = std::string(head) + u8"La 4e place est en train de t'être attribuée :\n"
-                                      u8"réponds « J'arrive » à nouveau dans un instant.";
+                                      u8"la question revient dans un instant.";
+        g.slot_wait_answer = true;          // mm_menu la repose dans 2 s (team_take_slot_wait)
         return false;
     }
     if (n > q) { problem = std::string(head) + too_many_text(n, q) + slot_note(net_self(), players); return false; }

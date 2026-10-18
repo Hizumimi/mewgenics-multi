@@ -542,13 +542,6 @@ bool follow_index_of_node(void* map, void* node, uint32_t& out) {
 
 void* follow_node_at(void* map, uint32_t index) { return map ? node_at(map, index) : nullptr; }
 
-// A peer connected or reconnected: tell it which node the run is standing in.
-//
-// Without this the whole save/cats/inventory catch-up leaves the joiner on the
-// map with nothing to do, because ENTERNODE is otherwise published exactly once
-// -- at the instant of entry -- and a peer that was not connected then never
-// hears about it. That was the "client loads the save and the battle never
-// activates" report.
 bool follow_on_map() {
     if (!g.map_tick) return false;
     // 250 ms: MapScreen::update does not tick on the frame a node is entered,
@@ -664,6 +657,13 @@ void follow_request_jump(uint32_t index) {
     g.jump_index   = index;
 }
 
+// A peer connected or reconnected: tell it which node the run is standing in.
+//
+// Without this the whole save/cats/inventory catch-up leaves the joiner on the
+// map with nothing to do, because ENTERNODE is otherwise published exactly once
+// -- at the instant of entry -- and a peer that was not connected then never
+// hears about it. That was the "client loads the save and the battle never
+// activates" report.
 bool follow_catchup(uint8_t peer) {
     if (!g.on || g.is_client || !net_active()) return false;
 
@@ -739,8 +739,9 @@ uint32_t follow_epoch() {
 }
 
 uint32_t follow_note_arrival() {
-    // Le thread du jeu seulement (la boucle des messages, mgmp_lockstep) ; le
-    // verrou ne coute rien et garde le compteur juste si cela changeait.
+    // Le thread du jeu seulement (la boucle des messages, mgmp_lockstep) ;
+    // l'increment atomique ne coute rien et garde le compteur juste si cela
+    // changeait.
     static volatile LONG s_arrival = 0;
     return (uint32_t)InterlockedIncrement(&s_arrival);
 }
@@ -776,6 +777,10 @@ void follow_forget_map() {
     g.next_fresh = true;
     g.live       = false;
     g.inside     = false;   // Mewgenics Multi : la derniere case de l'aventure d'avant (une defaite...)
+    // Mewgenics Multi (protocole 61) : et la case ou l'on « est » -- c'est elle
+    // (follow_here_seed) qui marque les choix de l'hote et qu'un arrivant recoit.
+    g.have_here    = false;
+    g.here_nemesis = false;
     choice_on_new_run();    // Mewgenics Multi : sa case aussi, chez l'hote
 }
 

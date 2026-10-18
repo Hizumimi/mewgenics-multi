@@ -323,6 +323,7 @@ struct State {
     uint64_t gone_since[kMaxPeers] = {}; // hote : membre absent depuis (ms), pour ne pas le juger sur une image
     bool     out_of_run        = false;  // invite : sorti de l'aventure de l'hote (lockstep_leave_run)
     bool     halted_watching   = false;  // invite : arrete alors qu'il ne faisait que regarder ce combat
+    uint64_t halted_battle     = kNoBattle; // Mewgenics Multi (protocole 61) : le combat de l'arret
     uint8_t  halted_peers      = 0;      // hote : invites arretes en regardant un combat -- pas membres des
                                          // combats suivants tant qu'ils ne sont pas revenus (catch-up)
     uint8_t  entry_members     = 0;      // les membres a l'entree : la base du partage
@@ -1929,6 +1930,7 @@ HashMsg build_hash(void* turn_control) {
 void halt(const char* why) {
     if (g.halted) return;
     g.halted = true;
+    g.halted_battle = g.battles.current;
     g.stats.halted = true;
     ++g.stats.desyncs;
     // Mewgenics Multi : un invite qui ne faisait que regarder ce combat s'arrete
@@ -2271,6 +2273,7 @@ void lockstep_init() {
     g.active  = true;
     g.halted  = false;
     g.halted_watching = false;
+    g.halted_battle   = kNoBattle;
     if (!rejoin_in_battle) {
         g.snapped = false;
         // Turn numbering is per battle and the HASH messages are keyed on it.
@@ -2677,6 +2680,12 @@ void lockstep_pump() {
                     report_pair(*mine, m.hash, m.from);
                     break;
                 }
+                // Mewgenics Multi (protocole 61) : un tour de CE combat deja passe ici,
+                // dont le notre est sorti de l'anneau (16 tours) -- pas « en avance ».
+                // Garde, il remplissait l'anneau du pair (un arrivant qui rejoue un
+                // long combat) et faisait dire au journal qu'il avait 16 tours d'avance.
+                if (snap_current() && m.hash.battle_id == g.battles.current && m.hash.turn < g.turn)
+                    break;
 
                 // Otherwise that peer is ahead of us; hold it until we get there.
                 if (!g.peer_hash[m.from].push_refusing(m.hash) &&
@@ -2837,6 +2846,7 @@ void lockstep_pump() {
                 }
                 if (!g.halted) {
                     g.halted = true;
+                    g.halted_battle = g.battles.current;
                     g.stats.halted = true;
                     ++g.stats.desyncs;
                     log_line("LOCKSTEP", "!! peer halted at turn %u: %s",
@@ -2845,7 +2855,10 @@ void lockstep_pump() {
                 break;
 
             case MSG_REFUSE:
-                log_line("LOCKSTEP", "!! peer refused: %s", m.refuse);
+                log_line("LOCKSTEP", "!! peer %u refused: %s", (unsigned)m.from, m.refuse);
+                // Mewgenics Multi (protocole 61) : chez l'hote, il sort de la liste
+                // des joueurs et son lien se ferme (voir mgmp_session, refuse_peer).
+                if (net_role() == NetRole::Host) net_drop_peer(m.from, kRefuseGraceMs);
                 break;
 
             // A peer joining while we are already playing. This has to be
@@ -2862,9 +2875,10 @@ void lockstep_pump() {
             default:
                 break;
         }
-        // MSG_SAVEFILE is the one frame that owns memory. Releasing every frame
-        // unconditionally -- including the ones this switch ignored -- keeps
-        // that fact in one place instead of one place per case.
+        // Some frames own memory (SAVEFILE, CATDATA, INVENTORY, RUNHIST,
+        // STATEDUMP). Releasing every frame unconditionally -- including the
+        // ones this switch ignored -- keeps that fact in net_msg_release
+        // instead of one place per case.
         net_msg_release(m);
     }
 
@@ -3137,6 +3151,16 @@ bool lockstep_fill_choice(void* brain, void* out) {
         // decide a la place du joueur de l'hote, dont les clics ne comptent pas.
         if (g.ai_cat[cat]) return ai_turn(brain, actor, cat, out);
 
+        // Mewgenics Multi (protocole 61) : un invite dont la connexion est tombee ne
+        // joue plus ses chats. L'hote les fait jouer par l'IA du jeu ; une decision
+        // jouee ici seule ferait de ce combat un autre combat. Il attend, comme pour
+        // le chat d'un autre joueur (la fenetre du retour a la maison s'ouvre).
+        if (!lockstep_is_host() && !net_active()) {
+            uint32_t none = TA_None;
+            mem_write(out, &none, sizeof(none));
+            return true;
+        }
+
         if (g.outstanding) return false;
 
         TurnAction a{};
@@ -3318,7 +3342,12 @@ void lockstep_turn_boundary(void* turn_control) {
     // keyed on stays aligned across the reset.
     if (g.snapped && !g.halted) {
         const void* list = resolve_char_list(turn_control);
-        if (list && list != g.snapped_list) {
+        // Mewgenics Multi (protocole 61) : ou la photo est d'un autre combat que
+        // celui ou l'on est entre (lockstep_enter_battle) -- la liste du nouveau
+        // combat peut reprendre l'adresse de l'ancienne, liberee entre les deux.
+        const bool other_battle = g.battles.current != kNoBattle && g.snap_battle != kNoBattle &&
+                                  g.snap_battle != g.battles.current;
+        if (list && (list != g.snapped_list || other_battle)) {
             ++g.epoch;
             log_line("LOCKSTEP", "new battle -- re-snapshotting the roster"
                                  " (was %u cats over %u turns; epoch %u now)",
@@ -3502,6 +3531,7 @@ void lockstep_leave_run() {
     g.halted          = false;
     g.stats.halted    = false;
     g.halted_watching = false;
+    g.halted_battle   = kNoBattle;
     // La file et les empreintes : rien de ce combat ne lui servira, et s'il y
     // revient, la reprise de l'hote le refait depuis le debut. Seulement ce
     // combat-la (et les combats retires) : des decisions d'un combat ou il
@@ -3622,6 +3652,20 @@ void lockstep_enter_battle(uint64_t seed0) {
 
     const uint64_t left = g.battles.current;
     g.battles.enter(seed0);
+
+    // Mewgenics Multi (protocole 61) : l'arret appartient au combat ou il a eu
+    // lieu. Avant, rien ne le levait chez l'hote (lockstep_leave_run ne vaut que
+    // pour un invite) : apres un combat desynchronise et une aventure abandonnee,
+    // l'aventure suivante de la meme session gelait au premier combat -- plus de
+    // nouveau combat reconnu, aucune decision, et aucun CONTROL pour les invites.
+    if (g.halted && g.halted_battle != seed0) {
+        log_line("LOCKSTEP", "l'arret du combat %016llx est derriere : ce combat-ci repart normalement",
+                 (unsigned long long)g.halted_battle);
+        g.halted          = false;
+        g.halted_watching = false;
+        g.stats.halted    = false;
+        g.halted_battle   = kNoBattle;
+    }
 
     // Mewgenics Multi : l'enregistreur de vol part d'ici, avant EnterNode (qui
     // recharge le flux depuis la graine de la case) : les tirages de la mise en

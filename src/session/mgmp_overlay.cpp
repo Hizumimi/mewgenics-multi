@@ -74,7 +74,6 @@ constexpr GLenum GL_CULL_FACE          = 0x0B44;
 constexpr GLenum GL_SCISSOR_TEST       = 0x0C11;
 constexpr GLenum GL_VIEWPORT           = 0x0BA2;
 constexpr GLenum GL_ARRAY_BUFFER       = 0x8892;
-constexpr GLenum GL_STATIC_DRAW        = 0x88E4;
 constexpr GLenum GL_FRAGMENT_SHADER    = 0x8B30;
 constexpr GLenum GL_VERTEX_SHADER      = 0x8B31;
 constexpr GLenum GL_COMPILE_STATUS     = 0x8B81;

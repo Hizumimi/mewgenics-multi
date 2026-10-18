@@ -309,8 +309,16 @@ void highlight_fenced(void* brain, void* self, void* ability, uint8_t slot_kind,
     if (pinned && memcmp(before, s, sizeof(before)) != 0) {
         memcpy(s, before, sizeof(before));
         rng_flight_rewind(flight);
-        log_line("AIM", "!! the ability highlight moved the simulation stream and "
-                        "it was put back -- '%s'", g.held.gon);
+        // Mewgenics Multi : une fois par combat et par capacite -- la visee de
+        // l'autre se redessine a chaque image.
+        static uint64_t said_battle = 0;
+        static char     said_gon[sizeof(g.held.gon)] = {};
+        if (said_battle != lockstep_battle_id() || strcmp(said_gon, g.held.gon) != 0) {
+            said_battle = lockstep_battle_id();
+            strncpy_s(said_gon, g.held.gon, _TRUNCATE);
+            log_line("AIM", "!! the ability highlight moved the simulation stream and "
+                            "it was put back -- '%s' (said once per battle and ability)", g.held.gon);
+        }
     }
 
     lockstep_state_fence_end("the peer's ability highlight");
@@ -422,6 +430,16 @@ void publish(void* brain, uint8_t cat) {
             m.tx = target.x; m.ty = target.y;
             m.dx = dir.x;    m.dy = dir.y;
             ability_gon_name(ability, m.gon, sizeof(m.gon));
+        }
+        // Mewgenics Multi (protocole 61) : hors des bornes que dec_aim accepte, la
+        // visee ne part pas (on envoie l'arret) -- les autres la refuseraient, et
+        // une trame refusee fermait des liens (mgmp_net).
+        if (m.active && (m.tx < -1000 || m.tx > 1000 || m.ty < -1000 || m.ty > 1000 ||
+                         m.dx < -8 || m.dx > 8 || m.dy < -8 || m.dy > 8)) {
+            m.active = 0;
+            m.slot_kind = m.slot_index = 0;
+            m.tx = m.ty = m.dx = m.dy = 0;
+            m.gon[0] = 0;
         }
     }
 

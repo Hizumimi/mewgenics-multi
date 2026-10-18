@@ -840,6 +840,33 @@ std::string client_lobby_text() {
     // Mewgenics Multi (protocole 59) : par Steam, l'etat de la connexion Steam.
     std::string steam_why;
     const int steam = steam_client_on() ? steam_client_state(&steam_why) : 0;
+    // Mewgenics Multi (protocole 61) : un refus d'abord. L'hote ferme la connexion
+    // apres son REFUSE (net_drop_peer, 30 s plus tard ; une partie complete, tout
+    // de suite) : « connexion coupee » (ou, par Steam, « connexion Steam coupee »)
+    // cacherait alors la raison.
+    if (r != NetRole::None && !session_ready()) {
+        const char* status = session_status();
+        if (status && strstr(status, "refus")) {
+            // Mewgenics Multi (protocole 61) : la raison dite au joueur, pas seulement
+            // « meme version » (une partie complete n'est pas une affaire de version).
+            // Les raisons d'une version d'avant arrivent en anglais : reconnues aussi.
+            const char* reason = strchr(status, ':');
+            reason = reason ? reason + 1 : status;
+            while (*reason == ' ') ++reason;
+            const char* what = u8"Vérifiez que vous avez la même version du jeu et du mod.";
+            if (strstr(reason, "complète") || strstr(reason, "full"))
+                what = u8"La partie de l'hôte est complète (4 joueurs au plus).";
+            else if (strstr(reason, "version du mod") || strstr(reason, "protocol"))
+                what = u8"Vous n'avez pas la même version du mod :\nprenez tous les deux la dernière.";
+            else if (strstr(reason, "version du jeu") || strstr(reason, "Mewgenics build"))
+                what = u8"Vous n'avez pas la même version du jeu :\nmettez Mewgenics à jour tous les deux (Steam).";
+            else if (strstr(reason, "gpak"))
+                what = u8"Les fichiers du jeu ne sont pas les mêmes :\nvérifiez-les dans Steam (Propriétés, Fichiers installés).";
+            return fmt(u8"Salon multijoueur\n\n"
+                       u8"[c:red]La connexion a été refusée.[/c]\n"
+                       u8"%s\n(%s)", what, reason);
+        }
+    }
     if (steam == 3)
         return fmt(u8"Salon multijoueur\n\n"
                    u8"[c:red]Impossible de rejoindre %s :[/c]\n%s.\n"
@@ -862,11 +889,6 @@ std::string client_lobby_text() {
         return u8"Salon multijoueur\n\n[c:red]La connexion avec l'hôte est coupée.[/c]\n"
                u8"Quitte le salon, puis rejoins-le à nouveau.";
     if (!session_ready()) {
-        const char* status = session_status();
-        if (status && strstr(status, "refus"))
-            return fmt(u8"Salon multijoueur\n\n"
-                       u8"[c:red]L'hôte a refusé la connexion.[/c]\n"
-                       u8"Vérifiez que vous avez la même version du jeu et du mod.\n(%s)", status);
         if (steam == 1)
             return fmt(u8"Salon multijoueur\n\nConnexion à %s par Steam...\n"
                        u8"(quelques secondes)", target.c_str());
@@ -1432,6 +1454,9 @@ bool     g_home_offer      = false;   // proposer de rentrer
 // et ce joueur n'est pas encore rentre chez lui : vrai dans la copie, et encore
 // apres en etre sorti autrement (mgmp_leave le ramene au menu, ou lui-meme).
 bool     g_home_due        = false;
+// Mewgenics Multi (protocole 61) : ce retour vient d'un depart annule, dans la
+// maison de l'hote -- le texte de la fenetre le dit (home_offer_text).
+bool     g_home_no_trip    = false;
 // La partie a l'ecran est une copie d'une aventure de l'hote, meme quand
 // mgmp_savefile ne la compte plus (une nouvelle copie arrive pendant que
 // l'ancienne est encore affichee). Faux une fois passe par le menu principal.
@@ -1698,6 +1723,12 @@ std::string home_offer_text() {
         return fmt(u8"Retour à la maison\n\n"
                    u8"La connexion avec %s est coupée.\n"
                    u8"Tu rentres dans ta maison.", host_display().c_str());
+    // Mewgenics Multi : dans la maison de l'hote apres un depart annule, pas
+    // d'aventure terminee.
+    if (g_home_no_trip && savefile_in_coop() && !savefile_adventure_is_loaded())
+        return fmt(u8"Retour à la maison\n\n"
+                   u8"Le départ avec %s n'a pas eu lieu.\n"
+                   u8"Tu rentres dans ta maison.", host_display().c_str());
     return fmt(u8"Retour à la maison\n\n"
                u8"L'aventure de %s est terminée.\n"
                u8"Tu rentres dans ta maison.", host_display().c_str());
@@ -1937,6 +1968,7 @@ void cancel_join(const char* why) {
 }
 
 void client_adventure_pump() {
+    if (!g_home_due) g_home_no_trip = false;
     if (net_role() != NetRole::Client) {
         // Plus de session (la connexion est tombee) : le retour a la maison
         // attendu reste propose tant qu'il est dans la copie, et n'a plus d'objet
@@ -1983,7 +2015,13 @@ void client_adventure_pump() {
             // Arrive : ce que l'hote a pousse pendant le trajet (chats,
             // historique) a ete garde ; on l'applique tout de suite, hors combat.
             // L'inventaire, lui, attend la premiere case suivie (mgmp_follow).
-            if (in_run && g_peer_run_sent != 1 && !lockstep_in_battle()) {
+            // Mewgenics Multi (protocole 61) : pas pendant que la copie de l'hote est
+            // mise de cote (le depart sans second chargement : mm_embark n'applique
+            // que les poussees d'avant elle), ni sac ouvert (les boites de l'ecran
+            // tiennent des objets que la poussee remplacerait) -- mm_rungear et
+            // mgmp_follow les appliqueront.
+            if (in_run && g_peer_run_sent != 1 && !lockstep_in_battle() && !savefile_keep_waiting() &&
+                !rungear_hold_pushes()) {
                 catsync_apply_pending("arrived in the host's adventure");
                 runhist_apply_pending("arrived in the host's adventure");
             }
@@ -2099,7 +2137,8 @@ void client_adventure_pump() {
     // l'attend au menu : il n'y reste pas bloque.
     if (savefile_in_coop() && (!others || !g_host_in_run) && !g_home_due &&
         !savefile_home_armed() && !embark_guest_active()) {
-        g_home_due = true;
+        g_home_due     = true;
+        g_home_no_trip = false;
         log_line("MULTI", "aventure : celle de l'hote est finie%s, ce joueur doit rentrer chez lui",
                  others ? "" : " (connexion coupee)");
     }
@@ -2916,7 +2955,9 @@ void mm_menu_pump() {
                 send_depart_answer(false);
                 log_line("MULTI", "depart : ce joueur ne peut pas encore partir avec ses chats");
                 g_dep_offer    = true;
-                g_dep_offer_at = g_frame + kOfferAgain;
+                // La 4e place en route vers lui : la question revient dans 2 s,
+                // pas dans 30 (le texte dit « dans un instant »).
+                g_dep_offer_at = g_frame + (team_take_slot_wait() ? 2 * 60 : kOfferAgain);
                 show_info(problem);
                 break;
             }
@@ -3213,7 +3254,8 @@ void mm_on_host_left() {
     if (savefile_join_armed() && !savefile_in_coop())
         cancel_join("l'aventure de l'hote est finie");
     if (savefile_in_coop() && !g_home_due && !savefile_home_armed()) {
-        g_home_due = true;
+        g_home_due     = true;
+        g_home_no_trip = false;
         log_line("MULTI", "aventure : celle de l'hote est finie, ce joueur doit rentrer chez lui");
     }
 }
@@ -3425,7 +3467,8 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
                 const bool in_copy = embark_guest_active();
                 embark_guest_cancel(nobody ? "personne ne part" : "depart annule par l'hote");
                 if (in_copy) {
-                    g_home_due = true;
+                    g_home_due     = true;
+                    g_home_no_trip = true;
                     if (nobody)
                         show_info(fmt(u8"Départ en aventure\n\n"
                                       u8"Aucun chat ne peut partir cette fois :\n"
@@ -3558,7 +3601,10 @@ bool mm_on_button_click(void* button) {
     // nuit ni depart ici, on lui propose de rentrer.
     if (net_role() == NetRole::Client && savefile_in_coop()) {
         if (embark_guest_active()) return true;  // il attend le depart de l'hote, dans sa maison
-        if (!g_home_due) log_line("MULTI", "aventure : clic sur le panneau de la copie, retour propose");
+        if (!g_home_due) {
+            log_line("MULTI", "aventure : clic sur le panneau de la copie, retour propose");
+            g_home_no_trip = false;
+        }
         g_home_due = true;
         return true;
     }

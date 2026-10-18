@@ -126,8 +126,9 @@ uint32_t catsync_pending_count();
 // Mewgenics Multi (mm_rungear, invite) : le plus grand numero d'arrivee
 // (follow_note_arrival) des poussees appliquees ou laissees parce qu'identiques.
 uint32_t catsync_last_applied_arrival();
-// Mewgenics Multi (mm_rungear, invite) : seulement les poussees arrivees avant le
-// numero `arrival_limit` (et d'avant la prochaine case a suivre).
+// Mewgenics Multi (mm_rungear, mm_embark ; invite) : seulement les poussees
+// arrivees avant le numero `arrival_limit` (et d'avant la prochaine case a
+// suivre).
 void catsync_apply_pending_before_arrival(uint32_t arrival_limit, const char* why);
 // Mewgenics Multi (mm_rungear, invite) : laisse les poussees gardees qui
 // s'appliqueraient maintenant et qui sont identiques au chat de ce joueur (rien a

@@ -277,8 +277,6 @@ void send_ready() {
         log_line("EMBARK", "-> dans la maison de l'hote : pret a partir avec lui (vote %u)", (unsigned)g.gseq);
 }
 
-// Il ne suit plus le depart de l'hote : l'hote peut alors choisir les colliers
-// de ses chats (mm_collars).
 // Hote : il est toujours dans les ecrans du depart. Au choix des objets, chacun
 // equipe ses chats et aucun clic ne part : sans ce signe, l'invite croirait
 // l'hote parti au bout de kIdleMs.
@@ -290,6 +288,8 @@ void send_alive() {
     net_send_mm(m);
 }
 
+// Il ne suit plus le depart de l'hote : l'hote peut alors choisir les colliers
+// de ses chats (mm_collars).
 void send_gone() {
     MmMsg m{};
     m.kind = MM_EMBARK;
@@ -374,6 +374,12 @@ void keep_pump() {
     const bool late = waited > kKeepMs;
     if (!config().net_same_map)  { keep_abort("net.same_map = false"); return; }
     if (!savefile_in_coop())     { keep_abort("sorti de la copie"); return; }
+    // L'hote a deja dit que sa copie ne peut pas etre la meme (c = 0) : tout de
+    // suite, meme si ses ecrans du depart ne sont pas finis.
+    if (g.hstate_have && g.hstate_seq == g.gseq && !(g.hstate_flags & 1)) {
+        keep_abort("la carte de l'hote ne vient pas de la graine, ou il a deja joue une case");
+        return;
+    }
     if (g.guest == Guest::Departed) {
         // La copie est arrivee avant la fin de ses ecrans du depart (une image ou deux).
         if (late) keep_abort("ses ecrans du depart ne finissent pas");
@@ -432,6 +438,10 @@ void keep_pump() {
         return;
     }
     savefile_keep_commit();
+    // Le miroir est fini, et l'aventure est la sienne : plus de « depart en cours »
+    // (embark_guest_active), sinon le retour a la maison attendrait 2 minutes si
+    // l'hote abandonnait juste apres.
+    g.linger_until = 0;
     // Le nom de l'equipe (tire juste apres la carte, du meme flux) : seulement dit.
     log_line("EMBARK", "meme carte que l'hote (%016llx, %u cases), memes chats, sac et historique : ce joueur garde son "
                        "aventure, pas de second chargement (equipe « %s »%s, %llu ms)", (unsigned long long)map, nodes,
@@ -511,6 +521,16 @@ void embark_pump() {
     if (!g.on) return;
 
     // --- hote ---
+    // Mewgenics Multi (protocole 61) : un invite parti n'attend plus et ne suit
+    // plus. S'il revient (souvent avec le meme numero), il ne fait plus ce depart :
+    // sans ceci, l'hote attendait son « pret » jusqu'au bout du delai, et pendant
+    // les ecrans personne ne pouvait poser les colliers de ses chats.
+    if (g.host != Host::Idle) {
+        const uint32_t present = present_mask();
+        g.joiners   &= present;
+        g.ready     &= present;
+        g.followers &= present;
+    }
     if (g.host == Host::Prep) {
         log_scenes();
         // La confirmation du jeu (« un chat sans collier ? ») refermee sans « oui »
@@ -690,8 +710,6 @@ bool embark_begin(uint8_t seq, uint32_t joiners) {
     }
     return true;
 }
-
-bool embark_waiting() { return g.host == Host::Waiting; }
 
 bool embark_should_go() {
     if (g.host != Host::Waiting) return false;

@@ -589,10 +589,6 @@ void gear_pump() {
 
 bool gear_role_active() { return g.role != GearRole::Off; }
 
-bool gear_apply_cats(uint8_t from, const std::vector<GearCat>& cats, std::string& why) {
-    return apply_cats(from, cats, why);
-}
-
 bool gear_on_click(void* button, const char* name) {
     if (g.role == GearRole::Off || !button || !name) return false;
     if (strcmp(name, "CloseButton") == 0) {

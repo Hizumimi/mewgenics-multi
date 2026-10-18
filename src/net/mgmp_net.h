@@ -55,11 +55,11 @@ struct NetMsg {
     AimMsg    aim;
     EnterNodeMsg enter_node;
     ChoiceMsg    choice;
-    // The two messages that do not fit the "flat, no allocation" rule above.
-    // Their `data` is heap-allocated by the decoder and owned by whoever pops
-    // the frame, so EVERY net_poll caller must pass the frame to
-    // net_msg_release when it is done with it -- including the ones that
-    // ignored it.
+    // The messages that do not fit the "flat, no allocation" rule above
+    // (SAVEFILE, CATDATA, INVENTORY, RUNHIST, STATEDUMP). Their `data` is
+    // heap-allocated by the decoder and owned by whoever pops the frame, so
+    // EVERY net_poll caller must pass the frame to net_msg_release when it is
+    // done with it -- including the ones that ignored it.
     SaveFileMsg savefile;
     CatDataMsg  catdata;
     InventoryMsg inventory;   // owns up to kInvBuckets buffers
@@ -90,10 +90,12 @@ bool        net_active();         // role != None && state not Failed/Closed
 
 // --- traffic ----------------------------------------------------------------
 
-// Send is thread-safe and never blocks the caller on the peer: the socket is
-// left in blocking mode for writes, but a turn is a few hundred bytes and the
-// kernel send buffer swallows it whole. If that ever stops being true the fix
-// is a send queue, not a timeout.
+// Sends are thread-safe (one lock around every write) and blocking, with no
+// send timeout: a turn is a few hundred bytes and the kernel send buffer
+// swallows it whole, so only the large pushes (a save, the world, a team, a
+// state dump) can hold the caller while the peer drains -- see
+// net_send_savefile. If that ever matters, the fix is a send queue, not a
+// timeout.
 // Send to every connected peer. On a client that is the host and nothing else;
 // on the host it is every live client, which is what turns each existing
 // host-authored push into a broadcast without touching its call site.
@@ -103,6 +105,15 @@ bool net_send(const uint8_t* payload, uint32_t len);
 // Send to one peer. Used where a message is genuinely point to point: WELCOME
 // and REFUSE, and the per-peer PEERS copies.
 bool net_send_peer(uint8_t peer, const uint8_t* payload, uint32_t len);
+
+// Mewgenics Multi (protocole 61), hote : ferme le lien de ce pair. `after_ms` = 0 :
+// tout de suite (son fil le voit partir et republie la liste des joueurs). Sinon
+// (un pair refuse, kRefuseGraceMs) : il sort de la liste des joueurs tout de suite,
+// ne recoit plus rien et n'est plus ecoute, et sa connexion se ferme `after_ms`
+// plus tard -- le temps de lire pourquoi (une version d'avant du mod affiche
+// « connexion coupee » des la fermeture, et non plus le refus).
+constexpr uint32_t kRefuseGraceMs = 30000;
+void net_drop_peer(uint8_t peer, uint32_t after_ms);
 
 // This peer's own id, kHostPeer on the host and kNoPeer on a client until the
 // first PEERS arrives. Peer 0 is always the host.
@@ -133,9 +144,9 @@ bool net_send_cursor(const CursorMsg& c);
 // a drop can only make a preview flicker.
 bool net_send_aim(const AimMsg& m);
 // Copies m.data into a temporary frame buffer; the caller keeps ownership of
-// it. This is the only send that can block the game thread for a measurable
-// time -- ~45 KB is more than a default socket send buffer, so it may wait for
-// the peer to drain. It happens once per session, off the battle path.
+// it. A save is tens of kilobytes, more than a default socket send buffer, so
+// this may wait for the peer to drain. It is rare -- a departure, a run
+// published on the map, a late joiner -- and never per turn.
 bool net_send_savefile(const SaveFileMsg& m);
 // Same, to one peer -- for a player who joined after the host published.
 bool net_send_savefile_to(uint8_t peer, const SaveFileMsg& m);

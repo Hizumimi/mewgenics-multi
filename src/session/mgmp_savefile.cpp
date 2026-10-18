@@ -315,7 +315,6 @@ struct State {
     bool     in_coop       = false;   // la partie chargee vient de mgmp_coop.sav
     bool     join_armed    = false;   // « J'arrive » : charger l'aventure de l'hote
     bool     home_armed    = false;   // rentrer : « Jouer » puis own_slot
-    uint32_t publishes     = 0;       // publications reussies (hote)
     bool     fresh_in_coop = false;   // une nouvelle aventure arrivee dans la copie
     // Mewgenics Multi (protocole 60) : la copie publiee apres un depart ensemble,
     // mise de cote pendant que mm_embark compare l'aventure de ce joueur a celle
@@ -823,7 +822,6 @@ void savefile_pump() {
     if (publish(kNoPeer, /*fresh=*/true)) {
         g.published     = true;
         g.run_published = true;
-        ++g.publishes;
         return;
     }
     if (g.publish_tries == 1)
@@ -1440,11 +1438,9 @@ bool savefile_publish_embark() {
     // carte), le fichier est la maison telle que le jeu l'a ecrite, plus les
     // chats des invites que mm_team vient d'y ecrire par la connexion du jeu.
     if (!publish(kNoPeer, /*fresh=*/true)) return false;
-    ++g.publishes;
     log_line("SAVEFILE", "   (depart ensemble : la maison de l'hote, pour que l'equipe suive son depart -- "
                          "l'aventure sera publiee sur la carte)");
     return true;
 }
-uint32_t savefile_publish_count() { return g.publishes; }
 
 } // namespace mgmp

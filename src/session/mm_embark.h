@@ -114,8 +114,6 @@ void embark_pump();
 // « J'arrive ». Prepare l'equipe et publie la save. Faux : pas de depart
 // ensemble (l'hote part tout de suite, comme avant).
 bool embark_begin(uint8_t seq, uint32_t joiners);
-// L'hote attend son equipe dans sa maison.
-bool embark_waiting();
 // Il peut partir : tous sont la, ou l'attente est finie.
 bool embark_should_go();
 // « Ne pas attendre ».

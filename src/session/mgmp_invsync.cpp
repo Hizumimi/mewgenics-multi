@@ -622,11 +622,12 @@ static void free_pending() {
     g.pend_count = 0;
 }
 
-// Mewgenics Multi : a newer inventory replaces an older one of the SAME arrival
-// rank only. A different rank is a different moment of the run (before or
-// after a node this peer has yet to enter) and gets its own slot. Four ranks
-// held means this peer is four nodes behind; the newest then overwrites the
-// last slot, which loses an in-between inventory -- said in the log.
+// Mewgenics Multi : a newer inventory replaces an older one of the SAME epoch
+// (follow_epoch) only. A different epoch is a different moment of the run
+// (before or after a node this peer has yet to enter) and gets its own slot.
+// State::kMaxPend slots held means this peer is that many nodes behind; the
+// newest then overwrites the last slot, which loses an in-between inventory --
+// said in the log.
 static bool stash_pending(const InventoryMsg& m) {
     const uint32_t epoch = follow_epoch();
     State::Pend p;
