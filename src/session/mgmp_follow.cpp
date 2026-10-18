@@ -427,17 +427,20 @@ bool follow_on_enter_node(void* map_screen, void* node, bool* sent) {
     // Mewgenics Multi : en aventure ensemble, la poussee d'entree est entiere
     // (mm_rungear) -- ce qu'un invite aurait de different est remis avant la case.
     rungear_before_node_push();
-    catsync_publish("entering a node");
+    // Mewgenics Multi (protocole 58) : les trois poussees d'entree gardent aussi
+    // l'etat entier d'avant la case, pour un joueur qui arrivera en pleine case
+    // (follow_catchup) -- il doit construire le meme combat que celui-ci.
+    catsync_publish_entry("entering a node");
     // ...and the other half of the same equip. Order between these two does not
     // matter the way it does against ENTERNODE -- an equip has already moved
     // the item out of the inventory and onto the cat by the time either is
     // serialized, so neither push depends on the other -- but both must land
     // BEFORE the node, and the client applies each the moment it pops.
-    invsync_publish("entering a node");
+    invsync_publish_entry("entering a node");
     // ...and the used-event list, which is the third piece of run state and the
     // one nothing pushed until now. Same ordering requirement as the other two:
     // BEFORE the node, because it is what the next event will be rolled from.
-    runhist_publish("entering a node");
+    runhist_publish_entry("entering a node");
     // Mewgenics Multi : la revision de l'aventure avance (les objets en
     // aventure, mm_rungear) -- apres les poussees qu'elle couvre, avant la case.
     rungear_on_node_entered(seed);
@@ -503,9 +506,9 @@ bool follow_on_nemesis_fight(void* map_screen, void* node, uint64_t id) {
     start_live(5 /* un combat : la fin de case suit */, 0);
 
     rungear_before_node_push();
-    catsync_publish("the Nemesis fight");
-    invsync_publish("the Nemesis fight");
-    runhist_publish("the Nemesis fight");
+    catsync_publish_entry("the Nemesis fight");
+    invsync_publish_entry("the Nemesis fight");
+    runhist_publish_entry("the Nemesis fight");
     rungear_on_node_entered(id);
 
     EnterNodeMsg m{};
@@ -626,15 +629,15 @@ void follow_request_jump(uint32_t index) {
     g.jump_index   = index;
 }
 
-void follow_catchup(uint8_t peer) {
-    if (!g.on || g.is_client || !net_active()) return;
+bool follow_catchup(uint8_t peer) {
+    if (!g.on || g.is_client || !net_active()) return false;
 
     Guard guard;
     if (!g.have_here) {
         log_line("FOLLOW", "peer %u joined before this peer entered any node --"
                            " nothing to catch it up to; the next node is published"
                            " normally", (unsigned)peer);
-        return;
+        return false;
     }
 
     EnterNodeMsg m{};
@@ -657,16 +660,35 @@ void follow_catchup(uint8_t peer) {
         if (g.here_nemesis && ns.valid && ns.node == kNemNoNode) {
             log_line("FOLLOW", "peer %u joined just after the Nemesis fight -- nothing to catch it up to",
                      (unsigned)peer);
-            return;
+            return false;
         }
         nemesis_fill(ns, m);
     }
-    if (!net_send_enter_node_to(peer, m)) return;
+
+    // Mewgenics Multi (protocole 58) : AVANT la case, l'etat d'entree de la case --
+    // les chats, l'inventaire et l'historique tels qu'ils etaient quand l'hote y
+    // est entre, pas ceux du milieu de la case. Le combat se construit depuis eux
+    // (l'historique en particulier : le niveau deja tire y est note, et un niveau
+    // note n'est plus tire -- un autre combat chez l'arrivant, 17 octobre) ; les
+    // decisions deja prises (lockstep_catchup) le menent ensuite ou en est l'hote.
+    // Une copie qui manque (une lecture ratee a l'entree) : les chats et
+    // l'inventaire actuels, comme avant (pour tous, deja oublies). Pas
+    // l'historique actuel : il contient le niveau deja tire de cette case, la
+    // cause meme du mauvais combat -- celui de la save envoyee (le dernier passage
+    // sur la carte, avant cette case) vaut mieux.
+    if (!catsync_send_entry_to(peer)) catsync_publish("a peer joined mid-node (no entry copy)");
+    if (!invsync_send_entry_to(peer)) invsync_publish("a peer joined mid-node (no entry copy)");
+    if (!runhist_send_entry_to(peer))
+        log_line("FOLLOW", "!! no run history copy from this node's entry -- the joiner keeps the one in "
+                           "the save (from before the node)");
+
+    if (!net_send_enter_node_to(peer, m)) return false;
 
     log_line("FOLLOW", "-> re-sent the CURRENT node %u/%u (%s) seed0=%016llx to"
                        " peer %u (it joined after we entered it)",
              m.index, m.node_count, node_type_name(m.type),
              (unsigned long long)m.seed0, (unsigned)peer);
+    return true;
 }
 
 bool follow_inside_node() { return g.inside; }

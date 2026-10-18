@@ -136,6 +136,13 @@ target_include_directories(test_ai PRIVATE ${CMAKE_SOURCE_DIR}/src/session ${CMA
 target_compile_options(test_ai PRIVATE /utf-8)
 add_test(NAME test_ai COMMAND test_ai)
 
-foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_members test_battleid test_config test_world_merge test_team_merge test_vote test_purse test_loot test_recruit test_npcgift test_seen test_shop test_ai)
+# Mewgenics Multi : la 4e place a 3 joueurs -- le premier qui met un deuxieme chat
+# dans sa boite la prend (protocole 58).
+add_executable(test_slot test_slot.cpp)
+target_include_directories(test_slot PRIVATE ${CMAKE_SOURCE_DIR}/src/session)
+target_compile_options(test_slot PRIVATE /utf-8)
+add_test(NAME test_slot COMMAND test_slot)
+
+foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_members test_battleid test_config test_world_merge test_team_merge test_vote test_purse test_loot test_recruit test_npcgift test_seen test_shop test_ai test_slot)
     target_compile_options(${t} PRIVATE /W3)
 endforeach()

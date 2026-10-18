@@ -14,6 +14,9 @@ FILE*            g_file     = nullptr;
 bool             g_console  = false;
 LONG volatile    g_seq      = 0;
 LONG volatile    g_turn     = 0;
+// Mewgenics Multi : l'heure de chaque ligne (secondes depuis l'ouverture du
+// journal) -- pour voir ce qui est lent (chargements, attentes).
+ULONGLONG        g_t0       = 0;
 
 // --- the ring ---------------------------------------------------------------
 //
@@ -180,8 +183,10 @@ void emit_line_v(const LogLevel* level, const char* tag, const char* fmt, va_lis
     char    buf[4096];
     LONG    seq = InterlockedIncrement(&g_seq);
     LONG    turn = g_turn;
+    if (!g_t0) g_t0 = GetTickCount64();
+    const double secs = (double)(GetTickCount64() - g_t0) / 1000.0;
     int     n   = _snprintf_s(buf, sizeof(buf), _TRUNCATE,
-                              "%06ld %04ld %-9s ", seq, turn, tag);
+                              "%06ld %04ld %8.2f %-9s ", seq, turn, secs, tag);
     if (n < 0) return;
 
     const int body = n;   // where the message starts, for the ring

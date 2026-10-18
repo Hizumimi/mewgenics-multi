@@ -328,6 +328,7 @@ void config_load(const wchar_t* dll_dir) {
         read_uint(*net, "port", port, 1, 65535);
         g_cfg.net_port = (uint16_t)port;
         read_control(*net);
+        read_bool(*net, "steam", g_cfg.net_steam);
 
         if (_stricmp(g_cfg.net_role, "off")    != 0 &&
             _stricmp(g_cfg.net_role, "host")   != 0 &&

@@ -154,11 +154,16 @@ bool net_send_team_to(uint8_t peer, const SaveFileMsg& m);
 // Same contract as net_send_savefile, but small: a serialized cat is well under
 // a kilobyte, so this one is cheap enough to send several of in a row.
 bool net_send_catdata(const CatDataMsg& m);
+// Mewgenics Multi (protocole 58) : a un seul joueur -- l'etat d'entree de la case
+// en cours, pour celui qui arrive en pleine case (follow_catchup).
+bool net_send_catdata_to(uint8_t peer, const CatDataMsg& m);
 // The run inventory, whole. Same contract again; sent alongside the cats at
 // each map node, and skipped entirely when nothing in it changed.
 bool net_send_inventory(const InventoryMsg& m);
+bool net_send_inventory_to(uint8_t peer, const InventoryMsg& m);
 // Same contract as net_send_catdata: `data` is borrowed for the duration.
 bool net_send_runhist(const RunHistMsg& m);
+bool net_send_runhist_to(uint8_t peer, const RunHistMsg& m);
 bool net_send_nodehash(const NodeHashMsg& m);
 
 // Host-authored and sent once per departure, so it needs no throttle and no
@@ -181,6 +186,7 @@ bool net_send_hello_to(uint8_t peer, const Hello& h);
 // the definition for why this must not be a broadcast.
 bool net_send_action_to(uint8_t peer, const ActionMsg& a);
 bool net_send_enter_node_to(uint8_t peer, const EnterNodeMsg& m);
+bool net_send_hash_to(uint8_t peer, const HashMsg& h);
 bool net_send_welcome_to(uint8_t peer, const Welcome& w);
 bool net_send_refuse_to(uint8_t peer, const char* reason);
 

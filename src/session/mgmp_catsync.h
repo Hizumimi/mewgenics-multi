@@ -80,6 +80,17 @@ void catsync_shutdown();
 // hash compare, and send nothing. Mewgenics Multi : returns how many were sent.
 uint32_t catsync_publish(const char* why);
 
+// Mewgenics Multi (protocole 58) : L'ETAT D'ENTREE DE LA CASE. La poussee faite a
+// l'entree d'une case (follow_on_enter_node, le combat de la Nemesis) garde ici
+// une copie de TOUS les chats de la course, envoyes ou non (ceux qui n'avaient pas
+// change aussi). Un joueur qui arrive en pleine case la recoit avant la case
+// (catsync_send_entry_to) : il construit le combat depuis les chats d'avant la
+// case, comme l'hote, et pas depuis ceux du milieu du combat -- puis les decisions
+// deja prises le menent ou en est l'hote.
+uint32_t catsync_publish_entry(const char* why);
+// Envoie a `peer` seul la copie de l'entree. Faux s'il n'y en a pas.
+bool catsync_send_entry_to(uint8_t peer);
+
 // HOST: forget what was already sent, so the next catsync_publish is a FULL
 // push. For a reconnecting peer -- see the comment on the definition.
 void catsync_forget();

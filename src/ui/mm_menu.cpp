@@ -46,6 +46,7 @@
 #include "mm_loot.h"           // le defile du butin
 #include "mm_npcgift.h"        // les dons des invites aux PNJ
 #include "mm_shop.h"           // les achats en boutique avec sa bourse
+#include "mgmp_steam.h"        // jouer ensemble par Steam (protocole 59)
 
 #include <winsock2.h>   // avant windows.h : types reseau d'iphlpapi
 #include <ws2tcpip.h>
@@ -741,6 +742,9 @@ std::string fmt(const char* f, ...) {
 
 std::string peer_name(uint8_t id) {
     if (id < 8 && g_peer_names[id][0]) return display_name(g_peer_names[id]);
+    // Ce joueur lui-meme (l'hote n'a pas de HELLO de lui-meme) : son nom Steam,
+    // pas « Joueur 1 » (journaux, et noms montres aux autres par l'hote).
+    if (id == net_self() && mm_local_name()[0]) return display_name(mm_local_name());
     return fmt("Joueur %u", (unsigned)id + 1);
 }
 
@@ -776,12 +780,17 @@ std::string host_lobby_text() {
     if (!others) players += u8"  En attente d'un ami...\n";
 
     std::string where;
+    // Mewgenics Multi (protocole 59) : par Steam d'abord -- rien a taper.
+    if (steam_available())
+        where = u8"Tes amis Steam te rejoignent en un clic : dans leur\n"
+                u8"liste d'amis Steam, « Rejoindre la partie » sur ton nom.\n\n";
     if (g_host_ip.ip[0])
-        where = fmt(u8"Donne cette adresse à ton ami :\n%s   (%s, port %u)\n%s",
-                    g_host_ip.ip, g_host_ip.kind, (unsigned)g_host_port,
-                    g_host_copied ? u8"Elle est déjà copiée : colle-la-lui avec Ctrl+V.\n" : "");
+        where += fmt(u8"%s :\n%s   (%s, port %u)\n%s",
+                     steam_available() ? u8"Ou par adresse" : u8"Donne cette adresse à ton ami",
+                     g_host_ip.ip, g_host_ip.kind, (unsigned)g_host_port,
+                     g_host_copied ? u8"Elle est déjà copiée : colle-la-lui avec Ctrl+V.\n" : "");
     else
-        where = fmt(u8"Adresse introuvable sur ce PC (port %u).\n", (unsigned)g_host_port);
+        where += fmt(u8"Adresse introuvable sur ce PC (port %u).\n", (unsigned)g_host_port);
 
     return fmt(u8"Salon multijoueur\n\n%s\nJoueurs (%d/4) :\n%s\n"
                u8"Quand tout le monde est là, choisis ta sauvegarde.",
@@ -792,8 +801,11 @@ std::string join_text() {
     return fmt(u8"Rejoindre une partie\n\n"
                u8"Adresse de l'hôte :\n%s_\n\n"
                u8"Tape l'adresse que ton ami t'a donnée,\n"
-               u8"ou colle-la avec Ctrl+V. Entrée pour valider.",
-               g_addr_buf.c_str());
+               u8"ou colle-la avec Ctrl+V. Entrée pour valider.%s",
+               g_addr_buf.c_str(),
+               steam_available() ? u8"\n\nPar Steam, c'est plus simple : dans ta liste\n"
+                                   u8"d'amis, « Rejoindre la partie » sur ton ami."
+                                 : "");
 }
 
 std::string bad_address_text() {
@@ -809,6 +821,10 @@ std::string bad_address_text() {
 // peut choisir quand meme -- sa save garde alors son monde jusqu'au chargement
 // suivant.
 uint32_t g_client_ready_at = 0;          // image ou la session est devenue prete
+// Mewgenics Multi : « Choisir ta sauvegarde » clique avant le monde de l'hote --
+// l'ecran des sauvegardes s'ouvre tout seul quand il arrive (au lieu d'un
+// deuxieme clic).
+bool     g_play_when_world = false;
 
 bool client_world_wait_over() {
     if (net_role() != NetRole::Client || !session_ready()) { g_client_ready_at = 0; return false; }
@@ -820,6 +836,15 @@ std::string client_lobby_text() {
     const std::string target = fmt("%s", g_join_ip.c_str());
     const NetRole  r  = net_role();
     const NetState st = net_state();
+
+    // Mewgenics Multi (protocole 59) : par Steam, l'etat de la connexion Steam.
+    std::string steam_why;
+    const int steam = steam_client_on() ? steam_client_state(&steam_why) : 0;
+    if (steam == 3)
+        return fmt(u8"Salon multijoueur\n\n"
+                   u8"[c:red]Impossible de rejoindre %s :[/c]\n%s.\n"
+                   u8"Quitte le salon, puis réessaie (ou par adresse).",
+                   target.c_str(), steam_why.c_str());
 
     if (r == NetRole::None) {
         if (session_request_pending())
@@ -842,6 +867,9 @@ std::string client_lobby_text() {
             return fmt(u8"Salon multijoueur\n\n"
                        u8"[c:red]L'hôte a refusé la connexion.[/c]\n"
                        u8"Vérifiez que vous avez la même version du jeu et du mod.\n(%s)", status);
+        if (steam == 1)
+            return fmt(u8"Salon multijoueur\n\nConnexion à %s par Steam...\n"
+                       u8"(quelques secondes)", target.c_str());
         return u8"Salon multijoueur\n\nConnecté, présentation à l'hôte...";
     }
 
@@ -853,8 +881,10 @@ std::string client_lobby_text() {
                    u8"Joueurs :\n  %s (hôte)\n  %s\n\n"
                    u8"En attente de la partie de %s :\n"
                    u8"dès qu'il aura choisi sa sauvegarde,\n"
-                   u8"tu pourras choisir la tienne.",
-                   host.c_str(), host.c_str(), me.c_str(), host.c_str());
+                   u8"%s",
+                   host.c_str(), host.c_str(), me.c_str(), host.c_str(),
+                   g_play_when_world ? u8"l'écran des sauvegardes s'ouvrira tout seul."
+                                     : u8"tu pourras choisir la tienne.");
     return fmt(u8"Salon multijoueur\n\n"
                u8"Tu as rejoint la partie de %s !\n\n"
                u8"Joueurs :\n  %s (hôte)\n  %s\n\n"
@@ -1686,11 +1716,27 @@ uint32_t peer_run_mask() {
     return m;
 }
 
+void depart_cancel(const char* why);     // juste en dessous
+
 void depart_check_go() {
     if (!g_dep_active || g_dep_go || g_dep_embark) return;   // deja decide : une seule fois
     const uint32_t others = peers_mask_others();
     for (uint8_t id = 0; id < 8; ++id)
         if ((others & (1u << id)) && g_dep_answer[id] != 1) return;
+    // Mewgenics Multi (protocole 58) : la part de l'hote a pu baisser pendant le
+    // vote (un 4e joueur arrive, la 4e place passe a un autre) : le jeu ferait
+    // partir toute sa boite.
+    {
+        const int players = (int)net_peer_count();
+        const int mine    = team_host_box_count();
+        if (mine > team_quota_for(kHostPeer, players)) {
+            log_line("MULTI", "depart : l'hote a %d chats dans sa boite, %d au plus a %d joueurs -- vote annule",
+                     mine, team_quota_for(kHostPeer, players), players);
+            depart_cancel("trop de chats dans la boite de l'hote");
+            show_info(team_host_too_many_text(players, mine));
+            return;
+        }
+    }
     // Depart ensemble : l'equipe charge d'abord la partie de l'hote, pour voir
     // avec lui le choix des colliers et des objets (mm_embark).
     uint32_t joiners = 0;
@@ -1727,10 +1773,13 @@ bool depart_start(void* button) {
     if (g_dep_active) return true;
     // Equipe mixte : chacun emmene ses chats, l'hote pas plus que sa part.
     const int players = (int)net_peer_count();
+    // Mewgenics Multi (protocole 58) : sa boite relue tout de suite -- un 2e chat
+    // pose juste avant ce clic prend la 4e place maintenant, pas dans 500 ms.
+    team_slot_refresh();
     const int mine    = team_host_box_count();
-    if (mine > team_quota(true, players)) {
+    if (mine > team_quota_for(kHostPeer, players)) {
         log_line("MULTI", "depart : l'hote a %d chats dans sa boite, %d au plus a %d joueurs",
-                 mine, team_quota(true, players), players);
+                 mine, team_quota_for(kHostPeer, players), players);
         show_info(team_host_too_many_text(players, mine));
         return true;
     }
@@ -2711,11 +2760,101 @@ bool mm_binding(Target t, void** detour, void*** original) {
 
 static void defense_pump();      // Mewgenics Multi : plus bas, avec MM_PEER_DEFEND
 
+// --- Mewgenics Multi (protocole 59) : jouer ensemble par Steam ----------------------
+//
+// Chez l'hote, tant que son salon est ouvert : ses amis Steam voient « Rejoindre la
+// partie » (mgmp_steam). Chez un ami qui clique dessus (ou accepte une invitation) :
+// au menu principal, la connexion part toute seule, par Steam ; ailleurs, elle
+// attend qu'il y revienne.
+static bool        g_steam_join      = false;
+static uint64_t    g_steam_join_id   = 0;
+static std::string g_steam_join_name;
+static bool        g_steam_join_said = false;
+static uint32_t    g_steam_idle_from = 0;     // image depuis laquelle plus aucune session
+
+static void steam_menu_pump() {
+    steam_pump();
+    if (net_role() == NetRole::Host && net_active()) {
+        const uint16_t port = g_host_port ? g_host_port : config().net_port;
+        const uint8_t  n    = net_peer_count();
+        steam_host_open(port, n ? (int)n : 1);
+    } else {
+        steam_host_close();
+    }
+
+    // La connexion Steam d'un salon quitte ou tombe : fermee (3 s de grace : la
+    // demande de connexion du salon ne s'applique qu'a l'image suivante).
+    if (steam_client_on() && net_role() == NetRole::None && !session_request_pending()) {
+        if (!g_steam_idle_from) g_steam_idle_from = g_frame;
+        if (g_frame - g_steam_idle_from > 180) steam_client_end();
+    } else {
+        g_steam_idle_from = 0;
+    }
+
+    uint64_t id = 0;
+    std::string name;
+    if (steam_take_join_request(id, name)) {
+        g_steam_join      = true;
+        g_steam_join_id   = id;
+        g_steam_join_name = display_name(name.c_str());
+        g_steam_join_said = false;
+    }
+    if (!g_steam_join) return;
+    const std::string& who = g_steam_join_name;
+    if (net_role() != NetRole::None || session_request_pending()) {
+        g_steam_join = false;
+        log_line("MULTI", "Steam : « Rejoindre la partie » de %s ignore -- deja dans un salon", who.c_str());
+        show_info(fmt(u8"Rejoindre %s\n\n"
+                      u8"Tu es déjà dans un salon multijoueur :\n"
+                      u8"quitte-le d'abord (Multijoueur, puis « Quitter »),\n"
+                      u8"puis clique à nouveau sur « Rejoindre la partie ».", who.c_str()));
+        return;
+    }
+    if (!at_main_menu()) {
+        if (!g_steam_join_said) {
+            g_steam_join_said = true;
+            log_line("MULTI", "Steam : salon de %s rejoint au retour au menu principal", who.c_str());
+            show_info(fmt(u8"Rejoindre %s\n\n"
+                          u8"Ton jeu rejoindra le salon de %s\n"
+                          u8"dès que tu seras au menu principal\n"
+                          u8"(Échap, puis « Quitter vers le menu »).", who.c_str(), who.c_str()));
+        }
+        return;
+    }
+    // Une fenetre du menu multijoueur ouverte (« Héberger / Rejoindre », l'adresse) :
+    // refermee sans son action, le salon s'ouvre a sa place ; une autre fenetre
+    // (une information) : on attend qu'elle se ferme.
+    if (g_live.alive) {
+        if ((g_live.screen == Screen::Choice || g_live.screen == Screen::JoinEntry ||
+             g_live.screen == Screen::BadAddress) && !g_click_target && !g_live.pressed) {
+            g_silent = g_live.serial;
+            popup_press("no");
+        }
+        return;
+    }
+    g_steam_join = false;
+    const uint16_t port = steam_client_begin(g_steam_join_id);
+    if (!port) {
+        log_line("MULTI", "!! Steam : connexion au salon de %s impossible", who.c_str());
+        show_info(fmt(u8"Rejoindre %s\n\n"
+                      u8"La connexion par Steam est impossible pour l'instant.\n"
+                      u8"Réessaie dans un moment, ou rejoins par adresse\n"
+                      u8"(Multijoueur, puis « Rejoindre »).", who.c_str()));
+        return;
+    }
+    g_join_ip   = who + u8" (Steam)";
+    g_join_port = port;
+    log_line("MULTI", "Steam : connexion au salon de %s (port local %u)", who.c_str(), (unsigned)port);
+    session_request_join("127.0.0.1", port);
+    open_client_lobby();
+}
+
 void mm_menu_pump() {
     ++g_frame;
     game_prompt_alive();                 // oubliee des que sa scene s'en va
     embark_frame_begin();
     embark_pump();
+    steam_menu_pump();                   // Mewgenics Multi (protocole 59) : par Steam
     const Action a = g_action;
     g_action = Action::None;
     switch (a) {
@@ -2729,15 +2868,20 @@ void mm_menu_pump() {
             // (sinon elle garderait le sien jusqu'au chargement suivant).
             if (net_role() == NetRole::Client && session_ready() && !world_have_host() &&
                 !client_world_wait_over()) {
-                log_line("MULTI", "salon : le monde de l'hote n'est pas encore arrive, on attend");
+                if (!g_play_when_world)
+                    log_line("MULTI", "salon : le monde de l'hote n'est pas encore arrive -- l'ecran des "
+                                      "sauvegardes s'ouvrira des qu'il sera la");
+                g_play_when_world = true;
                 g_action = Action::OpenAuto;           // le salon se rouvre l'image suivante
                 break;
             }
+            g_play_when_world = false;
             click_main_play();
             break;
         case Action::StopSession:
             log_line("MULTI", "fin de la session demandee par le menu");
             session_request_disconnect();
+            steam_client_end();              // Mewgenics Multi (protocole 59)
             break;
         case Action::OpenBadAddress: break;
         case Action::CancelNight:
@@ -2903,6 +3047,16 @@ void mm_menu_pump() {
             break;
         case Screen::ClientLobby:
             popup_set_text(client_lobby_text());
+            // Mewgenics Multi : « Choisir ta sauvegarde » deja demande, le monde
+            // de l'hote est la -- le bouton est rappuye pour lui.
+            if (g_play_when_world) {
+                if (net_role() != NetRole::Client || !net_active()) {
+                    g_play_when_world = false;
+                } else if ((world_have_host() || client_world_wait_over()) && !g_click_target &&
+                           !g_live.pressed && popup_press("yes")) {
+                    log_line("MULTI", "salon : le monde de l'hote est arrive -- ecran des sauvegardes");
+                }
+            }
             // La sauvegarde de l'hote est arrivee : le jeu doit pouvoir appuyer
             // sur « Jouer » pour nous (mgmp_savefile), ce que la boite, modale,
             // empeche. On la referme.
@@ -3225,6 +3379,9 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
     switch (m.kind) {
         case MM_PEER_DEFEND:
             on_peer_defend(from, m);
+            break;
+        case MM_SLOT:
+            team_on_slot(from, m);           // Mewgenics Multi (protocole 58) : la 4e place
             break;
         case MM_NIGHT_READY:
             if (net_role() == NetRole::Host && from < 8) {

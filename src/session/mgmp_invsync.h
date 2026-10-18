@@ -126,6 +126,12 @@ void invsync_shutdown();
 // Mewgenics Multi : true if an inventory was sent.
 bool invsync_publish(const char* why);
 
+// Mewgenics Multi (protocole 58) : l'inventaire a l'entree de la case en cours,
+// garde entier (envoye ou non) pour un joueur qui arrive en pleine case -- voir
+// catsync_publish_entry.
+bool invsync_publish_entry(const char* why);
+bool invsync_send_entry_to(uint8_t peer);
+
 // HOST: forget the last-pushed hash, so the next invsync_publish sends the
 // inventory whether or not it changed. For a reconnecting peer.
 void invsync_forget();

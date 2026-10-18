@@ -82,7 +82,11 @@ bool  follow_node_end_counts();
 // HOST: tell a peer that just joined which node the run is standing in. ENTERNODE
 // is otherwise published only at the instant of entry, so a peer connecting
 // afterwards would sit on the map forever.
-void follow_catchup(uint8_t peer);
+// Mewgenics Multi (protocole 58) : envoie d'abord a `peer` l'etat d'entree de la
+// case (catsync/invsync/runhist_send_entry_to), puis la case. Faux si rien n'est
+// parti (pas de case, combat de la Nemesis fini) : l'appelant envoie alors l'etat
+// actuel.
+bool follow_catchup(uint8_t peer);
 
 // Mewgenics Multi : vide la file des cases recues de l'hote. Appele quand une
 // copie de son aventure arrive chez un invite qui n'y est pas encore : elle est

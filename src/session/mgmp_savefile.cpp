@@ -558,6 +558,12 @@ bool publish(uint8_t to, bool fresh) {
         log_line("SAVEFILE", "   (flushed the host's live run to disk first -- "
                              "this is the host's current position, not a "
                              "checkpoint)");
+    } else if (in_run && g.click_mtime && mtime != g.click_mtime && follow_inside_node()) {
+        // Mewgenics Multi (protocole 58) : le cas normal d'un arrivant en pleine
+        // case -- l'etat d'entree de la case (follow_catchup) et les decisions deja
+        // prises (lockstep_catchup) le menent ou en est l'hote.
+        log_line("SAVEFILE", "   (inside a node: the joiner gets the last checkpoint, then the "
+                             "node's entry state and the decisions already taken)");
     } else if (in_run && g.click_mtime && mtime != g.click_mtime) {
         log_line("SAVEFILE", "!! the host has saved progress since choosing this "
                              "file and the live run could not be flushed -- the "

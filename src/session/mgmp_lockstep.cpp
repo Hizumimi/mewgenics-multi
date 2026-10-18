@@ -248,6 +248,12 @@ struct State {
     HashRing<HashMsg> peer_hash[kMaxPeers];
     HashRing<HashMsg> my_hash;
     bool     peer_hash_full_warned[kMaxPeers] = {};
+    // Mewgenics Multi (protocole 58) : le hash du tour 0 du combat en cours --
+    // l'anneau ne garde que les 16 derniers tours ; celui-ci part chez un joueur
+    // qui arrive en plein combat (lockstep_catchup) : un combat construit
+    // autrement que celui de l'hote se voit des son tour 0.
+    HashMsg  first_hash{};
+    bool     have_first = false;
 
     bool     halted = false;
     LockstepStats stats;
@@ -3392,6 +3398,7 @@ void lockstep_turn_boundary(void* turn_control) {
         for (State::FlightMark& fm : g.flight) fm = State::FlightMark{};
     }
     HashMsg mine = build_hash(turn_control);
+    if (mine.turn == 0) { g.first_hash = mine; g.have_first = true; }
     {
         State::FlightMark& fm = g.flight[mine.turn % State::kFlightTurns];
         fm.turn  = mine.turn;
@@ -3648,6 +3655,14 @@ void lockstep_catchup(uint8_t peer) {
     // combat -- celui qui arrive n'en est pas, il regarde ; s'il revient sans
     // avoir quitte le combat, il lache ainsi les chats que l'hote a repris.
     if (lockstep_is_host() && snap_current()) publish_control();
+    // Mewgenics Multi (protocole 58) : le hash du tour 0, s'il est deja passe --
+    // l'arrivant le compare a son propre tour 0 (le meme combat, ou une
+    // desynchronisation dite tout de suite, avant de rejouer des decisions dans
+    // un autre combat).
+    if (g.have_first && g.first_hash.battle_id == g.battles.current && g.turn > 0 &&
+        net_send_hash_to(peer, g.first_hash))
+        log_line("LOCKSTEP", "-> hash of turn 0 of battle %016llx sent to peer %u (it checks its own battle "
+                             "against it)", (unsigned long long)g.battles.current, (unsigned)peer);
     if (g.sent_log_n == 0) {
         log_line("LOCKSTEP", "peer %u joined battle %016llx -- nothing to replay,"
                              " it can derive this battle from the node seed alone",

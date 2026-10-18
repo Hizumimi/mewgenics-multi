@@ -745,6 +745,14 @@ bool net_send_enter_node_to(uint8_t peer, const EnterNodeMsg& m) {
     return n && net_send_peer(peer, p, n);
 }
 
+// Mewgenics Multi (protocole 58) : le hash du tour 0 du combat en cours, a celui
+// qui arrive en plein combat -- il sait tout de suite si son combat est le meme.
+bool net_send_hash_to(uint8_t peer, const HashMsg& h) {
+    uint8_t p[512];
+    uint32_t n = enc_hash(p, sizeof(p), h);
+    return n && net_send_peer(peer, p, n);
+}
+
 bool net_send_welcome_to(uint8_t peer, const Welcome& w) {
     uint8_t p[512];
     uint32_t n = enc_welcome(p, sizeof(p), w);
@@ -819,7 +827,10 @@ bool net_send_team_to(uint8_t peer, const SaveFileMsg& m) {
     return send_savefile_frame(m, false, peer, MSG_TEAM);
 }
 
-bool net_send_catdata(const CatDataMsg& m) {
+// Mewgenics Multi (protocole 58) : `to` = kNoPeer pour tous, ou un seul joueur --
+// l'etat d'entree de la case en cours, pour celui qui arrive en pleine case
+// (follow_catchup).
+static bool send_catdata_frame(const CatDataMsg& m, uint8_t to) {
     uint32_t need = catdata_frame_size(m);
     if (need > kMaxFrame) {
         log_line("NET", "!! serialized cat is %u bytes, over the %u-byte frame cap",
@@ -829,12 +840,15 @@ bool net_send_catdata(const CatDataMsg& m) {
     uint8_t* p = (uint8_t*)malloc(need);
     if (!p) return false;
     uint32_t n = enc_catdata(p, need, m);
-    bool ok = n && net_send(p, n);
+    bool ok = n && (to == kNoPeer ? net_send(p, n) : net_send_peer(to, p, n));
     free(p);
     return ok;
 }
 
-bool net_send_runhist(const RunHistMsg& m) {
+bool net_send_catdata(const CatDataMsg& m)                 { return send_catdata_frame(m, kNoPeer); }
+bool net_send_catdata_to(uint8_t peer, const CatDataMsg& m) { return send_catdata_frame(m, peer); }
+
+static bool send_runhist_frame(const RunHistMsg& m, uint8_t to) {
     uint32_t need = runhist_frame_size(m);
     if (need > kMaxFrame) {
         log_line("NET", "!! serialized run history is %u bytes, over the %u-byte "
@@ -844,10 +858,13 @@ bool net_send_runhist(const RunHistMsg& m) {
     uint8_t* p = (uint8_t*)malloc(need);
     if (!p) return false;
     uint32_t n = enc_runhist(p, need, m);
-    bool ok = n && net_send(p, n);
+    bool ok = n && (to == kNoPeer ? net_send(p, n) : net_send_peer(to, p, n));
     free(p);
     return ok;
 }
+
+bool net_send_runhist(const RunHistMsg& m)                 { return send_runhist_frame(m, kNoPeer); }
+bool net_send_runhist_to(uint8_t peer, const RunHistMsg& m) { return send_runhist_frame(m, peer); }
 
 bool net_send_statedump(const StateDumpMsg& m) {
     uint32_t need = statedump_frame_size(m);
@@ -864,7 +881,7 @@ bool net_send_statedump(const StateDumpMsg& m) {
     return ok;
 }
 
-bool net_send_inventory(const InventoryMsg& m) {
+static bool send_inventory_frame(const InventoryMsg& m, uint8_t to) {
     uint32_t need = inventory_frame_size(m);
     if (need > kMaxFrame) {
         log_line("NET", "!! serialized inventory is %u bytes, over the %u-byte "
@@ -874,10 +891,13 @@ bool net_send_inventory(const InventoryMsg& m) {
     uint8_t* p = (uint8_t*)malloc(need);
     if (!p) return false;
     uint32_t n = enc_inventory(p, need, m);
-    bool ok = n && net_send(p, n);
+    bool ok = n && (to == kNoPeer ? net_send(p, n) : net_send_peer(to, p, n));
     free(p);
     return ok;
 }
+
+bool net_send_inventory(const InventoryMsg& m)                 { return send_inventory_frame(m, kNoPeer); }
+bool net_send_inventory_to(uint8_t peer, const InventoryMsg& m) { return send_inventory_frame(m, peer); }
 
 void net_msg_release(NetMsg& m) {
     if (m.savefile.data) { free(m.savefile.data); m.savefile.data = nullptr; }

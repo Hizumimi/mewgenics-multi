@@ -65,6 +65,17 @@ void runhist_shutdown();
 // Host: serialize and send, unless the bytes are what we sent last time.
 void runhist_publish(const char* why);
 
+// Mewgenics Multi (protocole 58) : l'historique a l'entree de la case en cours,
+// garde entier pour un joueur qui arrive en pleine case. C'EST LUI QUI A DONNE UN
+// AUTRE COMBAT A L'INVITE REVENU EN PLEINE CASE (17 octobre, 52 caracteres contre
+// 25) : le batisseur du combat (0x140394450) note son niveau dans la liste des
+// niveaux deja joues (RunHistory+0x48, 0x1408DDA40), et le tirage du niveau
+// (0x1408DDEC0) refuse ceux de cette liste. L'historique du milieu du combat, recu
+// avant la case, contenait deja le niveau de cette case : l'invite en a tire un
+// autre. Voir catsync_publish_entry.
+void runhist_publish_entry(const char* why);
+bool runhist_send_entry_to(uint8_t peer);
+
 // Drop the "already sent this" cache so the next publish sends whatever the
 // bytes are. Same contract, and the same reason, as catsync_forget: the dedupe
 // is per-RUN, not per-peer, so a peer that reconnects would otherwise be told

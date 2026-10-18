@@ -245,32 +245,41 @@ void catchup_peer(uint8_t from) {
     // reconnecting peer would be told only about whatever happened to change
     // since the last map node, and nothing about the rest.
     //
-    // Both publish by broadcast, so peers already in the session are re-sent
-    // state they already have. That is idempotent (the client resolves by cat
-    // id and applies over itself) and a reconnect is rare; a per-peer push
-    // would be the better shape if this ever runs hot.
+    // On the map, both publish by broadcast, so peers already in the session
+    // are re-sent state they already have. That is idempotent (the client
+    // resolves by cat id and applies over itself) and a reconnect is rare.
+    // Mewgenics Multi : inside a node, the entry copies go to the joiner alone
+    // (follow_catchup) -- see below.
     catsync_forget();
     invsync_forget();
     runhist_forget();
-    catsync_publish("a peer joined or reconnected");
-    invsync_publish("a peer joined or reconnected");
-    // The used-event list belongs in the same burst and for the same reason: a
-    // peer whose process restarted has the history that was in the save, which
-    // is the run's state at the last checkpoint rather than now.
-    runhist_publish("a peer joined or reconnected");
 
-    // Mewgenics Multi : la case et les decisions du combat seulement si l'hote
-    // est DANS une case. Sur la carte, la derniere case est finie (et deja dans
-    // la save) : la renvoyer ferait rentrer l'arrivant dans une case resolue,
-    // et ses decisions resteraient a jamais dans sa file.
-    if (!follow_inside_node()) return;
-
-    // ...and finally WHERE the run is. Order is load-bearing and it is the
-    // same order follow_on_enter_node uses for the live path: save, then cats
-    // and inventory, then the node. The joiner acts on the node the moment it
-    // can, and a battle built before its cats arrive is a battle built from the
-    // wrong cats.
-    follow_catchup(from);
+    // Mewgenics Multi (protocole 58) : DANS UNE CASE, PAS L'ETAT ACTUEL AVANT LA
+    // CASE. Celui du milieu d'un combat n'est pas celui que le combat a ete
+    // construit depuis : un arrivant qui l'appliquait avant d'y entrer tirait un
+    // autre niveau (l'historique note le niveau deja tire, qui n'est plus tire) --
+    // 17 octobre, 52 caracteres chez l'invite revenu contre 25 chez l'hote, et les
+    // decisions rejouees dans un autre combat. follow_catchup envoie l'etat
+    // d'entree de la case, puis la case ; l'etat d'apres viendra avec les poussees
+    // de retour sur la carte (les caches viennent d'etre oublies : complet).
+    //
+    // Sur la carte, la derniere case est finie (et deja dans la save) : la
+    // renvoyer ferait rentrer l'arrivant dans une case resolue, et ses decisions
+    // resteraient a jamais dans sa file. L'etat actuel est alors le bon.
+    //
+    // Order is load-bearing and it is the same order follow_on_enter_node uses
+    // for the live path: save, then cats and inventory, then the node. The joiner
+    // acts on the node the moment it can, and a battle built before its cats
+    // arrive is a battle built from the wrong cats.
+    if (!follow_inside_node() || !follow_catchup(from)) {
+        catsync_publish("a peer joined or reconnected");
+        invsync_publish("a peer joined or reconnected");
+        // The used-event list belongs in the same burst and for the same reason:
+        // a peer whose process restarted has the history that was in the save,
+        // which is the run's state at the last checkpoint rather than now.
+        runhist_publish("a peer joined or reconnected");
+        return;
+    }
 
     // The decisions already taken in the battle it is walking into. Must come
     // after the node -- these name a battle_id the peer does not recognise
@@ -350,6 +359,9 @@ void handle_hello(uint8_t from, const Hello& h) {
     world_catchup(from);
     // Et l'etat de ses PNJ, recopie dans sa maison des qu'il y sera.
     npc_catchup(from);
+    // Et a qui est la 4e place (protocole 58) -- apres le WELCOME : son module de
+    // l'equipe n'ecoute qu'une fois la session prete chez lui.
+    team_slot_hello(from);
 }
 
 } // namespace

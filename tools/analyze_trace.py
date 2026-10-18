@@ -9,7 +9,9 @@ import sys
 import struct
 from collections import Counter, defaultdict
 
-LINE = re.compile(r"^(\d{6}) (\d{4}) (\S+)\s+(.*)$")
+# Mewgenics Multi : une colonne de l'heure (secondes) entre le tour et l'etiquette,
+# absente des journaux d'avant.
+LINE = re.compile(r"^(\d{6}) (\d{4}) (?:\s*\d+\.\d{2} )?(\S+)\s+(.*)$")
 HEX  = re.compile(r"\[([0-9A-F ]+)\]")
 CLS  = re.compile(r"cls=(\S+)")
 

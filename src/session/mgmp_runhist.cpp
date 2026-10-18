@@ -58,6 +58,12 @@ struct State {
     uint32_t pend_count = 0;
 
     uint32_t pushed = 0, applied = 0, skipped = 0, deferred = 0, coalesced = 0;
+
+    // Mewgenics Multi (protocole 58) : l'historique a l'entree de la case en cours
+    // (runhist_publish_entry), pour un joueur qui arrive en pleine case.
+    uint8_t* entry_data = nullptr;
+    uint32_t entry_size = 0;
+    uint64_t entry_hash = 0;
 };
 
 State g;
@@ -198,9 +204,17 @@ void runhist_init() {
                          : "this peer's run history will be published to the client");
 }
 
+static void free_entry() {
+    free(g.entry_data);
+    g.entry_data = nullptr;
+    g.entry_size = 0;
+    g.entry_hash = 0;
+}
+
 void runhist_shutdown() {
     const bool stranded = g.pend_count != 0;
     free_pending();
+    free_entry();
     if (!g.announced) return;
     log_line_lvl(stranded ? LogLevel::Warn : LogLevel::Trace, "RUNHIST",
              "done: %u pushed, %u applied, %u unchanged, "
@@ -234,9 +248,31 @@ uint64_t runhist_hash() {
     return h;
 }
 
-void runhist_publish(const char* why) {
+static void publish_impl(const char* why, bool entry);
+
+void runhist_publish(const char* why)       { publish_impl(why, false); }
+void runhist_publish_entry(const char* why) { publish_impl(why, true); }
+
+bool runhist_send_entry_to(uint8_t peer) {
     ensure_state();
-    if (!g.on || g.is_client || !net_active()) return;
+    if (!g.on || g.is_client || !net_active() || !g.entry_data) return false;
+    RunHistMsg m{};
+    m.size = g.entry_size;
+    m.hash = g.entry_hash;
+    m.data = g.entry_data;
+    const bool ok = net_send_runhist_to(peer, m);
+    log_line("RUNHIST", "-> run history as it was when the host entered this node (%u bytes) sent to peer %u%s",
+             m.size, (unsigned)peer, ok ? "" : " -- FAILED");
+    return ok;
+}
+
+static void publish_impl(const char* why, bool entry) {
+    ensure_state();
+    if (!g.on || g.is_client) return;
+    // Prise meme sans personne de connecte (voir catsync_publish_entry).
+    if (entry) free_entry();
+    const bool online = net_active();
+    if (!online && !entry) return;
 
     uint8_t* bytes = nullptr;
     uint32_t n = serialize_hist(&bytes);
@@ -268,6 +304,16 @@ void runhist_publish(const char* why) {
     m.size = n;
     m.hash = fnv1a(bytes, n);
     m.data = bytes;
+
+    if (entry) {
+        g.entry_data = (uint8_t*)malloc(n);
+        if (g.entry_data) {
+            memcpy(g.entry_data, bytes, n);
+            g.entry_size = n;
+            g.entry_hash = m.hash;
+        }
+    }
+    if (!online) { free(bytes); return; }
 
     if (m.hash == g.sent_hash) { ++g.skipped; free(bytes); return; }
 

@@ -119,6 +119,14 @@ struct State {
 
     uint32_t pushed = 0, applied = 0, skipped = 0;
     uint32_t deferred = 0, coalesced = 0;
+
+    // Mewgenics Multi (protocole 58) : l'inventaire a l'entree de la case en cours
+    // (invsync_publish_entry), pour un joueur qui arrive en pleine case.
+    bool     has_entry = false;
+    int32_t  entry_coins = 0, entry_food = 0, entry_boxes = 0;
+    uint64_t entry_hash = 0;
+    uint32_t entry_size[kInvBuckets] = {};
+    uint8_t* entry_data[kInvBuckets] = {};
 };
 
 State g;
@@ -334,8 +342,18 @@ void invsync_init() {
 
 static void free_pending();
 
+static void free_entry() {
+    for (uint32_t i = 0; i < kInvBuckets; ++i) {
+        free(g.entry_data[i]);
+        g.entry_data[i] = nullptr;
+        g.entry_size[i] = 0;
+    }
+    g.has_entry = false;
+}
+
 void invsync_shutdown() {
     free_pending();
+    free_entry();
     if (!g.announced) return;
     log_line_lvl(LogLevel::Trace, "INVSYNC",
              "done: %u pushed, %u applied, %u unchanged, "
@@ -448,9 +466,37 @@ void invsync_forget() {
     g.last_hash = 0;
 }
 
-bool invsync_publish(const char* why) {
+static bool publish_impl(const char* why, bool entry);
+
+bool invsync_publish(const char* why)       { return publish_impl(why, false); }
+bool invsync_publish_entry(const char* why) { return publish_impl(why, true); }
+
+bool invsync_send_entry_to(uint8_t peer) {
     ensure_state();
-    if (!g.on || g.is_client || !net_active()) return false;
+    if (!g.on || g.is_client || !net_active() || !g.has_entry) return false;
+    InventoryMsg m{};
+    m.coins = g.entry_coins;
+    m.food  = g.entry_food;
+    m.boxes = g.entry_boxes;
+    m.hash  = g.entry_hash;
+    for (uint32_t i = 0; i < kInvBuckets; ++i) {
+        m.size[i] = g.entry_size[i];
+        m.data[i] = g.entry_data[i];
+    }
+    const bool ok = net_send_inventory_to(peer, m);
+    log_line("INVSYNC", "-> inventory %016llx as it was when the host entered this node sent to peer %u%s",
+             (unsigned long long)m.hash, (unsigned)peer, ok ? "" : " -- FAILED");
+    return ok;
+}
+
+static bool publish_impl(const char* why, bool entry) {
+    ensure_state();
+    if (!g.on || g.is_client) return false;
+    // Prise meme sans personne de connecte (voir catsync) ; celle d'avant ne vaut
+    // plus rien des l'entree d'une autre case.
+    if (entry) free_entry();
+    const bool online = net_active();
+    if (!online && !entry) return false;
 
     RunInv ri{};
     if (!run_inv(ri)) {
@@ -496,7 +542,28 @@ bool invsync_publish(const char* why) {
         }
         m.hash = h;
 
-        if (g.has_last && g.last_hash == h) {
+        if (entry) {
+            // Une copie : les tampons de `m` sont liberes plus bas, comme avant.
+            g.entry_coins = m.coins;
+            g.entry_food  = m.food;
+            g.entry_boxes = m.boxes;
+            g.entry_hash  = h;
+            bool copied = true;
+            for (uint32_t i = 0; i < kInvBuckets; ++i) {
+                g.entry_size[i] = m.size[i];
+                g.entry_data[i] = nullptr;
+                if (m.size[i]) {
+                    g.entry_data[i] = (uint8_t*)malloc(m.size[i]);
+                    if (!g.entry_data[i]) { copied = false; break; }
+                    memcpy(g.entry_data[i], m.data[i], m.size[i]);
+                }
+            }
+            if (copied) g.has_entry = true; else free_entry();
+        }
+
+        if (!online) {
+            // personne a qui l'envoyer : seulement la copie de l'entree
+        } else if (g.has_last && g.last_hash == h) {
             ++g.skipped;
         } else if (net_send_inventory(m)) {
             g.last_hash = h;

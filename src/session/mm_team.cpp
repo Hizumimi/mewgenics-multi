@@ -11,6 +11,7 @@
 #include "mm_recruit_core.h"
 #include "mm_rungear.h"
 #include "mm_shop.h"
+#include "mm_slot_core.h"
 #include "mm_world.h"
 
 #include "mgmp_addresses.h"
@@ -270,6 +271,19 @@ struct State {
     bool                     prepared         = false;
     uint8_t                  prepared_seq     = 0;
     bool                     prepared_brought = false;   // des invites amenaient des chats
+
+    // Mewgenics Multi (protocole 58) : la 4e place a 3 joueurs (mm_slot_core.h).
+    SlotArbiter slot;                         // hote : l'ordre des demandes
+    uint8_t     slot_owner  = kSlotNobody;    // tous : a qui elle est, dit par l'hote
+    uint32_t    slot_seq    = 0;              // hote : numero de sa derniere annonce
+    uint32_t    slot_roster = 0;              // hote : les presents au dernier arbitrage
+    bool        slot_told   = false;          // ce joueur : 2 chats ou plus, dit a l'hote
+    bool        slot_known  = false;          // ... dit au moins une fois cette session
+    uint64_t    slot_next   = 0;              // prochaine lecture de sa boite (ms)
+    int         slot_shown  = 0;              // derniere fenetre : 0, 1 « a toi », 2 « prise », 3 « plus de place »
+    uint8_t     slot_shown_owner = kSlotNobody;
+    std::string slot_owner_label;             // invite : le nom annonce par l'hote
+    uint64_t    slot_drop_at = 0;             // la boite est retombee sous 2 chats (ms)
 };
 
 // Ce qui survit a une session : une aventure continue, des chats sont a rendre.
@@ -907,7 +921,7 @@ bool prepare_mixed(void* box) {
         if (const uint64_t id = cat_id_at(hk)) host_ids.push_back(id);
     std::sort(g.pending.begin(), g.pending.end(),
               [](const PendingTeam& a, const PendingTeam& b) { return a.peer < b.peer; });
-    const int quota = team_quota(false, (int)net_peer_count());
+    const int players = (int)net_peer_count();
     std::vector<TeamCat>     cats;
     std::vector<size_t>      from;          // index dans g.pending
     std::vector<std::string> left;
@@ -919,6 +933,8 @@ bool prepare_mixed(void* box) {
             continue;
         }
         int taken = 0;
+        // Mewgenics Multi (protocole 58) : sa part, 4e place comprise.
+        const int quota = team_quota_for(pt.peer, players);
         for (size_t i = 0; i < pt.cats.size(); ++i) {
             CatInfo ci;
             if (cat_info(pt.cats[i].data, ci) &&
@@ -2317,8 +2333,12 @@ void team_shutdown() {
     g = State{};
 }
 
+namespace { void slot_pump(); }   // Mewgenics Multi (protocole 58) : plus bas, avec la 4e place
+
 void team_pump() {
-    if (!g.on || !g.host) return;
+    if (!g.on) return;
+    slot_pump();                     // Mewgenics Multi (protocole 58) : la 4e place
+    if (!g.host) return;
     recruits_tick();
     const uint32_t roster = roster_mask();
     if (roster == g.roster) return;
@@ -2403,11 +2423,191 @@ bool team_send(const std::vector<uint8_t>& body, int peer) {
     return send_team(body, peer);
 }
 
-int team_quota(bool host, int players) {
-    if (players <= 1) return kTeamSize;
-    if (players == 2) return 2;
-    if (players == 3) return host ? 2 : 1;   // la place libre est a l'hote
-    return 1;
+int team_quota_for(uint8_t peer, int players) {
+    return slot_quota(peer, players, g.on ? g.slot_owner : kSlotNobody, kTeamSize);
+}
+
+
+// --- la 4e place a 3 joueurs (protocole 58) ---------------------------------------
+
+namespace {
+
+// Le nom de celui qui l'a, tel que l'hote l'annonce (un invite ne connait que le
+// nom de l'hote : celui d'un autre invite vient avec l'annonce).
+std::string slot_owner_name() {
+    if (g.slot_owner == kSlotNobody) return "";
+    if (!g.slot_owner_label.empty()) return g.slot_owner_label;
+    return mm_peer_name(g.slot_owner);
+}
+
+// Dans sa propre maison (pas la copie de l'hote, pas en aventure) : la ou ses
+// chats se mettent dans la boite, et ou ces fenetres ont un sens.
+bool slot_at_home() {
+    return mm_house() && (g.host || !savefile_in_coop());
+}
+
+// Ce joueur, quand la place change de main ou que sa boite change : une fenetre
+// s'il doit le savoir (elle est a lui ; il a deux chats mais elle est a un autre ;
+// elle n'existe plus alors qu'il a deux chats). Seulement dans sa maison : ailleurs
+// la fenetre attend qu'il y revienne (slot_pump la redemande).
+void slot_feedback() {
+    const int     players = (int)net_peer_count();
+    const uint8_t self    = net_self();
+    if (!g.slot_told) { g.slot_shown = 0; return; }
+    if (!slot_at_home()) return;
+    if (players == 3 && g.slot_owner == self) {
+        if (g.slot_shown != 1) {
+            g.slot_shown = 1;
+            say(u8"La 4e place\n\n"
+                u8"À 3 joueurs, l'équipe a une place libre :\n"
+                u8"elle est à toi, tu emmènes 2 chats.");
+        }
+        return;
+    }
+    if (players == 3 && g.slot_owner != kSlotNobody) {
+        if (g.slot_shown != 2 || g.slot_shown_owner != g.slot_owner) {
+            g.slot_shown       = 2;
+            g.slot_shown_owner = g.slot_owner;
+            say(fmt(u8"La 4e place\n\n"
+                    u8"La place libre est déjà prise par %s :\n"
+                    u8"à 3 joueurs, tu emmènes 1 chat.\n"
+                    u8"Retire un chat de ta boîte de départ.", slot_owner_name().c_str()));
+        }
+        return;
+    }
+    if (players >= 4 && g.slot_shown == 1) {
+        g.slot_shown = 3;
+        say(u8"La 4e place\n\n"
+            u8"Un quatrième joueur est là : chacun emmène\n"
+            u8"1 chat. Retire un chat de ta boîte de départ.");
+    }
+}
+
+// Hote : a tous (peer < 0) ou a un joueur, a qui est la place (et son nom).
+void slot_announce(int peer) {
+    MmMsg m{};
+    m.kind = MM_SLOT;
+    m.a    = 2;
+    m.b    = g.slot_owner;
+    m.x    = g.slot_seq;
+    if (g.slot_owner != kSlotNobody)
+        strncpy_s(m.text, mm_peer_name(g.slot_owner).c_str(), _TRUNCATE);
+    (void)peer;          // MM n'a pas d'envoi a un seul joueur : a tous, sans effet chez qui la sait
+    net_send_mm(m);
+}
+
+// Hote : l'arbitrage refait (une demande, un joueur parti ou arrive) ; une
+// annonce a tous si la place change de main.
+void slot_settle(const char* why) {
+    if (!g.host) return;
+    const int players = (int)net_peer_count();
+    if (!g.slot.settle(players, roster_mask())) return;
+    g.slot_owner = g.slot.owner;
+    g.slot_owner_label.clear();
+    ++g.slot_seq;
+    slot_announce(-1);
+    if (g.slot_owner == kSlotNobody)
+        log_line("TEAM", "4e place : a personne (%d joueur(s), %s)", players, why);
+    else
+        log_line("TEAM", "4e place : a %s (%s)", mm_peer_name(g.slot_owner).c_str(), why);
+    slot_feedback();
+}
+
+// Sa boite relue (dans sa maison seulement) ; la demande dite a l'hote quand elle
+// change. Une boite qui retombe sous deux chats garde la demande 2 s (un chat
+// echange contre un autre ne la fait pas perdre). `now` : force la lecture.
+void slot_check_box(bool now) {
+    const uint64_t t = GetTickCount64();
+    if (!now && t < g.slot_next) return;
+    g.slot_next = t + 500;
+    if (!g.host && savefile_in_coop()) return;   // la maison de la copie est celle de l'hote
+    BoxState state = kBoxOk;
+    void* box = house_box(state);                // hors de sa maison : rien ne change
+    if (!box) return;
+    std::vector<uint64_t> keys;
+    if (!box_keys(box, keys)) return;
+    bool want = keys.size() >= 2;
+    if (!want && g.slot_told && g.slot_known) {
+        if (!g.slot_drop_at) g.slot_drop_at = t;
+        if (t - g.slot_drop_at < 2000) want = true;     // encore un instant
+    } else {
+        g.slot_drop_at = 0;
+    }
+    if (g.slot_known && want == g.slot_told) { slot_feedback(); return; }
+    g.slot_known   = true;
+    g.slot_told    = want;
+    g.slot_drop_at = 0;
+    log_line("TEAM", "4e place : %zu chat(s) dans la boite de depart -- %s", keys.size(),
+             want ? "demandee" : "pas demandee");
+    if (g.host) {
+        if (want) g.slot.claim(kHostPeer); else g.slot.release(kHostPeer);
+        slot_settle(want ? "l'hote a mis un 2e chat dans sa boite" : "l'hote n'a plus 2 chats dans sa boite");
+    } else {
+        MmMsg m{};
+        m.kind = MM_SLOT;
+        m.a    = 1;
+        m.c    = want ? 1 : 0;
+        net_send_mm(m);
+    }
+    slot_feedback();
+}
+
+// Chaque image : l'arbitrage de l'hote (aussi seul : un numero repris ne doit pas
+// heriter de la demande d'un parti), puis sa boite deux fois par seconde.
+void slot_pump() {
+    if (g.host && g.on && net_active()) {
+        const uint32_t roster = roster_mask();
+        if (roster != g.slot_roster) {
+            g.slot_roster = roster;
+            slot_settle("un joueur est arrive ou parti");
+        }
+    }
+    if (!in_session()) return;
+    slot_check_box(false);
+}
+
+} // namespace
+
+void team_slot_refresh() {
+    if (!g.on || !in_session()) return;
+    slot_check_box(true);
+}
+
+void team_on_slot(uint8_t from, const MmMsg& m) {
+    if (!g.on) return;
+    if (m.a == 1) {
+        if (!g.host || from >= 8) return;
+        if (m.c) g.slot.claim(from); else g.slot.release(from);
+        log_line("TEAM", "4e place : %s %s", mm_peer_name(from).c_str(),
+                 m.c ? "a mis un 2e chat dans sa boite" : "n'a plus 2 chats dans sa boite");
+        slot_settle(m.c ? "une demande" : "une demande retiree");
+        return;
+    }
+    if (m.a == 2) {
+        if (g.host) return;
+        if (m.x < g.slot_seq) return;            // une annonce d'avant
+        g.slot_seq   = m.x;
+        g.slot_owner = m.b;
+        char label[sizeof(m.text) + 1] = {};
+        memcpy(label, m.text, sizeof(m.text));
+        g.slot_owner_label = label;
+        log_line("TEAM", "4e place : %s", m.b == kSlotNobody ? "a personne" : slot_owner_name().c_str());
+        slot_feedback();
+    }
+}
+
+void team_slot_hello(uint8_t peer) {
+    // Hote, apres le WELCOME de celui qui arrive (son module de l'equipe est alors
+    // pret) : un numero repris ne garde pas la demande de celui qui l'avait ; puis
+    // il apprend a qui est la place. Une annonce a tous : sans effet chez ceux qui
+    // la savent deja.
+    if (!g.on || !g.host || peer >= 8) return;
+    if (g.slot.wants(peer)) {
+        g.slot.release(peer);
+        log_line("TEAM", "4e place : la demande d'avant du numero %u est oubliee (il arrive)", (unsigned)peer);
+    }
+    slot_settle("un joueur arrive");
+    slot_announce((int)peer);
 }
 
 int team_host_box_count() {
@@ -2418,13 +2618,22 @@ int team_host_box_count() {
     return (int)keys.size();
 }
 
+// Mewgenics Multi (protocole 58) : a 3 joueurs, pourquoi 1 seul chat.
+static std::string slot_note(uint8_t peer, int players) {
+    if (players != 3 || g.slot_owner == peer) return "";
+    if (g.slot_owner == kSlotNobody)
+        return u8"\nLa 4e place va au premier qui met un 2e chat dans sa boîte.";
+    return fmt(u8"\nLa 4e place est à %s.", mm_peer_name(g.slot_owner).c_str());
+}
+
 std::string team_host_too_many_text(int players, int have) {
-    const int q = team_quota(true, players);
+    const int q = team_quota_for(kHostPeer, players);
     return fmt(u8"Équipe mixte\n\n"
                u8"À %d joueurs, tu emmènes %d chat%s au maximum :\n"
-               u8"retire %d chat%s de ta boîte de départ.\n"
+               u8"retire %d chat%s de ta boîte de départ.%s\n"
                u8"Les autres joueurs compléteront l'équipe avec les leurs.",
-               players, q, plural((size_t)q), have - q, plural((size_t)(have - q)));
+               players, q, plural((size_t)q), have - q, plural((size_t)(have - q)),
+               slot_note(kHostPeer, players).c_str());
 }
 
 void team_vote_begin(uint8_t seq) {
@@ -2495,7 +2704,8 @@ void team_forget_peer(uint8_t peer) {
 }
 
 std::string team_guest_offer_line() {
-    const int q = team_quota(false, net_peer_count());
+    const int players = (int)net_peer_count();
+    const int q = team_quota_for(net_self(), players);
     std::vector<BoxCat> box;
     bool all_read = true;
     const int n = read_box(box, all_read);
@@ -2510,7 +2720,8 @@ std::string team_guest_offer_line() {
     if (n > q)
         return fmt(u8"Ta boîte de départ contient %d chats, %d au maximum :\n"
                    u8"réponds « Pas encore », retires-en %d,\n"
-                   u8"puis clique sur ton panneau « À l'aventure ! ».", n, q, n - q);
+                   u8"puis clique sur ton panneau « À l'aventure ! ».%s", n, q, n - q,
+                   slot_note(net_self(), players).c_str());
     std::vector<std::string> names;
     for (const BoxCat& b : box) names.push_back(b.info.name);
     if (names.empty()) return u8"Tes chats partent de ta boîte de départ (chez Butch).";
@@ -2524,11 +2735,20 @@ bool team_guest_send(uint8_t seq, std::string& problem) {
         problem = std::string(head) + u8"La session n'est pas prête : réessaie dans un instant.";
         return false;
     }
-    const int q = team_quota(false, net_peer_count());
+    const int players = (int)net_peer_count();
+    team_slot_refresh();                          // sa demande de la 4e place, a jour
+    const int q = team_quota_for(net_self(), players);
     std::vector<BoxCat> box;
     bool all_read = true;
     const int n = read_box(box, all_read);
-    if (n > q) { problem = std::string(head) + too_many_text(n, q); return false; }
+    // Mewgenics Multi (protocole 58) : deux chats a 3 joueurs, la place a personne
+    // encore -- sa demande est en route chez l'hote.
+    if (n == 2 && players == 3 && g.slot_owner == kSlotNobody) {
+        problem = std::string(head) + u8"La 4e place est en train de t'être attribuée :\n"
+                                      u8"réponds « J'arrive » à nouveau dans un instant.";
+        return false;
+    }
+    if (n > q) { problem = std::string(head) + too_many_text(n, q) + slot_note(net_self(), players); return false; }
     if (n > 0 && (!all_read || box.empty())) {
         problem = std::string(head) + u8"Tes chats n'ont pas pu être préparés\npour l'aventure (voir mgmp.log).";
         return false;

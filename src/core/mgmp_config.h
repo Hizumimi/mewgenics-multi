@@ -34,6 +34,11 @@ struct Config {
     uint32_t net_control_count = 0;
     bool     net_control_auto  = true;
 
+    // Mewgenics Multi : net.steam = false coupe tout Steam (« Rejoindre la partie »,
+    // invitations, connexion par le reseau de Steam -- mgmp_steam). La connexion
+    // par adresse reste.
+    bool     net_steam = true;
+
     // --- debug ---------------------------------------------------------------
     //
     // The four switches below are the ones tools/net_test.ps1 flips, which is

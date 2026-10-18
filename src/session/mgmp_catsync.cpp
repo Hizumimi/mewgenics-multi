@@ -77,6 +77,18 @@ struct State {
     uint32_t pend_count = 0;
 
     uint32_t pushed = 0, applied = 0, skipped = 0, deferred = 0, coalesced = 0;
+
+    // Mewgenics Multi (protocole 58) : tous les chats de la course a l'entree de la
+    // case en cours (catsync_publish_entry), pour un joueur qui arrive en pleine
+    // case. Remplace a chaque entree.
+    struct EntryCat {
+        uint64_t             id   = 0;
+        uint64_t             hash = 0;
+        std::vector<uint8_t> bytes;
+    };
+    std::vector<EntryCat> entry;
+    bool     has_entry  = false;
+    uint32_t entry_sent = 0;
 };
 
 State g;
@@ -358,6 +370,8 @@ void catsync_init() {
 void catsync_shutdown() {
     const uint32_t stranded = g.pend_count;
     free_pending();
+    g.entry.clear();
+    g.has_entry = false;
     if (!g.announced) return;
     // `stranded` is the drop this module is allowed to make, so it says so:
     // a cat held for a map tick that never came is a cat this peer never got.
@@ -382,9 +396,41 @@ void catsync_forget() {
     memset(g.sent_hash, 0, sizeof(g.sent_hash));
 }
 
-uint32_t catsync_publish(const char* why) {
+static uint32_t publish_impl(const char* why, bool entry);
+
+uint32_t catsync_publish(const char* why)       { return publish_impl(why, false); }
+uint32_t catsync_publish_entry(const char* why) { return publish_impl(why, true); }
+
+bool catsync_send_entry_to(uint8_t peer) {
     ensure_state();
-    if (!g.on || g.is_client || !net_active()) return 0;
+    if (!g.on || g.is_client || !net_active() || !g.has_entry) return false;
+    uint32_t sent = 0, failed = 0;
+    for (const State::EntryCat& c : g.entry) {
+        CatDataMsg m{};
+        m.id   = c.id;
+        m.size = (uint32_t)c.bytes.size();
+        m.hash = c.hash;
+        m.data = const_cast<uint8_t*>(c.bytes.data());
+        if (net_send_catdata_to(peer, m)) ++sent; else ++failed;
+    }
+    g.entry_sent += sent;
+    log_line("CATSYNC", "-> %u cat(s) as they were when the host entered this node sent to peer %u%s",
+             sent, (unsigned)peer, failed ? " -- SOME FAILED" : "");
+    return failed == 0;
+}
+
+static uint32_t publish_impl(const char* why, bool entry) {
+    ensure_state();
+    if (!g.on || g.is_client) return 0;
+    // L'entree d'une case : la copie d'avant ne vaut plus rien, meme si la
+    // lecture echoue (un arrivant aurait alors l'etat actuel, comme avant). Prise
+    // meme quand plus personne n'est connecte (la session reste ouverte) : c'est
+    // justement celui qui se connecte en pleine case qui en a besoin. (Avant la
+    // premiere session prete, mgmp_follow n'appelle pas ceci : un arrivant n'a
+    // alors pas de case a suivre, il attend la suivante sur la carte.)
+    if (entry) { g.entry.clear(); g.has_entry = false; }
+    const bool online = net_active();
+    if (!online && !entry) return 0;
 
     RunCats rc{};
     if (!run_cats(rc)) {
@@ -400,23 +446,32 @@ uint32_t catsync_publish(const char* why) {
         return 0;
     }
 
-    uint32_t sent = 0, same = 0, failed = 0;
+    uint32_t sent = 0, same = 0, failed = 0, unread = 0;
     for (uint32_t i = 0; i < rc.count; ++i) {
         uint64_t id = 0;
         if (!mem_read(&rc.ids[i], &id, sizeof(id)) || !id) continue;
 
         void* cat = nullptr;
-        if (!safe_by_id((void*)rc.registry, id, &cat) || !cat) { ++failed; continue; }
+        if (!safe_by_id((void*)rc.registry, id, &cat) || !cat) { ++failed; ++unread; continue; }
 
         uint8_t* bytes = nullptr;
         uint32_t n = serialize_cat(cat, &bytes);
-        if (!n) { ++failed; continue; }
+        if (!n) { ++failed; ++unread; continue; }
 
         CatDataMsg m{};
         m.id   = id;
         m.size = n;
         m.hash = fnv1a(bytes, n);
         m.data = bytes;
+
+        if (entry) {
+            State::EntryCat c;
+            c.id   = id;
+            c.hash = m.hash;
+            c.bytes.assign(bytes, bytes + n);
+            g.entry.push_back(std::move(c));
+        }
+        if (!online) { free(bytes); continue; }
 
         uint64_t* prev = remembered(id);
         if (prev && *prev == m.hash) { ++same; free(bytes); continue; }
@@ -432,6 +487,10 @@ uint32_t catsync_publish(const char* why) {
 
     g.pushed  += sent;
     g.skipped += same;
+    // Une copie partielle ferait construire a l'arrivant un combat avec des chats
+    // manquants : entiere ou rien (il aurait alors l'etat actuel, comme avant).
+    if (entry) g.has_entry = !unread && !g.entry.empty();
+    if (entry && unread) g.entry.clear();
     if (sent || failed)
         log_line("CATSYNC", "-> %u cat(s) changed and sent, %u unchanged%s (%s)",
                  sent, same,

@@ -4,9 +4,11 @@
 // retour avec leur etat final.
 //
 // L'EQUIPE A TOUJOURS 4 PLACES. A deux : 2 chats chacun ; a trois : 1 chacun,
-// et l'hote prend la place libre ; a quatre : 1 chacun (team_quota). Chacun met
-// les siens dans sa boite de depart (chez Butch). Un invite peut aussi venir
-// sans chat : il joue alors avec ceux des autres.
+// et la place libre va au premier qui met un deuxieme chat dans sa boite -- sans
+// volontaire, l'equipe part a 3 chats (protocole 58, mm_slot_core.h) ; a quatre :
+// 1 chacun (team_quota_for). Chacun met les siens dans sa boite de depart (chez
+// Butch). Un invite peut aussi venir sans chat : il joue alors avec ceux des
+// autres.
 //
 // LE DEPART
 //   1. L'hote clique sur « À l'aventure ! » : mm_menu refuse s'il a plus que sa
@@ -123,8 +125,17 @@ void team_on_message(uint8_t from, const SaveFileMsg& m);
 // En envoie un (mm_gear) : a tous (peer < 0) ou a un joueur.
 bool team_send(const std::vector<uint8_t>& body, int peer);
 
-// Le nombre de chats qu'un joueur emmene, pour `players` joueurs en session.
-int team_quota(bool host, int players);
+// Le nombre de chats qu'emmene le joueur `peer`, pour `players` joueurs en
+// session -- a 3, 2 pour celui qui a la 4e place (protocole 58).
+int team_quota_for(uint8_t peer, int players);
+// Un message MM_SLOT (mm_menu) ; un joueur arrive, apres son WELCOME (hote :
+// oublier la demande d'un ancien porteur de son numero, lui dire a qui est la
+// place) ; la boite de ce joueur relue tout de suite (au moment de decider : le
+// depart de l'hote, « J'arrive »).
+struct MmMsg;
+void team_on_slot(uint8_t from, const MmMsg& m);
+void team_slot_hello(uint8_t peer);
+void team_slot_refresh();
 
 // --- hote : le vote de depart (mm_menu.cpp) -------------------------------------
 
