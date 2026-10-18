@@ -14,6 +14,9 @@
 //     la reponse dans la fenetre.
 //   - Les nouvelles (un don recu, ou la reponse quand la fenetre est fermee) : en
 //     haut de l'ecran quelques secondes, sans prendre la souris.
+//   Comme le panneau F1 et le champ d'adresse de la fenetre Multijoueur, il faut
+//   ui.enabled (vrai par defaut) : c'est lui qui pose le sous-classement de la
+//   fenetre du jeu (mgmp_ui).
 
 struct ImFont;
 

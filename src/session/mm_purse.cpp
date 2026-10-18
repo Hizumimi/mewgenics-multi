@@ -454,8 +454,8 @@ void host_on_give_req(uint8_t from, const MmMsg& m) {
     MmMsg r;
     if (why) {
         purse_encode_give_no(r, from, why, seq);
-        log_line("PURSE", "don refuse : %s voulait donner %d piece(s) et %d nourriture(s) a %s (%s)",
-                 mm_peer_name(from).c_str(), coins, food, mm_peer_name(to).c_str(), purse_give_no_text(why).c_str());
+        log_line("PURSE", "don refuse : %s voulait donner %d piece(s) et %d nourriture(s) a %s (raison %u)",
+                 mm_peer_name(from).c_str(), coins, food, mm_peer_name(to).c_str(), (unsigned)why);
         if (!net_send_mm(r)) log_line("PURSE", "!! envoi du refus impossible");
         return;
     }
@@ -835,10 +835,11 @@ void purse_on_mm(uint8_t from, const MmMsg& m) {
             const bool    from_me = giver == self;
             const bool    to_me   = to == self;
             if (from_me && g.give_pending && seq == g.give_seq) g.give_pending = false;
-            const std::string line =
-                purse_given_line(from_me, to_me, mm_peer_name(giver), mm_peer_name(to), coins, food);
-            log_line("PURSE", "<- %s", line.c_str());
-            if (from_me || to_me) gift_purse_note(line, from_me);
+            log_line("PURSE", "<- don de bourse : %s donne %d piece(s) et %d nourriture(s) a %s",
+                     mm_peer_name(giver).c_str(), coins, food, mm_peer_name(to).c_str());
+            if (from_me || to_me)
+                gift_purse_note(purse_given_line(from_me, to_me, mm_peer_name(giver), mm_peer_name(to), coins, food),
+                                from_me);
             break;
         }
         case kPurseGiveNo: {
@@ -849,7 +850,7 @@ void purse_on_mm(uint8_t from, const MmMsg& m) {
             }
             if (giver != net_self()) return;
             if (g.give_pending && seq == g.give_seq) g.give_pending = false;
-            log_line("PURSE", "<- ton don n'est pas passe : %s", purse_give_no_text(why).c_str());
+            log_line("PURSE", "<- ton don n'est pas passe (raison %u)", (unsigned)why);
             gift_purse_note(u8"Ton don n'est pas passé : " + purse_give_no_text(why) + ".", true);
             break;
         }

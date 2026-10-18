@@ -45,6 +45,11 @@ void set_open(bool open) {
     if (u.open == open) return;
     u.open = open;
     gift_window_open(open);
+    if (!open) {                 // fermer = renoncer : la fenetre se rouvre vide
+        u.picked.clear();
+        u.coins = 0;
+        u.food  = 0;
+    }
 }
 
 // Une recherche sans casse (lettres ASCII ; les accents tels quels).
@@ -130,9 +135,7 @@ void draw_window(float fs) {
     ImGui::Separator();
 
     // Combien.
-    ImGui::TextWrapped(v.mode == TradeMode::House ? u8"Dans ta maison : %lld pièces et %lld nourritures."
-                                                  : u8"Ta bourse : %lld pièces et %lld nourritures.",
-                       (long long)v.coins, (long long)v.food);
+    ImGui::TextWrapped("%s", v.have_text.c_str());
     const int max_c = (int)std::max<int64_t>(0, std::min<int64_t>(v.coins, kMaxAmount));
     const int max_f = (int)std::max<int64_t>(0, std::min<int64_t>(v.food, kMaxAmount));
     ImGui::SetNextItemWidth(fs * 8.0f);
@@ -142,8 +145,12 @@ void draw_window(float fs) {
     ImGui::InputInt(u8"nourritures à donner", &u.food, 1, 10);
     u.food = std::max(0, std::min(u.food, max_f));
 
-    // Quels objets.
-    if (v.mode == TradeMode::House) {
+    // Quels objets (a la maison seulement : ailleurs, aucun n'est choisi).
+    if (v.mode != TradeMode::House || !v.items_ok) u.picked.clear();
+    if (v.mode == TradeMode::House && !v.items_ok) {
+        ImGui::Separator();
+        ImGui::TextWrapped("%s", v.items_why.c_str());
+    } else if (v.mode == TradeMode::House) {
         if (v.items_ready) {
             // Les objets choisis qui ne sont plus la (rangement relu, objet bouge).
             for (auto it = u.picked.begin(); it != u.picked.end();) {

@@ -21,7 +21,9 @@
 //   kGiftOffer    donneur -> destinataire (l'hote relaie) : i32 pieces, i32
 //                 nourriture, u8 n puis n objets (nom, texte, a, b, c, d (u32), e
 //                 (u8), f (u32), puis le nom affiche), puis le nom du donneur.
-//   kGiftGot      destinataire -> donneur : tout est garde chez lui (et sauve).
+//   kGiftGot      destinataire -> donneur : tout est garde chez lui (et sauve) ;
+//                 puis son nom (celui qu'il donne lui-meme : un numero repris par
+//                 un autre joueur entre-temps ne fait pas dire le mauvais nom).
 //   kGiftRefused  destinataire -> donneur : u8 raison (kGiftWhy*) ; rien n'est garde.
 // Les chaines : u16 n puis les octets (UTF-8 pour les noms affiches).
 
@@ -52,7 +54,9 @@ enum : uint8_t {
     kGiftWhyFailed  = 3,   // le jeu n'a pas pu (rangement illisible, objet refuse...)
     kGiftWhyOff     = 4,   // les dons ne marchent pas chez lui (fonction du jeu introuvable)
     kGiftWhyGone    = 5,   // l'hote : il n'est plus dans la partie
-    kGiftWhyLast    = kGiftWhyGone,
+    kGiftWhyRun     = 6,   // des objets, et ses chats sont encore dans l'aventure de l'hote
+                           // (son rangement attend leur retour, mm_team)
+    kGiftWhyLast    = kGiftWhyRun,
 };
 
 struct GiftItem {
@@ -70,6 +74,8 @@ struct GiftMsg {
     int32_t               food  = 0;
     std::vector<GiftItem> items;
     std::string           giver_name;
+    // kGiftGot
+    std::string receiver_name;
     // kGiftRefused
     uint8_t why = 0;
 };

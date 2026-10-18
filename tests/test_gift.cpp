@@ -103,9 +103,13 @@ void test_codec() {
 
     // Les reponses.
     GiftMsg got;
-    got.op = kGiftGot; got.id = 7; got.giver = 1; got.target = 3;
+    got.op = kGiftGot; got.id = 7; got.giver = 1; got.target = 3; got.receiver_name = u8"Zoé";
     const GiftMsg rg = roundtrip(got, &ok);
     check(ok && rg.op == kGiftGot && rg.id == 7 && rg.giver == 1 && rg.target == 3, "reponse : garde");
+    check(rg.receiver_name == u8"Zoé", "reponse : le nom de celui qui l'a recu");
+    GiftMsg anon = got;
+    anon.receiver_name.clear();
+    check(roundtrip(anon, &ok).receiver_name.empty() && ok, "reponse : sans nom");
     GiftMsg no;
     no.op = kGiftRefused; no.id = 8; no.giver = 1; no.target = 0; no.why = kGiftWhyBusy;
     const GiftMsg rn = roundtrip(no, &ok);
@@ -305,6 +309,8 @@ void test_text() {
     check(gift_why_text(kGiftWhyFailed, "Ami") == u8"le jeu d'Ami n'a pas pu les ranger", "raison : elision");
     check(gift_why_text(kGiftWhyFailed, "Bob") == u8"le jeu de Bob n'a pas pu les ranger", "raison : sans elision");
     check(gift_why_text(kGiftWhyGone, "Bob") == u8"Bob n'est plus dans la partie", "raison : parti");
+    check(gift_why_text(kGiftWhyRun, "Bob").find(u8"Bob a encore des chats dans l'aventure de l'hôte") == 0,
+          "raison : ses chats en aventure");
     check(gift_received_text(u8"Élise", u8"3 pièces", true) ==
               u8"Cadeau d'Élise\n\nÉlise t'a donné 3 pièces.\nC'est dans ta maison, et ta save est à jour.",
           "fenetre de celui qui recoit");

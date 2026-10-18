@@ -21,14 +21,18 @@
 //
 // A LA MAISON (les deux joueurs dans leur propre maison)
 //   Donneur : la fenetre demande un don ; gift_pump verifie l'or, la nourriture et
-//   les objets (encore la), envoie kGiftOffer (par l'hote, qui relaie, pour un
-//   invite) et attend. Celui qui recoit : dans sa maison, sans ecran des objets ni
-//   fenetre du jeu (20 s au plus), il ajoute les objets a son rangement (marques
-//   « nouveaux »), l'or et la nourriture a sa maison, sauve, puis repond kGiftGot ;
-//   sinon kGiftRefused et pourquoi. Donneur, a kGiftGot : les objets quittent son
-//   rangement, l'or et la nourriture sa maison (pas sous 0), et il sauve. Sans
-//   reponse en 35 s, rien n'a quitte sa maison (une reponse en retard, dans les
-//   5 minutes, compte encore).
+//   les objets (encore la, ni promis a un autre ni trop longs pour le message),
+//   envoie kGiftOffer (par l'hote, qui relaie, pour un invite) et attend. Celui qui
+//   recoit : dans sa maison, sans ecran des objets ni fenetre du jeu (20 s au
+//   plus), il ajoute les objets a son rangement (marques « nouveaux »), l'or et la
+//   nourriture a sa maison, sauve, puis repond kGiftGot (avec son nom) ; sinon
+//   kGiftRefused et pourquoi. Donneur, a kGiftGot : dans la save d'ou le don est
+//   parti (sinon a son retour dans cette save), l'or et la nourriture quittent sa
+//   maison tout de suite (pas sous 0), les objets son rangement une fois l'ecran
+//   des objets ferme, et il sauve. Sans reponse en 35 s, rien n'a quitte sa maison
+//   (une reponse en retard, dans les 5 minutes, compte encore).
+//   Pas d'objets (ni donnes ni recus) pour un invite dont les chats sont encore
+//   dans l'aventure de l'hote : son rangement attend leur retour (mm_team).
 //   Presence (MM_GIFT, pour la fenetre) : a = 1 joueur -> hote, c = 1 il peut
 //   recevoir (dans sa maison), 0 non ; a = 2 hote -> tous, x = les numeros qui le
 //   peuvent (un bit chacun, l'hote compris). Redit a chaque changement et toutes
@@ -97,6 +101,9 @@ struct TradeView {
     std::vector<TradePeer> peers;          // les autres joueurs
     int64_t     coins = 0;       // ce que ce joueur peut donner (maison ou bourse)
     int64_t     food  = 0;
+    std::string have_text;       // « Dans ta maison : 12 pièces et 3 nourritures. » (UTF-8)
+    bool        items_ok    = false;       // House : ses objets peuvent se donner maintenant
+    std::string items_why;                 // sinon pourquoi (UTF-8)
     bool        items_ready = false;       // House, fenetre ouverte : le rangement est lu
     std::vector<TradeItem> items;
     bool        pending = false;           // son don attend sa reponse

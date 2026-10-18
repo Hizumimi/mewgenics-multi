@@ -2862,23 +2862,45 @@ digest (identical items are interchangeable), because a gift it RECEIVED in the
 meantime may have reloaded its storage (crossing gifts).
 
 **At home: a two-phase gift (MSG_TEAM `kTeamGift = 18`).** The giver checks its
-gold, food and items (still there), sends `kGiftOffer` (a guest's goes to the host,
-which relays it only if `giver == the link it came from`) and waits. The receiver:
-in its own house (not the coop copy, no departure, no house defence), with neither
-the inventory screen nor a game confirmation open (it waits up to 20 s, then
-refuses "busy"; a leave of the house shorter than 2 s is waited too), serializes
-its storage, appends the items (the "new item" bits `0x6` of `c` set), reloads,
-checks by digest that they are all there (else reloads the old blob and refuses),
-adds the gold and food (clamped to `INT32_MAX`), calls `MewDirector::save`, and
-answers `kGiftGot` (the host relays an answer only if `target == the link`). Only
-then the giver removes the items (`C_BucketErase`), the gold and food (not below
-zero: it may have spent some meanwhile), and saves. A refusal, a target that
-left, or no answer in 35 s: nothing left the giver's house; an answer up to five
-minutes late still counts ("Finalement, …"). A giver that is no longer in its
-house when the answer arrives (or kept a screen open for 60 s) removes nothing:
-a duplicate rather than a loss, logged and told. An offer seen again is answered
-`kGiftGot` without being applied twice (a ring of the last 32 `{giver, id}`;
-ids start at a random number per process).
+gold, food and items (still there, not promised to another flow, name and text
+short enough for the message — a cut item would not be the same item), sends
+`kGiftOffer` (a guest's goes to the host, which relays it only if `giver == the
+link it came from`) and waits. The receiver: in its own house (not the coop
+copy, no departure — the collar choice included: `ClassChooser` opens over the
+house, which goes only when it closes — no house defence), with neither the
+inventory screen nor a game confirmation open (it waits up to 20 s, then refuses
+"busy"; a leave of the house shorter than 2 s is waited too), serializes its
+storage, appends the items (the "new item" bits `0x6` of `c` set), reloads,
+checks by digest that they are all there (else reloads the old blob and
+refuses), adds the gold and food (clamped to `INT32_MAX`), calls
+`MewDirector::save`, and answers `kGiftGot` with ITS OWN name (the host relays an
+answer only if `target == the link`; a peer id reused by a newcomer in the
+instant before the relay would get the gift, and the giver's text then names
+who really got it). A refusal, a target that left, or no answer in 35 s:
+nothing left the giver's house; an answer up to five minutes late still counts
+("Finalement, …").
+
+**Removal follows the answer, in the giver's own save.** The giver records the
+save it gave from (`savefile_own_save_name` / `savefile_host_save_name`; the
+director is a singleton and proves nothing). On `kGiftGot`, in that save and in
+its house, the gold and food leave at once (not below zero: it may have spent
+some meanwhile; two int writes need no closed screen), the items as soon as the
+inventory screen, a game confirmation, a departure or a defence is no longer in
+the way (by id, else by digest), then `MewDirector::save` when nothing prevents
+it. Another save loaded, or outside its house: the removal waits for that save,
+without a time limit — a duplicate only if the giver never comes back to it
+before closing the game. An offer seen again is answered `kGiftGot` without
+being applied twice (a ring of the last 32 `{giver, id}`; ids start at a random
+number per process).
+
+**No items while the host's run holds them.** A guest that left a mixed run
+early is at home while its cats are still in the run (`team_guest_has_cats_in_run`);
+at the end, `mm_team` updates its storage only if it did not change since the
+departure (`kStorageChanged`), so an item gift either way would leave the items
+its cats took in its storage too. Such a guest gives and receives gold and food
+only (`kGiftWhyRun`). On the host, the items that the loot parade, the shop
+deliveries or the NPC rewards hold by id are promised: no item gift while
+`*_storage_refs()`.
 
 **Presence (`MM_GIFT = 14`).** Each guest tells the host whether it can receive
 (`a = 1`, `c` = 1/0: `at_home`), the host tells everyone the mask (`a = 2`,
@@ -2903,7 +2925,12 @@ game draws its own). A Windows TTF (Segoe UI, else Arial or Tahoma) is added aft
 the default font for the accents — 1.92's atlas rasterizes on demand, no glyph
 ranges. The window runs on the swap path: it only reads a snapshot that
 `gift_pump` publishes (every 400 ms, the storage only while the window is open)
-and leaves one request, both under an `SRWLOCK`.
+and leaves one request, both under an `SRWLOCK`. Panel hidden, a click outside
+the trade windows goes to the game untouched: ImGui only hears of it through
+`AddMouseButtonEvent` (enough to leave an input field), not through its WndProc
+handler, which would `SetCapture` on every click while SDL manages the capture.
+Like the F1 panel and the address field of the Multijoueur window, the button
+needs `ui.enabled` (default `true`): it is what installs the WndProc subclass.
 
 ### Steam transport (Mewgenics Multi, `src/net/mgmp_steam.cpp`)
 

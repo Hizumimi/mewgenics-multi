@@ -86,6 +86,7 @@ std::vector<uint8_t> gift_encode(const GiftMsg& m) {
         break;
     }
     case kGiftGot:
+        put_str(b, m.receiver_name, kGiftMaxLabel);
         break;
     case kGiftRefused:
         put<uint8_t>(b, m.why);
@@ -134,6 +135,7 @@ bool gift_decode(const uint8_t* p, size_t n, GiftMsg& out) {
         break;
     }
     case kGiftGot:
+        if (!r.str(m.receiver_name, kGiftMaxLabel)) return false;
         break;
     case kGiftRefused:
         m.why = r.get<uint8_t>();
@@ -224,6 +226,7 @@ std::string gift_why_text(uint8_t why, const std::string& raw) {
     case kGiftWhyFailed:  return u8"le jeu " + purse_of(name) + u8" n'a pas pu les ranger";
     case kGiftWhyOff:     return u8"les dons ne marchent pas chez " + name;
     case kGiftWhyGone:    return name + u8" n'est plus dans la partie";
+    case kGiftWhyRun:     return name + u8" a encore des chats dans l'aventure de l'hôte (son rangement attend leur retour)";
     default:              return u8"raison inconnue";
     }
 }
