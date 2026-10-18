@@ -271,7 +271,10 @@ void catchup_peer(uint8_t from) {
     // for the live path: save, then cats and inventory, then the node. The joiner
     // acts on the node the moment it can, and a battle built before its cats
     // arrive is a battle built from the wrong cats.
-    if (!follow_inside_node() || !follow_catchup(from)) {
+    // follow_in_node (protocole 59) : pas follow_inside_node seul, qui s'efface
+    // quand la carte tourne pendant un evenement -- l'arrivant prenait alors le
+    // chemin « sur la carte », sans la case ni son etat d'entree.
+    if (!follow_in_node() || !follow_catchup(from)) {
         catsync_publish("a peer joined or reconnected");
         invsync_publish("a peer joined or reconnected");
         // The used-event list belongs in the same burst and for the same reason:

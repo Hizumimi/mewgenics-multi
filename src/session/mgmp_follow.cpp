@@ -693,6 +693,11 @@ bool follow_catchup(uint8_t peer) {
 
 bool follow_inside_node() { return g.inside; }
 
+bool follow_in_node() {
+    Guard guard;
+    return g.inside || g.live;
+}
+
 uint32_t follow_epoch() {
     Guard guard;
     return g.epoch;
@@ -735,6 +740,8 @@ void follow_forget_map() {
     Guard guard;
     g.next_fresh = true;
     g.live       = false;
+    g.inside     = false;   // Mewgenics Multi : la derniere case de l'aventure d'avant (une defaite...)
+    choice_on_new_run();    // Mewgenics Multi : sa case aussi, chez l'hote
 }
 
 void follow_on_node_end() {
@@ -792,6 +799,15 @@ void follow_on_message(const EnterNodeMsg& m) {
     if (mm_guest_quitting()) return;
     // Mewgenics Multi : qui joue les combats de cette case (protocole 48).
     lockstep_note_members(m.seed0, m.members);
+    // Mewgenics Multi (protocole 59) : la case qu'il joue deja -- une connexion
+    // revenue en pleine case, l'hote la renvoie (session_catchup_peer). Mise en
+    // file, il y serait rentre une seconde fois a la fin de celle-ci, sans choix
+    // de l'hote a venir.
+    if (g.live && g.have_here && m.seed0 == g.here_seed) {
+        log_line("FOLLOW", "<- host re-sent node %u (%016llx), which this peer is already playing -- "
+                           "not queued again", m.index, (unsigned long long)m.seed0);
+        return;
+    }
     // A full queue means this peer is eight nodes behind, which no amount of
     // waiting is going to fix. Refuse the newest and SAY SO: the run is already
     // wrong, and the one thing that must not happen is what used to -- losing a
@@ -828,6 +844,9 @@ void follow_on_message(const EnterNodeMsg& m) {
     p.live_held = false;
     p.nem_since = 0;
     p.nem_said  = false;
+    // Mewgenics Multi (protocole 59) : ce joueur va y entrer -- un choix de l'hote
+    // pour cette case est a garder (voir choice_on_node_announced).
+    choice_on_node_announced(m.seed0);
     if (m.flags & kEnterNemesis)
         log_line("FOLLOW", "<- host began the Nemesis fight on node %u/%u -- battle %016llx%s",
                  m.index, m.node_count, (unsigned long long)m.seed0,

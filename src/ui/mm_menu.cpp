@@ -34,7 +34,7 @@
 #include "mgmp_invsync.h"
 #include "mgmp_runhist.h"
 #include "mgmp_lockstep.h"  // lockstep_in_battle
-#include "mgmp_follow.h"    // follow_inside_node
+#include "mgmp_follow.h"    // follow_in_node
 #include "mgmp_choice.h"    // choice_made_in_node
 #include "mgmp_leave.h"     // leave_will_press_quit
 #include "mm_world.h"        // world_have_host : le monde de l'hote est arrive
@@ -1854,7 +1854,7 @@ void host_adventure_pump() {
             g_dep_go     = true;
         }
         // Les demandes de rejoindre gardees pour le retour sur la carte.
-        if (g_run_req_pending && !follow_inside_node()) {
+        if (g_run_req_pending && !follow_in_node()) {
             const uint32_t req = g_run_req_pending & roster;
             g_run_req_pending = 0;
             for (uint8_t id = 0; id < 8; ++id)
@@ -3504,7 +3504,9 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
                 // Dans une case ou l'hote a deja fait un choix (evenement, montee
                 // de niveau), la save envoyee serait d'avant ce choix, qui ne lui
                 // serait jamais renvoye : on attend le retour sur la carte.
-                if (follow_inside_node() && choice_made_in_node()) {
+                // follow_in_node : un evenement fait tourner la carte par moments
+                // (follow_inside_node seul la croyait alors finie).
+                if (follow_in_node() && choice_made_in_node()) {
                     g_run_req_pending |= 1u << from;
                     log_line("MULTI", "aventure : il la recevra au retour sur la carte");
                 } else {

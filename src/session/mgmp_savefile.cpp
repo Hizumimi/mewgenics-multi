@@ -471,7 +471,12 @@ bool flush_live_run() {
     // Freshness loses to safety here, and it is not a close call: a joiner that
     // gets the last checkpoint is still caught up by CATDATA, INVENTORY and the
     // replayed ACTIONs, whereas a host whose run is wedged has lost the run.
-    if (!follow_on_map()) {
+    //
+    // Mewgenics Multi (protocole 59) : « la carte tourne » ne suffit pas -- elle
+    // tourne par moments pendant un evenement (voir follow_node_live). Ecrire la
+    // save a ce moment-la est le meme coin : la case en cours, pas resolue, et la
+    // save de l'hote lui-meme reecrite ainsi.
+    if (!follow_on_map() || follow_node_live()) {
         if (!g.said_mid_node) {
             g.said_mid_node = true;
             log_line("SAVEFILE", "not flushing: the run is inside a node, and "
@@ -558,7 +563,7 @@ bool publish(uint8_t to, bool fresh) {
         log_line("SAVEFILE", "   (flushed the host's live run to disk first -- "
                              "this is the host's current position, not a "
                              "checkpoint)");
-    } else if (in_run && g.click_mtime && mtime != g.click_mtime && follow_inside_node()) {
+    } else if (in_run && g.click_mtime && mtime != g.click_mtime && follow_in_node()) {
         // Mewgenics Multi (protocole 58) : le cas normal d'un arrivant en pleine
         // case -- l'etat d'entree de la case (follow_catchup) et les decisions deja
         // prises (lockstep_catchup) le menent ou en est l'hote.
@@ -755,7 +760,11 @@ void savefile_pump() {
                                  "it as soon as the map is up");
         }
         if (g.run_published) return;
-        if (!follow_on_map()) return;
+        // Mewgenics Multi (protocole 59) : pas pendant une case non plus. Le flush
+        // (flush_live_run) la refuse ; la publication partait alors avec le
+        // fichier d'avant l'aventure (relecture : l'hote clique la premiere case
+        // pendant que les photos des objets de son equipe tardent).
+        if (!follow_on_map() || follow_in_node()) return;
     }
 
     // THE SILENT STALL. g.have_slot is set by savefile_on_slot_click and by

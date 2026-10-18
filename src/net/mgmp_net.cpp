@@ -2,6 +2,7 @@
 
 #include "mgmp_net.h"
 #include "mgmp_log.h"
+#include "mgmp_recvq.h"   // Mewgenics Multi (protocole 59) : la file qui grandit
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -13,11 +14,13 @@
 namespace mgmp {
 namespace {
 
-// The receive queue. Fixed capacity, no allocation on the receive path.
-// 256 messages is far more than a turn can produce -- run E's whole 15-turn
-// battle was 49 actions -- so overflow means the game thread has stopped
-// draining, which is a bug worth counting rather than growing a buffer for.
-constexpr uint32_t kQueueCap = 256;
+// The receive queue. Mewgenics Multi (protocole 59) : it GROWS now (256, then
+// doubling up to kRecvQueueMax), and a cursor or aim message replaces the one
+// from the same author still queued -- see mgmp_recvq.h. The original rule ("a
+// turn never produces 256, so overflow is a bug worth counting") missed the
+// game thread being FROZEN, not broken: a save or battle load stops the drain
+// for seconds while the receive threads keep going, and the relayed cursors of
+// three other players fill 256 slots in about four.
 
 // The largest frame this build will accept. Everything except MSG_SAVEFILE is
 // under 128 bytes; a save is ~45 KB, and the slack is for saves that grow.
@@ -54,8 +57,9 @@ struct State {
     CRITICAL_SECTION cs;
     bool     cs_ready = false;
 
-    NetMsg   queue[kQueueCap];
-    uint32_t head = 0, count = 0;
+    RecvQueue<NetMsg> queue;
+    bool     drop_said = false;   // le premier message jete, dit une fois
+    uint32_t grown_said = 0;      // la plus grande capacite deja dite
 
     CRITICAL_SECTION send_cs;
     bool     send_cs_ready = false;
@@ -97,14 +101,32 @@ bool wsa_init() {
     return true;
 }
 
+// Mewgenics Multi (protocole 59) : « le plus recent suffit » -- la position du
+// curseur et la visee d'un joueur. Ni l'un ni l'autre ne possede de memoire : un
+// message en file peut etre ecrase par le suivant du meme auteur.
+bool latest_wins(uint8_t type) { return type == MSG_CURSOR || type == MSG_AIM; }
+
 void queue_push(const NetMsg& m) {
     EnterCriticalSection(&g.cs);
-    if (g.count >= kQueueCap) {
+    const RecvPush r = g.queue.push(m, latest_wins(m.type),
+                                    [](const NetMsg& q, const NetMsg& n) {
+                                        return q.type == n.type && q.from == n.from;
+                                    });
+    if (r == RecvPush::Dropped) {
         // Drop the newest rather than the oldest. Losing the oldest would
         // reorder the action stream, and an out-of-order ACTION is a desync;
         // a dropped one is at least detectable as a stall at the turn barrier.
+        // Mewgenics Multi : seulement a kRecvQueueMax messages en attente -- le
+        // jeu ne vide plus du tout la file.
         ++g.stats.dropped;
+        const bool say = !g.drop_said;
+        g.drop_said = true;
+        const uint32_t queued = g.queue.count;
         LeaveCriticalSection(&g.cs);
+        if (say)
+            log_line("NET", "!! receive queue full (%u messages waiting) -- DROPPED a %s from peer %u; "
+                            "the game has not read the network for a long time",
+                     queued, msg_name(m.type), (unsigned)m.from);
         // The frame is ours by the time it reaches here, so dropping it means
         // freeing it -- a dropped SAVEFILE that leaked would be 45 KB gone with
         // nothing to say so.
@@ -112,10 +134,16 @@ void queue_push(const NetMsg& m) {
         net_msg_release(dead);
         return;
     }
-    g.queue[(g.head + g.count) % kQueueCap] = m;
-    ++g.count;
     ++g.stats.received;
+    uint32_t grew_to = 0;
+    if (r == RecvPush::Grown && g.queue.cap > kRecvQueueStart && g.queue.cap > g.grown_said) {
+        g.grown_said = g.queue.cap;
+        grew_to = g.queue.cap;
+    }
     LeaveCriticalSection(&g.cs);
+    if (grew_to)
+        log_line("NET", "receive queue grew to %u slots -- the game was not reading the network "
+                        "(a load?); nothing was lost", grew_to);
 }
 
 // --- link table -------------------------------------------------------------
@@ -639,11 +667,10 @@ void net_shutdown() {
     // draining unconditionally keeps that fact in one place.
     if (g.cs_ready) {
         EnterCriticalSection(&g.cs);
-        while (g.count) {
-            net_msg_release(g.queue[g.head]);
-            g.head = (g.head + 1) % kQueueCap;
-            --g.count;
-        }
+        for (uint32_t i = 0; i < g.queue.count; ++i) net_msg_release(g.queue.at(i));
+        g.queue.reset();
+        g.drop_said  = false;
+        g.grown_said = 0;
         LeaveCriticalSection(&g.cs);
     }
 
@@ -912,21 +939,10 @@ bool net_poll(NetMsg& out) {
     if (!g.cs_ready) return false;
     net_pump_connect();
     EnterCriticalSection(&g.cs);
-    bool got = g.count > 0;
-    if (got) {
-        out = g.queue[g.head];
-        // Hand the allocation over rather than sharing it: the queue slot is
-        // reused, and two owners of one pointer is a double free waiting for a
-        // busy session.
-        g.queue[g.head].savefile.data = nullptr;
-        g.queue[g.head].catdata.data  = nullptr;
-        g.queue[g.head].runhist.data  = nullptr;
-        g.queue[g.head].statedump.data = nullptr;
-        for (uint32_t i = 0; i < kInvBuckets; ++i)
-            g.queue[g.head].inventory.data[i] = nullptr;
-        g.head = (g.head + 1) % kQueueCap;
-        --g.count;
-    }
+    // Hand the allocation over rather than sharing it: pop zeroes the slot, so
+    // the queue never holds a second owner of one pointer (a double free waiting
+    // for a busy session).
+    bool got = g.queue.pop(out);
     LeaveCriticalSection(&g.cs);
 
     // Learn our own id here rather than in the session layer, so the transport's

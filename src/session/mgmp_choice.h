@@ -269,6 +269,19 @@ void choice_on_node_entered(uint64_t node_seed);
 // ChoiceMsg::node_seed.
 void choice_on_node_skipped(uint64_t node_seed);
 
+// Mewgenics Multi (protocole 59, invite) : un ENTERNODE de l'hote vient d'etre mis
+// dans la file de mgmp_follow -- ce joueur va entrer dans cette case. Un choix de
+// l'hote pour une case qui n'est ni celle ou il est ni l'une de celles-la ne
+// trouvera jamais son ecran : en tete de file, il retenait tous les choix d'apres,
+// pour toute l'aventure (un arrivant servi « sur la carte » pendant un evenement de
+// l'hote, puis le choix de cet evenement). guest_apply le laisse tomber.
+void choice_on_node_announced(uint64_t node_seed);
+
+// Mewgenics Multi (protocole 59, hote) : une nouvelle aventure commence -- la case
+// de l'aventure d'avant ne doit plus marquer ses choix (un invite les laisserait
+// tomber, voir choice_on_node_announced).
+void choice_on_new_run();
+
 
 // Mewgenics Multi (hote) : un choix (evenement, montee de niveau) a deja ete
 // publie dans la case actuelle. Un invite qui arrive maintenant recevrait une

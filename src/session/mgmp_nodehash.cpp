@@ -7,7 +7,7 @@
 #include "mgmp_config.h"
 #include "mgmp_tuning.h"
 #include "mgmp_follow.h"     // follow_here_seed
-#include "mgmp_hashring.h"
+#include "mgmp_peerbook.h"   // Mewgenics Multi (protocole 59) : un pair a la fois
 #include "mgmp_log.h"
 #include "mgmp_mem.h"
 #include "mgmp_net.h"
@@ -21,24 +21,22 @@
 namespace mgmp {
 namespace {
 
-// The ring keys on the PAIR (battle_id, turn). Node hashes key on the pair
-// (node seed, sample point), which is the same shape and the same guarantee --
-// so the tested ring is reused verbatim rather than reimplemented, with the two
-// names carrying node meanings. `turn` holds kNodePointEnter/kNodePointEvent.
-struct Entry {
-    uint64_t    battle_id = 0;   // the node seed
-    uint32_t    turn      = 0;   // the sample point
-    NodeHashMsg m;
-};
-
+// Keyed on the PAIR (node seed, sample point), the same shape as the per-turn
+// ring's (battle_id, turn). `turn` holds kNodePointEnter/kNodePointEvent.
+//
+// Mewgenics Multi (protocole 59) : PAR PAIR. Les deux files communes d'avant ne
+// comparaient qu'avec un seul autre joueur a chaque point -- a trois, le second
+// invite n'etait jamais compare, ses echantillons s'empilaient et, apres 16,
+// plus rien ne l'etait. Voir mgmp_peerbook.h (et tests/test_peerbook.cpp).
 struct State {
     bool on   = false;
     bool halt = false;
 
     const void** director_slot = nullptr;
 
-    HashRing<Entry> mine;        // what this peer sent, awaiting a counterpart
-    HashRing<Entry> theirs;      // what arrived before we reached that point
+    PeerBook<NodeHashMsg> book;
+    bool evict_said[kBookPeers] = {};
+    uint32_t peers_mask = 0;     // les pairs connectes au dernier coup d'oeil (sync_peers)
 
     // The screen last sampled, so one event is measured once rather than every
     // frame its update runs.
@@ -235,38 +233,47 @@ void report(uint8_t from, const NodeHashMsg& a, const NodeHashMsg& b) {
                              "the meta layer has diverged");
 }
 
-void match(uint8_t from, const NodeHashMsg& theirs) {
-    Entry mine{};
-    if (g.mine.take(theirs.node_seed, theirs.point, mine)) {
-        report(from, mine.m, theirs);
-        return;
+// Un pair parti : ses echantillons gardes partent avec lui, et celui qui reprend
+// son numero sera compare a nouveau (PeerBook::forget_peer).
+void sync_peers() {
+    uint8_t ids[8] = {};
+    uint32_t mask = 0;
+    const uint8_t n = net_peer_count();
+    if (n && net_peer_ids(ids, 8))
+        for (uint8_t i = 0; i < n && i < 8; ++i)
+            if (ids[i] < kBookPeers) mask |= 1u << ids[i];
+    const uint32_t gone = g.peers_mask & ~mask;
+    for (uint8_t p = 0; p < kBookPeers; ++p) {
+        if (!(gone & (1u << p))) continue;
+        g.book.forget_peer(p);
+        g.evict_said[p] = false;
     }
-    // Their sample for a point we have not reached. Hold it -- the peers walk
-    // the same nodes but not at the same moment, exactly as with turns.
-    Entry e{};
-    e.battle_id = theirs.node_seed;
-    e.turn      = theirs.point;
-    e.m         = theirs;
-    if (!g.theirs.push_refusing(e))
-        log_line("NODEHASH", "!! holding %u node hashes from peer %u already and "
-                             "refusing more -- those nodes go unchecked",
-                 kHashRing, (unsigned)from);
+    g.peers_mask = mask;
+}
+
+void match(uint8_t from, const NodeHashMsg& theirs) {
+    // Compared now if ours for that point is held (once per peer), held
+    // otherwise -- the peers walk the same nodes but not at the same moment,
+    // exactly as with turns.
+    const bool kept = g.book.receive(from, theirs.node_seed, theirs.point, theirs,
+                                     [](uint8_t peer, const NodeHashMsg& a, const NodeHashMsg& b) {
+                                         report(peer, a, b);
+                                     });
+    if (!kept && from < kBookPeers && !g.evict_said[from]) {
+        // Une case que ce joueur ne fera pas (ou un pair tres en avance) : le plus
+        // ancien est oublie, les suivants restent compares. Dit une fois par pair.
+        g.evict_said[from] = true;
+        log_line("NODEHASH", "%u node hashes from peer %u are waiting for points this peer has not "
+                             "reached -- the oldest is forgotten (said once)",
+                 kBookDepth, (unsigned)from);
+    }
 }
 
 void publish(const NodeHashMsg& m) {
-    Entry e{};
-    e.battle_id = m.node_seed;
-    e.turn      = m.point;
-    e.m         = m;
-
-    // Did the peer already send its counterpart? Then compare now rather than
-    // storing something nothing will ever come for.
-    Entry theirs{};
-    if (g.theirs.take(m.node_seed, m.point, theirs)) {
-        report(kNoPeer, m, theirs.m);
-    } else {
-        g.mine.push_evicting(e);
-    }
+    // Every peer whose counterpart already arrived is compared now; ours is kept
+    // for the peers still to come (one comparison per peer and point).
+    g.book.publish(m.node_seed, m.point, m,
+                   [](uint8_t peer, const NodeHashMsg& a, const NodeHashMsg& b) { report(peer, a, b); });
 
     if (net_send_nodehash(m)) ++g.sent;
 }
@@ -293,8 +300,9 @@ void nodehash_init() {
     const Config& c = config();
     g.on   = tune::kNodeHash;
     g.halt = tune::kNodeHashHalt;
-    g.mine.clear();
-    g.theirs.clear();
+    g.book.clear();
+    for (bool& b : g.evict_said) b = false;
+    g.peers_mask = 0;
     g.sampled_screen = nullptr;
     if (!g.on) { log_line("NODEHASH", "meta-layer hashing disabled by net_nodehash = 0"); return; }
     log_line_lvl(LogLevel::Trace, "NODEHASH",
@@ -332,6 +340,7 @@ void nodehash_on_node(uint64_t node_seed, uint32_t node_index, bool rng_fresh) {
     g.sampled_screen = nullptr;
     g.waiting_screen = nullptr;
 
+    sync_peers();
     NodeHashMsg m{};
     m.node_seed  = node_seed;
     m.node_index = node_index;
@@ -399,6 +408,7 @@ void nodehash_on_event_screen(void* world_event) {
 void nodehash_on_message(uint8_t from, const NodeHashMsg& m) {
     if (!g.on) return;
     Guard guard;
+    sync_peers();
     match(from, m);
 }
 

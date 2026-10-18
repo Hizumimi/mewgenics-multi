@@ -102,7 +102,18 @@ void follow_forget_map();
 // Mewgenics Multi (hote) : l'hote est dans une case en ce moment (combat,
 // evenement, boutique...), pas sur la carte. Sur la carte, la case d'avant est
 // finie : la renvoyer a un arrivant le ferait rentrer dans une case resolue.
+// ATTENTION : efface a la premiere image de carte plus d'une seconde apres
+// l'entree, et la carte tourne par moments pendant un evenement. Pour « l'hote
+// est-il dans une case ? », follow_in_node().
 bool follow_inside_node();
+
+// Mewgenics Multi (protocole 59) : ce joueur est dans une case -- follow_inside_node
+// OU follow_node_live (de l'EnterNode a la premiere image de carte apres la fin
+// de case). C'est la question a poser avant de servir un arrivant (la case et son
+// etat d'entree, ou l'etat actuel sur la carte) ou d'ecrire la save : un
+// evenement fait tourner la carte par moments, et follow_inside_node seul le
+// prenait alors pour « sur la carte ».
+bool follow_in_node();
 
 // Mewgenics Multi (invite) : les cases ou l'hote est entre et que ce joueur n'a
 // pas encore suivies. Tant qu'il y en a, il va y etre emmene : plus de vote sur

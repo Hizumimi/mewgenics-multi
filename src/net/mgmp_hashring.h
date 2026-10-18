@@ -53,18 +53,23 @@ constexpr uint32_t kHashRing = 16;
 // The key is the PAIR, never the turn alone. Turn numbering restarts at 0 in
 // every battle, so a hash held across a battle boundary would otherwise match
 // the new battle's turn N and manufacture a desync out of a stale message.
-template <typename T>
+//
+// Mewgenics Multi : N, the capacity, is a parameter (kHashRing by default) --
+// the node-hash book (mgmp_peerbook.h) keeps more.
+template <typename T, uint32_t N = kHashRing>
 struct HashRing {
-    T        slot[kHashRing] = {};
-    uint32_t count           = 0;
+    T        slot[N] = {};
+    uint32_t count   = 0;
+
+    static constexpr uint32_t capacity() { return N; }
 
     void clear() { count = 0; }
-    bool full() const { return count == kHashRing; }
+    bool full() const { return count == N; }
 
     // Append, evicting the oldest when full. Never fails.
     void push_evicting(const T& v) {
-        if (count == kHashRing) {
-            for (uint32_t i = 0; i + 1 < kHashRing; ++i) slot[i] = slot[i + 1];
+        if (count == N) {
+            for (uint32_t i = 0; i + 1 < N; ++i) slot[i] = slot[i + 1];
             --count;
         }
         slot[count++] = v;
@@ -73,12 +78,18 @@ struct HashRing {
     // Append, refusing when full. Returns false if the value was dropped, so
     // the caller can say so -- the bug this replaces dropped them in silence.
     bool push_refusing(const T& v) {
-        if (count == kHashRing) return false;
+        if (count == N) return false;
         slot[count++] = v;
         return true;
     }
 
     const T* find(uint64_t battle_id, uint32_t turn) const {
+        for (uint32_t i = 0; i < count; ++i)
+            if (slot[i].battle_id == battle_id && slot[i].turn == turn) return &slot[i];
+        return nullptr;
+    }
+
+    T* find(uint64_t battle_id, uint32_t turn) {
         for (uint32_t i = 0; i < count; ++i)
             if (slot[i].battle_id == battle_id && slot[i].turn == turn) return &slot[i];
         return nullptr;

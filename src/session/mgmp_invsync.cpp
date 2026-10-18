@@ -110,7 +110,11 @@ struct State {
         uint32_t size[kInvBuckets] = {};
         uint8_t* data[kInvBuckets] = {};
     };
-    static constexpr uint32_t kMaxPend = 4;
+    // Mewgenics Multi (protocole 59) : une de plus que la file des cases de
+    // mgmp_follow (8) -- l'etat d'avant chaque case en attente, et celui d'apres
+    // la derniere. A 4, un invite en retard de 5 cases appliquait avant la case
+    // N+4 l'etat d'avant N+3 (celui d'avant N+4 avait ete remplace).
+    static constexpr uint32_t kMaxPend = 9;
     Pend     pend[kMaxPend];
     uint32_t pend_count = 0;
     // Mewgenics Multi : le plus grand numero d'arrivee des inventaires appliques

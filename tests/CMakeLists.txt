@@ -12,6 +12,16 @@ add_executable(test_hashring test_hashring.cpp)
 target_include_directories(test_hashring PRIVATE ${CMAKE_SOURCE_DIR}/src/net)
 add_test(NAME test_hashring COMMAND test_hashring)
 
+# Mewgenics Multi (protocole 59) : le hash des cases compare chaque pair, et la
+# file de reception ne perd plus un message pendant un chargement.
+add_executable(test_peerbook test_peerbook.cpp)
+target_include_directories(test_peerbook PRIVATE ${CMAKE_SOURCE_DIR}/src/net)
+add_test(NAME test_peerbook COMMAND test_peerbook)
+
+add_executable(test_recvq test_recvq.cpp)
+target_include_directories(test_recvq PRIVATE ${CMAKE_SOURCE_DIR}/src/net)
+add_test(NAME test_recvq COMMAND test_recvq)
+
 add_executable(test_timedelay test_timedelay.cpp)
 target_include_directories(test_timedelay PRIVATE ${CMAKE_SOURCE_DIR}/src/determinism)
 add_test(NAME test_timedelay COMMAND test_timedelay)

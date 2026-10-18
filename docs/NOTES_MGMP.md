@@ -2538,6 +2538,30 @@ On HELLO the host sends, in this order — the same order the live path uses:
 A client that only lost the socket **declines** the save and keeps its run: there
 is no way to apply a save off the selection screen anyway.
 
+**Mewgenics Multi, protocol 58 — inside a node, step 2 sends the node's ENTRY
+state, not the live one.** Measured 2026-10-17 (host log 221441, guest 221456): a
+guest who left at turn 8 and rejoined at turn 28 built a different battle (52
+characters against 25) from the same node seed. The battle builder
+`0x140394450` appends the level it picked to the run history's used-level list
+(`RunHistory+0x48`, `0x1408DDA40`), and the level picker `0x1408DDEC0` draws
+from the simulation stream and **retries any level already in that list**. The
+live history pushed before the node already held this node's level, so the joiner
+drew another one, and the replayed decisions then ran in a different battle. At
+every node entry the host now keeps a copy of all run cats, the inventory and the
+history (`catsync/invsync/runhist_publish_entry`, taken in `follow_on_enter_node`
+before `o_EnterNode`) and sends it to the joiner alone before `ENTERNODE`
+(`follow_catchup`); the live state follows with the back-on-the-map pushes. The
+host also sends the battle's turn-0 hash (`lockstep_catchup`), so a battle built
+differently is caught at the joiner's own turn 0 instead of watched silently.
+
+Related, for the map itself: `MapScreen::generate_map` is `0x14021CA60` in this
+build (the `0x14021C558` stores quoted above came from another build). Node seeds
+are derived from the map's own xoshiro state at `MapScreen+0x38`
+(`0x14094ECE0`, `+0x118`/`+0x128` stores at `0x14021CFC8`), and that state is a
+copy of `TLS+0x178` made by the first statement of the chapter setup
+`0x14021AE00` (called from `MapScreen::init` `0x14038D150`). So a fresh map is a
+pure function of the simulation stream at that moment plus the save and GON data.
+
 **But "already in the run" is not a reason to decline when the HOST has left
 it.** A host that goes back to the main menu and picks a slot again starts a new
 run and re-publishes; the client declined that too, because `g.applied` is set
@@ -2561,6 +2585,113 @@ adventure when the host re-picks has no screen either `savefile_autoselect`
 (`SaveSelection::update`) or the auto-Play (`Button::update` on the main menu)
 can act on. The blob is kept and applies the moment they reach the menu, and the
 log says so at Error — nothing can drag a player out of a run.
+
+### Protocol 59 — what a global synchronisation audit found (Mewgenics Multi)
+
+An independent read of every sync path on 2026-10-18 (protocol 58 code) found
+four things none of the traces had shown yet. All four are fixed in protocol 59.
+
+**"Is the host inside a node?" has one right answer: `follow_in_node()`.**
+`follow_inside_node()` (`g.inside`) is cleared by the first map frame more than
+1 s after the entry, and the map *does* tick during events (see
+`follow_node_live`). Three call sites asked only that flag: the deferral of a
+rejoin request (`MM_RUN_REQ`, deferred when the host already chose in the node),
+the serving of deferred requests, and `catchup_peer`'s choice between "in a node:
+entry copies + ENTERNODE" and "on the map: current state". So a guest who clicked
+"Rejoindre" during an event could be served as if the host were on the map: no
+ENTERNODE for the node, then the host's next CHOICE for it queued with a node the
+guest would never enter — and `guest_apply` holds a head choice from another node
+**with no timeout**, so every later event and level-up screen of that guest froze
+for the rest of the run. `follow_in_node()` = `inside || live`, used at all
+three; the save flush now also refuses while `follow_node_live()` (it only
+checked "the map ticked in the last 250 ms", true during an event, and would have
+persisted an unresolved node — into the host's own save too). Defence in depth on
+the guest: every queued ENTERNODE is announced to mgmp_choice
+(`choice_on_node_announced`), and `guest_apply` drops a choice whose node is
+neither the current one nor announced.
+
+**NODEHASH compared with one peer only.** One shared `mine` ring (each sample
+*taken* by the first matching peer) and one shared `theirs` ring (refusing when
+full, cleared only at session start): with three players the second guest never
+found the host's sample, its samples piled up, and after 16 nothing was compared
+and "holding 16 node hashes" was logged at every node. Now `PeerBook`
+(`src/net/mgmp_peerbook.h`, `tests/test_peerbook.cpp`): our samples stay (evict
+oldest, 32) with a per-peer "already compared" mask, and the samples of peers
+ahead of us wait in one ring **per peer** that evicts the oldest (a point we will
+never reach no longer blocks the next ones). The battle's per-turn hash was
+already per peer.
+
+**Held inventories and histories were shallower than the node queue.** The
+follow queue keeps 8 nodes; invsync and runhist kept 4 states (one per arrival
+rank). A guest 5 nodes behind had the state before N+4 overwritten and applied the
+one before N+3 — N+4's event rolled from a history missing N+3. Both now keep 9.
+
+**The receive queue dropped the newest message once 256 were waiting** — and only
+counted it. It fills when the game thread stops draining, which a save or battle
+load does for seconds while the receive threads keep going; the relayed cursors of
+three other players (20/s each) fill 256 in about four seconds, and the message
+after that (an ACTION, an ENTERNODE, a CHOICE, CATDATA) was lost. A joiner of a
+long fight also receives up to 512 replayed decisions in one burst. Now
+`RecvQueue` (`src/net/mgmp_recvq.h`, `tests/test_recvq.cpp`): a CURSOR or AIM
+replaces the one from the same author still queued (both are "latest state", own
+no memory, and `aim_on_message` keeps a single held state anyway), the queue
+doubles up to 16384, and only beyond that is the newest dropped — the first drop
+is logged with its type, and every growth past 256 is logged too.
+
+**A second read of those fixes found what they had shifted.** (1) The departure
+publish (`savefile_pump`, `fresh`) only waited for `follow_on_map()`; with the
+flush now refusing while a node is live, a host who clicked the first node while
+the gear photos were late would have published the file from BEFORE the
+adventure — it now also waits for `!follow_in_node()`. (2) Two event screens in
+one node give two samples with the same key (node seed, `kNodePointEvent`):
+`PeerBook` pairs them **in order** (oldest uncompared of ours with the oldest
+held of theirs), as the old FIFO rings did, instead of keeping the newest. (3) A
+guest that only lost the socket and is still playing node N is re-sent
+ENTERNODE(N) by the in-node catch-up; queued, it would have entered N a second
+time at its end — `follow_on_message` ignores an ENTERNODE for the node it is
+live in. (4) A peer that leaves takes its held samples and its "compared" bits
+with it (`sync_peers` polls the roster), so a newcomer reusing its id is
+compared. (5) `follow_forget_map` (a new adventure on the host) also clears
+`inside` and the host's choice node (`choice_on_new_run`), so nothing from the
+previous run stamps a choice.
+
+### Steam transport (Mewgenics Multi, `src/net/mgmp_steam.cpp`)
+
+**The mod's transport stays TCP; Steam is a byte pipe beside it.** The host's
+listen socket is `CreateListenSocketP2P(0)`; each accepted Steam connection opens
+a TCP connection to the host's own lobby on `127.0.0.1:<port>`. The joiner's
+`ConnectP2P(identity)` is paired with a local listener (`127.0.0.1:0`) that
+`net_join` dials. Bytes cross unchanged, as reliable no-Nagle Steam messages, on
+a worker thread (`ISteamNetworkingSockets` is thread-safe). Nothing else in the
+mod knows the peer came through Steam.
+
+**Only flat-API exports of the game's own `steam_api64.dll`**, resolved by name:
+the version accessors (`SteamAPI_SteamFriends_v018` — the game links
+ISteamFriends018 —, `SteamAPI_SteamUser_v023`,
+`SteamAPI_SteamNetworkingSockets_SteamAPI_v012`,
+`SteamAPI_SteamNetworkingUtils_SteamAPI_v004`, newer names tried first) and the
+unversioned methods, every call under `__try`. One export missing = Steam off,
+said once; `net.steam = false` turns it off by hand.
+
+**Callbacks arrive on the game thread inside `SteamAPI_RunCallbacks`**, which the
+game calls every frame. "Join game" / an accepted invite is
+`GameRichPresenceJoinRequested_t` (337: `CSteamID` + `char[256]` connect string),
+received through a hand-built `CCallbackBase` registered with
+`SteamAPI_RegisterCallback`: `{vtable, uint8 flags @8, int id @12}`, and an MSVC
+vtable puts the overloaded virtuals in reverse order (`Run(void*, bool,
+SteamAPICall_t)`, `Run(void*)`, `GetCallbackSizeBytes`) — both `Run` slots point at
+the same handler, so the order of the first two cannot matter. Connection state
+changes come through the function-pointer config value
+`k_ESteamNetworkingConfig_Callback_ConnectionStatusChanged` (201) and through
+callback 1221; the handler only reads `m_hConn` (offset 0) and the worker reads
+the state with `GetConnectionRealTimeStatus` (first field). The callbacks use their
+own lock, never the worker's, which holds its lock across Steam calls.
+
+**Rich presence**: `connect` = `+mgmp_join <host SteamID64>` (what makes "Join
+game" and "Invite to game" appear), plus `status`, `steam_player_group(_size)`;
+only these keys are cleared when the lobby closes. A friend whose game was not
+running is launched by Steam **without the mod** (the loader is not involved):
+the game has to be started with the mod first.
 
 ### `HOSTLEFT` — the one thing the host does that nothing else reports
 

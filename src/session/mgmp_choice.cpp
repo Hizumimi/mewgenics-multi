@@ -184,6 +184,9 @@ struct State {
     // seule s'applique, sur l'ecran de son genre, quand c'est le bon. Chez
     // l'hote, les demandes des invites pour leurs chats.
     std::deque<Decision> queue;
+    // Mewgenics Multi (protocole 59, invite) : les cases annoncees par un ENTERNODE
+    // et pas encore entrees ni sautees, dans l'ordre (choice_on_node_announced).
+    std::deque<uint64_t> announced;
 
     uint64_t here_seed  = 0;
     // Mewgenics Multi (hote) : un choix a deja ete publie dans cette case.
@@ -1027,6 +1030,12 @@ Apply try_apply(Decision& d, void* screen) {
     }
 }
 
+bool announced_has(uint64_t seed) {
+    for (uint64_t s : g.announced)
+        if (s == seed) return true;
+    return false;
+}
+
 // Invite : la tete de la file, si elle est du genre de cet ecran. Plusieurs dans
 // la meme image si elles s'enchainent (une relance puis le choix).
 void guest_apply(uint8_t screen_kind, void* screen) {
@@ -1038,6 +1047,18 @@ void guest_apply(uint8_t screen_kind, void* screen) {
         // HOLDS, it does not drop: the host publishes the instant it clicks,
         // routinely before this peer has entered that node at all. Deciding a
         // choice is stale is choice_on_node_skipped's job.
+        //
+        // Mewgenics Multi (protocole 59) : sauf pour une case que ce joueur ne
+        // fera jamais -- ni celle ou il est, ni l'une de celles annoncees par un
+        // ENTERNODE qu'il va suivre. Ce choix ne trouvera jamais son ecran, et en
+        // tete de file il retenait tous ceux d'apres, pour toute l'aventure.
+        if (d.node_seed && d.node_seed != g.here_seed && !announced_has(d.node_seed)) {
+            log_line("CHOICE", "!! dropped the host's %s choice %u for node %016llx -- this peer is not in"
+                               " that node and is not on its way to it (no ENTERNODE for it)",
+                     kind_name(d.kind), d.index, (unsigned long long)d.node_seed);
+            g.queue.pop_front();
+            continue;
+        }
         if (d.node_seed && g.here_seed && d.node_seed != g.here_seed) {
             if (!d.warned) {
                 d.warned = true;
@@ -1958,7 +1979,27 @@ void choice_forget() {
         log_line("CHOICE", "dropped %u held choice(s) -- the host's save that just arrived already has"
                            " them", (unsigned)g.queue.size());
     g.queue.clear();
+    g.announced.clear();
     for (uint32_t i = 0; i < kMaxChoosers; ++i) g.choosers[i] = Chooser{};
+}
+
+void choice_on_new_run() {
+    if (!g.on) return;
+    Guard guard;
+    if (g.is_client) return;
+    g.here_seed  = 0;
+    g.chose_here = false;
+}
+
+void choice_on_node_announced(uint64_t node_seed) {
+    if (!g.on || !node_seed) return;
+    Guard guard;
+    if (!g.is_client) return;
+    if (announced_has(node_seed)) return;
+    // La file de mgmp_follow en garde 8 ; au-dela, la plus ancienne est deja
+    // entree ou sautee.
+    if (g.announced.size() >= 16) g.announced.pop_front();
+    g.announced.push_back(node_seed);
 }
 
 void choice_on_node_entered(uint64_t node_seed) {
@@ -1976,6 +2017,16 @@ void choice_on_node_entered(uint64_t node_seed) {
         g.evt_takeover = 0;
         catpick_forget();
         etitle_forget();
+    }
+
+    // Mewgenics Multi (protocole 59, invite) : cette case et celles annoncees avant
+    // elle (mgmp_follow les prend dans l'ordre) ne sont plus a venir.
+    if (g.is_client) {
+        for (size_t i = 0; i < g.announced.size(); ++i) {
+            if (g.announced[i] != node_seed) continue;
+            g.announced.erase(g.announced.begin(), g.announced.begin() + (ptrdiff_t)i + 1);
+            break;
+        }
     }
 
     // Mewgenics Multi (invite) : un choix de la case qu'il vient de quitter ne
@@ -2014,6 +2065,10 @@ void choice_on_node_skipped(uint64_t node_seed) {
     if (!g.on || !node_seed) return;
     Guard guard;
     remember_skipped(node_seed);
+    for (auto it = g.announced.begin(); it != g.announced.end();) {
+        if (*it == node_seed) it = g.announced.erase(it);
+        else ++it;
+    }
 
     for (auto it = g.queue.begin(); it != g.queue.end();) {
         if (it->node_seed != node_seed) { ++it; continue; }
