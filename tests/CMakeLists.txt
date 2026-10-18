@@ -165,6 +165,13 @@ target_link_libraries(test_gift PRIVATE mm_sqlite)
 target_compile_options(test_gift PRIVATE /utf-8)
 add_test(NAME test_gift COMMAND test_gift)
 
-foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_members test_battleid test_config test_world_merge test_team_merge test_vote test_purse test_loot test_recruit test_npcgift test_seen test_shop test_ai test_slot test_gift)
+# Mewgenics Multi : un combat fini chez l'un et pas chez l'autre (protocole 64) --
+# les regles sur les tours et le message MM_BATTLE_END.
+add_executable(test_orphan test_orphan.cpp)
+target_include_directories(test_orphan PRIVATE ${CMAKE_SOURCE_DIR}/src/session ${CMAKE_SOURCE_DIR}/src/net)
+target_compile_options(test_orphan PRIVATE /utf-8)
+add_test(NAME test_orphan COMMAND test_orphan)
+
+foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_members test_battleid test_config test_world_merge test_team_merge test_vote test_purse test_loot test_recruit test_npcgift test_seen test_shop test_ai test_slot test_gift test_orphan)
     target_compile_options(${t} PRIVATE /W3)
 endforeach()

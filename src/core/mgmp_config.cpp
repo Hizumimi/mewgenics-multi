@@ -199,6 +199,9 @@ void hook_defaults() {
     // reason is that the preview is real feedback: a solo player watching their
     // cat turn toward the aim has nobody to diverge from.
     g_cfg.hook[T_UpdateDecision] = false;
+    // Mewgenics Multi (protocole 64) : son complement, Character::Face. Meme
+    // raison : seul, l'apercu qui tourne le chat ne gene personne.
+    g_cfg.hook[T_CharFace] = false;
 
     // The highlight suppressor. Solo, there is nobody to draw another player's
     // aim for, so the guard it reads can never be raised and the hook would be
@@ -257,6 +260,10 @@ void hooks_implied_by(bool net_configured) {
         // peers at different frame rates compute different damage. Implied by a
         // session for the same reason the lockstep hooks are.
         g_cfg.hook[T_UpdateDecision] = true;
+        // Mewgenics Multi (protocole 64) : et Character::Face, sans quoi l'apercu
+        // d'un chat a animations de demi-tour ecrit son orientation apres la
+        // remise ci-dessus (mgmp_lockstep.cpp, « Character::Face empeche »).
+        g_cfg.hook[T_CharFace] = true;
 
         // Implied by the aim preview, and NOT independently switchable: without
         // it mgmp_aim would call the ability highlight with its apply_status

@@ -134,6 +134,8 @@ enum Target : int {
     T_NemesisFightGo,    // sub_14039D510 -- son rappel (lambda_1, apres la transition) : le combat se construit
     // --- Mewgenics Multi : le depart sans second chargement (src/session/mm_embark.cpp) --
     T_MapChapter,        // sub_14021AE00 -- MapScreen : la mise en place du chapitre (copie TLS+0x178 dans la graine de la carte)
+    // --- Mewgenics Multi (protocole 64) : l'orientation des chats (src/session/mgmp_lockstep.cpp) --
+    T_CharFace,          // sub_14010CE50 -- glaiel::Character::Face(Character*, iVec2D, bool tout_de_suite, bool)
     T_COUNT
 };
 
@@ -492,7 +494,8 @@ static const TargetDesc kTargets[T_COUNT] = {
 
     // The aim preview turns the acting cat toward where it is being aimed, and
     // it does that by writing the SAME field the simulation reads. Exactly one
-    // Character::Face call sits inside this function, at 0x1401377C9:
+    // Character::Face call sits inside this function, at 0x1401381E9 (an older
+    // build had it at 0x1401377C9):
     //
     //     cmp    dword ptr [rdi+220h], 2      ; a type-2 decision is cached
     //     jnz    skip
@@ -769,6 +772,20 @@ static const TargetDesc kTargets[T_COUNT] = {
     // generate_map tire la graine de chaque case. Au depart ensemble, l'hote et son
     // equipe y mettent la meme graine (mm_embark) : la meme carte.
     { 0x0021AE00, "MAPCHAPTER","MapScreen chapter setup (sub_14021AE00)" },
+    // Mewgenics Multi (protocole 64) : Character::Face(chat, direction, tout de
+    // suite, forcer l'animation). La seule ecriture de Character+0x388 en jeu (les
+    // autres sont le constructeur 0x140367260 et la lecture d'une fiche
+    // 0x1400F70F0). La direction est ramenee a l'un des 4 axes (egalite : l'axe x),
+    // sauf si l'orientation actuelle est deja l'une de celles qui regardent vers
+    // elle. Le 3e argument a 0 et un personnage a animations de demi-tour
+    // (graphics.use_turn_animations, Character+0x4CC) : la direction est notee en
+    // +0x390, l'animation turnFlip / turnRev / turn180 part avec un rappel
+    // (0x140128160, Face(chat, direction, 1, 0)), et Face revient SANS ecrire
+    // +0x388 -- et ne fait rien du tout si l'animation du chat a +0x210 ou +0x2A0
+    // leve. Le detour (mgmp_hooks) empeche l'appel de l'apercu de visee
+    // (Brain::UpdateDecision, 0x1401381E9 ; son adresse de retour, retrouvee au
+    // demarrage) et tout appel pendant une cloture d'etat de mgmp_lockstep.
+    { 0x0010CE50, "CHARFACE",  "glaiel::Character::Face" },
 };
 
 // Coarse module guard, checked before the per-target signatures.

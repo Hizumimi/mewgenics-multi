@@ -206,6 +206,30 @@ void     lockstep_preview_facing_begin(void* brain);
 void     lockstep_preview_facing_end();
 uint32_t lockstep_preview_facing_count();
 
+// Mewgenics Multi (protocole 64) : Character::Face, appele par le jeu (detour
+// T_CharFace, mgmp_hooks). Vrai = l'appel n'a pas lieu du tout. `preview` : il
+// vient du site de l'apercu de visee de Brain::UpdateDecision (adresse de retour
+// verifiee par mgmp_hooks) -- empeche dans la fenetre que begin a ouverte pour CE
+// chat ; et tout appel pendant une cloture d'etat (ci-dessous). Remettre
+// l'orientation apres coup ne suffisait pas : pour un personnage a animations de
+// demi-tour, Face ne l'ecrit pas tout de suite, c'est le rappel de l'animation
+// qui l'ecrit, plus tard -- la note sur la definition.
+bool     lockstep_face_blocked(const void* character, bool preview);
+uint32_t lockstep_face_blocked_count();
+
+// --- Mewgenics Multi (protocole 64) : un combat fini d'un seul cote ----------
+//
+// Voir mgmp_orphan.h. La fin d'une case (T_NodeEnd, apres la fonction du jeu) :
+// chez l'hote, la fin d'un combat commun part chez les invites (MM_BATTLE_END,
+// avec le tour en cours) ; chez un invite, la sienne est notee. Thread du jeu.
+void    lockstep_on_node_end();
+// Invite : MM_BATTLE_END de l'hote (mm_on_message).
+void    lockstep_on_battle_end(uint8_t from, const MmMsg& m);
+// Invite : sa copie du combat et celle de l'hote ne finissent pas ensemble --
+// OrphanKind (mgmp_orphan.h), 0 sinon. mm_menu le fait alors rentrer chez lui.
+// Remis a zero quand il sort de l'aventure (lockstep_leave_run).
+uint8_t lockstep_orphan();
+
 // --- the state fence -------------------------------------------------------
 //
 // Snapshot every snapped cat's simulation state, run something, then check that

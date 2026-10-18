@@ -2943,6 +2943,93 @@ handler, which would `SetCapture` on every click while SDL manages the capture.
 Like the F1 panel and the address field of the Multijoueur window, the button
 needs `ui.enabled` (default `true`): it is what installs the WndProc subclass.
 
+### Protocol 64 — the aim preview's turn animation, and battles that end on one side (Mewgenics Multi)
+
+**The report.** 2026-10-18 19:23, battle `e15743b8b1852f54`: the host's battle
+ended (victory, level-up screen) while the guest's copy went on to a turn 21 that
+belonged to a host cat — the guest stayed frozen until the player quit and
+rejoined. The player blamed the gifts (the purse gifts came right after); they
+had nothing to do with it.
+
+**What diverged.** Turn 16: Katara (host cat) moved `(6,0)->(6,3)`, shot at
+`(5,7)`, dropped a bear trap at `(4,6)` — every action `dir=(0,1)` on both peers.
+The per-turn deltas differ in one field: the host ends the turn facing `(-1,0)`,
+the guest `(0,1)`. Facing is not in the state hash, so every hash agreed. At turn
+20 an enemy AI with the same rng (`ea274b564d23695e`) went to `(7,3)` on the host
+and to `(4,4)` (attacking cat 22) on the guest: the AI reads facing. The host's
+battle ended inside that turn; its last hash was turn 19, the guest's turn 20.
+
+**Not a one-off.** Diffing the `delta:` lines of the 10 two-player sessions of
+Oct 12–18: 5 have end-of-turn facing differences (about a dozen turns), always on
+the human cat that acted that turn, and always the OWNER's value that disagrees
+with the committed actions (the other peer, which only replays them, matches).
+Both directions: a facing no action gave (17/10 12:13 turn 11: `(-1,0)` on the
+host after a move south), or an action's facing that never happened (same session,
+turn 19: move south then two shots west, `(-1,0)` on the guest, `(0,1)` kept on
+the owning host).
+
+**Why the restore did not catch it.** `Character::Face` `0x14010CE50`
+(`rcx`=character, `rdx`=iVec2D by value, `r8b`=now, `r9b`=force anim):
+
+- if `Character+0x3AC/+0x3B0` (a forced facing) is non-zero it replaces the
+  direction; `DirList` `0x140352AA0` gives the axis directions "towards" the
+  vector (one for an axis-dominant vector, two for a diagonal, all four for
+  `(0,0)`) and the current facing is kept if it is one of them, otherwise the
+  dominant axis (tie: x);
+- `now` is forced true when `Character+0x11` is 0. When it is false, the raw
+  direction is stored in `+0x390` and, if `Character+0x4CC`
+  (`graphics.use_turn_animations`, read at `0x1400F9090`, default false) or
+  `force`, and `+0x390 != +0x388`: unless the animation (`Character+0x58`) has
+  `+0x210` or `+0x2A0` set, a turn animation is played (`turnFlip`, `turnRev`,
+  `turn180`, by the current/target pair) with a std::function whose `_Do_call`
+  `0x140128160` is `Face(ch, dir, true, false)`; and Face **returns without
+  writing `+0x388`** in every case of that branch;
+- otherwise it writes `+0x388` (and with `now`, plays `_DEFAULT`).
+
+Runtime writes of `+0x388` all go through Face (the others are the constructor
+`0x140367260` and the GON reader `0x1400F70F0`). `Brain::UpdateDecision`'s preview
+calls `Face(ch, [brain+0x238], 0, 0)` at `0x1401381E9` (NOT `0x1401377C9`, an older
+build). For a character with turn animations the preview therefore writes nothing
+inside the `PREVIEWFACE` window — the animation's callback writes it later, outside.
+The other direction (an action's facing lost on the owner) comes from the same
+animation getting in the way of the action's own `Face` (Ability::trigger
+`0x140032172`, DoAction `0x14010E752`, both `now=0`): Face does nothing at all
+while the animation has `+0x210`/`+0x2A0` set, and a turn animation replaces
+another (`0x1409AAAB0` → `0x1409AA5B0`, then back to `_DEFAULT`). The exact
+interleaving was not traced; the effect is measured. Only the owner has a preview:
+elsewhere `h_GetChoice` hands UpdateDecision "nothing decided".
+
+**The fix.** `T_CharFace` hooks Face. In a shared battle the call from the preview
+site (its return address, found at startup by scanning UpdateDecision for the one
+`E8` whose target is Face) does not happen at all, nor does any Face call while a
+`lockstep_state_fence` is up (`mgmp_aim`'s highlight of another player's aim,
+`mm_ai`'s AI call for an absent player's cat). The cat no longer turns toward the
+aim; it turns when the action fires, the same way on every peer. The old restore
+stays as a fallback.
+
+**Other `Face` callers checked.** `sub_14013C460` (AutoOrient, gated by
+`Brain+0x2B1`) picks the best of four directions by threat weights
+`Brain+0x178/+0x180/+0x188`, ties broken with an inline xoshiro step on
+TLS+0x178, or a random facing when the brain's GON says `random_orient`; it is
+called from AI decide methods (vtables `0xF8ACE8` → `0x140160A30`, `0xF8C230` →
+`0x140770B90`), from the AI choice `0x1408B44D0` and from the placement lambda
+`0x140287030` (unless `graphics.dont_orient`) — never from the PlayerBrain path.
+`apply_status` reaches Face through the status templates `0x14062F870` and
+siblings, i.e. for `TurnAround`-like statuses.
+
+**A battle that ends on one side** (`mgmp_orphan.h`). The turn boundaries are part
+of the simulation: of 14 two-player battles in the logs of Oct 13–18, 13 have their last
+hash on the same turn on both peers, sometimes one or two boundaries after the
+last action; the 14th is this one. So at its node end (`T_NodeEnd`, after every
+boundary) the host sends `MM_BATTLE_END {battle, g.turn}`. A guest whose `g.turn`
+is greater (on receipt or at a later boundary) has started a turn the host never
+had; a guest whose own node end left `g.turn = M` and then sees a host hash for a
+turn `>= M` knows the host went on without it. Either way the copy diverged: the
+guest leaves the run like a spectator whose copy halted (`mm_menu`), with a note
+at home, and can rejoin from a house sign; the host's AI takes its cats if the
+host is still fighting. Not covered: a host frozen in turn M waiting for a decision
+of a cat that guest controls, whose own battle is over — no hash ever comes.
+
 ### Steam transport (Mewgenics Multi, `src/net/mgmp_steam.cpp`)
 
 **The mod's transport stays TCP; Steam is a byte pipe beside it.** The host's

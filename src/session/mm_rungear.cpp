@@ -11,6 +11,7 @@
 #include "mgmp_follow.h"
 #include "mgmp_hooks.h"
 #include "mgmp_invsync.h"
+#include "mgmp_lockstep.h"   // lockstep_on_node_end (protocole 64)
 #include "mgmp_log.h"
 #include "mgmp_mem.h"
 #include "mgmp_net.h"
@@ -640,9 +641,12 @@ void* __fastcall h_ScreenDtor(void* screen, uint32_t flags) {
 }
 
 // La fin d'une case (T_NodeEnd) : d'abord le jeu, puis le suivi le note.
+// Mewgenics Multi (protocole 64) : et la fin d'un combat commun (mgmp_orphan.h) --
+// l'hote l'annonce, un invite note la sienne.
 void __fastcall h_NodeEnd(void* map) {
     o_NodeEnd(map);
     follow_on_node_end();
+    lockstep_on_node_end();
 }
 
 // Un ecran dont l'update ne tourne plus depuis un moment : s'il n'est plus un

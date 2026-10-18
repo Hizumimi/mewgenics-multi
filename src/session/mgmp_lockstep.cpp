@@ -33,6 +33,7 @@
 #include "mm_ai.h"           // Mewgenics Multi : l'IA pour les chats d'un absent
 #include "mm_ai_core.h"
 #include "mgmp_seen.h"
+#include "mgmp_orphan.h"     // Mewgenics Multi (protocole 64) : un combat fini d'un seul cote
 #include "mgmp_rtti.h"
 #include "mgmp_rng.h"
 #include "mgmp_hooks.h"      // hooks_is_live (Mewgenics Multi : l'enregistreur de vol)
@@ -361,6 +362,18 @@ struct State {
     bool       flight_partial = false;
     bool       flight_dumped  = false;  // un tour deja ecrit (4 joueurs : une
     uint32_t   flight_dumped_turn = 0;  // divergence par pair, un seul tour)
+
+    // Mewgenics Multi (protocole 64) : la fin d'un combat chez l'hote et chez ce
+    // joueur (mgmp_orphan.h). Chez un invite : le combat que l'hote a fini et le
+    // tour qui etait en cours (MM_BATTLE_END) ; celui que ce joueur a fini (sa fin
+    // de case) et son tour en cours ; et, si les deux ne s'accordent pas, pourquoi
+    // (OrphanKind) -- mm_menu le fait alors rentrer chez lui.
+    uint64_t host_end_battle = kNoBattle;
+    uint32_t host_end_turn   = 0;
+    uint64_t my_end_battle   = kNoBattle;
+    uint32_t my_end_turn     = 0;
+    uint8_t  orphan          = 0;
+    uint64_t orphan_battle   = kNoBattle;
 
     CRITICAL_SECTION cs;
     bool cs_ready = false;
@@ -1863,6 +1876,15 @@ HashMsg build_hash(void* turn_control) {
     // dropping it from the hash loses no divergence that an action would not
     // re-establish. Facing is still read and still printed in the halt dump,
     // where it costs nothing and occasionally explains one.
+    //
+    // Mewgenics Multi (protocole 64) : toujours dehors, et pour une raison de
+    // plus. Pour un personnage a animations de demi-tour, Character+0x388 est
+    // ecrit par le rappel de l'animation : a la fin d'un tour, la derniere
+    // action peut tourner encore chez l'un et plus chez l'autre -- une difference
+    // d'un instant, que l'empreinte prendrait pour une divergence. Celle qui ne
+    // se resorbait pas (l'apercu du proprietaire) est coupee a la source
+    // (« Character::Face empeche ») ; un combat qui finit d'un seul cote se voit
+    // a sa fin (mgmp_orphan.h).
     if (g.state_hash_on) {
         uint64_t sh = 1469598103934665603ULL;
 
@@ -2281,6 +2303,13 @@ void lockstep_init() {
     g.halted_watching = false;
     g.halted_battle   = kNoBattle;
     g.host_left       = false;
+    // Mewgenics Multi (protocole 64) : les fins de combat d'une session d'avant.
+    g.host_end_battle = kNoBattle;
+    g.host_end_turn   = 0;
+    g.my_end_battle   = kNoBattle;
+    g.my_end_turn     = 0;
+    g.orphan          = kOrphanNone;
+    g.orphan_battle   = kNoBattle;
     if (!rejoin_in_battle) {
         g.snapped = false;
         // Turn numbering is per battle and the HASH messages are keyed on it.
@@ -2357,6 +2386,8 @@ void lockstep_init() {
 // Mewgenics Multi : l'IA pour les absents et les GetChoice remis (protocole 52) --
 // definie plus bas, avec ChoicePinStats.
 static void mm_ai_summary();
+// Mewgenics Multi (protocole 64) : definie plus bas, avant lockstep_turn_boundary.
+static void orphan_note(uint8_t kind, uint32_t a, uint32_t b);
 
 void lockstep_shutdown() {
     if (!g.active) return;
@@ -2432,6 +2463,12 @@ bool lockstep_aim_subject(const void* character, uint8_t& cat, bool& peer_owns) 
 // and Character::DoAction, which are outside this function. So the cat no
 // longer visibly turns while you aim it, and every facing either peer ever
 // reads is one an action put there.
+//
+// Mewgenics Multi (protocole 64) : ca ne suffisait pas. Pour un personnage a
+// animations de demi-tour, Face n'ecrit rien pendant cette fenetre -- le rappel
+// de l'animation ecrit apres, et l'animation en cours fait ignorer le Face de
+// l'action. L'appel de l'apercu n'a donc plus lieu du tout (« Character::Face
+// empeche », plus bas) ; cette remise reste, au cas ou le detour manquerait.
 struct PreviewFacing {
     uint8_t* ch = nullptr;
     int32_t  fx = 0, fy = 0;
@@ -2580,6 +2617,81 @@ uint32_t lockstep_state_fence_end(const char* what, uint32_t* rest) {
 
 uint32_t lockstep_state_fence_hits() { return g_sf.hits; }
 
+// --- Mewgenics Multi (protocole 64) : Character::Face empeche ----------------
+//
+// LA DIVERGENCE (journaux du 18 octobre 2026, 19:23). Combat e15743b8b1852f54,
+// tour 16 : Katara, le chat de l'hote, avance de (6,0) a (6,3), tire en (5,7),
+// pose un piege en (4,6) -- trois actions face au sud (0,1), les memes chez les
+// deux joueurs. Elle finit le tour tournee vers l'ouest (-1,0) chez l'hote, vers
+// le sud chez l'invite. L'orientation n'est pas dans l'empreinte (voir build_hash) :
+// rien ne l'a vu. Au tour 20, l'IA d'un ennemi -- meme flux chez les deux, mais
+// elle lit l'orientation des chats -- va en (7,3) chez l'hote et en (4,4) chez
+// l'invite ; le combat se finit chez l'un et pas chez l'autre (mgmp_orphan.h).
+//
+// Pas un cas isole : sur 10 sessions a deux du 12 au 18 octobre, 5 ont des
+// orientations differentes en fin de tour (une douzaine de tours), toujours sur
+// le chat d'un joueur qui jouait ce tour, et c'est chez celui qui le dirige que
+// l'orientation n'est pas celle que donnent les actions (chez l'autre, qui ne fait
+// que les rejouer, elle l'est). Dans les deux sens : une orientation qu'aucune
+// action n'a donnee (17/10 12:13, tour 11 : (-1,0) chez l'hote apres un
+// deplacement vers le sud), ou celle d'une action qui ne s'est pas faite (meme
+// session, tour 18 : (-1,0) chez l'hote, rien chez l'invite qui dirigeait le chat).
+//
+// LA CAUSE. L'apercu de visee de Brain::UpdateDecision (0x1401381E9) appelle
+// Character::Face(chat, direction de la decision tenue, 0, 0). Ce 0 veut dire
+// « pas tout de suite » pour un personnage dont la fiche a
+// graphics.use_turn_animations (Character+0x4CC, lu a 0x1400F9090) : Face note la
+// direction voulue (Character+0x390), lance une animation de demi-tour (turnFlip,
+// turnRev, turn180, sur l'animation Character+0x58) et REVIENT SANS ECRIRE
+// Character+0x388. C'est le rappel de l'animation (0x140128160 :
+// Face(chat, direction, 1, 0)) qui l'ecrit, a la fin de l'animation -- hors de la
+// fenetre de lockstep_preview_facing_*, qui ne voit donc rien a remettre. Le
+// second sens vient de la meme animation : Face ne fait rien du tout tant que
+// l'animation du chat a Animation+0x210 ou +0x2A0 leve, et la demi-tour de
+// l'apercu, en cours, se met en travers de celle de l'action (le detail n'est pas
+// releve ; l'effet est mesure, ci-dessus). Seul celui qui dirige le chat a un
+// apercu ; chez les autres, UpdateDecision ne tient jamais de decision
+// (h_GetChoice la remplace par « rien encore »).
+//
+// LE REMEDE. En combat commun, l'appel de l'apercu n'a pas lieu : ni direction
+// notee, ni animation, ni rappel. Le chat ne se tourne plus vers la visee ; il
+// se tourne quand l'action part, chez tous de la meme facon (Ability::trigger et
+// Character::DoAction appellent Face avec la direction decidee). Meme chose
+// pendant une cloture d'etat (le dessin de la visee d'un autre joueur, l'IA du
+// jeu pour le chat d'un absent) : rien de ce qui s'y passe ne doit rester. La
+// remise de lockstep_preview_facing_end reste, au cas ou ce detour manquerait.
+struct FaceBlock {
+    uint32_t preview = 0;   // appels de l'apercu empeches (session)
+    uint32_t fenced  = 0;   // appels empeches pendant une cloture (session)
+    bool     said_preview = false;
+    bool     said_fence   = false;
+};
+static FaceBlock g_fb;
+
+bool lockstep_face_blocked(const void* character, bool preview) {
+    if (preview && g_pf.have && character == g_pf.ch) {
+        ++g_fb.preview;
+        if (!g_fb.said_preview) {
+            g_fb.said_preview = true;
+            log_line("LOCKSTEP", "l'apercu de visee allait tourner un chat (%p) -- appel de Character::Face "
+                                 "empeche : en combat commun, seule une action tourne un chat", character);
+        }
+        return true;
+    }
+    if (g_sf.armed) {
+        ++g_fb.fenced;
+        if (!g_fb.said_fence) {
+            g_fb.said_fence = true;
+            log_line("LOCKSTEP", "un appel de Character::Face pendant une cloture d'etat (%p) -- empeche",
+                     character);
+        }
+        return true;
+    }
+    return false;
+}
+
+uint32_t lockstep_face_blocked_count() { return g_fb.preview + g_fb.fenced; }
+
 // --- Mewgenics Multi (protocole 52) : Brain::GetChoice d'un chat humain --------
 //
 // Le jeu fait choisir son IA pour un chat de joueur charme ou incontrolable
@@ -2638,6 +2750,7 @@ void lockstep_choice_unpin(ChoicePin& pin) {
 static void mm_ai_reset() {
     g_cp = ChoicePinStats{};
     ai_reset_counters();
+    g_fb = FaceBlock{};   // protocole 64 : les appels de Character::Face empeches, par session
 }
 
 static void mm_ai_summary() {
@@ -2647,6 +2760,14 @@ static void mm_ai_summary() {
                      "remis, %u fois une orientation remise, %u fois l'etat d'un chat change) ; "
                      "GetChoice d'un chat humain remis %u fois",
                      ai_calls(), ai_rewinds(), ai_faced(), ai_fence_hits(), g_cp.hits);
+    // Trace : des centaines d'appels par combat (un par image tant qu'une
+    // decision est tenue), c'est le fonctionnement normal ; le nombre dit que le
+    // detour tournait. La remise d'apres coup, elle, ne devrait plus servir.
+    log_line_lvl(LogLevel::Trace, "LOCKSTEP",
+                 "Character::Face : %u appel(s) de l'apercu de visee et %u pendant une cloture d'etat "
+                 "empeche(s) ; %u orientation(s) remise(s) apres l'apercu%s",
+                 g_fb.preview, g_fb.fenced, g_pf.restored,
+                 hooks_is_live(T_CharFace) ? "" : " (detour T_CharFace absent : seule la remise agit)");
 }
 
 void lockstep_pump() {
@@ -2683,6 +2804,15 @@ void lockstep_pump() {
                 // four AGREES and the host none. A desync would have halted the
                 // trailing peer while the leading one played on.
                 if (m.from >= kMaxPeers) break;
+                // Mewgenics Multi (protocole 64) : l'hote a fini un tour de ce combat
+                // que ce joueur, dont le combat est fini, n'a jamais fini
+                // (mgmp_orphan.h) -- sa copie a diverge.
+                if (!lockstep_is_host() && m.from == kHostPeer && !g.orphan &&
+                    g.my_end_battle != kNoBattle && m.hash.battle_id == g.my_end_battle &&
+                    orphan_host_went_on(g.my_end_turn, m.hash.turn)) {
+                    orphan_note(kOrphanMineDone, g.my_end_turn, m.hash.turn);
+                    break;
+                }
                 if (const HashMsg* mine = g.my_hash.find(m.hash.battle_id, m.hash.turn)) {
                     report_pair(*mine, m.hash, m.from);
                     break;
@@ -3319,6 +3449,86 @@ void lockstep_on_applied(const void* action, const void* actor) {
     if (cat != kNoCat && g.local_cat[cat]) ++g.stats.applied;
 }
 
+// --- Mewgenics Multi (protocole 64) : un combat fini d'un seul cote ----------
+//
+// Voir mgmp_orphan.h. Invite seulement : le combat de l'hote fait foi. Note une
+// fois ; mm_menu (lockstep_orphan) fait rentrer le joueur chez lui, comme un
+// spectateur dont la copie s'est arretee -- une copie qui a diverge ne se
+// rattrape pas, la save de l'hote la remplacera s'il revient. Pas d'arret
+// (HALT) envoye : le combat des autres, lui, n'a rien.
+static void orphan_note(uint8_t kind, uint32_t a, uint32_t b) {
+    if (g.orphan) return;
+    g.orphan        = kind;
+    g.orphan_battle = g.battles.current;
+    if (kind == kOrphanHostDone)
+        log_line_lvl(LogLevel::Error, "LOCKSTEP",
+                     "!! combat %016llx : l'hote l'a fini pendant son tour %u, ce joueur en est au tour %u -- "
+                     "sa copie a diverge (personne ne joue plus ce combat) ; il rentre chez lui et pourra "
+                     "revenir", (unsigned long long)g.battles.current, a, b);
+    else
+        log_line_lvl(LogLevel::Error, "LOCKSTEP",
+                     "!! combat %016llx : ce joueur l'a fini pendant son tour %u, l'hote a fini son tour %u -- "
+                     "sa copie a diverge (le combat continue chez l'hote, l'IA du jeu reprendra ses chats) ; "
+                     "il rentre chez lui et pourra revenir", (unsigned long long)g.battles.current, a, b);
+}
+
+// L'hote a fini ce combat ; ce joueur a-t-il commence un tour que l'hote n'a pas eu ?
+static void orphan_check_host_end() {
+    if (lockstep_is_host() || g.orphan || g.halted || out_of_host_run()) return;
+    if (g.host_end_battle == kNoBattle || g.host_end_battle != g.battles.current || !snap_current()) return;
+    if (orphan_past_host_end(g.host_end_turn, g.turn)) orphan_note(kOrphanHostDone, g.host_end_turn, g.turn);
+}
+
+void lockstep_on_node_end() {
+    if (!lockstep_active()) return;
+    Guard guard;
+    // Pas un combat commun (une case sans combat, la defense de la maison, une
+    // photo d'un autre combat) : rien a dire.
+    if (solo_battle() || !snap_current()) return;
+    const uint64_t battle = g.battles.current;
+    if (lockstep_is_host()) {
+        // Une fois par combat. Arrete (desynchronise), son g.turn ne bouge plus
+        // depuis l'arret : il ne dirait rien de juste -- et les invites membres se
+        // sont arretes avec lui.
+        if (g.host_end_battle == battle || g.halted) return;
+        g.host_end_battle = battle;
+        g.host_end_turn   = g.turn;
+        net_send_mm(battle_end_encode(BattleEnd{battle, g.turn}));
+        log_line("LOCKSTEP", "fin du combat %016llx pendant le tour %u -- annoncee aux invites",
+                 (unsigned long long)battle, g.turn);
+        return;
+    }
+    if (g.my_end_battle == battle) return;
+    g.my_end_battle = battle;
+    g.my_end_turn   = g.turn;
+    log_line_lvl(LogLevel::Trace, "LOCKSTEP", "fin du combat %016llx ici pendant le tour %u",
+                 (unsigned long long)battle, g.turn);
+    if (g.orphan || g.halted || out_of_host_run()) return;
+    // Les empreintes de l'hote deja arrivees (il etait en avance) : une pour un
+    // tour que ce joueur n'a pas fini dit que l'hote a continue.
+    const HashRing<HashMsg>& held = g.peer_hash[kHostPeer];
+    for (uint32_t i = 0; i < held.count; ++i) {
+        if (held.slot[i].battle_id != battle || !orphan_host_went_on(g.my_end_turn, held.slot[i].turn)) continue;
+        orphan_note(kOrphanMineDone, g.my_end_turn, held.slot[i].turn);
+        break;
+    }
+}
+
+void lockstep_on_battle_end(uint8_t from, const MmMsg& m) {
+    if (!g.active || lockstep_is_host() || from != kHostPeer) return;
+    BattleEnd e;
+    if (!battle_end_decode(m, e)) return;
+    Guard guard;
+    g.host_end_battle = e.battle;
+    g.host_end_turn   = e.turn;
+    log_line_lvl(LogLevel::Trace, "LOCKSTEP", "l'hote a fini le combat %016llx pendant son tour %u (ici : %s, tour %u)",
+                 (unsigned long long)e.battle, e.turn,
+                 e.battle == g.battles.current ? "ce combat" : "un autre combat", g.turn);
+    orphan_check_host_end();
+}
+
+uint8_t lockstep_orphan() { return g.active ? g.orphan : (uint8_t)kOrphanNone; }
+
 void lockstep_turn_boundary(void* turn_control) {
     if (!g.active) return;
 
@@ -3511,6 +3721,10 @@ void lockstep_turn_boundary(void* turn_control) {
     }
 
     ++g.turn;
+
+    // Mewgenics Multi (protocole 64) : un tour que l'hote, qui a fini ce combat,
+    // n'a jamais commence (mgmp_orphan.h).
+    orphan_check_host_end();
 }
 
 uint64_t lockstep_battle_id()  { return g.active ? g.battles.current : kNoBattle; }
@@ -3539,6 +3753,13 @@ void lockstep_leave_run() {
     g.stats.halted    = false;
     g.halted_watching = false;
     g.halted_battle   = kNoBattle;
+    // Mewgenics Multi (protocole 64) : sa copie divergente est finie avec lui. La
+    // fin du combat de l'hote, elle, reste vraie : s'il revient et refait ce
+    // combat (la reprise), une copie qui le depasse encore se verra.
+    g.my_end_battle   = kNoBattle;
+    g.my_end_turn     = 0;
+    g.orphan          = kOrphanNone;
+    g.orphan_battle   = kNoBattle;
     // La file et les empreintes : rien de ce combat ne lui servira, et s'il y
     // revient, la reprise de l'hote le refait depuis le debut. Seulement ce
     // combat-la (et les combats retires) : des decisions d'un combat ou il
@@ -3653,6 +3874,13 @@ void lockstep_rejoin_run() {
     Guard guard;
     if (!g.out_of_run) return;
     g.out_of_run = false;
+    // Mewgenics Multi (protocole 64) : la copie qui avait diverge est derriere lui
+    // (lockstep_leave_run l'a deja oubliee ; ceinture et bretelles -- un drapeau
+    // reste leve le renverrait chez lui des son arrivee).
+    g.orphan        = kOrphanNone;
+    g.orphan_battle = kNoBattle;
+    g.my_end_battle = kNoBattle;
+    g.my_end_turn   = 0;
     log_line("LOCKSTEP", "ce joueur revient dans l'aventure de l'hote -- ses combats le concernent de nouveau");
 }
 

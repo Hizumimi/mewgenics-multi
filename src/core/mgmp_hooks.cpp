@@ -125,6 +125,16 @@ fn_this       o_ButtonUpdate  = nullptr;
 fn_two_ptr    o_UpdateDecision = nullptr;
 fn_this_c     o_HighlightRefresh = nullptr;
 
+// Mewgenics Multi (protocole 64) : Character::Face(Character*, iVec2D par valeur,
+// bool tout_de_suite, bool forcer l'animation). L'iVec2D tient en 8 octets : il
+// passe dans rdx, comme un entier. Rien de rendu.
+typedef void (__fastcall* fn_char_face)(void* ch, uint64_t dir, unsigned char now, unsigned char force);
+fn_char_face  o_CharFace = nullptr;
+// L'adresse de retour de l'appel de Face par l'apercu de visee de
+// Brain::UpdateDecision (0x1401381EE sur 1.1.21239), retrouvee au demarrage
+// (find_preview_face_ret) ; 0 tant qu'elle ne l'est pas.
+uintptr_t     g_preview_face_ret = 0;
+
 // MewSaveFile::Store / ::Load. Both are (this, std::string key BY VALUE,
 // ByteStream&); the return value is the key destructor's and no caller reads
 // it, which is what makes suppressing them possible at all.
@@ -671,6 +681,63 @@ void* __fastcall h_UpdateDecision(void* self, void* out) {
     return ret;
 }
 
+// Mewgenics Multi (protocole 64) : l'apercu de visee ne doit pas seulement etre
+// remis apres coup (ci-dessus) -- pour un chat a animations de demi-tour, Face
+// n'ecrit rien tout de suite et c'est le rappel de l'animation qui ecrit, plus
+// tard, hors de la fenetre. Son appel n'a donc pas lieu du tout en combat commun,
+// ni aucun appel pendant une cloture d'etat (mgmp_lockstep.cpp, « Character::Face
+// empeche »). Tout le reste passe : un appel de plus par orientation du jeu,
+// deux lectures et une comparaison.
+//
+// L'adresse de retour dit QUI appelle : MinHook remplace le debut de Face par un
+// saut vers ce detour, l'adresse que l'appelant a empilee est donc la sienne.
+// Pour un saut final vers Face (le rappel de l'animation, 0x14012816E), c'est
+// celle de l'appelant du rappel -- jamais celle de l'apercu.
+void __fastcall h_CharFace(void* ch, uint64_t dir, unsigned char now, unsigned char force) {
+    const uintptr_t ret = (uintptr_t)_ReturnAddress();
+    if (lockstep_face_blocked(ch, g_preview_face_ret != 0 && ret == g_preview_face_ret)) return;
+    o_CharFace(ch, dir, now, force);
+}
+
+// La seule instruction `call Character::Face` du corps de Brain::UpdateDecision
+// (0x1401381E9 sur 1.1.21239, une seule dans ses 0x693 octets), cherchee plutot
+// que posee : une autre build la deplace. Le corps est lu une fois ; un E8 dont la
+// cible n'est pas Face ne compte pas, un faux E8 au milieu d'une instruction
+// tomberait sur une autre cible. Aucune ou plusieurs : 0, et le detour laisse tout
+// passer -- la remise de lockstep_preview_facing_end reste.
+constexpr uint32_t kUpdateDecisionScan = 0x900;
+
+uintptr_t find_preview_face_ret() {
+    const uintptr_t upd  = addr_of(T_UpdateDecision);
+    const uintptr_t face = addr_of(T_CharFace);
+    if (!upd || !face) return 0;
+    static uint8_t body[kUpdateDecisionScan];
+    if (!mem_read((const void*)upd, body, sizeof(body))) return 0;
+    uintptr_t ret = 0;
+    int found = 0;
+    for (uint32_t i = 0; i + 5 <= sizeof(body); ++i) {
+        if (body[i] != 0xE8) continue;
+        int32_t rel = 0;
+        memcpy(&rel, body + i + 1, sizeof(rel));
+        if (upd + i + 5 + (uintptr_t)(intptr_t)rel != face) continue;
+        ret = upd + i + 5;
+        ++found;
+    }
+    return found == 1 ? ret : 0;
+}
+
+// Apres les poses (au demarrage, et dans la passe tardive) : une fois.
+void note_preview_face_site() {
+    if (g_preview_face_ret || !g_live[T_CharFace]) return;
+    g_preview_face_ret = find_preview_face_ret();
+    if (g_preview_face_ret)
+        log_raw("  [+] %-9s l'apercu de visee appelle Face depuis Mewgenics.exe+0x%llX", kTargets[T_CharFace].name,
+                (unsigned long long)(g_preview_face_ret - 5 - g_base));
+    else
+        log_raw("  [!] %-9s l'appel de Face par l'apercu de visee est introuvable -- seule la remise "
+                "d'apres coup agira", kTargets[T_CharFace].name);
+}
+
 
 // --- phase 5: the client never picks a save file ---------------------------
 
@@ -797,6 +864,7 @@ const Binding kBindings[] = {
     { T_ButtonUpdate,     (void*)&h_ButtonUpdate, (void**)&o_ButtonUpdate },
     { T_HighlightRefresh, (void*)&h_HighlightRefresh, (void**)&o_HighlightRefresh },
     { T_UpdateDecision,   (void*)&h_UpdateDecision, (void**)&o_UpdateDecision },
+    { T_CharFace,         (void*)&h_CharFace,       (void**)&o_CharFace },
 
     { T_SaveScumPenalty, (void*)&h_SaveScum, (void**)&o_SaveScum },
     { T_TimeDelayTick,   (void*)&h_TimeDelay, (void**)&o_TimeDelay },
@@ -1026,6 +1094,7 @@ int hooks_install() {
     // another hook runs has to be told, and aim_set_base ran above -- before
     // anything was installed -- so it could not have asked then.
     aim_on_hooks_installed();
+    note_preview_face_site();   // Mewgenics Multi (protocole 64)
     return installed;
 }
 
@@ -1040,6 +1109,7 @@ int hooks_install_late() {
     // would leave the aim preview permanently disarmed in exactly the session
     // that just fixed its hooks.
     if (installed) aim_on_hooks_installed();
+    if (installed) note_preview_face_site();   // Mewgenics Multi (protocole 64)
     return installed;
 }
 

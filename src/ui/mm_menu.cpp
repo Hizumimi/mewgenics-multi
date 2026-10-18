@@ -34,6 +34,7 @@
 #include "mgmp_invsync.h"
 #include "mgmp_runhist.h"
 #include "mgmp_lockstep.h"  // lockstep_in_battle
+#include "mgmp_orphan.h"    // OrphanKind (protocole 64)
 #include "mgmp_follow.h"    // follow_in_node
 #include "mgmp_choice.h"    // choice_made_in_node
 #include "mgmp_leave.h"     // leave_will_press_quit
@@ -1452,6 +1453,10 @@ bool     g_opening_quit    = false;   // la fenetre « Quitter l'aventure » se 
 // menu), jusqu'a ce qu'il soit sorti de la copie.
 bool     g_quitting        = false;
 bool     g_halt_note_due   = false;   // il est rentre parce que sa copie du combat s'est arretee
+// Mewgenics Multi (protocole 64) : ... ou parce qu'elle a fini sans le combat de
+// l'hote, ou continue apres lui (OrphanKind, mgmp_orphan.h) ; 0 : elle s'est
+// arretee pendant qu'il regardait.
+uint8_t  g_halt_note_kind  = 0;
 bool     g_home_offer      = false;   // proposer de rentrer
 // L'aventure de l'hote est finie (abandon, victoire, defaite, connexion coupee)
 // et ce joueur n'est pas encore rentre chez lui : vrai dans la copie, et encore
@@ -2038,27 +2043,55 @@ void client_adventure_pump() {
         // fige pour toujours. Il rentre chez lui comme par « Quitter
         // l'aventure » (ses chats restent dans l'equipe) ; un panneau de sa
         // maison le ramene, et la reprise de l'hote refait le combat.
-        if (lockstep_halted_watching() && savefile_in_coop() && !g_quitting && !g_trip.active) {
-            log_line("MULTI", "aventure : la copie du combat de ce joueur s'est desynchronisee (il regardait) -- "
-                              "il quitte l'aventure, il pourra la rejoindre");
+        // Mewgenics Multi (protocole 64) : sa copie du combat et celle de l'hote ne
+        // se sont pas finies ensemble (mgmp_orphan.h) -- l'hote avait fini et pas
+        // lui (personne ne joue plus son combat), ou l'inverse. Meme sortie : une
+        // copie qui a diverge ne se rattrape pas, la save de l'hote la remplacera.
+        const uint8_t orphan = lockstep_orphan();
+        if ((lockstep_halted_watching() || orphan) && savefile_in_coop() && !g_quitting && !g_trip.active) {
+            log_line("MULTI", "aventure : la copie du combat de ce joueur s'est desynchronisee (%s) -- "
+                              "il quitte l'aventure, il pourra la rejoindre",
+                     orphan == kOrphanHostDone ? "le combat de l'hote etait fini, pas le sien"
+                     : orphan == kOrphanMineDone ? "son combat etait fini, pas celui de l'hote"
+                                                 : "il regardait");
             g_quitting        = true;
             g_run_offer_quiet = true;
             g_run_offer       = false;
             g_home_offer      = false;
             g_home_due        = false;
             g_halt_note_due   = true;
+            g_halt_note_kind  = orphan;
             savefile_go_home();
             start_menu_trip("copie du combat desynchronisee");
         }
         if (g_halt_note_due && !savefile_in_coop() && !g_trip.active && mm_house()) {
             g_halt_note_due = false;
-            show_info(fmt(u8"Retour à la maison\n\n"
-                          u8"Ta copie du combat s'est désynchronisée de\n"
-                          u8"celle de %s : le combat continuait sans toi,\n"
-                          u8"alors tu es rentré. Tes chats restent dans\n"
-                          u8"son équipe, il les dirige.\n\n"
-                          u8"Pour revenir dans l'aventure, clique sur\n"
-                          u8"un panneau de ta maison.", host_display().c_str()));
+            if (g_halt_note_kind == kOrphanHostDone)
+                show_info(fmt(u8"Retour à la maison\n\n"
+                              u8"Le combat de %s était fini, mais ta copie\n"
+                              u8"continuait : elle s'était désynchronisée,\n"
+                              u8"plus personne ne jouait ce combat. Tu es\n"
+                              u8"rentré ; tes chats restent dans son équipe.\n\n"
+                              u8"Pour revenir dans l'aventure, clique sur\n"
+                              u8"un panneau de ta maison.", host_display().c_str()));
+            else if (g_halt_note_kind == kOrphanMineDone)
+                show_info(fmt(u8"Retour à la maison\n\n"
+                              u8"Ton combat s'est fini, mais celui de %s\n"
+                              u8"continuait : ta copie s'était\n"
+                              u8"désynchronisée. Tu es rentré ; tes chats\n"
+                              u8"restent dans son équipe, l'IA du jeu les\n"
+                              u8"joue jusqu'à la fin du combat.\n\n"
+                              u8"Pour revenir dans l'aventure, clique sur\n"
+                              u8"un panneau de ta maison.", host_display().c_str()));
+            else
+                show_info(fmt(u8"Retour à la maison\n\n"
+                              u8"Ta copie du combat s'est désynchronisée de\n"
+                              u8"celle de %s : le combat continuait sans toi,\n"
+                              u8"alors tu es rentré. Tes chats restent dans\n"
+                              u8"son équipe, il les dirige.\n\n"
+                              u8"Pour revenir dans l'aventure, clique sur\n"
+                              u8"un panneau de ta maison.", host_display().c_str()));
+            g_halt_note_kind = 0;
         }
     } else {
         g_peer_run_sent = -1;
@@ -3514,6 +3547,9 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
             break;
         case MM_GIFT:
             gift_on_mm(from, m);             // Mewgenics Multi (protocole 62) : qui peut recevoir un don
+            break;
+        case MM_BATTLE_END:
+            lockstep_on_battle_end(from, m); // Mewgenics Multi (protocole 64) : l'hote a fini un combat
             break;
         case MM_DEPART_READY:
             if (net_role() != NetRole::Host || from >= 8) break;
