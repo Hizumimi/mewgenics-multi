@@ -2,6 +2,7 @@
 
 #include "mm_purse.h"
 #include "mm_purse_core.h"
+#include "mm_gift.h"
 #include "mm_loot.h"
 #include "mm_menu.h"
 #include "mm_shop.h"
@@ -20,6 +21,7 @@
 #include "mgmp_savefile.h"
 
 #include <windows.h>
+#include <algorithm>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -44,6 +46,7 @@ constexpr uint64_t kFindMaxAgeMs  = 300000;  // une trouvaille jamais montree : 
 constexpr size_t   kMaxFinds      = 8;       // trouvailles en attente d'etre dites
 constexpr size_t   kShownFinds    = 2;       // ... dans une fenetre du vote
 constexpr int      kMaxCtx        = 8;       // appels du jeu imbriques suivis (voir Ctx)
+constexpr uint64_t kGiveAnswerMs  = 10000;   // invite : la reponse de l'hote a un don, au plus
 
 using FnGain      = void (__fastcall*)(void* world_event, void* args);
 using FnVictory   = void (__fastcall*)(void* director);
@@ -118,6 +121,10 @@ struct State {
     int32_t   final_food  = 0;
     uint64_t  final_at   = 0;
     uint64_t  victory_at = 0;        // la fin de sa copie
+    // Son don a un autre joueur (protocole 62) : un a la fois, jusqu'a la reponse.
+    bool      give_pending = false;
+    uint8_t   give_seq     = 0;      // jamais 0 (0 : un don de l'hote)
+    uint64_t  give_at      = 0;
 
     // Les deux.
     std::vector<Find> finds;
@@ -402,6 +409,63 @@ void host_pump() {
 
 bool tracking_host() { return g.armed && g.tracking && !g.ended && net_role() != NetRole::Client; }
 
+// --- les dons entre bourses (protocole 62) ----------------------------------------------
+
+// Hote : le numero de place d'un joueur la (son numero de maintenant), -1 : aucun.
+int slot_of_peer(uint8_t peer) {
+    for (uint8_t s = 0; s < kPurseSlots; ++s)
+        if (team_slot_peer(s) == (int)peer) return s;
+    return -1;
+}
+
+// Hote : ce joueur a une bourse dans cette aventure (il a amene des chats ; l'hote,
+// toujours : il garde le reste a la fin).
+bool slot_has_purse(int s) {
+    return s >= 0 && s < (int)kPurseSlots && (s == (int)kHostPeer || (g.slots & (1u << s)) != 0);
+}
+
+// Hote : un don de la bourse de `giver` a celle de `to` (numeros de maintenant).
+// 0 : fait (les bourses partent ensuite) ; sinon la raison (kPurseNo*).
+uint8_t host_transfer(uint8_t giver, uint8_t to, int64_t coins, int64_t food) {
+    if (!tracking_host()) return kPurseNoRun;
+    const int fs = slot_of_peer(giver), ts = slot_of_peer(to);
+    if (!slot_has_purse(fs) || !slot_has_purse(ts) || fs == ts) return kPurseNoPurse;
+    take_pending("avant un don");            // le compte a jour d'abord
+    if (!g.book.transfer((uint8_t)fs, (uint8_t)ts, coins, food)) return kPurseNoEnough;
+    g.dirty = true;
+    log_line("PURSE", "don : %s donne %lld piece(s) et %lld nourriture(s) a %s (sa bourse : %lld et %lld ; "
+                      "l'autre : %lld et %lld)", team_slot_name((uint8_t)fs).c_str(), (long long)coins,
+             (long long)food, team_slot_name((uint8_t)ts).c_str(), (long long)g.book.at((uint8_t)fs).coins,
+             (long long)g.book.at((uint8_t)fs).food, (long long)g.book.at((uint8_t)ts).coins,
+             (long long)g.book.at((uint8_t)ts).food);
+    return 0;
+}
+
+// Hote : la demande d'un invite (MM_PURSE a = 4). Le donneur est celui dont vient
+// le message, pas un champ du message.
+void host_on_give_req(uint8_t from, const MmMsg& m) {
+    uint8_t to = 0, seq = 0;
+    int32_t coins = 0, food = 0;
+    if (from >= kPurseSlots || !purse_decode_give_req(m, to, coins, food, seq)) {
+        log_line("PURSE", "!! demande de don illisible (joueur %u) -- ignoree", (unsigned)from);
+        return;
+    }
+    const uint8_t why = to == from ? kPurseNoPurse : host_transfer(from, to, coins, food);
+    MmMsg r;
+    if (why) {
+        purse_encode_give_no(r, from, why, seq);
+        log_line("PURSE", "don refuse : %s voulait donner %d piece(s) et %d nourriture(s) a %s (%s)",
+                 mm_peer_name(from).c_str(), coins, food, mm_peer_name(to).c_str(), purse_give_no_text(why).c_str());
+        if (!net_send_mm(r)) log_line("PURSE", "!! envoi du refus impossible");
+        return;
+    }
+    purse_encode_given(r, from, to, coins, food, seq);
+    if (!net_send_mm(r)) log_line("PURSE", "!! envoi du don impossible (les bourses suivent quand meme)");
+    host_send(true);
+    if (to == kHostPeer)
+        gift_purse_note(purse_given_line(false, true, mm_peer_name(from), "", coins, food), false);
+}
+
 // Un appel du jeu suivi : ce qui a change avant lui va a l'appel qui l'entoure
 // (ou est partage), ce qui change pendant lui -- hors de ses appels suivis
 // imbriques, qui font de meme -- va au chat qu'il nomme.
@@ -496,7 +560,9 @@ void unit_gain(void* unit, const char* what, Call call) {
 
 void __fastcall h_UnitCoins(void* unit, int amount) {
     if (!o_UnitCoins) return;
-    unit_gain(unit, "pieces ramassees", [&] { o_UnitCoins(unit, amount); });
+    // Unit::GainCoins sert aussi aux pertes (un montant negatif) : « en combat »,
+    // pas « ramassees ».
+    unit_gain(unit, "pieces en combat", [&] { o_UnitCoins(unit, amount); });
 }
 
 uint64_t __fastcall h_EatFood(void* pickup, void* unit, void* a3, void* a4) {
@@ -677,9 +743,21 @@ void purse_pump() {
     if (net_role() != NetRole::Client) host_pump();
     finds_pump();
     home_pump();
+    // Invite : la reponse a son don tarde (une reponse en retard est dite quand
+    // meme a son arrivee).
+    if (g.give_pending && GetTickCount64() - g.give_at > kGiveAnswerMs) {
+        g.give_pending = false;
+        log_line("PURSE", "!! don %u : pas de reponse de l'hote", (unsigned)g.give_seq);
+        gift_purse_note(u8"Pas encore de réponse de l'hôte pour ton don : regarde ta bourse dans la "
+                        u8"fenêtre du chemin.", true);
+    }
 }
 
 void purse_on_mm(uint8_t from, const MmMsg& m) {
+    if (net_role() == NetRole::Host) {
+        if (m.a == kPurseGiveReq && g.armed) host_on_give_req(from, m);
+        return;
+    }
     if (net_role() != NetRole::Client || from != kHostPeer) return;
     switch (m.a) {
         case kPurseLedger: {
@@ -744,6 +822,35 @@ void purse_on_mm(uint8_t from, const MmMsg& m) {
             }
             if (coins > 0 || food > 0) team_note_payout(m.b, coins, food);
             else log_line("PURSE", "<- fin de l'aventure : rien a rapporter pour toi");
+            break;
+        }
+        case kPurseGiven: {
+            uint8_t giver = 0, to = 0, seq = 0;
+            int32_t coins = 0, food = 0;
+            if (!purse_decode_given(m, giver, to, coins, food, seq)) {
+                log_line("PURSE", "!! don illisible -- ignore");
+                return;
+            }
+            const uint8_t self    = net_self();
+            const bool    from_me = giver == self;
+            const bool    to_me   = to == self;
+            if (from_me && g.give_pending && seq == g.give_seq) g.give_pending = false;
+            const std::string line =
+                purse_given_line(from_me, to_me, mm_peer_name(giver), mm_peer_name(to), coins, food);
+            log_line("PURSE", "<- %s", line.c_str());
+            if (from_me || to_me) gift_purse_note(line, from_me);
+            break;
+        }
+        case kPurseGiveNo: {
+            uint8_t giver = 0, why = 0, seq = 0;
+            if (!purse_decode_give_no(m, giver, why, seq)) {
+                log_line("PURSE", "!! refus de don illisible -- ignore");
+                return;
+            }
+            if (giver != net_self()) return;
+            if (g.give_pending && seq == g.give_seq) g.give_pending = false;
+            log_line("PURSE", "<- ton don n'est pas passe : %s", purse_give_no_text(why).c_str());
+            gift_purse_note(u8"Ton don n'est pas passé : " + purse_give_no_text(why) + ".", true);
             break;
         }
         default:
@@ -811,6 +918,106 @@ bool purse_mine(int64_t& coins, int64_t& food) {
     food  = g.book.at(kHostPeer).food;
     return (g.slots & (1u << kHostPeer)) || coins || food;
 }
+
+bool purse_holders(std::vector<PurseHolder>& out) {
+    out.clear();
+    if (!g.armed) return false;
+    auto add = [&](uint8_t peer, int64_t coins, int64_t food) {
+        for (const PurseHolder& h : out)
+            if (h.peer == peer) return;
+        PurseHolder h;
+        h.peer  = peer;
+        h.coins = coins;
+        h.food  = food;
+        out.push_back(h);
+    };
+    if (net_role() == NetRole::Client) {
+        if (!mm_guest_in_run() || !g.have || GetTickCount64() - g.have_at > kLedgerStaleMs) return false;
+        for (uint8_t i = 0; i < g.n_lines; ++i) add(g.lines[i].peer, g.lines[i].coins, g.lines[i].food);
+        // L'hote sans chat n'a pas de ligne, mais il recoit (il garde le reste a la fin).
+        add(kHostPeer, 0, 0);
+    } else {
+        if (!tracking_host()) return false;
+        for (uint8_t s = 0; s < kPurseSlots; ++s) {
+            if (!slot_has_purse(s)) continue;
+            const int peer = team_slot_peer(s);
+            if (peer < 0 || peer >= (int)kPurseSlots) continue;
+            add((uint8_t)peer, g.book.at(s).coins, g.book.at(s).food);
+        }
+    }
+    std::sort(out.begin(), out.end(), [](const PurseHolder& a, const PurseHolder& b) { return a.peer < b.peer; });
+    return !out.empty();
+}
+
+bool purse_give(uint8_t to, int64_t coins, int64_t food, std::string& why) {
+    why.clear();
+    if (!g.armed) {
+        why = u8"les bourses ne marchent pas dans cette partie";
+        return false;
+    }
+    if (coins < 0 || food < 0 || (!coins && !food)) {
+        why = u8"rien à donner";
+        return false;
+    }
+    if (coins > kPurseGiveMax || food > kPurseGiveMax) {
+        why = u8"c'est trop d'un coup";
+        return false;
+    }
+    const bool    guest = net_role() == NetRole::Client;
+    const uint8_t self  = guest ? net_self() : (uint8_t)kHostPeer;
+    if (to == self || to >= kPurseSlots) {
+        why = u8"choisis un autre joueur";
+        return false;
+    }
+    if (!guest) {
+        const uint8_t no = host_transfer(kHostPeer, to, coins, food);
+        if (no) {
+            why = purse_give_no_text(no);
+            return false;
+        }
+        MmMsg r;
+        purse_encode_given(r, kHostPeer, to, (int32_t)coins, (int32_t)food, 0);
+        if (!net_send_mm(r)) log_line("PURSE", "!! envoi du don impossible (les bourses suivent quand meme)");
+        host_send(true);
+        gift_purse_note(purse_given_line(true, false, "", mm_peer_name(to), coins, food), true);
+        return true;
+    }
+    if (g.give_pending) {
+        why = u8"ton don précédent attend encore la réponse de l'hôte";
+        return false;
+    }
+    int64_t mc = 0, mf = 0;
+    if (!purse_mine(mc, mf)) {
+        why = u8"tu n'as pas de bourse dans cette aventure";
+        return false;
+    }
+    if (coins > mc || food > mf) {
+        why = purse_give_no_text(kPurseNoEnough);
+        return false;
+    }
+    bool target = to == kHostPeer;
+    for (uint8_t i = 0; i < g.n_lines; ++i) target = target || g.lines[i].peer == to;
+    if (!target) {
+        why = purse_give_no_text(kPurseNoPurse);
+        return false;
+    }
+    uint8_t seq = (uint8_t)(g.give_seq + 1);
+    if (!seq) seq = 1;
+    MmMsg m;
+    purse_encode_give_req(m, to, (int32_t)coins, (int32_t)food, seq);
+    if (!net_send_mm(m)) {
+        why = u8"envoi impossible (connexion)";
+        return false;
+    }
+    g.give_seq     = seq;
+    g.give_pending = true;
+    g.give_at      = GetTickCount64();
+    log_line("PURSE", "-> don %u : %lld piece(s) et %lld nourriture(s) a %s, demande a l'hote", (unsigned)seq,
+             (long long)coins, (long long)food, mm_peer_name(to).c_str());
+    return true;
+}
+
+bool purse_give_pending() { return g.give_pending; }
 
 void purse_charge(uint8_t slot, const std::string& label, void (*call)(void*), void* arg) {
     if (!call) return;

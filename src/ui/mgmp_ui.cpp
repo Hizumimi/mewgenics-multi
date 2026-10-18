@@ -1,6 +1,7 @@
 #include "mgmp_ui.h"
 
 #include <windows.h>
+#include <atomic>
 #include <cstdio>
 #include <cstring>
 #include <deque>
@@ -22,6 +23,7 @@
 #include "mgmp_combatlock.h"
 #include "mgmp_leave.h"
 #include "mm_menu.h"
+#include "mm_trade_ui.h"      // Mewgenics Multi (protocole 62) : le bouton « Échanger »
 
 // Declared by imgui_impl_win32.h's owner rather than the header itself.
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(
@@ -43,6 +45,17 @@ struct UI {
 
     HWND     hwnd      = nullptr;
     WNDPROC  prev_wndproc = nullptr;
+
+    // Mewgenics Multi (protocole 62) : le bouton « Échanger » et sa fenetre
+    // (mm_trade_ui) tournent aussi panneau cache. `trade` : ils dessinent cette
+    // image (lu par le WndProc) ; `trade_font` : une police de Windows pour les
+    // accents (Segoe UI, sinon Arial ou Tahoma), nulle si aucune n'a ete lue.
+    std::atomic<bool> trade{false};
+    bool     trade_was  = false;
+    ImFont*  trade_font = nullptr;
+    // Panneau cache : les boutons de souris enfonces hors des fenetres d'ImGui
+    // (le clic est au jeu ; ImGui l'apprend sans son WndProc). Fil de la fenetre.
+    uint32_t outside_down = 0;
 
     // The pane's own copy of the log. Fed from log_ring_fetch by cursor, so a
     // quiet frame copies nothing.
@@ -583,6 +596,7 @@ LRESULT CALLBACK wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     // dismissed even if it has somehow captured the keyboard.
     if ((msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN) && wp == (WPARAM)g.toggle_vk) {
         g.visible = !g.visible;
+        g.outside_down = 0;
         if (g.ready) {
             // Drop any half-finished input state, or a button held when the
             // panel was dismissed stays held when it comes back.
@@ -596,7 +610,36 @@ LRESULT CALLBACK wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     // est a la fenetre du jeu que nous affichons, pas au jeu.
     if (mm_menu_wndproc(hwnd, msg, wp, lp)) return 0;
 
-    if (g.ready && g.visible) {
+    // Mewgenics Multi : le bouton « Échanger » prend aussi la souris, panneau
+    // cache -- seulement quand elle est sur lui ou sur sa fenetre (WantCaptureMouse).
+    if (g.ready && (g.visible || g.trade.load())) {
+        // Panneau cache, seul le bouton « Échanger » tourne : un clic hors de ses
+        // fenetres va au jeu tel quel. ImGui l'apprend sans passer par son WndProc,
+        // qui prendrait la capture de la souris (SetCapture) que SDL gere deja --
+        // assez pour qu'un clic ailleurs quitte un champ de saisie.
+        if (!g.visible) {
+            int  button = -1;
+            bool down   = false;
+            switch (msg) {
+                case WM_LBUTTONDOWN: case WM_LBUTTONDBLCLK: button = 0; down = true; break;
+                case WM_RBUTTONDOWN: case WM_RBUTTONDBLCLK: button = 1; down = true; break;
+                case WM_MBUTTONDOWN: case WM_MBUTTONDBLCLK: button = 2; down = true; break;
+                case WM_LBUTTONUP: button = 0; break;
+                case WM_RBUTTONUP: button = 1; break;
+                case WM_MBUTTONUP: button = 2; break;
+                default: break;
+            }
+            if (button >= 0) {
+                ImGuiIO& io = ImGui::GetIO();
+                const uint32_t bit = 1u << button;
+                if (down ? !io.WantCaptureMouse : (g.outside_down & bit) != 0) {
+                    io.AddMouseButtonEvent(button, down);
+                    g.outside_down = down ? (g.outside_down | bit) : (g.outside_down & ~bit);
+                    return CallWindowProcW(g.prev_wndproc, hwnd, msg, wp, lp);
+                }
+            }
+        }
+
         if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wp, lp))
             return 1;
 
@@ -667,6 +710,26 @@ bool bring_up() {
     ImGui::StyleColorsDark();
     ImGui::GetStyle().FontScaleMain = g.font_scale;
 
+    // La police du panneau d'abord (la premiere ajoutee sert par defaut), puis
+    // une police de Windows pour les textes des joueurs (les accents) : l'atlas
+    // d'ImGui 1.92 rasterise les caracteres a la demande, sans plage a donner.
+    // Une police du systeme, rien du jeu.
+    io.Fonts->AddFontDefault();
+    char windir[MAX_PATH] = {};
+    const UINT wn = GetWindowsDirectoryA(windir, MAX_PATH);
+    if (wn > 0 && wn < MAX_PATH) {
+        for (const char* f : { "\\Fonts\\segoeui.ttf", "\\Fonts\\arial.ttf", "\\Fonts\\tahoma.ttf" }) {
+            const std::string path = std::string(windir) + f;
+            if (GetFileAttributesA(path.c_str()) == INVALID_FILE_ATTRIBUTES) continue;
+            g.trade_font = io.Fonts->AddFontFromFileTTF(path.c_str(), 19.0f);
+            if (g.trade_font) {
+                log_line("UI", "police des echanges : %s", path.c_str());
+                break;
+            }
+        }
+    }
+    if (!g.trade_font) log_line("UI", "!! aucune police de Windows lue -- les accents des echanges seront des ?");
+
     if (!ImGui_ImplWin32_Init(g.hwnd)) {
         log_line("UI", "!! ImGui_ImplWin32_Init failed -- the panel is OFF");
         ImGui::DestroyContext();
@@ -732,7 +795,7 @@ void ui_shutdown() {
 }
 
 bool ui_captures_input() {
-    if (!g.ready || !g.visible) return false;
+    if (!g.ready || !(g.visible || g.trade.load())) return false;
     const ImGuiIO& io = ImGui::GetIO();
     return io.WantCaptureMouse || io.WantCaptureKeyboard;
 }
@@ -753,23 +816,46 @@ void ui_on_swap(void* window) {
         }
     }
 
-    if (!g.visible) return;
+    // Mewgenics Multi (protocole 62) : le bouton « Échanger » (mm_trade_ui) fait
+    // tourner ImGui meme panneau cache.
+    const bool trade = trade_ui_wanted();
+    g.trade.store(trade);
+    if (!g.visible && !trade) {
+        g.trade_was = false;
+        return;
+    }
 
     if (!g.ready) {
-        if (!bring_up()) { g.failed = true; return; }
+        if (!bring_up()) { g.failed = true; g.trade.store(false); return; }
         g.ready = true;
     }
 
+    // Le bouton revient, panneau cache : ImGui n'a rien vu entre-temps (un bouton
+    // tenu au depart resterait tenu).
+    if (trade && !g.trade_was && !g.visible) {
+        ImGui::GetIO().ClearInputKeys();
+        ImGui::GetIO().ClearInputMouse();
+    }
+    g.trade_was = trade;
+
     // Cheap, and it keeps the pane current even on frames where nothing is
     // drawn because a window is collapsed.
-    pump_log();
+    if (g.visible) pump_log();
 
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
-    draw_session();
-    draw_log();
+    if (g.visible) {
+        draw_session();
+        draw_log();
+    }
+    if (trade) trade_ui_draw(g.trade_font);
+
+    // Le jeu dessine son propre curseur : celui d'ImGui seulement sur ses fenetres
+    // quand le panneau est cache (sinon deux curseurs).
+    ImGuiIO& io = ImGui::GetIO();
+    io.MouseDrawCursor = g.visible || io.WantCaptureMouse;
 
     ImGui::Render();
     // RenderDrawData backs up and restores the GL state it touches, which is

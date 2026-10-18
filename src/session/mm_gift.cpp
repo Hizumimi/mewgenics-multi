@@ -1,0 +1,971 @@
+// mm_gift -- Mewgenics Multi : les dons entre joueurs (protocole 62). Voir mm_gift.h.
+
+#include "mm_gift.h"
+#include "mm_gift_core.h"
+#include "mm_loot.h"
+#include "mm_menu.h"
+#include "mm_npcgift.h"
+#include "mm_purse.h"
+#include "mm_purse_core.h"
+#include "mm_shop.h"
+#include "mm_team.h"
+#include "mm_team_merge.h"
+
+#include "mgmp_addresses.h"
+#include "mgmp_follow.h"
+#include "mgmp_invsync.h"
+#include "mgmp_log.h"
+#include "mgmp_mem.h"
+#include "mgmp_net.h"
+#include "mgmp_proto.h"
+#include "mgmp_resolve.h"
+#include "mgmp_savefile.h"
+
+#include <windows.h>
+#include <algorithm>
+#include <climits>
+#include <cstring>
+#include <map>
+#include <string>
+#include <vector>
+
+namespace mgmp {
+namespace {
+
+// --- le jeu (1.1.21239), voir mm_gift.h ----------------------------------------------------
+
+constexpr uintptr_t kDir_House   = 0x5A0;   // MewDirector : la maison (House*)
+constexpr uintptr_t kHouse_Food  = 0xB0;    // int32
+constexpr uintptr_t kHouse_Coins = 0xB4;    // int32
+
+using FnDirSave = void (__fastcall*)(void* director);
+
+// --- les delais ------------------------------------------------------------------------------
+
+constexpr uint64_t kAnswerMs        = kGiftWaitMs + 15000;  // donneur : la reponse, au plus
+constexpr uint64_t kLateMs          = 300000;  // ... une reponse en retard compte encore
+constexpr uint64_t kRemoveWaitMs    = 60000;   // donneur : le retrait attend un ecran ferme, au plus
+constexpr uint64_t kHomeGraceMs     = 2000;    // celui qui recoit : hors de sa maison, si ca dure
+constexpr uint64_t kPresenceBeatMs  = 10000;   // presence : redite meme sans changement
+constexpr uint64_t kPresenceStaleMs = 30000;   // invite : le masque de l'hote, plus vieux, ne compte plus
+constexpr uint64_t kViewGapMs       = 400;     // l'etat de la fenetre, au plus souvent
+constexpr uint64_t kToastMs         = 8000;    // une nouvelle reste a l'ecran
+constexpr size_t   kMaxIncoming     = 8;
+constexpr size_t   kDoneRing        = 32;
+constexpr size_t   kMaxToasts       = 4;
+
+// MM_GIFT, champ a (la presence).
+enum : uint8_t {
+    kPresenceMine = 1,   // joueur -> hote : c = 1 il peut recevoir, 0 non
+    kPresenceAll  = 2,   // hote -> tous : x = les numeros qui le peuvent
+};
+
+// --- l'etat (fil du jeu) ---------------------------------------------------------------------
+
+struct OutItem {
+    uint64_t    id     = 0;      // dans le rangement, a l'envoi
+    uint64_t    digest = 0;
+    ItemFields  f;
+    std::string label;
+};
+
+// Un don de ce joueur, a la maison.
+struct Outgoing {
+    bool        on      = false;
+    uint32_t    id      = 0;
+    uint8_t     target  = 0;
+    std::string name;            // a qui (UTF-8)
+    int32_t     coins   = 0;
+    int32_t     food    = 0;
+    std::vector<OutItem> items;
+    uint64_t    sent_at = 0;
+    bool        late    = false; // pas de reponse a temps : dit, une reponse compte encore
+    bool        got     = false; // garde chez l'autre : le retrait attend un ecran ferme
+    uint64_t    got_at  = 0;
+};
+
+// Un don pour ce joueur, en attente.
+struct Incoming {
+    GiftMsg  m;
+    uint64_t at = 0;
+};
+
+struct Toast {
+    uint32_t    id     = 0;
+    std::string text;
+    bool        result = false;
+    uint64_t    at     = 0;
+};
+
+struct Request {
+    TradeMode mode  = TradeMode::None;
+    uint8_t   to    = 0;
+    int64_t   coins = 0;
+    int64_t   food  = 0;
+    std::vector<uint64_t> items;
+};
+
+struct State {
+    bool     told    = false;
+    bool     save_ok = false;    // MewDirector::save resolu
+    uint32_t next_id = 0;
+
+    Outgoing out;                // le don en cours
+    Outgoing late;               // le dernier reste sans reponse a temps
+
+    std::vector<Incoming> in;
+    uint64_t done[kDoneRing] = {};   // dons deja gardes ici : bit 63 | donneur << 32 | numero
+    size_t   done_next = 0;
+
+    // La presence.
+    int      sent_can     = -1;  // invite : ce qu'il a dit a l'hote (-1 : rien encore)
+    uint64_t sent_can_at  = 0;
+    uint32_t guest_can    = 0;   // hote : les invites qui peuvent recevoir
+    uint32_t mask_sent    = 0;   // hote : le dernier masque envoye
+    bool     mask_said    = false;
+    uint64_t mask_sent_at = 0;
+    uint32_t host_mask    = 0;   // invite : le masque recu de l'hote
+    uint64_t host_mask_at = 0;
+    bool     have_mask    = false;
+    bool     was_session  = false;
+
+    // La fenetre.
+    uint64_t    view_at = 0;
+    std::map<uint64_t, std::string> labels;   // empreinte -> nom affiche
+    std::string status;
+    uint32_t    status_id = 0;
+    std::vector<Toast> toasts;
+    uint32_t    toast_id = 0;
+    std::vector<std::string> popups;          // fenetres du jeu a ouvrir, dans sa maison
+    bool        said_house = false;           // deux maisons differentes : dit une fois
+};
+State g;
+
+// --- partage avec la fenetre (son fil) : un verrou ------------------------------------------
+
+SRWLOCK g_lock = SRWLOCK_INIT;
+struct Lock {
+    Lock() { AcquireSRWLockExclusive(&g_lock); }
+    ~Lock() { ReleaseSRWLockExclusive(&g_lock); }
+    Lock(const Lock&) = delete;
+    Lock& operator=(const Lock&) = delete;
+};
+TradeView g_view;                // le dernier etat publie
+uint32_t  g_serial  = 0;
+bool      g_window  = false;
+bool      g_has_req = false;
+Request   g_req;
+
+// --- petits outils ---------------------------------------------------------------------------
+
+bool in_session() { return net_active() && net_peer_count() >= 2; }
+
+uint32_t roster_mask() {
+    uint8_t ids[8] = {};
+    uint32_t mask = 0;
+    const uint8_t n = net_peer_count();
+    if (n && net_peer_ids(ids, 8))
+        for (uint8_t i = 0; i < n && i < 8; ++i)
+            if (ids[i] < 32) mask |= 1u << ids[i];
+    return mask;
+}
+
+bool present(uint8_t id) { return id < 32 && (roster_mask() & (1u << id)) != 0; }
+
+void* director() {
+    const void** slot = (const void**)addr_of_data(D_MewDirectorPtr);
+    void* d = nullptr;
+    if (!slot || !mem_read(slot, &d, sizeof(d))) return nullptr;
+    return d;
+}
+
+// La maison : *(MewDirector+0x5A0), qui est aussi la maison vivante (D_HouseInstance,
+// pose a sa creation, remis a 0 par son destructeur). Les deux, ou rien.
+void* house() {
+    void* d = director();
+    void* h = nullptr;
+    if (!d || !mem_read((const char*)d + kDir_House, &h, sizeof(h)) || !h) return nullptr;
+    const void* const* slot = (const void* const*)addr_of_data(D_HouseInstance);
+    void* live = nullptr;
+    if (!slot || !mem_read(slot, &live, sizeof(live)) || live != h) {
+        if (!g.said_house) {
+            g.said_house = true;
+            log_line("DON", "!! la maison du Director (%p) n'est pas la maison vivante (%p) -- pas de don a la "
+                            "maison tant que c'est le cas", h, live);
+        }
+        return nullptr;
+    }
+    return h;
+}
+
+bool read_money(void* h, int32_t& coins, int32_t& food) {
+    return h && mem_read((const char*)h + kHouse_Coins, &coins, sizeof(coins)) &&
+           mem_read((const char*)h + kHouse_Food, &food, sizeof(food));
+}
+
+// Les deux, ou aucun : la seconde ecriture ratee remet la premiere.
+bool write_money(void* h, int32_t coins, int32_t food) {
+    int32_t old = 0;
+    if (!h || !mem_read((const char*)h + kHouse_Coins, &old, sizeof(old))) return false;
+    if (!mem_write((char*)h + kHouse_Coins, &coins, sizeof(coins))) return false;
+    if (!mem_write((char*)h + kHouse_Food, &food, sizeof(food))) {
+        mem_write((char*)h + kHouse_Coins, &old, sizeof(old));
+        return false;
+    }
+    return true;
+}
+
+// Ce joueur est dans SA maison (pas la copie de l'hote), sans depart ni defense en
+// cours : il peut donner et recevoir. `session` : en session aussi. Sinon `why`
+// (pour la fenetre, UTF-8).
+bool at_home(bool session, std::string* why) {
+    auto no = [&](const char* w) {
+        if (why) *why = w;
+        return false;
+    };
+    if (session && !in_session()) return no(u8"pas de partie à plusieurs en cours");
+    if (!g.save_ok) return no(u8"une fonction du jeu manque, les échanges à la maison sont coupés");
+    if (savefile_in_coop()) return no(u8"tu es dans la partie de l'hôte");
+    if (!mm_house() || !mm_in_house()) return no(u8"tu n'es pas dans ta maison");
+    if (net_role() == NetRole::Client && !savefile_has_own_slot()) return no(u8"ta save n'est pas chargée");
+    if (mm_departure_busy()) return no(u8"un départ en aventure est en cours");
+    if (team_house_defense_running()) return no(u8"ta maison est attaquée");
+    if (!house()) return no(u8"ta maison est illisible");
+    return true;
+}
+
+// Un ecran des objets ou une fenetre du jeu ouverte : rien ne se range ni ne se retire.
+bool screens_busy() { return loot_storage_busy(); }
+
+// Hote : le defile, les achats ou les dons aux PNJ tiennent des objets de son
+// rangement par leur id -- le relire les changerait.
+bool storage_held() {
+    return net_role() != NetRole::Client && (loot_storage_refs() || npcgift_storage_refs() || shop_storage_refs());
+}
+
+bool seh_save(FnDirSave fn, void* dir) {
+    __try {
+        fn(dir);
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
+// Sauver la partie de ce joueur (MewDirector::save), dans sa maison seulement.
+bool save_now(const char* what) {
+    const FnDirSave fn = (FnDirSave)addr_of_call(C_DirectorSave);
+    void* d = director();
+    std::string why;
+    if (!fn || !d) why = "fonction du jeu introuvable";
+    else if (!at_home(false, &why)) {}
+    else if (screens_busy()) why = "un ecran est ouvert";
+    if (!why.empty()) {
+        log_line("DON", "!! %s : pas de sauvegarde maintenant (%s) -- le jeu sauvera plus tard", what, why.c_str());
+        return false;
+    }
+    if (!seh_save(fn, d)) {
+        log_line("DON", "!! %s : la sauvegarde a leve une exception", what);
+        return false;
+    }
+    log_line("DON", "%s : partie sauvee", what);
+    return true;
+}
+
+std::string name_of(uint8_t id) { return mm_peer_name(id); }
+
+// Le nom d'un objet tel que le jeu de ce joueur l'affiche (appeler le jeu coute :
+// garde par empreinte).
+std::string label_of(const ItemFields& f) {
+    const uint64_t d = item_digest(f);
+    const auto it = g.labels.find(d);
+    if (it != g.labels.end()) return it->second;
+    std::string l = loot_item_label(f);
+    if (l.empty()) l = f.name;
+    if (g.labels.size() >= 4096) g.labels.clear();
+    g.labels.emplace(d, l);
+    return l;
+}
+
+// Une nouvelle : pour la fenetre (`status`) et/ou a l'ecran quelques secondes.
+void note(const std::string& text, bool status, bool toast, bool result) {
+    if (status) {
+        g.status = text;
+        ++g.status_id;
+    }
+    if (toast) {
+        Toast t;
+        t.id     = ++g.toast_id;
+        t.text   = text;
+        t.result = result;
+        t.at     = GetTickCount64();
+        g.toasts.push_back(std::move(t));
+        if (g.toasts.size() > kMaxToasts) g.toasts.erase(g.toasts.begin());
+    }
+    g.view_at = 0;               // publiee a la fin de cette image
+}
+
+uint64_t done_key(uint8_t giver, uint32_t id) { return (1ull << 63) | ((uint64_t)giver << 32) | id; }
+
+bool was_done(uint8_t giver, uint32_t id) {
+    const uint64_t k = done_key(giver, id);
+    for (uint64_t d : g.done)
+        if (d == k) return true;
+    return false;
+}
+
+void remember_done(uint8_t giver, uint32_t id) {
+    g.done[g.done_next] = done_key(giver, id);
+    g.done_next = (g.done_next + 1) % kDoneRing;
+}
+
+// Peut recevoir maintenant (la presence) ; sans nouvelles fraiches, on essaie.
+bool peer_can(uint8_t id) {
+    if (id >= 32) return false;
+    if (net_role() == NetRole::Client) {
+        if (!g.have_mask || GetTickCount64() - g.host_mask_at > kPresenceStaleMs) return true;
+        return ((g.host_mask >> id) & 1u) != 0;
+    }
+    return ((g.guest_can >> id) & 1u) != 0;
+}
+
+// Une reponse a un don : invite -> l'hote (qui relaie), hote -> le donneur.
+void reply(const GiftMsg& offer, uint8_t op, uint8_t why) {
+    GiftMsg r;
+    r.op     = op;
+    r.id     = offer.id;
+    r.giver  = offer.giver;
+    r.target = offer.target;
+    r.why    = why;
+    const int dest = net_role() == NetRole::Client ? (int)kHostPeer : (int)offer.giver;
+    if (!team_send(gift_encode(r), dest))
+        log_line("DON", "!! reponse au don %u impossible (connexion)", offer.id);
+}
+
+// --- celui qui recoit ------------------------------------------------------------------------
+
+// Les objets ajoutes sont bien dans le rangement relu (par empreinte : le jeu leur
+// donne de nouveaux ids).
+bool storage_has(const std::vector<uint8_t>& before, const std::vector<ItemFields>& add) {
+    std::vector<uint8_t>    now_blob;
+    std::vector<ItemFields> was, now;
+    if (!invsync_serialize_storage(now_blob) || !gift_storage_items(before, was) || !gift_storage_items(now_blob, now))
+        return false;
+    std::map<uint64_t, size_t> need;
+    for (const ItemFields& f : add) ++need[item_digest(f)];
+    for (const auto& kv : need) {
+        size_t had = 0, have = 0;
+        for (const ItemFields& f : was) had += item_digest(f) == kv.first;
+        for (const ItemFields& f : now) have += item_digest(f) == kv.first;
+        if (have < had + kv.second) return false;
+    }
+    return true;
+}
+
+void restore_storage(const std::vector<uint8_t>& before) {
+    if (invsync_load_storage(before)) log_line("DON", "rangement remis comme avant");
+    else log_line("DON", "!! le rangement n'a pas pu etre remis comme avant");
+}
+
+// Le don dans sa maison : les objets au rangement (marques « nouveaux »), l'or et la
+// nourriture a la maison, puis sauver. Faux (et pourquoi) : rien n'est garde.
+bool apply_offer(const GiftMsg& m, uint8_t& why, bool& saved) {
+    why   = kGiftWhyFailed;
+    saved = false;
+    void* h = house();
+    int32_t hc = 0, hf = 0;
+    if (!read_money(h, hc, hf)) {
+        log_line("DON", "!! don %u : maison illisible", m.id);
+        return false;
+    }
+    std::vector<uint8_t> before;
+    if (!m.items.empty()) {
+        if (!invsync_serialize_storage(before)) {
+            log_line("DON", "!! don %u : rangement illisible", m.id);
+            return false;
+        }
+        std::vector<uint8_t>    blob = before;
+        std::vector<ItemFields> add;
+        for (const GiftItem& it : m.items) {
+            ItemFields f = it.f;
+            f.c |= kItemSeenBits;            // « nouvel objet », comme un objet qui vient d'etre cree
+            add.push_back(std::move(f));
+        }
+        std::string err;
+        if (!gift_storage_append(blob, add, &err)) {
+            log_line("DON", "!! don %u : %s", m.id, err.c_str());
+            return false;
+        }
+        if (!invsync_load_storage(blob)) {
+            log_line("DON", "!! don %u : le jeu n'a pas relu le rangement", m.id);
+            restore_storage(before);
+            return false;
+        }
+        if (!storage_has(before, add)) {
+            log_line("DON", "!! don %u : les objets ne sont pas dans le rangement relu", m.id);
+            restore_storage(before);
+            return false;
+        }
+    }
+    if (m.coins || m.food) {
+        const int32_t nc = (int32_t)std::min<int64_t>(INT32_MAX, (int64_t)hc + m.coins);
+        const int32_t nf = (int32_t)std::min<int64_t>(INT32_MAX, (int64_t)hf + m.food);
+        if (!write_money(h, nc, nf)) {
+            log_line("DON", "!! don %u : or et nourriture de la maison : ecriture impossible", m.id);
+            if (!m.items.empty()) restore_storage(before);
+            return false;
+        }
+        log_line("DON", "maison : or %d -> %d, nourriture %d -> %d (don %u)", hc, nc, hf, nf, m.id);
+    }
+    saved = save_now("don recu");
+    return true;
+}
+
+void incoming_pump() {
+    if (g.in.empty()) return;
+    const uint64_t now = GetTickCount64();
+    std::string why_home;
+    const bool home = at_home(true, &why_home);
+    for (size_t i = 0; i < g.in.size();) {
+        const GiftMsg m = g.in[i].m;
+        const uint64_t waited = now - g.in[i].at;
+        const std::string giver = name_of(m.giver).empty() ? m.giver_name : name_of(m.giver);
+        // Le donneur est parti : il ne retirerait rien de chez lui -- pas de don.
+        if (!present(m.giver)) {
+            log_line("DON", "don %u de %s : il n'est plus la -- oublie", m.id, giver.c_str());
+            g.in.erase(g.in.begin() + (ptrdiff_t)i);
+            continue;
+        }
+        const bool grace = !home && waited < kHomeGraceMs;
+        const bool held  = screens_busy() || (!m.items.empty() && storage_held());
+        uint8_t why = 0;
+        GiftStep step = gift_receiver_step(home || grace, held || grace, waited, why);
+        if (step == GiftStep::Wait) {
+            ++i;
+            continue;
+        }
+        bool saved = false;
+        if (step == GiftStep::Apply && !apply_offer(m, why, saved)) step = GiftStep::Refuse;
+        if (step == GiftStep::Refuse) {
+            log_line("DON", "don %u de %s refuse : %s", m.id, giver.c_str(),
+                     why == kGiftWhyNotHome ? why_home.c_str() : gift_why_text(why, "ce joueur").c_str());
+            reply(m, kGiftRefused, why);
+            g.in.erase(g.in.begin() + (ptrdiff_t)i);
+            continue;
+        }
+        remember_done(m.giver, m.id);
+        reply(m, kGiftGot, 0);
+        std::vector<std::string> labels;
+        for (const GiftItem& it : m.items) labels.push_back(label_of(it.f));
+        const std::string list = gift_list_text(m.coins, m.food, labels);
+        log_line("DON", "<- don %u de %s garde : %s%s", m.id, giver.c_str(), list.c_str(),
+                 saved ? " (partie sauvee)" : "");
+        g.popups.push_back(gift_received_text(giver, list, saved));
+        g.in.erase(g.in.begin() + (ptrdiff_t)i);
+    }
+}
+
+void on_offer(uint8_t from, const GiftMsg& m, const uint8_t* raw, size_t n) {
+    if (net_role() == NetRole::Host) {
+        // Un invite ne donne qu'en son nom.
+        if (m.giver != from) {
+            log_line("DON", "!! don au nom du joueur %u venu du joueur %u -- ignore", (unsigned)m.giver, (unsigned)from);
+            return;
+        }
+        // Pas pour l'hote : relaye.
+        if (m.target != net_self()) {
+            if (!present(m.target) || !team_send(std::vector<uint8_t>(raw, raw + n), m.target)) {
+                log_line("DON", "don %u de %s : %u n'est plus la", m.id, name_of(from).c_str(), (unsigned)m.target);
+                reply(m, kGiftRefused, kGiftWhyGone);
+            } else {
+                log_line("DON", "don %u de %s relaye a %s", m.id, name_of(from).c_str(), name_of(m.target).c_str());
+            }
+            return;
+        }
+    } else if (from != kHostPeer || m.target != net_self()) {
+        log_line("DON", "!! don %u pour le joueur %u recu ici -- ignore", m.id, (unsigned)m.target);
+        return;
+    }
+    // Deja garde (le meme don une seconde fois) : la reponse repart, rien de plus.
+    if (was_done(m.giver, m.id)) {
+        reply(m, kGiftGot, 0);
+        return;
+    }
+    for (const Incoming& in : g.in)
+        if (in.m.giver == m.giver && in.m.id == m.id) return;
+    if (!g.save_ok) {
+        reply(m, kGiftRefused, kGiftWhyOff);
+        return;
+    }
+    if (g.in.size() >= kMaxIncoming) {
+        reply(m, kGiftRefused, kGiftWhyBusy);
+        return;
+    }
+    Incoming in;
+    in.m  = m;
+    in.at = GetTickCount64();
+    g.in.push_back(std::move(in));
+    log_line("DON", "<- don %u de %s : %d piece(s), %d nourriture(s), %zu objet(s)", m.id, name_of(m.giver).c_str(),
+             m.coins, m.food, m.items.size());
+}
+
+// --- le donneur ------------------------------------------------------------------------------
+
+void house_request(const Request& r) {
+    auto fail = [&](const std::string& w) {
+        note(w, true, false, true);
+        log_line("DON", "pas de don : %s", w.c_str());
+    };
+    std::string why;
+    if (!at_home(true, &why)) return fail(u8"Pas d'échange maintenant : " + why + ".");
+    if (g.out.on) return fail(u8"Ton don précédent attend encore sa réponse.");
+    const uint8_t self = net_self();
+    if (r.to == self || !present(r.to)) return fail(u8"Choisis un joueur de la partie.");
+    const std::string name = name_of(r.to);
+    if (!peer_can(r.to)) return fail(u8"Pas d'échange maintenant : " + purse_safe(name) + u8" n'est pas dans sa maison.");
+    if (r.coins < 0 || r.food < 0 || r.coins > kGiftMaxMoney || r.food > kGiftMaxMoney)
+        return fail(u8"Ce montant n'est pas possible.");
+    if (!r.coins && !r.food && r.items.empty())
+        return fail(u8"Choisis des pièces, de la nourriture ou des objets à donner.");
+    if (r.items.size() > kGiftMaxItems) return fail(u8"16 objets au plus par don.");
+    int32_t hc = 0, hf = 0;
+    if (!read_money(house(), hc, hf)) return fail(u8"Ta maison est illisible : pas de don.");
+    if (r.coins > hc) return fail(u8"Tu n'as pas autant de pièces.");
+    if (r.food > hf) return fail(u8"Tu n'as pas autant de nourriture.");
+    std::vector<LootStoredItem> store;
+    if (!r.items.empty() && !loot_storage_items(store)) return fail(u8"Ton rangement est illisible : pas de don.");
+    std::vector<OutItem> items;
+    for (uint64_t id : r.items) {
+        const LootStoredItem* s = nullptr;
+        for (const LootStoredItem& x : store)
+            if (x.id == id) {
+                s = &x;
+                break;
+            }
+        bool twice = false;
+        for (const OutItem& o : items) twice = twice || o.id == id;
+        if (!s || twice) return fail(u8"Un objet choisi n'est plus dans ton rangement : choisis à nouveau.");
+        OutItem o;
+        o.id     = s->id;
+        o.digest = item_digest(s->f);
+        o.f      = s->f;
+        o.label  = label_of(s->f);
+        items.push_back(std::move(o));
+    }
+    GiftMsg m;
+    m.op     = kGiftOffer;
+    m.id     = ++g.next_id;
+    m.giver  = self;
+    m.target = r.to;
+    m.coins  = (int32_t)r.coins;
+    m.food   = (int32_t)r.food;
+    std::vector<std::string> labels;
+    for (const OutItem& o : items) {
+        GiftItem gi;
+        gi.f     = o.f;
+        gi.label = o.label;
+        m.items.push_back(std::move(gi));
+        labels.push_back(o.label);
+    }
+    const char* me = mm_local_name();
+    m.giver_name = me ? me : "";
+    const int dest = net_role() == NetRole::Client ? (int)kHostPeer : (int)r.to;
+    if (!team_send(gift_encode(m), dest)) return fail(u8"Le don n'a pas pu partir (connexion).");
+    Outgoing o;
+    o.on      = true;
+    o.id      = m.id;
+    o.target  = r.to;
+    o.name    = name;
+    o.coins   = m.coins;
+    o.food    = m.food;
+    o.items   = std::move(items);
+    o.sent_at = GetTickCount64();
+    g.out     = std::move(o);
+    const std::string list = gift_list_text(m.coins, m.food, labels);
+    note(u8"Don envoyé à " + purse_safe(name) + u8" (" + list + u8") : en attente de sa réponse…", true, false, true);
+    log_line("DON", "-> don %u a %s : %s", m.id, name.c_str(), list.c_str());
+}
+
+void run_request(const Request& r) {
+    std::string why;
+    if (purse_give(r.to, r.coins, r.food, why)) {
+        // L'hote : fait (purse_give l'a dit) ; un invite attend la reponse de l'hote.
+        if (net_role() == NetRole::Client)
+            note(u8"Don demandé à l'hôte : en attente de sa réponse…", true, false, true);
+        return;
+    }
+    note(u8"Pas de don : " + why + ".", true, false, true);
+    log_line("DON", "pas de don de bourse : %s", why.c_str());
+}
+
+// Le don est garde chez l'autre : il quitte la maison de ce joueur (les objets par
+// leur id, ou par leur empreinte si le rangement a ete relu), puis sauver. Un ecran
+// ouvert : plus tard (60 s au plus). Plus dans sa maison : tout reste aussi chez lui.
+void finish_pump(Outgoing& o) {
+    if (!o.on || !o.got) return;
+    std::string why;
+    const bool home = at_home(false, &why);
+    if (home && screens_busy() && GetTickCount64() - o.got_at < kRemoveWaitMs) return;
+    std::vector<std::string> labels;
+    for (const OutItem& it : o.items) labels.push_back(it.label);
+    const std::string list = gift_list_text(o.coins, o.food, labels);
+    if (!home || screens_busy()) {
+        log_line("DON", "!! don %u : garde par %s, mais rien n'a pu quitter ta maison (%s) -- c'est aussi chez toi",
+                 o.id, o.name.c_str(), home ? "un ecran est reste ouvert" : why.c_str());
+        note(purse_safe(o.name) + u8" a bien reçu " + list +
+                 u8", mais tu n'étais plus dans ta maison : c'est resté chez toi aussi.", true, true, true);
+        o = Outgoing{};
+        return;
+    }
+    size_t kept = 0;
+    if (!o.items.empty()) {
+        std::vector<LootStoredItem> store;
+        const bool        ok = loot_storage_items(store);
+        std::vector<bool> used(store.size(), false);
+        for (const OutItem& it : o.items) {
+            int pick = -1;
+            for (size_t j = 0; ok && pick < 0 && j < store.size(); ++j)
+                if (!used[j] && store[j].id == it.id && item_digest(store[j].f) == it.digest) pick = (int)j;
+            for (size_t j = 0; ok && pick < 0 && j < store.size(); ++j)
+                if (!used[j] && item_digest(store[j].f) == it.digest) pick = (int)j;
+            std::string w = ok ? "il n'est plus dans le rangement" : "rangement illisible";
+            if (pick >= 0) {
+                used[(size_t)pick] = true;
+                if (loot_storage_take(store[(size_t)pick].id, it.digest, w)) {
+                    log_line("DON", "%s : retire de ton rangement (%s l'a)", it.label.c_str(), o.name.c_str());
+                    continue;
+                }
+            }
+            ++kept;
+            log_line("DON", "!! %s : garde par %s, mais il n'a pas pu quitter ton rangement (%s) -- il est aussi chez toi",
+                     it.label.c_str(), o.name.c_str(), w.c_str());
+        }
+    }
+    if (o.coins || o.food) {
+        void* h = house();
+        int32_t hc = 0, hf = 0;
+        if (read_money(h, hc, hf)) {
+            // Pas sous 0 : il a pu en depenser entre-temps.
+            const int32_t nc = (int32_t)std::max<int64_t>(0, (int64_t)hc - o.coins);
+            const int32_t nf = (int32_t)std::max<int64_t>(0, (int64_t)hf - o.food);
+            if (write_money(h, nc, nf))
+                log_line("DON", "maison : or %d -> %d, nourriture %d -> %d (don %u a %s)", hc, nc, hf, nf, o.id,
+                         o.name.c_str());
+            else
+                log_line("DON", "!! don %u : or et nourriture de la maison : ecriture impossible -- ils restent chez toi",
+                         o.id);
+        } else {
+            log_line("DON", "!! don %u : maison illisible -- l'or et la nourriture restent chez toi", o.id);
+        }
+    }
+    save_now("don fait");
+    note(gift_done_text(o.name, list, kept, o.late), true, true, true);
+    o = Outgoing{};
+}
+
+void on_answer(uint8_t from, const GiftMsg& m, const uint8_t* raw, size_t n) {
+    if (net_role() == NetRole::Host) {
+        // Seul celui qui recoit repond.
+        if (m.target != from) {
+            log_line("DON", "!! reponse au don %u du joueur %u au nom du joueur %u -- ignoree", m.id, (unsigned)from,
+                     (unsigned)m.target);
+            return;
+        }
+        // Un don d'un invite : relaye.
+        if (m.giver != net_self()) {
+            if (!present(m.giver) || !team_send(std::vector<uint8_t>(raw, raw + n), m.giver))
+                log_line("DON", "!! reponse au don %u : le donneur (%u) n'est plus la", m.id, (unsigned)m.giver);
+            return;
+        }
+    } else if (from != kHostPeer || m.giver != net_self()) {
+        return;
+    }
+    Outgoing* o = (g.out.on && g.out.id == m.id && g.out.target == m.target)    ? &g.out
+                : (g.late.on && g.late.id == m.id && g.late.target == m.target) ? &g.late
+                                                                                : nullptr;
+    if (!o) {
+        log_line("DON", "reponse a un don inconnu ou fini (%u) -- ignoree", m.id);
+        return;
+    }
+    if (o->got) return;                      // en double
+    if (m.op == kGiftRefused) {
+        const std::string text = gift_refused_text(o->name, m.why);
+        log_line("DON", "<- don %u refuse par %s (raison %u)", o->id, o->name.c_str(), (unsigned)m.why);
+        note(text, true, true, true);
+        *o = Outgoing{};
+        return;
+    }
+    o->got    = true;
+    o->got_at = GetTickCount64();
+    log_line("DON", "<- don %u garde par %s", o->id, o->name.c_str());
+    finish_pump(*o);
+}
+
+void outgoing_pump() {
+    const uint64_t now = GetTickCount64();
+    if (g.out.on && !g.out.got) {
+        const bool gone = !in_session() || !present(g.out.target);
+        if (gone || now - g.out.sent_at > kAnswerMs) {
+            log_line("DON", "!! don %u a %s : %s -- rien n'a quitte ta maison", g.out.id, g.out.name.c_str(),
+                     gone ? "il n'est plus la" : "pas de reponse");
+            if (gone) {
+                note(gift_refused_text(g.out.name, kGiftWhyGone), true, true, true);
+                g.out = Outgoing{};
+            } else {
+                note(u8"Pas de réponse " + purse_of(g.out.name) + u8" pour ton don : rien n'a quitté ta maison.", true,
+                     true, true);
+                g.late      = g.out;
+                g.late.late = true;
+                g.out       = Outgoing{};
+            }
+        }
+    }
+    if (g.late.on && !g.late.got && (now - g.late.sent_at > kLateMs || !in_session() || !present(g.late.target)))
+        g.late = Outgoing{};
+    finish_pump(g.out);
+    finish_pump(g.late);
+}
+
+// --- la presence -----------------------------------------------------------------------------
+
+void presence_pump() {
+    const uint64_t now = GetTickCount64();
+    const bool     can = at_home(true, nullptr);
+    if (net_role() == NetRole::Client) {
+        if ((int)can != g.sent_can || now - g.sent_can_at >= kPresenceBeatMs) {
+            MmMsg m{};
+            m.kind = MM_GIFT;
+            m.a    = kPresenceMine;
+            m.c    = can ? 1 : 0;
+            if (net_send_mm(m)) g.sent_can = can ? 1 : 0;
+            g.sent_can_at = now;
+        }
+        return;
+    }
+    if (net_role() != NetRole::Host) return;
+    g.guest_can &= roster_mask();
+    uint32_t mask = g.guest_can & ~(1u << kHostPeer);
+    if (can) mask |= 1u << kHostPeer;
+    if (!g.mask_said || mask != g.mask_sent || now - g.mask_sent_at >= kPresenceBeatMs) {
+        MmMsg m{};
+        m.kind = MM_GIFT;
+        m.a    = kPresenceAll;
+        m.x    = mask;
+        if (net_send_mm(m)) {
+            g.mask_sent = mask;
+            g.mask_said = true;
+        }
+        g.mask_sent_at = now;
+    }
+}
+
+void session_end() {
+    if (!g.in.empty())
+        log_line("DON", "fin de la session : %zu don(s) recu(s) en attente sont oublies", g.in.size());
+    g.in.clear();
+    g.sent_can  = -1;
+    g.guest_can = 0;
+    g.mask_said = false;
+    g.have_mask = false;
+}
+
+// --- la fenetre ------------------------------------------------------------------------------
+
+void publish(bool window) {
+    const uint64_t now = GetTickCount64();
+    if (g.view_at && now - g.view_at < kViewGapMs) return;
+    g.view_at = now ? now : 1;
+    TradeView v;
+    const uint8_t self = net_self();
+    std::string   why;
+    std::vector<PurseHolder> holders;
+    if (!in_session()) {
+        v.mode     = TradeMode::None;
+        v.why_none = u8"Les échanges marchent pendant une partie à plusieurs.";
+    } else if (at_home(true, &why)) {
+        v.mode = TradeMode::House;
+        v.show = true;
+        int32_t hc = 0, hf = 0;
+        if (read_money(house(), hc, hf)) {
+            v.coins = hc;
+            v.food  = hf;
+        }
+        uint8_t ids[8] = {};
+        const uint8_t n = net_peer_count();
+        if (n && net_peer_ids(ids, 8))
+            for (uint8_t i = 0; i < n && i < 8; ++i) {
+                if (ids[i] == self) continue;
+                TradePeer p;
+                p.id   = ids[i];
+                p.name = name_of(ids[i]);
+                p.can  = peer_can(ids[i]);
+                if (!p.can) p.why = purse_safe(p.name) + u8" n'est pas dans sa maison.";
+                v.peers.push_back(std::move(p));
+            }
+        if (window) {
+            std::vector<LootStoredItem> store;
+            if (loot_storage_items(store)) {
+                v.items_ready = true;
+                for (const LootStoredItem& s : store) {
+                    TradeItem t;
+                    t.id    = s.id;
+                    t.label = label_of(s.f);
+                    v.items.push_back(std::move(t));
+                }
+                std::stable_sort(v.items.begin(), v.items.end(), [](const TradeItem& a, const TradeItem& b) {
+                    return _stricmp(a.label.c_str(), b.label.c_str()) < 0;
+                });
+            }
+        }
+        v.pending = g.out.on && !g.out.late;
+    } else if (purse_holders(holders)) {
+        const PurseHolder* mine = nullptr;
+        for (const PurseHolder& h : holders)
+            if (h.peer == self) mine = &h;
+        if (mine) {
+            v.mode  = TradeMode::Run;
+            v.coins = mine->coins;
+            v.food  = mine->food;
+            for (const PurseHolder& h : holders) {
+                if (h.peer == self) continue;
+                TradePeer p;
+                p.id   = h.peer;
+                p.name = name_of(h.peer);
+                p.can  = present(h.peer);
+                if (!p.can) p.why = purse_safe(p.name) + u8" n'est plus dans la partie.";
+                v.peers.push_back(std::move(p));
+            }
+            v.pending = purse_give_pending();
+            v.show    = follow_on_map();     // sur la carte : pas en plein combat ou evenement
+        } else {
+            v.mode     = TradeMode::None;
+            v.why_none = u8"Tu n'as pas de bourse dans cette aventure (tu n'y as pas amené de chat).";
+        }
+    } else {
+        v.mode     = TradeMode::None;
+        v.why_none = u8"Les échanges marchent dans ta maison, ou en aventure à plusieurs avec ta bourse. "
+                     u8"Pour l'instant : " + why + ".";
+    }
+    v.status    = g.status;
+    v.status_id = g.status_id;
+    g.toasts.erase(std::remove_if(g.toasts.begin(), g.toasts.end(),
+                                  [&](const Toast& t) { return now - t.at >= kToastMs; }),
+                   g.toasts.end());
+    for (const Toast& t : g.toasts) {
+        TradeToast tt;
+        tt.id     = t.id;
+        tt.text   = t.text;
+        tt.result = t.result;
+        v.toasts.push_back(std::move(tt));
+    }
+    Lock l;
+    v.serial = ++g_serial;
+    g_view   = std::move(v);
+}
+
+void popups_pump() {
+    if (g.popups.empty()) return;
+    if (!mm_house() || mm_info_busy() || mm_game_prompt_open()) return;
+    mm_show_info(g.popups.front());
+    g.popups.erase(g.popups.begin());
+}
+
+} // namespace
+
+// ---------------------------------------------------------------------------------------------
+
+void gift_pump() {
+    if (!g.told) {
+        g.told    = true;
+        g.save_ok = addr_of_call(C_DirectorSave) != 0;
+        // Les numeros de dons partent d'un nombre au hasard : un donneur qui relance
+        // son jeu ne reprend pas ceux d'avant (celui qui recoit les retient).
+        g.next_id = (uint32_t)(GetTickCount64() * 2654435761ull) ^ ((uint32_t)GetCurrentProcessId() << 12);
+        log_line("DON", g.save_ok ? "arme -- les dons entre joueurs, a la maison et en aventure (bourses)"
+                                  : "!! MewDirector::save introuvable : pas de dons a la maison (ceux des bourses, "
+                                    "en aventure, marchent)");
+    }
+    const bool session = in_session();
+    if (!session && g.was_session) session_end();
+    g.was_session = session;
+
+    Request r;
+    bool    have   = false;
+    bool    window = false;
+    {
+        Lock l;
+        if (g_has_req) {
+            r         = std::move(g_req);
+            g_req     = Request{};
+            g_has_req = false;
+            have      = true;
+        }
+        window = g_window;
+    }
+    if (have) {
+        if (r.mode == TradeMode::House) house_request(r);
+        else if (r.mode == TradeMode::Run) run_request(r);
+    }
+    if (session) {
+        presence_pump();
+        incoming_pump();
+    }
+    outgoing_pump();
+    popups_pump();
+    publish(window);
+}
+
+void gift_on_team(uint8_t from, const uint8_t* p, size_t n) {
+    GiftMsg m;
+    if (!gift_decode(p, n, m)) {
+        log_line("DON", "!! don illisible (%zu octets, joueur %u) -- ignore", n, (unsigned)from);
+        return;
+    }
+    if (m.op == kGiftOffer) on_offer(from, m, p, n);
+    else on_answer(from, m, p, n);
+}
+
+void gift_on_mm(uint8_t from, const MmMsg& m) {
+    if (m.kind != MM_GIFT) return;
+    if (net_role() == NetRole::Host) {
+        if (m.a != kPresenceMine || from >= 32 || from == kHostPeer) return;
+        const uint32_t bit = 1u << from;
+        const bool     can = m.c != 0;
+        if (((g.guest_can & bit) != 0) != can)
+            log_line("DON", "%s %s", name_of(from).c_str(),
+                     can ? "peut recevoir des dons (dans sa maison)" : "ne peut plus recevoir de dons");
+        g.guest_can = can ? (g.guest_can | bit) : (g.guest_can & ~bit);
+        return;
+    }
+    if (net_role() == NetRole::Client && from == kHostPeer && m.a == kPresenceAll) {
+        g.host_mask    = m.x;
+        g.host_mask_at = GetTickCount64();
+        g.have_mask    = true;
+    }
+}
+
+void gift_purse_note(const std::string& text, bool mine) { note(text, mine, true, mine); }
+
+bool gift_view(TradeView& out, uint32_t have) {
+    Lock l;
+    if (g_view.serial == have) return false;
+    out = g_view;
+    return true;
+}
+
+void gift_window_open(bool open) {
+    Lock l;
+    g_window = open;
+}
+
+void gift_request(TradeMode mode, uint8_t to, int64_t coins, int64_t food, const std::vector<uint64_t>& item_ids) {
+    Lock l;
+    g_req.mode  = mode;
+    g_req.to    = to;
+    g_req.coins = coins;
+    g_req.food  = food;
+    g_req.items = item_ids;
+    g_has_req   = true;
+}
+
+} // namespace mgmp

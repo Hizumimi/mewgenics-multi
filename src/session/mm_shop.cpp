@@ -959,6 +959,8 @@ void shop_victory_before() {
     log_line("SHOP", "victoire : %zu achat(s) note(s) dans l'aventure", g.snap_owned.size());
 }
 
+bool shop_storage_refs() { return net_role() != NetRole::Client && (!g.gives.empty() || !g.erases.empty()); }
+
 bool shop_claims(uint64_t id) {
     return std::find(g.claimed.begin(), g.claimed.end(), id) != g.claimed.end();
 }

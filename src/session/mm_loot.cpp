@@ -1209,6 +1209,8 @@ bool loot_holds_home() {
 
 bool loot_host_busy() { return g.armed && is_host() && g.on; }
 
+bool loot_storage_refs() { return is_host() && (g.on || !g.gives.empty() || !g.erases.empty()); }
+
 // --- le rangement, pour les dons aux PNJ (mm_npcgift) -------------------------------------------
 
 bool loot_storage_items(std::vector<LootStoredItem>& out) {

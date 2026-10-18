@@ -57,6 +57,11 @@ void npcgift_on_team(uint8_t from, const uint8_t* p, size_t n);
 // (le tuyau les prend).
 bool npcgift_guest_donates();
 
+// Mewgenics Multi (protocole 62, mm_gift) : hote, des recompenses envoyees (sans
+// reponse) ou des objets pas encore retires tiennent des objets de son rangement
+// par leur id -- le relire (un don recu) leur donnerait d'autres ids.
+bool npcgift_storage_refs();
+
 // Detours et originaux de T_NpcFavor et T_CacheReward (mgmp_hooks.cpp).
 bool npcgift_binding(Target t, void** detour, void*** original);
 

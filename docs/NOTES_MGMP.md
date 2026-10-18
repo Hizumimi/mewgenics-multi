@@ -2831,6 +2831,80 @@ debug panel — is not a supported path: the four findings that need it are not
 hardened. One diagnostics-only observation (what the log says, not what the game
 does) is unchanged.
 
+### Protocol 62 — gifts between players (Mewgenics Multi)
+
+Players give each other gold, food and storage items, with an "Échanger" button
+(`src/ui/mm_trade_ui.cpp`, logic in `src/session/mm_gift.cpp`, wire format and
+rules in `mm_gift_core.h`). At home both players must be in their OWN house; in a
+mixed run only purse money moves (items already live in the shared bag).
+
+**What the game has (1.1.21239).** House gold and food are `House+0xB4` and
+`+0xB0` (int32). The house is `*(MewDirector+0x5A0)`: `0x1403C2400` creates it,
+and `0x1403C98C0` (inside) also stores it in the global `D_HouseInstance`, which
+the destructor `0x140205E65` zeroes; `House::save` `0x140205E80` writes both
+fields. The mod reads the house through the director and refuses if the global
+disagrees. `MewDirector::save` `0x1403BDCF0` (`rcx` = director, `C_DirectorSave`):
+`0x140A0DBA0` on `+0x4A8`, then `House::save(+0x5A0)`, the cats (`+0x598`), the
+`Inventory` (`+0x588`), `+0x5A8`, the tutorial tokens, then the commit. The game
+calls it from about sixteen places, mostly house callbacks and the run victory —
+it is the "save the game now" of the hub, unlike `save_adventure`, which is a
+node-boundary function.
+
+**Reloading the storage renumbers every item.** `invsync_load_storage` goes
+through the game's own reader, and item ids are minted on load (see the
+`Inventory` section). So the receiver's reload breaks every id another module
+holds on its storage: on the host, the loot parade (`kLootGive`), the shop
+deliveries (`kShopGive`) and the NPC rewards (`kNpcGift`) keep `{id, digest}`
+until their answer. The host therefore does not apply an item gift while
+`loot_storage_refs() || shop_storage_refs() || npcgift_storage_refs()`; it waits
+like for an open screen. The giver's own pending items are found by id, else by
+digest (identical items are interchangeable), because a gift it RECEIVED in the
+meantime may have reloaded its storage (crossing gifts).
+
+**At home: a two-phase gift (MSG_TEAM `kTeamGift = 18`).** The giver checks its
+gold, food and items (still there), sends `kGiftOffer` (a guest's goes to the host,
+which relays it only if `giver == the link it came from`) and waits. The receiver:
+in its own house (not the coop copy, no departure, no house defence), with neither
+the inventory screen nor a game confirmation open (it waits up to 20 s, then
+refuses "busy"; a leave of the house shorter than 2 s is waited too), serializes
+its storage, appends the items (the "new item" bits `0x6` of `c` set), reloads,
+checks by digest that they are all there (else reloads the old blob and refuses),
+adds the gold and food (clamped to `INT32_MAX`), calls `MewDirector::save`, and
+answers `kGiftGot` (the host relays an answer only if `target == the link`). Only
+then the giver removes the items (`C_BucketErase`), the gold and food (not below
+zero: it may have spent some meanwhile), and saves. A refusal, a target that
+left, or no answer in 35 s: nothing left the giver's house; an answer up to five
+minutes late still counts ("Finalement, …"). A giver that is no longer in its
+house when the answer arrives (or kept a screen open for 60 s) removes nothing:
+a duplicate rather than a loss, logged and told. An offer seen again is answered
+`kGiftGot` without being applied twice (a ring of the last 32 `{giver, id}`;
+ids start at a random number per process).
+
+**Presence (`MM_GIFT = 14`).** Each guest tells the host whether it can receive
+(`a = 1`, `c` = 1/0: `at_home`), the host tells everyone the mask (`a = 2`,
+`x`, its own bit included), on change and every 10 s. Only the window uses it;
+without fresh news a guest just tries.
+
+**In a run: purse to purse (`MM_PURSE a = 4, 5, 6`).** A guest asks the host
+(`a = 4`: target, amounts, a request number); the host takes the giver from the
+link, requires a purse on both sides (a player who brought cats, or the host,
+who keeps the rest at the end anyway), `PurseBook::transfer` (no debt is given;
+the run's total does not change), broadcasts `a = 5` (giver, target, amounts,
+request number in `text[0]`) and the ledger, or `a = 6` with the reason. The
+host's own gift is applied directly. The log label of `Unit::GainCoins` is now
+"pieces en combat": it also books losses.
+
+**The window and ImGui.** The button shows in session in one's own house, or in
+a mixed run on the map with a purse. `mgmp_ui` now brings ImGui up and draws when
+`trade_ui_wanted()` even with the F1 panel hidden; the WndProc forwards input to
+ImGui in that case too and swallows mouse/keyboard only when ImGui wants them;
+ImGui's own cursor is drawn only over its windows when the panel is hidden (the
+game draws its own). A Windows TTF (Segoe UI, else Arial or Tahoma) is added after
+the default font for the accents — 1.92's atlas rasterizes on demand, no glyph
+ranges. The window runs on the swap path: it only reads a snapshot that
+`gift_pump` publishes (every 400 ms, the storage only while the window is open)
+and leaves one request, both under an `SRWLOCK`.
+
 ### Steam transport (Mewgenics Multi, `src/net/mgmp_steam.cpp`)
 
 **The mod's transport stays TCP; Steam is a byte pipe beside it.** The host's

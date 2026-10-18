@@ -93,6 +93,10 @@ bool loot_storage_busy();
 bool loot_storage_take(uint64_t id, uint64_t digest, std::string& why);
 // Le nom d'un objet tel que le jeu l'affiche (sa cle GON a defaut), en UTF-8.
 std::string loot_item_label(const ItemFields& f);
+// Mewgenics Multi (protocole 62, mm_gift) : hote, le defile ou ses objets donnes
+// (sans reponse, ou pas encore retires) tiennent des objets de son rangement par
+// leur id -- le relire (un don recu) leur donnerait d'autres ids.
+bool loot_storage_refs();
 
 // --- le sac de l'aventure et un objet en memoire, pour les achats (mm_shop) -----
 

@@ -109,6 +109,26 @@ PursePayout PurseBook::settle(uint32_t paid, int64_t run_coins, int64_t run_food
     return out;
 }
 
+bool PurseBook::transfer(uint8_t from, uint8_t to, int64_t coins, int64_t food) {
+    if (from >= kPurseSlots || to >= kPurseSlots || from == to) return false;
+    if (coins < 0 || food < 0 || (!coins && !food)) return false;
+    if (coins > e_[from].coins || food > e_[from].food) return false;
+    e_[from].coins -= coins;
+    e_[from].food  -= food;
+    e_[to].coins   += coins;
+    e_[to].food    += food;
+    return true;
+}
+
+std::string purse_give_no_text(uint8_t why) {
+    switch (why) {
+    case kPurseNoPurse:  return u8"pas de bourse pour ce joueur dans cette aventure";
+    case kPurseNoEnough: return u8"ta bourse n'en a pas autant";
+    case kPurseNoRun:    return u8"l'aventure n'est plus suivie";
+    default:             return u8"raison inconnue";
+    }
+}
+
 // --- le message ---------------------------------------------------------------------------
 
 namespace {
@@ -182,6 +202,88 @@ bool purse_decode_find(const MmMsg& m, uint8_t& owner, int32_t& coins, int32_t& 
     food  = (int32_t)m.y;
     cat.assign(m.text, strnlen(m.text, sizeof(m.text)));
     return true;
+}
+
+// --- les dons entre bourses (protocole 62) ---------------------------------------------------
+
+namespace {
+
+bool give_amounts_ok(int64_t coins, int64_t food) {
+    return coins >= 0 && food >= 0 && (coins || food) && coins <= kPurseGiveMax && food <= kPurseGiveMax;
+}
+
+} // namespace
+
+void purse_encode_give_req(MmMsg& m, uint8_t to, int32_t coins, int32_t food, uint8_t seq) {
+    m = MmMsg{};
+    m.kind = MM_PURSE;
+    m.a    = kPurseGiveReq;
+    m.b    = to;
+    m.c    = seq;
+    m.x    = (uint32_t)coins;
+    m.y    = (uint32_t)food;
+}
+
+bool purse_decode_give_req(const MmMsg& m, uint8_t& to, int32_t& coins, int32_t& food, uint8_t& seq) {
+    if (m.kind != MM_PURSE || m.a != kPurseGiveReq || m.b >= kPurseSlots) return false;
+    const int32_t c = (int32_t)m.x, f = (int32_t)m.y;
+    if (!give_amounts_ok(c, f)) return false;
+    to    = m.b;
+    seq   = m.c;
+    coins = c;
+    food  = f;
+    return true;
+}
+
+void purse_encode_given(MmMsg& m, uint8_t giver, uint8_t to, int32_t coins, int32_t food, uint8_t seq) {
+    m = MmMsg{};
+    m.kind    = MM_PURSE;
+    m.a       = kPurseGiven;
+    m.b       = giver;
+    m.c       = to;
+    m.x       = (uint32_t)coins;
+    m.y       = (uint32_t)food;
+    m.text[0] = (char)seq;
+}
+
+bool purse_decode_given(const MmMsg& m, uint8_t& giver, uint8_t& to, int32_t& coins, int32_t& food,
+                        uint8_t& seq) {
+    if (m.kind != MM_PURSE || m.a != kPurseGiven || m.b >= kPurseSlots || m.c >= kPurseSlots || m.b == m.c)
+        return false;
+    const int32_t c = (int32_t)m.x, f = (int32_t)m.y;
+    if (!give_amounts_ok(c, f)) return false;
+    giver = m.b;
+    to    = m.c;
+    coins = c;
+    food  = f;
+    seq   = (uint8_t)m.text[0];
+    return true;
+}
+
+void purse_encode_give_no(MmMsg& m, uint8_t giver, uint8_t why, uint8_t seq) {
+    m = MmMsg{};
+    m.kind = MM_PURSE;
+    m.a    = kPurseGiveNo;
+    m.b    = giver;
+    m.c    = why;
+    m.x    = seq;
+}
+
+bool purse_decode_give_no(const MmMsg& m, uint8_t& giver, uint8_t& why, uint8_t& seq) {
+    if (m.kind != MM_PURSE || m.a != kPurseGiveNo || m.b >= kPurseSlots) return false;
+    if (m.c == 0 || m.c > kPurseNoLast || m.x > 0xFF) return false;
+    giver = m.b;
+    why   = m.c;
+    seq   = (uint8_t)m.x;
+    return true;
+}
+
+std::string purse_given_line(bool from_me, bool to_me, const std::string& giver, const std::string& to,
+                             int64_t coins, int64_t food) {
+    const std::string what = purse_amount_text(coins, food);
+    if (to_me) return purse_safe(giver) + u8" t'a donné " + what + u8" : c'est dans ta bourse.";
+    if (from_me) return u8"Tu as donné " + what + u8" à " + purse_safe(to) + u8" : c'est dans sa bourse.";
+    return purse_safe(giver) + u8" a donné " + what + u8" à " + purse_safe(to) + ".";
 }
 
 std::string purse_amount_text(int64_t coins, int64_t food) {

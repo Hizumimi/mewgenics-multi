@@ -82,6 +82,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace mgmp {
 
@@ -95,7 +96,7 @@ bool purse_binding(Target t, void** detour, void*** original);
 // Chaque image (mm_menu_pump).
 void purse_pump();
 
-// MM_PURSE (invite).
+// MM_PURSE (invite ; hote : les demandes de dons, a = 4).
 void purse_on_mm(uint8_t from, const MmMsg& m);
 
 // --- mm_shop : les achats en boutique -----------------------------------------------
@@ -120,5 +121,29 @@ bool purse_mine(int64_t& coins, int64_t& food);
 // `mark` : une fenetre s'ouvre ou se met a jour avec ce texte -- ces trouvailles
 // sont dites, et s'en iront a la case suivante.
 std::string purse_vote_line(bool mark);
+
+// --- mm_gift : les dons entre bourses (protocole 62) ---------------------------------
+//
+// Un joueur donne des pieces et de la nourriture de sa bourse a celle d'un autre
+// joueur de l'aventure : le compte de l'aventure ne change pas. Invite : MM_PURSE
+// a = 4 a l'hote, qui verifie (les deux ont une bourse, la sienne en a assez), fait
+// le don et le dit a tous (a = 5, puis les bourses) ; sinon a = 6 et pourquoi.
+// Hote : tout de suite. Chacun voit ce qui le concerne (gift_purse_note).
+
+struct PurseHolder {
+    uint8_t peer  = 0;      // numero de maintenant
+    int64_t coins = 0;
+    int64_t food  = 0;
+};
+// Les bourses des joueurs la, dans l'ordre des numeros (hote : l'aventure mixte
+// suivie ; invite dans l'aventure : les bourses recues, fraiches). Faux sans
+// bourses maintenant.
+bool purse_holders(std::vector<PurseHolder>& out);
+// Donner de SA bourse a celle du joueur `to` (numero de maintenant). Faux (et
+// pourquoi, en francais) si rien ne part ; vrai : fait (hote) ou demande (invite,
+// la reponse arrive par gift_purse_note).
+bool purse_give(uint8_t to, int64_t coins, int64_t food, std::string& why_utf8);
+// Invite : une demande partie, pas encore de reponse.
+bool purse_give_pending();
 
 } // namespace mgmp

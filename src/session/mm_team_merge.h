@@ -81,7 +81,8 @@ enum : uint8_t {
     kTeamNewCats = 15,  // hote -> un invite : a la fin, les recrues qui rentrent chez lui (protocole 49)
     kTeamNpc     = 16,  // les deux sens : les dons de l'invite aux PNJ (mm_npcgift, protocole 50)
     kTeamShop    = 17,  // les deux sens : les achats en boutique avec sa bourse (mm_shop, protocole 51)
-    kTeamLast    = kTeamShop,
+    kTeamGift    = 18,  // les deux sens : les dons entre joueurs a la maison (mm_gift, protocole 62)
+    kTeamLast    = kTeamGift,
 };
 
 // Le message MSG_TEAM : des chats (kTeamDepart, kTeamResult)...

@@ -102,6 +102,8 @@ add_library(mgmp SHARED
     src/session/mm_npcgift_core.cpp
     src/session/mm_shop.cpp
     src/session/mm_shop_core.cpp
+    src/session/mm_gift.cpp
+    src/session/mm_gift_core.cpp
     src/session/mm_ai.cpp
     src/session/mm_recruit_core.cpp
     src/session/mm_vote_core.cpp
@@ -109,6 +111,7 @@ add_library(mgmp SHARED
     src/session/mm_team_merge.cpp
     src/ui/mgmp_ui.cpp
     src/ui/mm_menu.cpp
+    src/ui/mm_trade_ui.cpp
     # Dear ImGui, compiled straight into mgmp.dll -- same rule as minhook and
     # stb_image: the payload runs inside the game's process and cannot pull in
     # a second DLL that would have to be shipped and found beside it.

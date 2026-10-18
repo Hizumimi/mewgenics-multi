@@ -11,6 +11,7 @@
 #include "mm_recruit_core.h"
 #include "mm_rungear.h"
 #include "mm_shop.h"
+#include "mm_gift.h"
 #include "mm_slot_core.h"
 #include "mm_world.h"
 
@@ -2413,6 +2414,7 @@ void team_on_message(uint8_t from, const SaveFileMsg& m) {
         case kTeamNewCats: on_newcats(from, m); break;
         case kTeamNpc: npcgift_on_team(from, m.data, m.size); break;
         case kTeamShop: shop_on_team(from, m.data, m.size); break;
+        case kTeamGift: gift_on_team(from, m.data, m.size); break;
         default:
             log_line("TEAM", "!! message d'equipe inconnu (%u octets) -- ignore", m.size);
             break;

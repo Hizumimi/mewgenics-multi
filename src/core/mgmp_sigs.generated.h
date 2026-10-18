@@ -244,6 +244,8 @@ static const SigTargetDesc kCallSigs[] = {
       "48 89 5C 24 18 55 57 41 56 48 83 EC 60" },
     { 0x0094EBA0, "Component::Destroy",
       "40 56 48 83 EC 20 48 8B 71 18" },
+    { 0x003BDCF0, "MewDirector::save",
+      "48 89 5C 24 18 48 89 74 24 20 55 57 41 56 48 8D AC 24 60 FF FF FF" },
 };
 
 // Globals, recovered from a referencing instruction's own

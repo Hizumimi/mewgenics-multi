@@ -748,6 +748,8 @@ void __fastcall h_NpcFavor(void* prog, int npc, void* cat, int amount) {
 
 // ---------------------------------------------------------------------------
 
+bool npcgift_storage_refs() { return net_role() != NetRole::Client && (!g.gifts.empty() || !g.erases.empty()); }
+
 bool npcgift_guest_donates() {
     return net_role() == NetRole::Client && in_session() && !savefile_in_coop() && mm_in_house() &&
            hooks_is_live(T_NpcFavor) && o_NpcFavor != nullptr;

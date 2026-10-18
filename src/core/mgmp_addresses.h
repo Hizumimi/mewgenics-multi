@@ -888,6 +888,9 @@ enum Call : int {
     C_SceneNewEntity,        // Entity*(Scene*) -- sub_14096B3E0
     C_FunctionSwap,          // void(std::function* a, std::function* b) -- sub_1400490D0
     C_ComponentDestroy,      // void(Component*) -- sub_14094EBA0
+
+    // --- Mewgenics Multi : les dons entre joueurs (src/session/mm_gift.cpp) -----
+    C_DirectorSave,          // void(MewDirector*) -- MewDirector::save, sub_1403BDCF0
     C_COUNT
 };
 
@@ -1225,6 +1228,13 @@ static const CallDesc kCalls[C_COUNT] = {
     { 0x0096B3E0, "Scene::NewEntity" },
     { 0x000490D0, "std::function swap" },
     { 0x0094EBA0, "Component::Destroy" },
+    // Mewgenics Multi : les dons entre joueurs (protocole 62). La sauvegarde de la
+    // partie hors aventure : la maison (House::save 0x140205E80, sur
+    // *(MewDirector+0x5A0) : son or +0xB4 et sa nourriture +0xB0), les chats,
+    // l'inventaire (+0x588), la progression, puis l'ecriture. Le jeu l'appelle
+    // d'une quinzaine d'endroits (rappels de la maison, la victoire 0x1403B5430) ;
+    // le mod, dans la maison de ce joueur seulement, apres un don fait ou recu.
+    { 0x003BDCF0, "MewDirector::save" },
 };
 
 // sub_140138A10 IS NOT A DRAW ROUTINE, and it is in the table above only

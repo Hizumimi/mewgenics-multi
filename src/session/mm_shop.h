@@ -90,6 +90,11 @@ void shop_victory_after();
 // -- il ne defile pas.
 bool shop_claims(uint64_t id);
 
+// Mewgenics Multi (protocole 62, mm_gift) : hote, des achats envoyes a leurs
+// acheteurs (sans reponse) ou pas encore retires tiennent des objets de son
+// rangement par leur id -- le relire (un don recu) leur donnerait d'autres ids.
+bool shop_storage_refs();
+
 // Hote : il est dans sa boutique d'aventure en ce moment (elle a tourne il y a
 // moins de 2 s, dans la case ou il est). Une montee de niveau qui s'ouvre alors
 // vient d'un bonbon qu'il a achete : c'est lui qui la choisit, meme pour le chat

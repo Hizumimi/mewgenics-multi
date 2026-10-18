@@ -153,6 +153,18 @@ target_include_directories(test_slot PRIVATE ${CMAKE_SOURCE_DIR}/src/session)
 target_compile_options(test_slot PRIVATE /utf-8)
 add_test(NAME test_slot COMMAND test_slot)
 
-foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_members test_battleid test_config test_world_merge test_team_merge test_vote test_purse test_loot test_recruit test_npcgift test_seen test_shop test_ai test_slot)
+# Mewgenics Multi : les dons entre joueurs (protocole 62) -- le message kTeamGift,
+# l'ajout au rangement, ce que fait celui qui recoit, les dons entre bourses et
+# leurs messages MM_PURSE.
+add_executable(test_gift test_gift.cpp ${CMAKE_SOURCE_DIR}/src/session/mm_gift_core.cpp
+               ${CMAKE_SOURCE_DIR}/src/session/mm_purse_core.cpp ${CMAKE_SOURCE_DIR}/src/session/mm_team_merge.cpp)
+target_include_directories(test_gift PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/session ${CMAKE_SOURCE_DIR}/src/core ${CMAKE_SOURCE_DIR}/src/net
+    ${CMAKE_SOURCE_DIR}/third_party/sqlite)
+target_link_libraries(test_gift PRIVATE mm_sqlite)
+target_compile_options(test_gift PRIVATE /utf-8)
+add_test(NAME test_gift COMMAND test_gift)
+
+foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_members test_battleid test_config test_world_merge test_team_merge test_vote test_purse test_loot test_recruit test_npcgift test_seen test_shop test_ai test_slot test_gift)
     target_compile_options(${t} PRIVATE /W3)
 endforeach()

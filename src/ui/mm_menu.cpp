@@ -46,6 +46,7 @@
 #include "mm_loot.h"           // le defile du butin
 #include "mm_npcgift.h"        // les dons des invites aux PNJ
 #include "mm_shop.h"           // les achats en boutique avec sa bourse
+#include "mm_gift.h"           // les dons entre joueurs (protocole 62)
 #include "mgmp_steam.h"        // jouer ensemble par Steam (protocole 59)
 
 #include <winsock2.h>   // avant windows.h : types reseau d'iphlpapi
@@ -2720,6 +2721,12 @@ bool mm_guest_in_run() {
 
 std::string mm_peer_name(uint8_t id) { return peer_name(id); }
 
+bool mm_departure_busy() {
+    if (net_role() == NetRole::Client)
+        return g_dep_req_live || savefile_join_armed() || savefile_home_armed() || embark_guest_active();
+    return g_dep_active || g_dep_embark || g_dep_go;
+}
+
 bool mm_panel_set_text(void* panel, const char* child, const std::string& text_utf8) {
     if (!panel || !child || strlen(child) > 15) return false;
     auto find = call_target<FnFindChild>(C_SwfFindChild);
@@ -3051,6 +3058,7 @@ void mm_menu_pump() {
     loot_pump();                    // Mewgenics Multi : le defile du butin
     npcgift_pump();                 // Mewgenics Multi : les dons des invites aux PNJ
     shop_pump();                    // Mewgenics Multi : les achats en boutique avec sa bourse
+    gift_pump();                    // Mewgenics Multi : les dons entre joueurs (protocole 62)
     defense_pump();                 // Mewgenics Multi : la defense de la maison, seul
     team_ui_pump();                 // Mewgenics Multi : fenetres de l'equipe mixte
     trip_pump();
@@ -3498,6 +3506,9 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
             break;
         case MM_PURSE:
             purse_on_mm(from, m);
+            break;
+        case MM_GIFT:
+            gift_on_mm(from, m);             // Mewgenics Multi (protocole 62) : qui peut recevoir un don
             break;
         case MM_DEPART_READY:
             if (net_role() != NetRole::Host || from >= 8) break;

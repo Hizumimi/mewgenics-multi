@@ -62,6 +62,13 @@ public:
     // run_food), dans l'ordre des numeros ; l'hote garde le reste.
     PursePayout settle(uint32_t paid, int64_t run_coins, int64_t run_food) const;
 
+    // Mewgenics Multi (protocole 62, mm_gift) : un don de la bourse de `from` a
+    // celle de `to` -- `coins` pieces et `food` nourritures. Le compte de
+    // l'aventure ne change pas. Faux (rien ne change) si un numero est hors
+    // limites, si from == to, si un montant est negatif ou les deux nuls, ou si
+    // la bourse de `from` n'en a pas autant (on ne donne pas une dette).
+    bool transfer(uint8_t from, uint8_t to, int64_t coins, int64_t food);
+
 private:
     void split(bool coins, int64_t d);
     PurseEntry e_[kPurseSlots];
@@ -76,7 +83,46 @@ enum : uint8_t {
     kPurseFind   = 2,    // un chat a trouve : b = son joueur, c = kFindSpent / kFindBattle,
                          //   x/y = pieces/nourriture, texte = son nom (vide en combat)
     kPursePayout = 3,    // la fin : c lignes (ce que rapporte chaque invite) ; x/y = la part de l'hote
+    // Mewgenics Multi (protocole 62, mm_gift) : les dons entre bourses.
+    kPurseGiveReq = 4,   // invite -> hote : donner a b (numero de maintenant) x pieces, y nourritures
+    kPurseGiven   = 5,   // hote -> tous : b a donne a c x pieces, y nourritures (les bourses suivent)
+    kPurseGiveNo  = 6,   // hote -> tous : le don de b n'est pas passe ; c = raison (kPurseNo*)
 };
+
+// MM_PURSE a = 6, champ c.
+enum : uint8_t {
+    kPurseNoPurse  = 1,   // pas de bourse (ce joueur, ou celui a qui il donne)
+    kPurseNoEnough = 2,   // sa bourse n'en a pas autant
+    kPurseNoRun    = 3,   // plus d'aventure mixte suivie
+    kPurseNoLast   = kPurseNoRun,
+};
+// La raison d'un refus, pour la fenetre de celui qui donnait (UTF-8).
+std::string purse_give_no_text(uint8_t why);
+
+// Les dons entre bourses, sur le fil (protocole 62) :
+//   a = 4  invite -> hote : b = a qui (numero de maintenant), c = numero de la
+//          demande, x/y = pieces/nourriture (0 a kPurseGiveMax, pas les deux nuls) ;
+//   a = 5  hote -> tous : b = qui donne, c = a qui, x/y, texte[0] = le numero de
+//          sa demande (0 : un don de l'hote) ;
+//   a = 6  hote -> tous : b = qui donnait, c = raison (kPurseNo*), x = le numero
+//          de sa demande.
+// Faux au decodage : un autre message, un numero hors limites, des quantites
+// hors des bornes, ou un don a soi-meme.
+constexpr int32_t kPurseGiveMax = 1000000;
+void purse_encode_give_req(MmMsg& m, uint8_t to, int32_t coins, int32_t food, uint8_t seq);
+bool purse_decode_give_req(const MmMsg& m, uint8_t& to, int32_t& coins, int32_t& food, uint8_t& seq);
+void purse_encode_given(MmMsg& m, uint8_t giver, uint8_t to, int32_t coins, int32_t food, uint8_t seq);
+bool purse_decode_given(const MmMsg& m, uint8_t& giver, uint8_t& to, int32_t& coins, int32_t& food,
+                        uint8_t& seq);
+void purse_encode_give_no(MmMsg& m, uint8_t giver, uint8_t why, uint8_t seq);
+bool purse_decode_give_no(const MmMsg& m, uint8_t& giver, uint8_t& why, uint8_t& seq);
+
+// La nouvelle d'un don entre bourses (UTF-8) :
+//   « Ami t'a donné 20 pièces : c'est dans ta bourse. »         (to_me)
+//   « Tu as donné 20 pièces à Ami : c'est dans sa bourse. »     (from_me)
+//   « Bob a donné 20 pièces à Ami. »                            (les autres)
+std::string purse_given_line(bool from_me, bool to_me, const std::string& giver, const std::string& to,
+                             int64_t coins, int64_t food);
 
 // MM_PURSE a = 2, champ c.
 constexpr uint8_t kFindSpent  = 0x01;   // le prix d'un choix de l'evenement (« a dépensé »)
