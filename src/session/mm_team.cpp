@@ -2900,12 +2900,16 @@ bool team_guest_has_cats_in_run() {
 }
 
 bool team_guest_storage_pending() {
-    char own[64] = {};
-    const std::string save = savefile_own_save_name(own, sizeof(own)) ? own : "";
+    // La save chargee, quel que soit le role d'aujourd'hui (un depart en invite
+    // attend aussi chez celui qui heberge ensuite).
+    char cur[64] = {};
+    const bool known = savefile_own_save_name(cur, sizeof(cur)) || savefile_host_save_name(cur, sizeof(cur));
     for (const GuestDepart& d : k.departs) {
-        if (!d.departed || !d.storage_ok) continue;
+        // Sans l'etat final (l'hote parti en pleine aventure), rien ne sera remis :
+        // le rangement peut changer. Pendant l'aventure, team_guest_has_cats_in_run.
+        if (!d.departed || !d.storage_ok || !d.have_results) continue;
         // Une save inconnue d'un cote ou de l'autre : on ne sait pas -- prudence.
-        if (d.save.empty() || save.empty() || _stricmp(d.save.c_str(), save.c_str()) == 0) return true;
+        if (d.save.empty() || !known || _stricmp(d.save.c_str(), cur) == 0) return true;
     }
     return false;
 }

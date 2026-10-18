@@ -2905,9 +2905,11 @@ between its departure and the moment `mm_team` writes back what its cats took
 (`apply_results`, at the NEXT load of its save — not when the run ends):
 `mm_team` writes it back only if it did not change (`kStorageChanged`), else the
 items its cats took stay in storage too. So while its cats are in the run
-(`team_guest_has_cats_in_run`) or a departure with a storage photo waits for that
-load (`team_guest_storage_pending`), the player gives and receives gold and food
-only (`kGiftWhyRun`), and a pending item removal waits. On the host, the items
+(`team_guest_has_cats_in_run`) or a returned departure (its final state arrived)
+with a storage photo waits for that load (`team_guest_storage_pending`, whatever
+the player's role now), the player gives and receives gold and food only
+(`kGiftWhyRun`), and a pending item removal waits. A departure whose final state
+never comes (the host left mid-run) blocks nothing: nothing will be written back. On the host, the items
 that the loot parade, the shop deliveries or the NPC rewards hold by id are
 promised: no item gift, and no item removal, while `*_storage_refs()`.
 

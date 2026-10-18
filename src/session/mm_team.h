@@ -187,11 +187,11 @@ void team_guest_storage_after(uint8_t seq, const std::vector<uint8_t>& post);
 // Ses chats sont-ils dans l'aventure en cours de l'hote ? (Faux sans equipe
 // mixte.) Pour la fenetre « Rejoindre l'aventure ».
 bool team_guest_has_cats_in_run();
-// Mewgenics Multi (protocole 63, mm_gift) : invite, un depart de ses chats dont le
-// rangement (photo prise a « J'arrive », mm_gear) attend d'etre remis dans la save
-// chargee -- au prochain chargement de celle-ci (apply_results). Il ne doit pas
-// changer d'ici la : sinon il est laisse tel quel au retour (kStorageChanged), et
-// les objets partis sur ses chats y restent aussi.
+// Mewgenics Multi (protocole 63, mm_gift) : un depart de ses chats en invite, rentre
+// (l'etat final est arrive), dont le rangement (photo prise a « J'arrive », mm_gear)
+// attend d'etre remis dans la save chargee -- au prochain chargement de celle-ci
+// (apply_results). Il ne doit pas changer d'ici la : sinon il est laisse tel quel
+// (kStorageChanged), et les objets partis sur ses chats y restent aussi.
 bool team_guest_storage_pending();
 // Invite : des chats qu'il a amenes lui-meme sont dans l'equipe (pas seulement
 // des recrues qu'on lui a donnees en route) -- il est du defile du butin.
