@@ -2759,12 +2759,13 @@ changes only under `send_cs`, the lock every send already takes: `start_link`
 fills it, its own link thread empties it (takes the socket with one atomic
 exchange, `take_link_socket`, closes it, then clears `live`, reading its id
 first). Sends read the slot's socket under that lock too (`send_link`). Other
-threads never close a live link's socket, they shut it down (`pump_refused`,
+threads shut a live link's socket down rather than close it (`pump_refused`,
 `evict_refused`): the peer gets the end of the connection and closes its side,
 and the owner's recv returns and the owner closes — a handle closed under a
-thread still reading it can be reused by the next accept. A refused link still
-live 10 s after the cut (a frozen game that never closes) is closed for good; its
-thread is then parked in recv, which fails. `net_shutdown` alone closes
+thread still reading it can be reused by the next accept. The one exception
+besides `net_shutdown`: a refused link still live 10 s after the cut (a frozen
+game that never closes) is closed for good (`close_cut_locked`); its thread is
+then parked in recv, which fails. `net_shutdown` alone closes
 everything, after setting `g.stop`; `recv_exact` no longer retries on
 `WSAEINTR`, which on Windows only comes from such a close. The previous link
 thread's handle is closed when the slot is reused (one handle leaked per

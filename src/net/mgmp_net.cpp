@@ -164,12 +164,15 @@ void queue_push(const NetMsg& m) {
 // it (takes its socket, closes it, then clears `live`), and the game thread
 // marks a refused peer (net_drop_peer) or ends its grace (pump_refused).
 //
-// Mewgenics Multi (protocole 61) : no other thread CLOSES a live link's socket;
-// it shuts it down, under send_cs. The owner's recv then returns and the owner
-// closes. Closing a handle under a thread still using it is how a handle VALUE
-// gets reused by the next accept while the dying thread reads from it.
-// net_shutdown is the one exception: it closes everything, after setting
-// g.stop, which every receive loop tests before each recv.
+// Mewgenics Multi (protocole 61) : another thread does not CLOSE a live link's
+// socket, it shuts it down, under send_cs: the peer ends its side, the owner's
+// recv returns and the owner closes. Closing a handle under a thread still using
+// it is how a handle VALUE gets reused by the next accept while the dying thread
+// reads from it. Two exceptions: net_shutdown closes everything, after setting
+// g.stop, which every receive loop tests before each recv; and a refused link
+// still live kForceCloseMs after its cut (close_cut_locked, from pump_refused or
+// evict_refused) -- its peer never ended its side, so its owner is parked in
+// recv, which then fails, and recv_exact never reads again after an error.
 //
 // A slow peer must still not be able to stall the accept thread or another
 // peer's relay beyond what a blocking send already does.
