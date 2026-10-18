@@ -2943,7 +2943,7 @@ handler, which would `SetCapture` on every click while SDL manages the capture.
 Like the F1 panel and the address field of the Multijoueur window, the button
 needs `ui.enabled` (default `true`): it is what installs the WndProc subclass.
 
-### Protocol 64 — the aim preview's turn animation, and battles that end on one side (Mewgenics Multi)
+### Protocols 64–65 — the aim preview's turn animation, and battles that end on one side (Mewgenics Multi)
 
 **The report.** 2026-10-18 19:23, battle `e15743b8b1852f54`: the host's battle
 ended (victory, level-up screen) while the guest's copy went on to a turn 21 that
@@ -3020,15 +3020,41 @@ siblings, i.e. for `TurnAround`-like statuses.
 **A battle that ends on one side** (`mgmp_orphan.h`). The turn boundaries are part
 of the simulation: of 14 two-player battles in the logs of Oct 13–18, 13 have their last
 hash on the same turn on both peers, sometimes one or two boundaries after the
-last action; the 14th is this one. So at its node end (`T_NodeEnd`, after every
-boundary) the host sends `MM_BATTLE_END {battle, g.turn}`. A guest whose `g.turn`
-is greater (on receipt or at a later boundary) has started a turn the host never
-had; a guest whose own node end left `g.turn = M` and then sees a host hash for a
-turn `>= M` knows the host went on without it. Either way the copy diverged: the
-guest leaves the run like a spectator whose copy halted (`mm_menu`), with a note
-at home, and can rejoin from a house sign; the host's AI takes its cats if the
-host is still fighting. Not covered: a host frozen in turn M waiting for a decision
-of a cat that guest controls, whose own battle is over — no hash ever comes.
+last action; the 14th is this one. Node ends (`T_NodeEnd`) come after every
+boundary; only the one `follow_node_end_counts()` accepts is used (Space on an idle
+pawn makes `MapScreen::update` call the node end too). Each side announces its end
+with `MM_BATTLE_END {battle, g.turn}` — `a = 1` host to all, `a = 2` guest to host —
+and three rules act, each only on a copy that is actually WAITING, so that a copy
+which diverged but ends its battle by itself is merely logged (the host's push at
+the next node resyncs cats, inventory and history; the stream restarts from the
+node seed):
+
+1. Host ended at `H`; a guest at turn `T > H` has waited `kOrphanWaitMs` (2 s) in
+   `lockstep_fill_choice` for another player's cat with nothing queued: nobody will
+   ever send it. The guest goes home (`kOrphanHostDone`), like a spectator whose copy
+   halted, with a note, and can rejoin from a house sign.
+2. A guest ended at `M`; the host at turn `>= M` has waited 2 s for one of that
+   guest's cats with nothing queued (the guest's decisions precede its announcement
+   on the same link). The host drops it from this battle's members
+   (`g.ended_peers`, read by `members_tick`); the game AI plays its cats.
+3. That guest then sees a host hash for a turn `> M` (one turn of margin: a single
+   extra trailing boundary is not enough) — the host went on without it; it goes
+   home (`kOrphanMineDone`): its level-ups, loot and deaths belong to another battle
+   and the host would wait for its choices.
+
+A battle id is a node seed, so a battle replayed after a reload has the same id:
+the markers are forgotten at each fresh roster snapshot (the host's announced end,
+everyone's own end, the guests' ends on the host — not, on a guest, the host's end,
+which may already be this instance's when the guest is catching up), on `HOSTLEFT`,
+in `lockstep_host_left_run`, when a guest leaves the run, and at session start; the
+host re-sends its end to a peer that arrives in a battle it has already finished
+(`lockstep_catchup`).
+
+**Residual risk.** The action's own `Face` (`now=0`) on a character with turn
+animations still writes `+0x388` later, from a frame-timed callback. A read in the
+same turn while that animation runs (a reaction, a backstab) could still differ
+between peers. The fix removes the owner/non-owner asymmetry, not the deferred
+write; facing stays out of the state hash for that reason.
 
 ### Steam transport (Mewgenics Multi, `src/net/mgmp_steam.cpp`)
 

@@ -701,21 +701,28 @@ void __fastcall h_CharFace(void* ch, uint64_t dir, unsigned char now, unsigned c
 
 // La seule instruction `call Character::Face` du corps de Brain::UpdateDecision
 // (0x1401381E9 sur 1.1.21239, une seule dans ses 0x693 octets), cherchee plutot
-// que posee : une autre build la deplace. Le corps est lu une fois ; un E8 dont la
-// cible n'est pas Face ne compte pas, un faux E8 au milieu d'une instruction
-// tomberait sur une autre cible. Aucune ou plusieurs : 0, et le detour laisse tout
-// passer -- la remise de lockstep_preview_facing_end reste.
+// que posee : une autre build la deplace. Le corps -- ses bornes d'apres la table
+// des fonctions du module (.pdata), au plus kUpdateDecisionScan octets -- est lu
+// une fois ; un E8 dont la cible n'est pas Face ne compte pas, un faux E8 au milieu
+// d'une instruction tomberait sur une autre cible. Aucune ou plusieurs : 0, et le
+// detour laisse tout passer -- la remise de lockstep_preview_facing_end reste.
 constexpr uint32_t kUpdateDecisionScan = 0x900;
 
 uintptr_t find_preview_face_ret() {
     const uintptr_t upd  = addr_of(T_UpdateDecision);
     const uintptr_t face = addr_of(T_CharFace);
     if (!upd || !face) return 0;
+    size_t len = kUpdateDecisionScan;
+    DWORD64 image = 0;
+    if (const PRUNTIME_FUNCTION rf = RtlLookupFunctionEntry((DWORD64)upd, &image, nullptr)) {
+        const uintptr_t end = (uintptr_t)image + rf->EndAddress;
+        if (end > upd && end - upd < len) len = (size_t)(end - upd);
+    }
     static uint8_t body[kUpdateDecisionScan];
-    if (!mem_read((const void*)upd, body, sizeof(body))) return 0;
+    if (len < 5 || !mem_read((const void*)upd, body, len)) return 0;
     uintptr_t ret = 0;
     int found = 0;
-    for (uint32_t i = 0; i + 5 <= sizeof(body); ++i) {
+    for (size_t i = 0; i + 5 <= len; ++i) {
         if (body[i] != 0xE8) continue;
         int32_t rel = 0;
         memcpy(&rel, body + i + 1, sizeof(rel));
@@ -730,9 +737,12 @@ uintptr_t find_preview_face_ret() {
 void note_preview_face_site() {
     if (g_preview_face_ret || !g_live[T_CharFace]) return;
     g_preview_face_ret = find_preview_face_ret();
-    if (g_preview_face_ret)
-        log_raw("  [+] %-9s l'apercu de visee appelle Face depuis Mewgenics.exe+0x%llX", kTargets[T_CharFace].name,
-                (unsigned long long)(g_preview_face_ret - 5 - g_base));
+    if (g_preview_face_ret) {
+        const unsigned long long rva = (unsigned long long)(g_preview_face_ret - 5 - g_base);
+        log_raw("  [%c] %-9s l'apercu de visee appelle Face depuis Mewgenics.exe+0x%llX%s",
+                rva == 0x1381E9 ? '+' : '~', kTargets[T_CharFace].name, rva,
+                rva == 0x1381E9 ? "" : " (pas l'adresse de 1.1.21239, 0x1381E9 : une autre build ?)");
+    }
     else
         log_raw("  [!] %-9s l'appel de Face par l'apercu de visee est introuvable -- seule la remise "
                 "d'apres coup agira", kTargets[T_CharFace].name);

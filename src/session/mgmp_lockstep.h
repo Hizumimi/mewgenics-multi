@@ -217,13 +217,15 @@ uint32_t lockstep_preview_facing_count();
 bool     lockstep_face_blocked(const void* character, bool preview);
 uint32_t lockstep_face_blocked_count();
 
-// --- Mewgenics Multi (protocole 64) : un combat fini d'un seul cote ----------
+// --- Mewgenics Multi (protocoles 64-65) : un combat fini d'un seul cote ------
 //
-// Voir mgmp_orphan.h. La fin d'une case (T_NodeEnd, apres la fonction du jeu) :
-// chez l'hote, la fin d'un combat commun part chez les invites (MM_BATTLE_END,
-// avec le tour en cours) ; chez un invite, la sienne est notee. Thread du jeu.
+// Voir mgmp_orphan.h. La fin d'une case (T_NodeEnd, apres la fonction du jeu ;
+// seulement celle de la case jouee) : la fin d'un combat commun est annoncee
+// (MM_BATTLE_END, avec g.turn) -- par l'hote a tous, par un invite a l'hote.
+// Thread du jeu.
 void    lockstep_on_node_end();
-// Invite : MM_BATTLE_END de l'hote (mm_on_message).
+// MM_BATTLE_END (mm_on_message) : chez un invite celui de l'hote, chez l'hote
+// celui d'un invite.
 void    lockstep_on_battle_end(uint8_t from, const MmMsg& m);
 // Invite : sa copie du combat et celle de l'hote ne finissent pas ensemble --
 // OrphanKind (mgmp_orphan.h), 0 sinon. mm_menu le fait alors rentrer chez lui.
