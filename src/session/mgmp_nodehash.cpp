@@ -14,6 +14,7 @@
 #include "mgmp_proto.h"
 #include "mgmp_runhist.h"
 #include "mgmp_rng.h"        // rng_global_stream
+#include "mgmp_catsync.h"    // catsync_run_hash (Mewgenics Multi)
 
 #include <windows.h>
 #include <cstring>
@@ -161,6 +162,37 @@ bool read_game_string(const void* str, char* out, uint32_t cap) {
     if (n > cap - 1) n = cap - 1;
     if (n && !mem_read(chars, out, n)) { out[0] = '\0'; return false; }
     out[n] = '\0';
+    return true;
+}
+
+// Mewgenics Multi (protocole 60) : le nom de l'equipe, un std::wstring en
+// MewDirector+0x5E8 -- le generateur des noms d'equipe (0x1403BEDC0, appele en
+// dernier par le rappel du depart 0x1403B0550, juste apres la carte) l'y ecrit
+// (0x1403BFD32). MSVC : 8 wchar_t en ligne tant que la capacite est <= 7.
+constexpr uintptr_t kDir_TeamName = 0x5E8;
+
+bool team_print(uint64_t& h, char* utf8, int cap) {
+    h = 0;
+    if (cap > 0) utf8[0] = 0;
+    const void* dir = director();
+    if (!dir) return false;
+    const uint8_t* s = (const uint8_t*)dir + kDir_TeamName;
+    uint64_t size = 0, capacity = 0;
+    if (!mem_read(s + 16, &size, sizeof(size)) || !mem_read(s + 24, &capacity, sizeof(capacity))) return false;
+    if (size == 0 || size > 256 || capacity < size || capacity > 4096) return false;
+    const uint8_t* chars = s;
+    if (capacity > 7) {
+        const void* p = nullptr;
+        if (!mem_read(s, &p, sizeof(p)) || !p) return false;
+        chars = (const uint8_t*)p;
+    }
+    wchar_t w[257] = {};
+    if (!mem_read(chars, w, (uint32_t)(size * sizeof(wchar_t)))) return false;
+    h = fnv1a(w, (uint32_t)(size * sizeof(wchar_t)));
+    if (cap > 1) {
+        const int n = WideCharToMultiByte(CP_UTF8, 0, w, (int)size, utf8, cap - 1, nullptr, nullptr);
+        utf8[n > 0 ? n : 0] = 0;
+    }
     return true;
 }
 
@@ -403,6 +435,18 @@ void nodehash_on_event_screen(void* world_event) {
              (unsigned long long)m.node_seed, m.event);
 
     publish(m);
+}
+
+bool nodehash_run_print(RunPrint& out) {
+    out = RunPrint{};
+    out.hist = runhist_hash();
+    out.cats = cats_hash(out.cat_count);
+    out.inv  = inv_hash();
+    uint32_t n = 0;
+    const bool cats_ok = catsync_run_hash(out.catdata, n) && n == out.cat_count;
+    // Le nom de l'equipe n'est que dit (mm_embark) : illisible, il ne compte pas.
+    team_print(out.team, out.team_name, (int)sizeof(out.team_name));
+    return out.hist && out.cats && out.inv && cats_ok;
 }
 
 void nodehash_on_message(uint8_t from, const NodeHashMsg& m) {

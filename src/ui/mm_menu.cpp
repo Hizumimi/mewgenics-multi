@@ -2067,9 +2067,17 @@ void client_adventure_pump() {
     // L'hote a recharge son aventure (ou en a commence une autre) pendant que ce
     // joueur jouait encore l'ancienne copie : on va charger la nouvelle.
     if (savefile_take_fresh_in_coop()) {
-        log_line("MULTI", "aventure : nouvelle copie de l'hote, ce joueur va la charger");
-        show_info(fmt(u8"%s a rechargé l'aventure :\ntu la recharges aussi.",
-                      host_display().c_str()));
+        // Mewgenics Multi : juste apres un depart ensemble, ce n'est pas l'hote
+        // qui a recharge -- sa copie du depart remplace le miroir de ce joueur.
+        if (embark_mirror_recent()) {
+            log_line("MULTI", "aventure : la copie du depart de l'hote, ce joueur va la charger");
+            show_info(fmt(u8"Départ en aventure\n\nTon jeu charge l'aventure de %s.",
+                          host_display().c_str()));
+        } else {
+            log_line("MULTI", "aventure : nouvelle copie de l'hote, ce joueur va la charger");
+            show_info(fmt(u8"%s a rechargé l'aventure :\ntu la recharges aussi.",
+                          host_display().c_str()));
+        }
         start_menu_trip("recharger l'aventure de l'hote");
     }
 

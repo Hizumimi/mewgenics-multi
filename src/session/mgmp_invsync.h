@@ -203,6 +203,10 @@ bool invsync_load_bucket(uint32_t bucket, const std::vector<uint8_t>& bytes);
 // applique chez cet invite.
 bool invsync_has_pending();
 
+// Mewgenics Multi (protocole 60) : voir catsync_pending_before_arrival.
+bool invsync_has_pending_before_arrival(uint32_t limit);
+void invsync_drop_pending_before_arrival(uint32_t limit);
+
 // Mewgenics Multi (mm_rungear, invite) : le plus grand numero d'arrivee
 // (follow_note_arrival) des inventaires appliques ou laisses parce qu'identiques.
 uint32_t invsync_last_applied_arrival();

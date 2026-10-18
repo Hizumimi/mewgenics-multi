@@ -761,8 +761,11 @@ void catsync_on_message(const CatDataMsg& m) {
     // suivie : c'est alors l'etat d'apres cette case, applique avant elle,
     // elle le referait par-dessus. Gardee, appliquee sur la carte
     // (mm_rungear) ou apres la case (follow_map_update).
+    // Mewgenics Multi (protocole 60) : et pendant que la copie de l'hote est mise
+    // de cote (savefile_keep_waiting) -- une poussee d'apres elle attend la
+    // decision (mm_embark ne compare que l'etat d'avant la copie).
     if (defer_applies() && (rungear_hold_pushes() || follow_pending_count() || follow_node_live() ||
-                            !follow_on_map())) {
+                            !follow_on_map() || savefile_keep_waiting())) {
         if (stash_pending(m)) { ++g.deferred; return; }
         log_line("CATSYNC", "!! could not hold cat %016llx (inventory screen open, inside "
                             "a node or a node still to follow) -- applying it now",
@@ -794,6 +797,69 @@ void catsync_drop_pending() {
 
 uint32_t catsync_last_applied_arrival() {
     return g.last_arrival;
+}
+
+uint32_t catsync_pending_before_arrival(uint32_t limit) {
+    ensure_state();
+    uint32_t n = 0;
+    for (uint32_t i = 0; i < g.pend_count; ++i)
+        if (g.pend_arrival[i] < limit) ++n;
+    return n;
+}
+
+void catsync_drop_pending_before_arrival(uint32_t limit) {
+    ensure_state();
+    const uint32_t n = g.pend_count;
+    uint32_t kept = 0, dropped = 0;
+    for (uint32_t i = 0; i < n; ++i) {
+        if (g.pend_arrival[i] < limit) {
+            free(g.pend_data[i]);
+            ++dropped;
+            continue;
+        }
+        g.pend_id[kept]      = g.pend_id[i];
+        g.pend_hash[kept]    = g.pend_hash[i];
+        g.pend_data[kept]    = g.pend_data[i];
+        g.pend_size[kept]    = g.pend_size[i];
+        g.pend_epoch[kept]   = g.pend_epoch[i];
+        g.pend_arrival[kept] = g.pend_arrival[i];
+        ++kept;
+    }
+    for (uint32_t i = kept; i < n; ++i) { g.pend_data[i] = nullptr; g.pend_size[i] = 0; }
+    g.pend_count = kept;
+    if (dropped)
+        log_line("CATSYNC", "dropped %u held cat push(es) from before the host's save (%u from after it stay)",
+                 dropped, kept);
+    note_applied(limit);   // la save les contient
+}
+
+bool catsync_run_hash(uint64_t& hash, uint32_t& count) {
+    ensure_state();
+    hash = 0;
+    count = 0;
+    RunCats rc{};
+    if (!run_cats(rc)) return false;
+    uint64_t h = 0xCBF29CE484222325ull;
+    auto mix = [&h](const void* p, uint32_t len) {
+        const uint8_t* b = (const uint8_t*)p;
+        for (uint32_t i = 0; i < len; ++i) { h ^= b[i]; h *= 0x100000001B3ull; }
+    };
+    for (uint32_t i = 0; i < rc.count; ++i) {
+        uint64_t id = 0;
+        if (!mem_read(&rc.ids[i], &id, sizeof(id)) || !id) return false;
+        void* cat = nullptr;
+        if (!safe_by_id((void*)rc.registry, id, &cat) || !cat) return false;
+        uint8_t* bytes = nullptr;
+        const uint32_t len = serialize_cat(cat, &bytes);
+        if (!len) return false;
+        const uint64_t ch = fnv1a(bytes, len);
+        free(bytes);
+        mix(&id, sizeof(id));
+        mix(&ch, sizeof(ch));
+        ++count;
+    }
+    hash = h;
+    return true;
 }
 
 uint32_t catsync_drop_identical(const char* why) {

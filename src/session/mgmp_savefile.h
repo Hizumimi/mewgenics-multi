@@ -165,6 +165,20 @@ void savefile_drop_pending();
 // Vrai une fois quand une NOUVELLE aventure de l'hote est arrivee alors que cet
 // invite joue encore dans l'ancienne copie : il faut aller la charger.
 bool savefile_take_fresh_in_coop();
+
+// Mewgenics Multi (protocole 60) : LE DEPART SANS SECOND CHARGEMENT. La copie de
+// l'aventure que l'hote publie sur la carte, juste apres un depart ensemble que
+// cet invite a fait avec la graine commune (mm_embark) : elle est mise de cote au
+// lieu de faire recharger. mm_embark compare son aventure a celle de l'hote ;
+// commit : la sienne reste (la copie est jetee) ; abort : la copie se charge,
+// comme avant (savefile_take_fresh_in_coop devient vrai).
+bool     savefile_keep_waiting();
+uint64_t savefile_keep_since();
+// Le numero d'arrivee (follow_note_arrival) pris a l'arrivee de la copie : les
+// poussees de l'hote d'avant elle ont un numero plus petit.
+uint32_t savefile_keep_arrival();
+void     savefile_keep_commit();
+void     savefile_keep_abort(const char* why);
 // L'invite rentre dans sa propre save : au menu, « Jouer » puis son emplacement.
 void savefile_go_home();
 // La partie chargee chez cet invite est la copie de l'aventure de l'hote.

@@ -868,6 +868,30 @@ uint32_t invsync_last_applied_arrival() {
     return g.last_arrival;
 }
 
+bool invsync_has_pending_before_arrival(uint32_t limit) {
+    ensure_state();
+    for (uint32_t k = 0; k < g.pend_count; ++k)
+        if (g.pend[k].arrival < limit) return true;
+    return false;
+}
+
+void invsync_drop_pending_before_arrival(uint32_t limit) {
+    ensure_state();
+    // Dans l'ordre d'arrivee : un debut de la file.
+    uint32_t n = 0;
+    while (n < g.pend_count && g.pend[n].arrival < limit) ++n;
+    for (uint32_t k = 0; k < n; ++k) free_one(g.pend[k]);
+    for (uint32_t k = n; k < g.pend_count; ++k) {
+        g.pend[k - n] = g.pend[k];
+        for (uint32_t i = 0; i < kInvBuckets; ++i) { g.pend[k].data[i] = nullptr; g.pend[k].size[i] = 0; }
+    }
+    g.pend_count -= n;
+    if (n)
+        log_line("INVSYNC", "dropped %u held inventor%s from before the host's save (%u from after it stay%s)",
+                 n, n > 1 ? "ies" : "y", g.pend_count, g.pend_count == 1 ? "s" : "");
+    if (limit > g.last_arrival) g.last_arrival = limit;   // la save les contient
+}
+
 bool invsync_drop_identical(const char* why) {
     ensure_state();
     if (!g.on || !g.is_client || !g.pend_count) return g.pend_count != 0;

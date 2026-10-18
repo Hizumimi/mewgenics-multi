@@ -170,6 +170,18 @@ void follow_note_map_update(bool inside_original);
 // reason to refuse a flush.
 bool follow_on_map();
 
+// Mewgenics Multi (protocole 60) : l'empreinte de la carte qui tourne chez ce
+// joueur -- le nombre de cases, puis pour chacune son type et sa graine entiere
+// (MapNode+0x118, 32 octets). Deux cartes du meme chapitre tirees de la meme
+// graine ont la meme (mm_embark : le depart sans second chargement). Faux si la
+// carte ne tourne pas (follow_on_map) ou ne se lit pas.
+bool follow_map_print(uint64_t& print, uint32_t& count);
+
+// Mewgenics Multi (protocole 60, hote) : le nombre de cases (et de combats de la
+// Nemesis) ou l'hote est entre depuis le lancement -- mm_embark sait ainsi si sa
+// copie du depart contient deja une case jouee.
+uint32_t follow_host_entered();
+
 // --- enumerating the map, for the debug panel --------------------------------
 
 // Number of nodes on the live map, or 0 if there is no map screen yet.

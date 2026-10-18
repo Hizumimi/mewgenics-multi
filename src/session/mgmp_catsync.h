@@ -134,6 +134,18 @@ void catsync_apply_pending_before_arrival(uint32_t arrival_limit, const char* wh
 // relire, meme sous un ecran des objets ouvert). Renvoie celles qui restent.
 uint32_t catsync_drop_identical(const char* why);
 
+// Mewgenics Multi (protocole 60) : l'empreinte des chats de la course de ce
+// joueur -- l'id et SerializeCatData de chacun, dans l'ordre de la liste (la meme
+// serialisation que les poussees, comparee octet par octet d'un joueur a l'autre
+// par catsync_drop_identical). Faux si la liste ou un chat ne se lit pas.
+bool catsync_run_hash(uint64_t& hash, uint32_t& count);
+
+// Mewgenics Multi (protocole 60) : les poussees gardees arrivees avant le numero
+// `limit` (follow_note_arrival) -- combien, ou les jeter (la save qui arrive les
+// contient ; celles d'apres restent).
+uint32_t catsync_pending_before_arrival(uint32_t limit);
+void     catsync_drop_pending_before_arrival(uint32_t limit);
+
 // Mewgenics Multi (equipe mixte). Le chat du registre du jeu a cette cle de save
 // (CatData*, charge depuis la table cats s'il ne l'est pas encore ; nul s'il
 // n'existe pas), et ses octets tels que SerializeCatData les ecrit -- ceux de la

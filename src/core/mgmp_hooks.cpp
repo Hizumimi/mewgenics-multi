@@ -51,6 +51,7 @@
 #include "mm_rungear.h" // Mewgenics Multi : les objets en aventure (rungear_binding)
 #include "mm_purse.h"   // Mewgenics Multi : les bourses de l'aventure (purse_binding)
 #include "mm_nemesis.h" // Mewgenics Multi : la Nemesis a plusieurs (nemesis_binding)
+#include "mm_embark.h"  // Mewgenics Multi : le depart sans second chargement (embark_binding)
 #include "mgmp_log.h"
 #include "mgmp_mem.h"
 #include "mgmp_record.h"
@@ -875,6 +876,9 @@ const Binding kBindings[] = {
     // src/session/mm_nemesis.cpp (nemesis_binding, avec T_TickNemesis).
     { T_NemesisFight,    nullptr, nullptr },
     { T_NemesisFightGo,  nullptr, nullptr },
+    // Mewgenics Multi : le depart sans second chargement, detour dans
+    // src/session/mm_embark.cpp (embark_binding).
+    { T_MapChapter,      nullptr, nullptr },
 };
 
 // Resolves the three RNG bindings, which are not static initialisers because
@@ -932,6 +936,7 @@ bool install_one(const Binding& b, bool announce_off) {
     npcgift_binding(b.target, &detour, &original);
     shop_binding(b.target, &detour, &original);
     nemesis_binding(b.target, &detour, &original);
+    embark_binding(b.target, &detour, &original);
     if (!detour || !original) {
         log_raw("  [!] %-9s no detour bound", t.name);
         return false;

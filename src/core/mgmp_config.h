@@ -39,6 +39,11 @@ struct Config {
     // par adresse reste.
     bool     net_steam = true;
 
+    // Mewgenics Multi (protocole 60) : net.same_map = false -- au depart ensemble,
+    // l'invite recharge toujours l'aventure de l'hote, comme avant la build 41
+    // (sinon, sa propre carte, tiree de la meme graine, la remplace).
+    bool     net_same_map = true;
+
     // --- debug ---------------------------------------------------------------
     //
     // The four switches below are the ones tools/net_test.ps1 flips, which is

@@ -2655,6 +2655,72 @@ compared. (5) `follow_forget_map` (a new adventure on the host) also clears
 `inside` and the host's choice node (`choice_on_new_run`), so nothing from the
 previous run stamps a choice.
 
+### Protocol 60 — the departure together without a second load (Mewgenics Multi)
+
+**What the guest did until build 40: two loads per departure.** It loads the
+host's house (to see the collar and storage screens and make the same departure
+in its copy), arrives on ITS OWN map, then the host's adventure save arrives and
+the mod takes the guest to the main menu ("Quitter vers le menu", "Jouer", the
+slot) to load it. Measured on the copies of 2026-10-17: the guest's own
+post-departure save (`mgmp_backups/mgmp_coop.sav.20261017-221653.bak`, written
+by the guest's game on reaching the map) and the host's adventure have the SAME
+chapter layout — `chapter_map` differs only in the first 32 bytes (the map's own
+xoshiro state) and in each node's 32-byte seed; types and order are identical,
+because the layout comes from `data/maps/<chapter>` — plus the team name in
+`adventure_state` ("Les Désaxés musclés" against "Les Écorcheurs d'élite").
+
+**Where those come from.** The departure's map is built by the ClassChooser
+close callback `0x1403B0550`: remove "House", `0x1403B38C0` (the chapter's map:
+`MapScreen::init` `0x14038D150` calls the chapter setup `0x14021AE00` and then
+`generate_map` `0x14021CA60`), `save_adventure`, the "adventure_started"
+property and commit, `0x1403B0BB0` (StorageItems) and, as a tail call, the team
+name generator `0x1403BEDC0` (draws from TLS+0x178, `data/teamnames.gon`, writes
+the `std::wstring` at `MewDirector+0x5E8`, flag `+0x608`). The chapter setup's
+first statement copies TLS+0x178 (32 bytes) into `MapScreen+0x38/+0x48`; every
+node seed is drawn from that copy. So: **the same 32 bytes in TLS+0x178 just
+before the chapter setup = the same map**, and, if nothing in between draws
+differently, the same team name.
+
+**Protocol 60.** At the vote the host draws a seed (splitmix64 over QPC, the
+process id and the stream) and sends it (`MM_EMBARK` `kEmbarkSeed`, 32 bytes in
+`text`). A detour on the chapter setup (`T_MapChapter`, sig `MAPCHAPTER`) puts it
+into TLS+0x178 — host in `Prep`, guest in `Departed` in its copy, once per
+departure. Before its adventure save, the host pushes its cats, inventory and
+history (caches just forgotten, so everything goes) and `kEmbarkState`: the map
+print (`follow_map_print`: node count, then type + 32-byte seed of each node),
+the history hash, the run cat ids, a hash of every run cat's `SerializeCatData`
+(`catsync_run_hash` — the same serialisation `catsync_drop_identical` already
+compares byte for byte across peers), the inventory hash and the team name hash.
+The guest that did the departure with the seed **sets the save aside**
+(`savefile_keep_*`: the queued nodes and choices from before it are dropped as
+usual, the pushes are not), applies the pushes that were held on arrival (the map
+was not ticking yet; same rule as `mm_rungear` on the map: up to the next node to
+follow, inventory screen closed), waits until none is left and its map ticks, and
+compares. Equal: it keeps its own adventure (`kEmbarkKept` to the host, the
+blob is freed). Different, or 6 s without an answer: the save loads exactly as
+before. Following the host into a node is held during the comparison. The team
+name is only reported (cosmetic; the node seeds reseed the stream at every node
+entry anyway — and it is drawn after the StorageItems flow opens, where the
+guest's storage is its own, so a mismatch there says nothing about the map).
+`net.same_map = false` turns the whole thing off.
+
+**What the review of it made tight.** Everything during the comparison is
+measured against the save's **arrival number** (`follow_note_arrival()` taken
+when it is set aside; runhist pushes now carry one too): only the pushes from
+BEFORE it are applied, counted and — on an abort — dropped; a push from after it
+(the host entering node 1 meanwhile) is deferred by catsync/runhist and kept, as
+the old path kept it, and `mm_rungear`'s guest pump (which applies every held
+push on the map) is held for those seconds. The host sends `kEmbarkState` with
+`c = 0` — the guests reload at once — when its map was not drawn from the seed or
+when it already entered a node since its departure (`follow_host_entered`: it
+clicked the first node while the gear photos were late, so the save holds that
+node). A guest is a candidate only if no ENTERNODE arrived since its mirror began
+(`follow_epoch`), no node is live or queued, and its mirror ended less than 2
+minutes ago. A guest who heads home during the comparison is not sent back to the
+host's adventure. The detour forwards three arguments: `MapScreen::init` sets
+only rcx, rdx (the by-value `std::string`'s copy) and r8b before the call, and
+the prologue spills exactly those.
+
 ### Steam transport (Mewgenics Multi, `src/net/mgmp_steam.cpp`)
 
 **The mod's transport stays TCP; Steam is a byte pipe beside it.** The host's

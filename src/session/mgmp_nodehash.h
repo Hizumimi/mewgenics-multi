@@ -70,4 +70,22 @@ void nodehash_on_event_screen(void* world_event);
 
 void nodehash_on_message(uint8_t from, const NodeHashMsg& m);
 
+// Mewgenics Multi (protocole 60) : l'etat de l'aventure chez ce joueur, pour
+// comparer celle d'un invite a celle de l'hote apres le depart ensemble
+// (mm_embark) : l'historique, la liste des chats (ids, dans l'ordre), les chats
+// eux-memes (SerializeCatData de chacun), le sac (pieces, nourriture, boites et
+// le nombre d'objets de chaque partie) et le nom de l'equipe (MewDirector+0x5E8,
+// tire juste apres la carte ; seulement dit, 0 s'il ne se lit pas). Faux si l'un
+// des autres ne se lit pas.
+struct RunPrint {
+    uint64_t hist      = 0;
+    uint64_t cats      = 0;
+    uint32_t cat_count = 0;
+    uint64_t catdata   = 0;
+    uint64_t inv       = 0;
+    uint64_t team      = 0;
+    char     team_name[64] = {};   // UTF-8, pour le journal
+};
+bool nodehash_run_print(RunPrint& out);
+
 } // namespace mgmp

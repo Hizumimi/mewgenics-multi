@@ -14,6 +14,7 @@
 #include "mm_world.h"       // world_prepare_own_save (Mewgenics Multi)
 #include "mm_team.h"        // team_prepare_own_save (Mewgenics Multi)
 #include "mm_gear.h"        // gear_hold_publish (Mewgenics Multi)
+#include "mm_embark.h"      // embark_keep_candidate, embark_before_fresh_publish (Mewgenics Multi)
 // A slot click starts a run, which makes the three per-run dedupe caches stale.
 // See the block in savefile_on_slot_click.
 #include "mgmp_catsync.h"
@@ -316,6 +317,12 @@ struct State {
     bool     home_armed    = false;   // rentrer : « Jouer » puis own_slot
     uint32_t publishes     = 0;       // publications reussies (hote)
     bool     fresh_in_coop = false;   // une nouvelle aventure arrivee dans la copie
+    // Mewgenics Multi (protocole 60) : la copie publiee apres un depart ensemble,
+    // mise de cote pendant que mm_embark compare l'aventure de ce joueur a celle
+    // de l'hote (savefile_keep_*).
+    bool     keep_wait     = false;
+    uint64_t keep_since    = 0;
+    uint32_t keep_arrival  = 0;
 };
 
 // How hard to try. The first press is immediate; if the Play button is still
@@ -645,6 +652,7 @@ void savefile_shutdown() {
     if (g.blob) { free(g.blob); g.blob = nullptr; }
     g.blob_size = 0;
     g.pending = false;
+    g.keep_wait = false;      // Mewgenics Multi (protocole 60)
 }
 
 // A peer that joined after the host already published would otherwise never see
@@ -807,6 +815,11 @@ void savefile_pump() {
     catsync_forget();
     invsync_forget();
     runhist_forget();
+    // Mewgenics Multi (protocole 60) : apres un depart ensemble avec la graine
+    // commune, les chats, le sac et l'historique de l'hote partent AVANT la
+    // copie, avec l'empreinte de son aventure : un invite dont la carte est la
+    // meme garde la sienne au lieu de recharger (mm_embark).
+    embark_before_fresh_publish();
     if (publish(kNoPeer, /*fresh=*/true)) {
         g.published     = true;
         g.run_published = true;
@@ -967,6 +980,35 @@ void savefile_on_message(const SaveFileMsg& m) {
         return;
     }
 
+    // Mewgenics Multi (protocole 60) : LE DEPART SANS SECOND CHARGEMENT. Cet
+    // invite vient de faire le depart de l'hote dans sa copie, avec la graine
+    // commune : sa carte est sans doute la meme. La copie est mise de cote ; ce
+    // qui etait en file d'avant elle est dedans (cases, choix), sauf les poussees
+    // de l'hote (chats, sac, historique), parties juste avant pour la
+    // comparaison. mm_embark decide (savefile_keep_commit / _abort).
+    if (g.keep_wait && m.fresh) {
+        g.keep_wait = false;
+        log_line("SAVEFILE", "a newer adventure from the host replaces the one kept aside");
+    } else if (g.in_coop && m.fresh && embark_keep_candidate()) {
+        if (g.blob) free(g.blob);
+        g.blob = (uint8_t*)malloc(m.size);
+        if (!g.blob) { g.blob_size = 0; return; }
+        memcpy(g.blob, m.data, m.size);
+        g.blob_size = m.size;
+        g.blob_hash = h;
+        g.peer_slot = m.slot;
+        strncpy_s(g.peer_name, m.name, _TRUNCATE);
+        follow_drop_pending();
+        choice_forget();
+        g.keep_wait    = true;
+        g.keep_since   = GetTickCount64();
+        g.keep_arrival = follow_note_arrival();
+        log_line("SAVEFILE", "<- host's save: slot %u '%s', %u bytes, hash %016llx -- KEPT ASIDE: this player "
+                             "did the departure with the host's seed, its own adventure is compared with the "
+                             "host's before anything reloads", m.slot, m.name, m.size, (unsigned long long)h);
+        return;
+    }
+
     // A FRESH PICK OVERRIDES THE LATCH. The host went back to the menu and
     // chose a slot, so it is no longer in the run this peer is holding -- and
     // g.applied, which is set once per process, was the whole reason the second
@@ -1033,6 +1075,60 @@ void savefile_on_message(const SaveFileMsg& m) {
         g.fresh_in_coop = true;
         log_line("SAVEFILE", "a new adventure while still in the old copy -- this "
                              "player will load the new one");
+    }
+}
+
+bool     savefile_keep_waiting() { return g.is_client && g.keep_wait; }
+uint64_t savefile_keep_since()   { return g.keep_since; }
+uint32_t savefile_keep_arrival() { return g.keep_arrival; }
+
+void savefile_keep_commit() {
+    ensure_state();
+    if (!g.keep_wait) return;
+    g.keep_wait = false;
+    if (g.blob) { free(g.blob); g.blob = nullptr; }
+    g.blob_size = 0;
+    g.pending   = false;
+    // g.applied reste vrai : ce joueur est dans l'aventure de l'hote.
+    log_line("SAVEFILE", "the host's save kept aside is not needed -- this player's own departure IS the host's "
+                         "adventure; no second load");
+}
+
+void savefile_keep_abort(const char* why) {
+    ensure_state();
+    if (!g.keep_wait) return;
+    g.keep_wait = false;
+    log_line("SAVEFILE", "this player's own departure does not match the host's adventure (%s) -- loading the "
+                         "host's save after all", why ? why : "?");
+    // Les poussees d'avant la copie sont dedans ; celles d'apres (l'hote est deja
+    // entre dans une case, par exemple) s'appliqueront apres elle, comme avant.
+    catsync_drop_pending_before_arrival(g.keep_arrival);
+    invsync_drop_pending_before_arrival(g.keep_arrival);
+    runhist_drop_pending_before_arrival(g.keep_arrival);
+    if (!g.blob) {
+        log_line("SAVEFILE", "!! the save kept aside is gone -- this player stays in its own departure");
+        return;
+    }
+    // Il rentre chez lui (« Quitter l'aventure », « Retour a la maison ») : la
+    // copie ne se charge pas par-dessus.
+    if (g.home_armed) {
+        free(g.blob);
+        g.blob      = nullptr;
+        g.blob_size = 0;
+        g.pending   = false;
+        log_line("SAVEFILE", "   (this player is going home -- the host's save is dropped)");
+        return;
+    }
+    g.applied       = false;
+    g.play_presses  = 0;
+    g.play_cooldown = 0;
+    g.said_gave_up  = false;
+    g.pending       = true;
+    g.join_armed    = true;
+    g.home_armed    = false;
+    if (g.in_coop) {
+        g.in_coop       = false;
+        g.fresh_in_coop = true;   // mm_menu l'emmene la charger
     }
 }
 

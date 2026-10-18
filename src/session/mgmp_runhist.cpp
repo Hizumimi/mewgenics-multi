@@ -49,6 +49,7 @@ struct State {
     // rolls its event from, and the one after it must not replace it.
     struct Pend {
         uint32_t epoch = 0;
+        uint32_t arrival = 0;   // Mewgenics Multi (protocole 60) : follow_note_arrival a son arrivee
         uint8_t* data  = nullptr;
         uint32_t size  = 0;
         uint64_t hash  = 0;
@@ -376,7 +377,8 @@ static bool stash_pending(const RunHistMsg& m) {
     if (!copy) return false;
     memcpy(copy, m.data, m.size);
     State::Pend p;
-    p.epoch = follow_epoch();
+    p.epoch   = follow_epoch();
+    p.arrival = follow_note_arrival();
     p.data  = copy;
     p.size  = m.size;
     p.hash  = m.hash;
@@ -400,14 +402,46 @@ static bool stash_pending(const RunHistMsg& m) {
 // while the client's map-follow tick is guaranteed to drain the queue.
 static bool defer_applies() { return g.is_client && config().net_follow; }
 
+bool runhist_has_pending() { return g.pend_count != 0; }
+
+bool runhist_has_pending_before_arrival(uint32_t limit) {
+    for (uint32_t k = 0; k < g.pend_count; ++k)
+        if (g.pend[k].arrival < limit) return true;
+    return false;
+}
+
+void runhist_drop_pending_before_arrival(uint32_t limit) {
+    ensure_state();
+    uint32_t n = 0;
+    while (n < g.pend_count && g.pend[n].arrival < limit) ++n;
+    for (uint32_t k = 0; k < n; ++k) free(g.pend[k].data);
+    for (uint32_t k = n; k < g.pend_count; ++k) g.pend[k - n] = g.pend[k];
+    for (uint32_t k = g.pend_count - n; k < g.pend_count; ++k) g.pend[k] = State::Pend{};
+    g.pend_count -= n;
+    if (n)
+        log_line("RUNHIST", "dropped %u held run histor%s from before the host's save (%u from after it stay%s)",
+                 n, n > 1 ? "ies" : "y", g.pend_count, g.pend_count == 1 ? "s" : "");
+}
+
+static void apply_pending_where(uint32_t bound, uint32_t arrival_limit, const char* why);
+
+void runhist_apply_pending_before_arrival(uint32_t limit, const char* why) {
+    apply_pending_where(follow_apply_bound(), limit, why);
+}
+
 void runhist_apply_pending_before(uint32_t bound, const char* why) {
+    apply_pending_where(bound, UINT32_MAX, why);
+}
+
+static void apply_pending_where(uint32_t bound, uint32_t arrival_limit, const char* why) {
     ensure_state();
     if (!g.on || !g.pend_count) return;
 
     // Of everything that arrived before the ENTERNODE of rank `bound`, the
     // newest; the rest of it is superseded, what came after stays held.
+    // Mewgenics Multi : et avant le numero d'arrivee `arrival_limit`.
     uint32_t n = 0;
-    while (n < g.pend_count && g.pend[n].epoch < bound) ++n;
+    while (n < g.pend_count && g.pend[n].epoch < bound && g.pend[n].arrival < arrival_limit) ++n;
     if (!n) return;
     RunHistMsg m{};
     m.size = g.pend[n - 1].size;
@@ -506,7 +540,7 @@ void runhist_on_message(const RunHistMsg& m) {
     // d'apres cette case remplacerait celui dont elle tire son evenement. Gardee
     // (voir catsync_on_message), appliquee avant la case suivante.
     if (defer_applies() && savefile_in_coop() &&
-        (follow_pending_count() || follow_node_live() || !follow_on_map())) {
+        (follow_pending_count() || follow_node_live() || !follow_on_map() || savefile_keep_waiting())) {
         if (stash_pending(m)) { ++g.deferred; return; }
         log_line("RUNHIST", "!! could not hold the run history (inside a node or a node "
                             "still to follow) -- applying it now");

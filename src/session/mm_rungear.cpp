@@ -1159,6 +1159,11 @@ void apply_bundle() {
 }
 
 void guest_pump(uint64_t now) {
+    // Mewgenics Multi (protocole 60) : la copie de l'hote mise de cote, son
+    // aventure comparee (quelques secondes, mm_embark) -- ni poussee ni mouvement
+    // de l'hote avant la decision : appliques ici, ceux d'apres la copie
+    // fausseraient la comparaison, et seraient perdus si la copie se charge.
+    if (savefile_keep_waiting()) return;
     const bool on_map = follow_on_map() && guest_between();
     // Les poussees de l'hote gardees parce qu'un ecran des objets est ouvert :
     // identiques a son etat, elles n'ont rien a relire (au plus une fois par

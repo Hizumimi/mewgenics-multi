@@ -4,14 +4,23 @@
 #include "mm_collars.h"
 #include "mm_gear.h"
 #include "mm_menu.h"
+#include "mm_rungear.h"
 #include "mm_team.h"
 
 #include "mgmp_addresses.h"
+#include "mgmp_catsync.h"
+#include "mgmp_config.h"
+#include "mgmp_follow.h"
+#include "mgmp_hooks.h"
+#include "mgmp_invsync.h"
 #include "mgmp_log.h"
 #include "mgmp_mem.h"
 #include "mgmp_net.h"
+#include "mgmp_nodehash.h"
 #include "mgmp_proto.h"
 #include "mgmp_resolve.h"
+#include "mgmp_rng.h"
+#include "mgmp_runhist.h"
 #include "mgmp_savefile.h"
 
 #include <windows.h>
@@ -40,6 +49,7 @@ constexpr uint64_t kAliveMs  = 20000;      // l'hote, dans les ecrans du depart 
 constexpr uint64_t kLingerMs = 120000;     // fin du miroir : la copie de l'aventure arrive
 constexpr uint64_t kLateMs   = 180000;     // arrive trop tard : la copie de l'aventure arrive
 constexpr uint64_t kPrepMs   = 900000;     // 15 minutes hors des ecrans du depart (deja a la carte)
+constexpr uint64_t kKeepMs   = 6000;       // la copie mise de cote : l'aventure de l'invite comparee 6 s au plus
 constexpr size_t   kKeyLen      = sizeof(MmMsg::text);   // « scene|nom », tronque comme sur le fil
 constexpr size_t   kMaxQueue    = 512;
 constexpr size_t   kMaxKeys     = 64;
@@ -124,6 +134,29 @@ struct State {
     uint32_t              blocked     = 0;
 
     std::string           scenes;     // la derniere liste des scenes, pour le journal
+
+    // Mewgenics Multi (protocole 60) : le depart sans second chargement.
+    // hote : la graine tiree au vote, mise dans le flux avant sa carte
+    uint8_t               seed[32]    = {};
+    bool                  seed_have   = false;
+    uint8_t               seed_seq    = 0;
+    bool                  seed_used   = false;
+    // invite : la graine recue, mise dans le flux avant sa carte ; puis l'etat de
+    // l'hote, et si son miroir est alle au bout avec elle
+    uint8_t               gseed[32]   = {};
+    bool                  gseed_have  = false;
+    uint8_t               gseed_seq   = 0;
+    bool                  gseed_used  = false;
+    bool                  keep_ok     = false;   // miroir fini sur la carte, sa carte tiree de la graine
+    uint8_t               keep_seq    = 0;
+    bool                  hstate_have = false;
+    uint8_t               hstate_seq  = 0;
+    uint8_t               hstate_flags = 0;
+    uint64_t              h_map = 0, h_hist = 0, h_cats = 0, h_catdata = 0, h_inv = 0, h_team = 0;
+    uint32_t              h_nodes = 0, h_cat_count = 0;
+    uint64_t              mirror_end_at = 0;    // fin du dernier miroir (le texte de la fenetre)
+    uint32_t              mirror_epoch  = 0;    // follow_epoch au debut de son miroir (aucune case depuis ?)
+    uint32_t              host_entered_at = 0;  // hote : follow_host_entered a son depart
 };
 
 State g;
@@ -136,6 +169,30 @@ std::string fmt(const char* f, ...) {
     va_end(ap);
     return buf;
 }
+
+// Une graine de xoshiro256 (32 octets, jamais nulle) : splitmix64 sur l'horloge
+// fine, le processus et le flux de la simulation.
+void make_seed(uint8_t out[32]) {
+    LARGE_INTEGER qpc{};
+    QueryPerformanceCounter(&qpc);
+    uint64_t x = (uint64_t)qpc.QuadPart ^ (GetTickCount64() << 21) ^ ((uint64_t)GetCurrentProcessId() << 40);
+    if (const uint64_t* s = rng_global_stream()) x ^= s[0] ^ (s[1] << 1) ^ (s[2] << 2) ^ (s[3] << 3);
+    uint64_t w[4];
+    for (int i = 0; i < 4; ++i) {
+        x += 0x9E3779B97F4A7C15ull;
+        uint64_t z = x;
+        z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
+        z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
+        w[i] = z ^ (z >> 31);
+    }
+    if (!(w[0] | w[1] | w[2] | w[3])) w[0] = 1;
+    memcpy(out, w, sizeof(w));
+}
+
+void put_u32(uint8_t* p, uint32_t v) { memcpy(p, &v, 4); }
+void put_u64(uint8_t* p, uint64_t v) { memcpy(p, &v, 8); }
+uint32_t get_u32(const uint8_t* p) { uint32_t v; memcpy(&v, p, 4); return v; }
+uint64_t get_u64(const uint8_t* p) { uint64_t v; memcpy(&v, p, 8); return v; }
 
 uint32_t present_mask() {
     uint8_t ids[8] = {};
@@ -254,6 +311,12 @@ void guest_reset(const char* why, bool linger = false, bool tell_host = true) {
         send_gone();
     collars_end(why);
     gear_end(why);
+    // Mewgenics Multi (protocole 60) : arrive sur la carte au bout du miroir, sa
+    // carte tiree de la graine commune -- son aventure pourra rester.
+    if (g.guest == Guest::Ready || g.guest == Guest::Departed) g.mirror_end_at = g.now;
+    g.keep_ok  = g.guest == Guest::Departed && linger && !tell_host && !g.mirror_lost &&
+                 g.gseed_used && g.gseed_seq == g.gseq && savefile_in_coop();
+    g.keep_seq = g.gseq;
     g.linger_until = (linger && g.guest != Guest::Idle && savefile_in_coop()) ? g.now + kLingerMs : 0;
     g.late_until   = 0;
     g.guest       = Guest::Idle;
@@ -293,6 +356,119 @@ void lose_mirror(const char* why) {
                           u8"Le départ de %s ne s'affiche plus ici.\n"
                           u8"Termine ces écrans toi-même : tu le rejoindras\n"
                           u8"sur la carte.", mm_peer_name(kHostPeer).c_str()));
+}
+
+// Mewgenics Multi (protocole 60) : la copie de l'hote mise de cote -- son
+// aventure reste si elle est celle de l'hote, sinon la copie se charge.
+void keep_abort(const char* why) {
+    log_line("EMBARK", "!! l'aventure de ce joueur n'est pas celle de l'hote (%s) : la copie de l'hote se charge",
+             why);
+    g.keep_ok     = false;
+    g.hstate_have = false;
+    savefile_keep_abort(why);
+}
+
+void keep_pump() {
+    if (!savefile_keep_waiting()) return;
+    const uint64_t waited = g.now - savefile_keep_since();
+    const bool late = waited > kKeepMs;
+    if (!config().net_same_map)  { keep_abort("net.same_map = false"); return; }
+    if (!savefile_in_coop())     { keep_abort("sorti de la copie"); return; }
+    if (g.guest == Guest::Departed) {
+        // La copie est arrivee avant la fin de ses ecrans du depart (une image ou deux).
+        if (late) keep_abort("ses ecrans du depart ne finissent pas");
+        return;
+    }
+    if (!g.keep_ok)                     { keep_abort("son depart n'est pas alle au bout avec la graine"); return; }
+    if (!g.hstate_have || g.hstate_seq != g.keep_seq) {
+        if (late) keep_abort("l'empreinte de l'hote n'est pas arrivee");
+        return;
+    }
+    if (!(g.hstate_flags & 1))          { keep_abort("la carte de l'hote ne vient pas de la graine"); return; }
+    // Les chats, le sac et l'historique de l'hote, partis avant sa copie, d'abord
+    // appliques ; et la carte qui tourne. Gardes a leur arrivee (la carte ne
+    // tournait pas encore), ils s'appliquent ici comme sur la carte (mm_rungear) :
+    // jusqu'a la prochaine case a suivre, sac ferme.
+    // Seulement celles d'avant la copie (son numero d'arrivee) : l'empreinte de
+    // l'hote decrit cet etat-la, et celles d'apres restent pour apres la decision.
+    const uint32_t limit = savefile_keep_arrival();
+    if (follow_on_map() && !follow_node_live() && !rungear_hold_pushes()) {
+        if (catsync_pending_before_arrival(limit))
+            catsync_apply_pending_before_arrival(limit, "the departure together (same map)");
+        if (invsync_has_pending_before_arrival(limit))
+            invsync_apply_pending_before_arrival(limit, "the departure together (same map)");
+        if (runhist_has_pending_before_arrival(limit))
+            runhist_apply_pending_before_arrival(limit, "the departure together (same map)");
+    }
+    if (catsync_pending_before_arrival(limit) || invsync_has_pending_before_arrival(limit) ||
+        runhist_has_pending_before_arrival(limit) || !follow_on_map()) {
+        if (late) keep_abort("l'etat de l'hote ne s'applique pas");
+        return;
+    }
+    uint64_t map = 0;
+    uint32_t nodes = 0;
+    RunPrint rp;
+    const bool map_ok = follow_map_print(map, nodes);
+    const bool run_ok = nodehash_run_print(rp);
+    if (!map_ok || !run_ok) {
+        if (late) keep_abort(!map_ok ? "carte illisible" : "aventure illisible");
+        return;
+    }
+    char diff[160] = {};
+    if (map != g.h_map || nodes != g.h_nodes) strcat_s(diff, " carte");
+    if (rp.hist != g.h_hist)                  strcat_s(diff, " historique");
+    if (rp.cats != g.h_cats || rp.cat_count != g.h_cat_count) strcat_s(diff, " liste-des-chats");
+    if (rp.catdata != g.h_catdata)            strcat_s(diff, " chats");
+    if (rp.inv != g.h_inv)                    strcat_s(diff, " sac");
+    if (diff[0]) {
+        log_line("EMBARK", "   carte %016llx (%u) / hote %016llx (%u), chats %016llx / %016llx, sac %016llx / %016llx, "
+                           "historique %016llx / %016llx", (unsigned long long)map, nodes,
+                 (unsigned long long)g.h_map, g.h_nodes, (unsigned long long)rp.catdata,
+                 (unsigned long long)g.h_catdata, (unsigned long long)rp.inv, (unsigned long long)g.h_inv,
+                 (unsigned long long)rp.hist, (unsigned long long)g.h_hist);
+        char why[192];
+        snprintf(why, sizeof(why), "differe :%s", diff);
+        keep_abort(why);
+        return;
+    }
+    savefile_keep_commit();
+    // Le nom de l'equipe (tire juste apres la carte, du meme flux) : seulement dit.
+    log_line("EMBARK", "meme carte que l'hote (%016llx, %u cases), memes chats, sac et historique : ce joueur garde son "
+                       "aventure, pas de second chargement (equipe « %s »%s, %llu ms)", (unsigned long long)map, nodes,
+             rp.team_name, rp.team == g.h_team ? "" : " -- PAS le meme nom que chez l'hote",
+             (unsigned long long)waited);
+    MmMsg k{};
+    k.kind = MM_EMBARK;
+    k.a    = kEmbarkKept;
+    k.b    = g.keep_seq;
+    net_send_mm(k);
+    g.keep_ok = false;
+}
+
+// Le detour de T_MapChapter : la graine commune dans le flux de la simulation,
+// juste avant que le jeu en tire la carte du depart (une fois par depart).
+using fn_mapchapter = void* (__fastcall*)(void*, void*, uint8_t);
+fn_mapchapter o_MapChapter = nullptr;
+
+void seed_map_now() {
+    if (!g.on || !config().net_same_map) return;
+    const bool host  = net_role() == NetRole::Host && g.host == Host::Prep &&
+                       g.seed_have && !g.seed_used && g.seed_seq == g.seq;
+    const bool guest = net_role() == NetRole::Client && g.guest == Guest::Departed && !g.mirror_lost &&
+                       savefile_in_coop() && g.gseed_have && !g.gseed_used && g.gseed_seq == g.gseq;
+    if (!host && !guest) return;
+    uint64_t* s = rng_global_stream();
+    if (!s) return;
+    memcpy(s, host ? g.seed : g.gseed, 32);
+    if (host) g.seed_used = true;
+    else      g.gseed_used = true;
+    log_line("EMBARK", "carte du depart tiree de la graine commune (vote %u)",
+             (unsigned)(host ? g.seq : g.gseq));
+}
+
+void* __fastcall h_MapChapter(void* map, void* chapter, uint8_t flag) {
+    seed_map_now();
+    return o_MapChapter(map, chapter, flag);
 }
 
 // La liste des scenes, au journal quand elle change (pendant un depart).
@@ -362,6 +538,7 @@ void embark_pump() {
     }
 
     // --- invite ---
+    keep_pump();      // Mewgenics Multi (protocole 60) : la copie de l'hote mise de cote
     if (g.linger_until && (!savefile_in_coop() || g.now >= g.linger_until)) g.linger_until = 0;
     // Arrive trop tard : jusqu'a la copie de l'aventure (ou le delai).
     if (g.late_until && (g.now >= g.late_until || (savefile_in_coop() && savefile_adventure_is_loaded())))
@@ -394,6 +571,7 @@ void embark_pump() {
                     g.guest       = Guest::Departed;
                     g.departed_at = g.now;
                     g.last_click  = g.now;
+                    g.mirror_epoch = follow_epoch();
                     log_line("EMBARK", "depart dans la copie avec l'equipe de l'hote (%zu chat(s))", g.keys.size());
                     // Son rangement a la place de celui de l'hote, avant l'ecran des objets.
                     gear_begin(GearRole::Guest, g.gseq);
@@ -493,6 +671,23 @@ bool embark_begin(uint8_t seq, uint32_t joiners) {
     g.sent      = 0;
     log_line("EMBARK", "vote %u passe : la partie de l'hote part chez son equipe, il attend qu'elle "
                        "l'ait chargee", (unsigned)seq);
+    // Mewgenics Multi (protocole 60) : la graine de la carte du depart, la meme
+    // chez tous (T_MapChapter).
+    g.seed_have = false;
+    g.seed_used = false;
+    if (config().net_same_map && hooks_is_live(T_MapChapter)) {
+        make_seed(g.seed);
+        g.seed_have = true;
+        g.seed_seq  = seq;
+        MmMsg m{};
+        m.kind = MM_EMBARK;
+        m.a    = kEmbarkSeed;
+        m.b    = seq;
+        memcpy(m.text, g.seed, sizeof(g.seed));
+        if (net_send_mm(m))
+            log_line("EMBARK", "-> graine de la carte du depart envoyee (vote %u) : la meme carte chez tous",
+                     (unsigned)seq);
+    }
     return true;
 }
 
@@ -536,6 +731,7 @@ void embark_host_departed(uint8_t seq) {
     g.host      = Host::Prep;
     g.seq       = seq;
     g.prep_from = g.now;
+    g.host_entered_at = follow_host_entered();
     g.serial    = 0;
     g.scenes.clear();
     // Ceux qui suivent : les invites qui avaient charge sa maison, encore la.
@@ -599,6 +795,74 @@ bool embark_guest_active() {
            (g.guest == Guest::Joining && savefile_in_coop());
 }
 
+// --- le depart sans second chargement (protocole 60) -------------------------------
+
+bool embark_binding(Target t, void** detour, void*** original) {
+    switch (t) {
+    case T_MapChapter: *detour = (void*)&h_MapChapter; *original = (void**)&o_MapChapter; return true;
+    default: return false;
+    }
+}
+
+void embark_before_fresh_publish() {
+    if (!g.on || net_role() != NetRole::Host || g.host != Host::Prep) return;
+    if (!g.seed_have || g.seed_seq != g.seq) return;      // pas de graine a ce vote : rien a comparer
+    if (!(g.followers & present_mask())) return;
+    // La copie ne peut pas etre l'aventure d'un invite : sa carte n'a pas ete
+    // tiree de la graine, ou l'hote a deja joue une case (il a clique la premiere
+    // pendant que les photos des objets tardaient) -- c = 0, ils rechargent tout
+    // de suite.
+    const bool node_played = follow_host_entered() != g.host_entered_at;
+    uint64_t map = 0;
+    uint32_t nodes = 0;
+    RunPrint rp;
+    bool ok = false;
+    if (g.seed_used && !node_played) {
+        // Ce que la copie contient, envoye avant elle (les caches viennent d'etre
+        // oublies : tout part) ; puis l'empreinte, calculee sur le meme etat.
+        catsync_publish("the departure together (same map)");
+        invsync_publish("the departure together (same map)");
+        runhist_publish("the departure together (same map)");
+        ok = follow_map_print(map, nodes) && nodehash_run_print(rp);
+    }
+    MmMsg m{};
+    m.kind = MM_EMBARK;
+    m.a    = kEmbarkState;
+    m.b    = g.seq;
+    m.c    = ok ? 1 : 0;
+    uint8_t* t = (uint8_t*)m.text;
+    put_u64(t + 0,  map);
+    put_u32(t + 8,  nodes);
+    put_u64(t + 12, rp.hist);
+    put_u64(t + 20, rp.cats);
+    put_u32(t + 28, rp.cat_count);
+    put_u64(t + 32, rp.catdata);
+    put_u64(t + 40, rp.inv);
+    put_u64(t + 48, rp.team);
+    net_send_mm(m);
+    log_line("EMBARK", "-> empreinte de l'aventure de l'hote (vote %u) : carte %016llx (%u cases), %u chat(s), "
+                       "equipe « %s »%s", (unsigned)g.seq, (unsigned long long)map, nodes, rp.cat_count,
+             rp.team_name, ok ? "" : !g.seed_used ? " -- carte PAS tiree de la graine, les invites rechargeront"
+                                   : node_played ? " -- une case deja jouee, les invites rechargeront"
+                                                 : " -- ILLISIBLE, les invites rechargeront");
+}
+
+bool embark_keep_candidate() {
+    if (!g.on || net_role() != NetRole::Client || !config().net_same_map) return false;
+    if (g.gseq == 0 && !g.gseed_have) return false;
+    // Aucune case depuis le debut de son miroir (une case de l'hote recue, ou en
+    // cours : la copie la contient, elle se charge).
+    if (follow_node_live() || follow_pending_count() || follow_epoch() != g.mirror_epoch) return false;
+    // Fini sur la carte avec la graine, ou encore dans ses ecrans du depart avec
+    // sa carte deja tiree (la copie arrive parfois une image avant la fin).
+    if (g.guest == Guest::Idle) return g.keep_ok && g.keep_seq == g.gseq && embark_mirror_recent();
+    return g.guest == Guest::Departed && !g.mirror_lost && g.gseed_used && g.gseed_seq == g.gseq;
+}
+
+bool embark_mirror_recent() {
+    return g.on && g.mirror_end_at && g.now - g.mirror_end_at < kLingerMs;
+}
+
 // --- les deux --------------------------------------------------------------------
 
 void embark_on_mm(uint8_t from, const MmMsg& m) {
@@ -619,6 +883,40 @@ void embark_on_mm(uint8_t from, const MmMsg& m) {
             return;
         default:
             break;
+    }
+    if (m.a == kEmbarkSeed) {
+        if (net_role() != NetRole::Client || from != kHostPeer) return;
+        memcpy(g.gseed, m.text, sizeof(g.gseed));
+        g.gseed_have = true;
+        g.gseed_seq  = m.b;
+        g.gseed_used = false;
+        log_line("EMBARK", "<- graine de la carte du depart (vote %u)", (unsigned)m.b);
+        return;
+    }
+    if (m.a == kEmbarkState) {
+        if (net_role() != NetRole::Client || from != kHostPeer) return;
+        const uint8_t* t = (const uint8_t*)m.text;
+        g.hstate_have  = true;
+        g.hstate_seq   = m.b;
+        g.hstate_flags = m.c;
+        g.h_map        = get_u64(t + 0);
+        g.h_nodes      = get_u32(t + 8);
+        g.h_hist       = get_u64(t + 12);
+        g.h_cats       = get_u64(t + 20);
+        g.h_cat_count  = get_u32(t + 28);
+        g.h_catdata    = get_u64(t + 32);
+        g.h_inv        = get_u64(t + 40);
+        g.h_team       = get_u64(t + 48);
+        log_line("EMBARK", "<- empreinte de l'aventure de l'hote (vote %u) : carte %016llx (%u cases)%s",
+                 (unsigned)m.b, (unsigned long long)g.h_map, g.h_nodes,
+                 (m.c & 1) ? "" : " -- PAS tiree de la graine commune");
+        return;
+    }
+    if (m.a == kEmbarkKept) {
+        if (net_role() != NetRole::Host || from >= 8) return;
+        log_line("EMBARK", "<- %s garde son aventure du depart (meme carte) : pas de second chargement",
+                 mm_peer_name(from).c_str());
+        return;
     }
     if (m.a == kEmbarkReady) {
         if (net_role() != NetRole::Host || from >= 8 || m.b != g.seq) return;

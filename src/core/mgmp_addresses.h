@@ -132,6 +132,8 @@ enum Target : int {
     // --- Mewgenics Multi : la Nemesis a plusieurs (src/session/mm_nemesis.cpp) --
     T_NemesisFight,      // sub_140392ED0 -- MapScreen::TryBeginNemesisFight : son combat, si elle est sur la case du pion
     T_NemesisFightGo,    // sub_14039D510 -- son rappel (lambda_1, apres la transition) : le combat se construit
+    // --- Mewgenics Multi : le depart sans second chargement (src/session/mm_embark.cpp) --
+    T_MapChapter,        // sub_14021AE00 -- MapScreen : la mise en place du chapitre (copie TLS+0x178 dans la graine de la carte)
     T_COUNT
 };
 
@@ -761,6 +763,12 @@ static const TargetDesc kTargets[T_COUNT] = {
     // 0x140394450(map, out, "nemesis", 0, 0) construit le combat (GON levels),
     // puis 0x1403B6D10 le lance (tirage d'embuscade dans le flux de la simulation).
     { 0x0039D510, "NEMFIGHTGO","TryBeginNemesisFight lambda_1 (sub_14039D510)" },
+    // Mewgenics Multi (protocole 60) : appelee par MapScreen::init (0x14038D150)
+    // juste avant generate_map (0x14021CA60). Sa premiere instruction copie le flux
+    // de la simulation (TLS+0x178, 32 octets) dans MapScreen+0x38/+0x48, d'ou
+    // generate_map tire la graine de chaque case. Au depart ensemble, l'hote et son
+    // equipe y mettent la meme graine (mm_embark) : la meme carte.
+    { 0x0021AE00, "MAPCHAPTER","MapScreen chapter setup (sub_14021AE00)" },
 };
 
 // Coarse module guard, checked before the per-target signatures.

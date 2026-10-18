@@ -134,6 +134,7 @@ struct State {
     // transition). have_here, lui, reste sur la derniere case pour toujours.
     bool     inside         = false;
     uint64_t inside_at      = 0;
+    uint32_t host_entered   = 0;   // Mewgenics Multi : les entrees de l'hote (follow_host_entered)
 
     // Mewgenics Multi : la case que CE joueur joue en ce moment (l'hote : celle
     // ou il est entre ; l'invite : celle ou il a suivi), de l'EnterNode a la fin
@@ -417,6 +418,7 @@ bool follow_on_enter_node(void* map_screen, void* node, bool* sent) {
     remember_node(index, count, type, seed);
     g.inside    = true;
     g.inside_at = GetTickCount64();
+    ++g.host_entered;
     start_live(type, 0);
 
     // Cats FIRST, node second. TCP is ordered and the client applies a CATDATA
@@ -503,6 +505,7 @@ bool follow_on_nemesis_fight(void* map_screen, void* node, uint64_t id) {
     remember_node(index, count, type, id, /*nemesis=*/true);
     g.inside    = true;
     g.inside_at = GetTickCount64();
+    ++g.host_entered;
     start_live(5 /* un combat : la fin de case suit */, 0);
 
     rungear_before_node_push();
@@ -552,6 +555,38 @@ bool follow_on_map() {
     // and a single missed frame is not a reason to refuse a flush. A quarter
     // second is far shorter than any node and far longer than any frame.
     return (GetTickCount64() - g.map_tick) < 250;
+}
+
+uint32_t follow_host_entered() {
+    Guard guard;
+    return g.host_entered;
+}
+
+bool follow_map_print(uint64_t& print, uint32_t& count) {
+    Guard guard;
+    print = 0;
+    count = 0;
+    if (!follow_on_map() || !g.map) return false;
+    uint32_t n = 0; void* data = nullptr;
+    if (!read_nodes(g.map, n, data)) return false;
+    uint64_t h = 0xCBF29CE484222325ull;
+    auto mix = [&h](const void* p, uint32_t len) {
+        const uint8_t* b = (const uint8_t*)p;
+        for (uint32_t i = 0; i < len; ++i) { h ^= b[i]; h *= 0x100000001B3ull; }
+    };
+    mix(&n, sizeof(n));
+    for (uint32_t i = 0; i < n; ++i) {
+        void* node = node_at(g.map, i);
+        if (!node) return false;
+        const uint32_t type = node_type(node);
+        uint8_t seed[32];
+        if (!mem_read((const uint8_t*)node + kNode_Seed, seed, sizeof(seed))) return false;
+        mix(&type, sizeof(type));
+        mix(seed, sizeof(seed));
+    }
+    print = h;
+    count = n;
+    return true;
 }
 
 uint32_t follow_node_count() {
@@ -933,6 +968,10 @@ void* follow_map_update(void* map_screen) {
     // l'hote sont celles de SA course, pas de celle-ci.
     if (g.is_client && !savefile_in_coop()) return nullptr;
     if (!pending_any()) return nullptr;
+    // Mewgenics Multi (protocole 60) : sa propre aventure du depart ensemble est
+    // comparee a celle de l'hote (quelques secondes) -- pas de case avant de savoir
+    // si elle reste ou si celle de l'hote se charge.
+    if (g.is_client && savefile_keep_waiting()) return nullptr;
     // Mewgenics Multi : il quitte l'aventure -- les cases en attente ne le
     // concernent plus (il les reprendrait en revenant : follow_catchup).
     if (g.is_client && mm_guest_quitting()) {

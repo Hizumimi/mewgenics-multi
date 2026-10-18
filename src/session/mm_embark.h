@@ -44,6 +44,17 @@
 //   5. L'hote arrive sur la carte et publie son aventure comme avant (fresh) :
 //      l'invite recharge celle-ci -- c'est la sienne qui fait foi. Son depart
 //      a lui n'etait qu'un miroir.
+//      Mewgenics Multi (protocole 60) : SAUF SI SA CARTE EST LA MEME. Au vote,
+//      l'hote tire une graine (kEmbarkSeed) ; chacun la met dans le flux de la
+//      simulation juste avant que le jeu tire sa carte (T_MapChapter,
+//      0x14021AE00 : sa premiere instruction copie TLS+0x178 dans la graine de
+//      la carte, d'ou generate_map tire chaque case ; le nom de l'equipe est tire
+//      juste apres, du meme flux). Avant sa copie, l'hote envoie ses chats, son
+//      sac, son historique et l'empreinte de son aventure (kEmbarkState). La
+//      copie est mise de cote (savefile_keep_*) : si la carte, les chats, le sac
+//      et l'historique de l'invite sont ceux de l'hote, il garde son aventure --
+//      pas de second chargement ; sinon (ou au bout de quelques secondes), la
+//      copie se charge comme avant. net.same_map = false : toujours la copie.
 //
 // LIMITES. Un clic que l'invite ne retrouve pas dans les 30 secondes (ou plus
 // aucun signe de l'hote pendant 5 minutes) arrete le miroir : il peut alors
@@ -56,6 +67,8 @@
 // copie de l'aventure pour les autres modules : si la premiere publication de
 // l'hote sur la carte echouait et qu'il entrait aussitot dans une case, cette
 // case serait appliquee au miroir (sans suite : la vraie copie la remplace).
+
+#include "mgmp_addresses.h"   // Target
 
 #include <cstdint>
 #include <string>
@@ -80,6 +93,12 @@ enum EmbarkMsg : uint8_t {
     kEmbarkGone        = 6,  // invite -> hote : il ne suit plus le depart
     kEmbarkAlive       = 7,  // hote -> invites : toujours dans les ecrans du depart (toutes
                              //   les 20 s : au choix des objets, aucun clic ne part)
+    // Mewgenics Multi (protocole 60) : le depart sans second chargement.
+    kEmbarkSeed        = 8,  // hote -> invites : texte = la graine de la carte (32 octets)
+    kEmbarkState       = 9,  // hote -> invites, juste avant sa copie : texte = l'empreinte
+                             //   de son aventure (carte, cases, historique, chats, sac,
+                             //   nom de l'equipe) ; c = 1 : sa carte vient de la graine
+    kEmbarkKept        = 10, // invite -> hote : il garde son aventure (meme carte)
 };
 
 void embark_init();          // session prete
@@ -118,6 +137,21 @@ void embark_guest_cancel(const char* why);
 void embark_on_go(uint8_t seq, const std::vector<uint64_t>& keys);
 // Il suit le depart de l'hote dans sa copie : pas de « Retour a la maison ».
 bool embark_guest_active();
+
+// --- le depart sans second chargement (protocole 60) -------------------------------
+
+// Le detour de T_MapChapter.
+bool embark_binding(Target t, void** detour, void*** original);
+// Hote, juste avant de publier son aventure sur la carte (mgmp_savefile) : si sa
+// carte vient de la graine commune et que des invites l'ont suivi, ses chats, son
+// sac, son historique, puis l'empreinte de son aventure.
+void embark_before_fresh_publish();
+// Invite : la copie qui arrive peut etre mise de cote (il vient de faire le
+// depart de l'hote avec la graine commune).
+bool embark_keep_candidate();
+// Invite : le miroir d'un depart vient de finir (2 minutes) -- la copie qui
+// arrive est celle de ce depart (le texte de la fenetre).
+bool embark_mirror_recent();
 // Le « Valider » de l'hote est deja arrive (pas encore rejoue) : le choix des
 // colliers se ferme bientot chez lui.
 bool embark_guest_close_queued();
