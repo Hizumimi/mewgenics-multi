@@ -814,8 +814,13 @@ void host_on(uint8_t from, const LootMsg& m) {
     switch (m.op) {
     case kLootReady:
         if (!(g.host.players() & (1u << from))) return;
-        g.host.set_ready(from, m.ready != 0, now);
         g.dirty = true;
+        if (m.ready == kLootReadyQuit) {             // il ne reviendra pas : kLootStart n'est envoye qu'une fois
+            g.host.gone(from);
+            log_line("BUTIN", "<- %s a abandonne le defile : son tour passe", peer_label(from).c_str());
+            break;
+        }
+        g.host.set_ready(from, m.ready != 0, now);
         log_line("BUTIN", "<- %s %s le defile", peer_label(from).c_str(), m.ready ? "voit" : "ne voit plus");
         break;
     case kLootChoose:
@@ -839,6 +844,17 @@ void host_on(uint8_t from, const LootMsg& m) {
 void guest_abort(const char* why) {
     if (!g.on) return;
     log_line("BUTIN", "!! defile %u oublie : %s", g.parade, why);
+    // L'hote ne doit plus attendre ce joueur, ni pour commencer ni a chaque objet :
+    // il le retire du defile, comme un depart. Sans condition sur ready_sent : un
+    // choix suffit a le marquer pret chez l'hote. Au mieux : perdu si le lien est
+    // coupe, comme avant.
+    if (in_session()) {
+        LootMsg m;
+        m.op     = kLootReady;
+        m.parade = g.parade;
+        m.ready  = kLootReadyQuit;
+        if (send_msg(m, kHostPeer)) log_line("BUTIN", "-> tu quittes le defile");
+    }
     reset_parade();
 }
 

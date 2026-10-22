@@ -86,7 +86,7 @@ std::vector<uint8_t> loot_encode(const LootMsg& m) {
         break;
     }
     case kLootReady:
-        put<uint8_t>(b, m.ready ? 1 : 0);
+        put<uint8_t>(b, m.ready > kLootReadyQuit ? 1 : m.ready);
         break;
     case kLootChoose:
         put<uint8_t>(b, m.index);
@@ -160,7 +160,7 @@ bool loot_decode(const uint8_t* p, size_t n, LootMsg& out) {
     }
     case kLootReady:
         m.ready = r.get<uint8_t>();
-        if (r.ok && m.ready > 1) return false;
+        if (r.ok && m.ready > kLootReadyQuit) return false;
         break;
     case kLootChoose:
         m.index  = r.get<uint8_t>();
@@ -376,7 +376,7 @@ bool LootHost::tick(uint64_t now, LootRng& rng) {
     }
     case LootPhase::Result:
         if (!host_ready) { since_ += step; return false; }
-        if (now - since_ < kLootResultMs) return false;
+        if (now - since_ < result_ms()) return false;
         if ((size_t)index_ + 1 < items_.size()) {
             ++index_;
             begin_item(now);
@@ -407,7 +407,7 @@ LootState LootHost::state(uint64_t now) const {
         s.ms_left = el < kLootChoiceMs ? (uint32_t)(kLootChoiceMs - el) : 0;
         break;
     case LootPhase::Result:
-        s.ms_left = el < kLootResultMs ? (uint32_t)(kLootResultMs - el) : 0;
+        s.ms_left = el < result_ms() ? (uint32_t)(result_ms() - el) : 0;
         s.result  = results_[index_];
         break;
     case LootPhase::Done:

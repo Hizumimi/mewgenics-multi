@@ -16,8 +16,8 @@
 //     par l'hote, hors du flux aleatoire du jeu (qui doit rester le meme chez
 //     tous).
 //   - 30 s par objet ; sans choix a la fin, le joueur passe. Le resultat tombe des
-//     que tous les joueurs prets ont choisi ; il reste 4 s a l'ecran, puis l'objet
-//     suivant.
+//     que tous les joueurs prets ont choisi ; il reste 2 s a l'ecran (1 s si
+//     personne n'en veut), puis l'objet suivant.
 //   - Un joueur pas encore pret (sa fenetre du defile n'est pas ouverte : un
 //     chargement, une autre fenetre) n'est pas attendu pour un objet : il passe,
 //     et entre dans le defile des qu'il est pret. Le premier objet attend que tous
@@ -32,7 +32,8 @@
 //               bit par numero de joueur), u8 nombre d'objets (0 : pas de defile),
 //               puis chaque objet : nom, texte (u16 n + octets), a, b, c, d (u32),
 //               e, f (u8).
-//   kLootReady  invite -> hote : u8 1 il voit le defile, 0 il ne le voit plus.
+//   kLootReady  invite -> hote : u8 1 il voit le defile, 0 il ne le voit plus,
+//               2 il l'a abandonne (kLootReadyQuit : l'hote le retire du defile).
 //   kLootChoose invite -> hote : u8 objet, u8 choix (LootChoice).
 //   kLootState  hote -> invites : u8 objet, u8 phase (LootPhase), u32 ms restantes,
 //               u32 joueurs, u32 prets, u32 ont choisi cet objet, u8 decide,
@@ -53,12 +54,14 @@ namespace mgmp {
 
 constexpr int      kLootSlots       = 8;        // numeros des joueurs (0 = l'hote)
 constexpr uint32_t kLootChoiceMs    = 30000;    // par objet
-constexpr uint32_t kLootResultMs    = 4000;     // le resultat a l'ecran
+constexpr uint32_t kLootResultMs    = 2000;     // le resultat a l'ecran
+constexpr uint32_t kLootNobodyMs    = 1000;     // le resultat quand personne n'en veut
 constexpr uint32_t kLootReadyWaitMs = 180000;   // au plus, pour que tous soient prets
 constexpr uint32_t kLootIntroMs     = 2500;     // au moins, la fenetre d'attente (tous prets d'un coup)
 constexpr size_t   kLootMaxItems    = 64;
 constexpr uint8_t  kLootNobody      = 0xFF;
 constexpr uint8_t  kLootUndecided   = 0xFE;
+constexpr uint8_t  kLootReadyQuit   = 2;        // kLootReady : l'invite a abandonne le defile
 constexpr int      kLootMaxRerolls  = 20;
 
 enum LootChoice : uint8_t { kLootNone = 0, kLootPass = 1, kLootGreed = 2, kLootNeed = 3 };
@@ -160,6 +163,9 @@ public:
 private:
     void begin_item(uint64_t now);
     void resolve_item(uint64_t now, LootRng& rng);
+    uint32_t result_ms() const {
+        return results_[index_].winner == kLootNobody ? kLootNobodyMs : kLootResultMs;
+    }
 
     LootPhase phase_    = LootPhase::Idle;
     uint32_t  parade_   = 0;

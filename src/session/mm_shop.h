@@ -86,6 +86,13 @@ void shop_on_team(uint8_t from, const uint8_t* data, size_t size);
 void shop_victory_before();
 void shop_victory_after();
 
+// mm_purse, hote : les bourses sont notees sur la carte entre deux cases (ce
+// qu'un rechargement retrouverait) -- la note des achats aussi ; l'hote a
+// recharge l'aventure -- les achats faits depuis sont oublies (rembourses), les
+// autres seront recales sur le sac a la victoire (shop_rekey_owned).
+void shop_purse_checkpoint();
+void shop_purse_reloaded();
+
 // mm_loot, a la victoire : cet objet (son id dans le sac de l'hote) a ete achete
 // -- il ne defile pas.
 bool shop_claims(uint64_t id);

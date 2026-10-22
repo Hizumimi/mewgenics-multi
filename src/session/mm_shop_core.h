@@ -171,10 +171,15 @@ bool shop_index_of(uintptr_t begin, uintptr_t end, uintptr_t item, size_t stride
 // Un objet achete, dans le sac de l'hote : son id (Equipment+0x00, propre au
 // processus de l'hote) et son acheteur (numero de place de l'equipe, celui des
 // bourses). Les exemplaires d'un objet en stock ont le meme id (insert_item copie
-// l'objet de la boutique) : un achat par exemplaire, dans l'ordre.
+// l'objet de la boutique) : un achat par exemplaire, dans l'ordre. Son empreinte
+// (sans ce qui s'use : mm_shop, bought_digest) le retrouve apres un rechargement
+// de l'aventure, qui donne a chaque objet un nouvel id ; `reloaded` : note avant
+// un rechargement, son id ne vaut plus.
 struct ShopOwned {
-    uint64_t    id     = 0;
-    uint8_t     slot   = 0;
+    uint64_t    id       = 0;
+    uint64_t    digest   = 0;
+    uint8_t     slot     = 0;
+    bool        reloaded = false;
     std::string label;
 };
 
@@ -182,7 +187,11 @@ class ShopLedger {
 public:
     void clear() { owned_.clear(); }
     // Un achat de plus (un exemplaire de plus de cet id).
-    void add(uint64_t id, uint8_t slot, const std::string& label);
+    void add(uint64_t id, uint64_t digest, uint8_t slot, const std::string& label);
+    // L'hote a recharge l'aventure : les achats d'apres les `keep` premiers (ceux
+    // de la case annulee, rembourses par mm_purse) sont oublies ; les autres
+    // passent `reloaded`. Rend le nombre d'achats oublies.
+    size_t reloaded(size_t keep);
     // L'acheteur du premier exemplaire de cet objet, ou -1.
     int  owner(uint64_t id) const;
     size_t size() const { return owned_.size(); }
@@ -198,5 +207,14 @@ size_t shop_count(const std::vector<uint64_t>& ids, uint64_t id);
 // pas encore pris -- l'indice dans `stored`, ou -1 (il n'y est plus : equipe sur un
 // chat, utilise, devenu autre chose).
 std::vector<int> shop_match_owned(const std::vector<ShopOwned>& owned, const std::vector<uint64_t>& stored);
+
+// La victoire, avant que le sac rentre : les achats notes avant un rechargement
+// (`reloaded`) dont l'id n'est plus dans le sac prennent l'id d'un objet du sac
+// de meme empreinte, pas deja a un achat. Sans rechargement, rien : un achat
+// equipe ou utilise ne prend pas un objet identique trouve ailleurs. Le sac
+// seulement : jamais un objet que l'hote avait deja chez lui. Rend le nombre
+// d'achats recales.
+size_t shop_rekey_owned(std::vector<ShopOwned>& owned, const std::vector<uint64_t>& bag_ids,
+                        const std::vector<uint64_t>& bag_digests);
 
 } // namespace mgmp
