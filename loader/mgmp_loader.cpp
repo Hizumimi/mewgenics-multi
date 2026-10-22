@@ -34,16 +34,26 @@
 
 #include "json.hpp"
 
+// Mewgenics Multi : tout ce que ce programme ecrit, le .bat le montre au joueur
+// (type loader.txt), donc en francais. Sans accents : en locale "C", wprintf
+// ecrit l'octet latin-1 et la console (page 850) l'affiche de travers.
+
 namespace {
 
-void die(const wchar_t* what) {
+// Mewgenics Multi : report() sans ExitProcess, pour inject() qui doit rendre
+// la main (a l'etape 3 le fil d'image est encore suspendu).
+void report(const wchar_t* what) {
     DWORD e = GetLastError();
-    fflush(stdout);   // ExitProcess does not flush the CRT, and losing the
-                      // preceding progress lines makes the error unreadable
     wchar_t msg[512] = {};
     FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
                    nullptr, e, 0, msg, 512, nullptr);
-    fwprintf(stderr, L"[!] %s failed (%lu): %s\n", what, e, msg);
+    fwprintf(stderr, L"[!] %s a echoue (%lu) : %s\n", what, e, msg);
+}
+
+void die(const wchar_t* what) {
+    fflush(stdout);   // ExitProcess does not flush the CRT, and losing the
+                      // preceding progress lines makes the error unreadable
+    report(what);
     ExitProcess(1);
 }
 
@@ -68,7 +78,7 @@ bool game_from_config(const wchar_t* dir, wchar_t* out, size_t out_len) {
 
     nlohmann::json j = nlohmann::json::parse(in, nullptr, false, true);
     if (j.is_discarded() || !j.is_object()) {
-        fwprintf(stderr, L"[!] mgmp.json is not valid JSON\n");
+        fwprintf(stderr, L"[!] mgmp.json n'est pas du JSON valide\n");
         return false;
     }
     auto it = j.find("game");
@@ -76,8 +86,13 @@ bool game_from_config(const wchar_t* dir, wchar_t* out, size_t out_len) {
 
     const std::string s = it->get<std::string>();
     if (s.empty()) return false;
-    size_t conv = 0;
-    mbstowcs_s(&conv, out, out_len, s.c_str(), _TRUNCATE);
+    // Mewgenics Multi : nlohmann rend de l'UTF-8 (le Bloc-notes l'ecrit ainsi) ;
+    // mbstowcs_s en locale "C" etendait chaque octet et cassait les accents.
+    if (!MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, out, (int)out_len)) {
+        out[0] = 0;
+        fwprintf(stderr, L"[!] mgmp.json : le chemin \"game\" est trop long\n");
+        return false;
+    }
     return out[0] != 0;
 }
 
@@ -301,10 +316,10 @@ DWORD wait_for_relaunch(const wchar_t* exe_path, DWORD exclude_pid,
     DWORD waited = 0;
     while (waited < timeout_ms) {
         if (waited && waited % 5000 == 0)
-            wprintf(L"[*] still waiting for the re-launch (%lus of %lus)%s\n",
+            wprintf(L"[*] on attend toujours la relance (%lus sur %lus)%s\n",
                     waited / 1000, timeout_ms / 1000,
-                    waited >= 15000 ? L" -- if Steam was not already running, it may be "
-                                      L"starting up or asking you something" : L"");
+                    waited >= 15000 ? L" -- si Steam n'etait pas deja ouvert, il demarre "
+                                      L"peut-etre ou te pose une question" : L"");
         HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
         if (snap != INVALID_HANDLE_VALUE) {
             PROCESSENTRY32W pe = { sizeof(pe) };
@@ -370,10 +385,18 @@ bool wait_modules_ready(DWORD pid, DWORD timeout_ms) {
 bool inject(HANDLE proc, const wchar_t* dll_path) {
     SIZE_T bytes = (wcslen(dll_path) + 1) * sizeof(wchar_t);
 
+    // Mewgenics Multi : jamais die() ici. A l'etape 3 le fil d'image est encore
+    // suspendu ; ExitProcess laissait le jeu fige. On rend false, et l'appelant
+    // reprend le fil puis ferme le jeu (abort_launch).
     void* remote = VirtualAllocEx(proc, nullptr, bytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    if (!remote) die(L"VirtualAllocEx");
+    if (!remote) { report(L"VirtualAllocEx"); return false; }
+    auto fail = [&](const wchar_t* what) {
+        if (what) report(what);   // avant VirtualFreeEx, qui ecrase GetLastError
+        VirtualFreeEx(proc, remote, 0, MEM_RELEASE);
+        return false;
+    };
 
-    if (!WriteProcessMemory(proc, remote, dll_path, bytes, nullptr)) die(L"WriteProcessMemory");
+    if (!WriteProcessMemory(proc, remote, dll_path, bytes, nullptr)) return fail(L"WriteProcessMemory");
 
     // kernel32 is at the same base in every process on a given boot, so the
     // local address of LoadLibraryW is valid in the target -- but only once the
@@ -382,15 +405,15 @@ bool inject(HANDLE proc, const wchar_t* dll_path) {
     // an access violation that GetExitCodeThread reports as a "nonzero handle".
     HMODULE k32 = GetModuleHandleW(L"kernel32.dll");
     auto    load = (LPTHREAD_START_ROUTINE)GetProcAddress(k32, "LoadLibraryW");
-    if (!load) die(L"GetProcAddress(LoadLibraryW)");
+    if (!load) return fail(L"GetProcAddress(LoadLibraryW)");
 
     MEMORY_BASIC_INFORMATION mbi = {};
     if (VirtualQueryEx(proc, (void*)load, &mbi, sizeof(mbi)) == 0 ||
         mbi.State != MEM_COMMIT || mbi.Type != MEM_IMAGE) {
-        fwprintf(stderr, L"[!] LoadLibraryW (%p) is not mapped in the target "
-                         L"(state=0x%lX type=0x%lX) -- kernel32 is not loaded there yet.\n",
+        fwprintf(stderr, L"[!] LoadLibraryW (%p) n'est pas mappe dans le jeu "
+                         L"(state=0x%lX type=0x%lX) -- kernel32 n'y est pas encore charge.\n",
                  (void*)load, mbi.State, mbi.Type);
-        return false;
+        return fail(nullptr);
     }
 
     // Same address, same bytes? If the target's kernel32 sits elsewhere, or the
@@ -402,13 +425,14 @@ bool inject(HANDLE proc, const wchar_t* dll_path) {
         SIZE_T got = 0;
         ReadProcessMemory(proc, (void*)load, there, sizeof(there), &got);
         if (memcmp(here, there, sizeof(here)) != 0) {
-            wprintf(L"[*] LoadLibraryW bytes differ between loader and target:\n    loader: ");
+            wprintf(L"[*] les octets de LoadLibraryW different entre le loader et le jeu :\n"
+                    L"    loader : ");
             for (int i = 0; i < 16; ++i) wprintf(L"%02X ", here[i]);
-            wprintf(L"\n    target: ");
+            wprintf(L"\n    jeu    : ");
             for (int i = 0; i < 16; ++i) wprintf(L"%02X ", there[i]);
             wprintf(L"\n");
         }
-        wprintf(L"[*] target region base %p size 0x%zX protect 0x%lX\n",
+        wprintf(L"[*] region du jeu : base %p taille 0x%zX protection 0x%lX\n",
                 mbi.AllocationBase, mbi.RegionSize, mbi.Protect);
     }
 
@@ -420,18 +444,18 @@ bool inject(HANDLE proc, const wchar_t* dll_path) {
         auto sleep_fn = (LPTHREAD_START_ROUTINE)GetProcAddress(k32, "Sleep");
         HANDLE pth = CreateRemoteThread(proc, nullptr, 0, sleep_fn, (void*)10, 0, nullptr);
         if (!pth) {
-            wprintf(L"[*] probe: CreateRemoteThread(Sleep) failed, error %lu\n", GetLastError());
+            wprintf(L"[*] sonde : CreateRemoteThread(Sleep) a echoue, erreur %lu\n", GetLastError());
         } else {
             WaitForSingleObject(pth, 5000);
             DWORD prc = 0;
             GetExitCodeThread(pth, &prc);
             CloseHandle(pth);
-            wprintf(L"[*] probe: remote Sleep() thread exit code 0x%08lX\n", prc);
+            wprintf(L"[*] sonde : code de sortie du fil distant Sleep() 0x%08lX\n", prc);
         }
     }
 
     HANDLE th = CreateRemoteThread(proc, nullptr, 0, load, remote, 0, nullptr);
-    if (!th) die(L"CreateRemoteThread");
+    if (!th) return fail(L"CreateRemoteThread");
 
     WaitForSingleObject(th, 15000);
     DWORD rc = 0;
@@ -439,7 +463,7 @@ bool inject(HANDLE proc, const wchar_t* dll_path) {
     CloseHandle(th);
     VirtualFreeEx(proc, remote, 0, MEM_RELEASE);
 
-    wprintf(L"[*] remote LoadLibraryW thread exit code 0x%08lX\n", rc);
+    wprintf(L"[*] code de sortie du fil distant LoadLibraryW 0x%08lX\n", rc);
 
     // rc is only the low 32 bits of the HMODULE LoadLibraryW actually returned
     // -- CreateRemoteThread's exit code is a DWORD even though the real return
@@ -453,13 +477,13 @@ bool inject(HANDLE proc, const wchar_t* dll_path) {
     if (module_loaded(GetProcessId(proc), dll_path)) return true;
 
     if (rc >= 0xC0000000) {
-        fwprintf(stderr, L"[!] remote thread exit code 0x%08lX looks like an NTSTATUS, "
-                         L"and the DLL is NOT loaded in the target -- the remote "
-                         L"thread faulted instead of loading it.\n", rc);
+        fwprintf(stderr, L"[!] le code de sortie du fil distant, 0x%08lX, ressemble a un "
+                         L"NTSTATUS, et la DLL n'est PAS chargee dans le jeu -- le fil "
+                         L"distant a plante au lieu de la charger.\n", rc);
     } else {
-        fwprintf(stderr, L"[!] LoadLibraryW did not load the DLL in the target "
-                         L"(thread exit 0x%08lX) -- is mgmp.dll x64 and are its "
-                         L"dependencies present?\n", rc);
+        fwprintf(stderr, L"[!] LoadLibraryW n'a pas charge la DLL dans le jeu "
+                         L"(sortie du fil 0x%08lX) -- mgmp.dll est-elle en x64, et ses "
+                         L"dependances sont-elles presentes ?\n", rc);
     }
     return false;
 }
@@ -479,7 +503,7 @@ int wmain(int argc, wchar_t** argv) {
     if (GetEnvironmentVariableW(L"MGMP_DLL", dll, MAX_PATH) == 0)
         swprintf_s(dll, L"%s\\mgmp.dll", dir);
     if (GetFileAttributesW(dll) == INVALID_FILE_ATTRIBUTES) {
-        fwprintf(stderr, L"[!] mgmp.dll not found next to the loader: %s\n", dll);
+        fwprintf(stderr, L"[!] mgmp.dll introuvable a cote du loader : %s\n", dll);
         return 1;
     }
 
@@ -490,10 +514,10 @@ int wmain(int argc, wchar_t** argv) {
                                   PROCESS_VM_OPERATION | PROCESS_VM_WRITE | PROCESS_VM_READ,
                                   FALSE, pid);
         if (!proc) die(L"OpenProcess");
-        wprintf(L"[*] attaching to pid %lu\n", pid);
+        wprintf(L"[*] injection dans le pid %lu\n", pid);
         bool ok = inject(proc, dll);
         CloseHandle(proc);
-        wprintf(ok ? L"[+] injected.\n" : L"[!] injection failed.\n");
+        wprintf(ok ? L"[+] injecte.\n" : L"[!] l'injection a echoue.\n");
         return ok ? 0 : 1;
     }
 
@@ -504,13 +528,14 @@ int wmain(int argc, wchar_t** argv) {
         wcsncpy_s(game, argv[1], _TRUNCATE);
     } else if (!game_from_config(dir, game, MAX_PATH)) {
         fwprintf(stderr,
-                 L"usage: mgmp_loader.exe <path\\to\\Mewgenics.exe> [args...]\n"
-                 L"       mgmp_loader.exe --attach <pid>\n"
-                 L"   or set  \"game\": \"<path>\"  in mgmp.json next to the loader.\n");
+                 L"usage : mgmp_loader.exe <chemin\\vers\\Mewgenics.exe> [args...]\n"
+                 L"        mgmp_loader.exe --attach <pid>\n"
+                 L"   ou mettre  \"game\": \"<chemin>\"  dans mgmp.json a cote du loader.\n");
         return 1;
     }
     if (GetFileAttributesW(game) == INVALID_FILE_ATTRIBUTES) {
-        fwprintf(stderr, L"[!] game exe not found: %s\n", game);
+        fwprintf(stderr, L"[!] exe du jeu introuvable : %s\n%s", game,
+                 argc >= 2 ? L"" : L"    Corrige \"game\" dans mgmp.json.\n");
         return 1;
     }
 
@@ -533,7 +558,7 @@ int wmain(int argc, wchar_t** argv) {
                         CREATE_SUSPENDED, nullptr, workdir, &si, &pi))
         die(L"CreateProcessW");
 
-    wprintf(L"[*] launched suspended: pid %lu\n", pi.dwProcessId);
+    wprintf(L"[*] jeu lance en pause : pid %lu\n", pi.dwProcessId);
 
     wchar_t flag[8];
     bool no_inject = GetEnvironmentVariableW(L"MGMP_NOINJECT", flag, 8) > 0 && flag[0] == L'1';
@@ -548,17 +573,17 @@ int wmain(int argc, wchar_t** argv) {
     };
 
     if (no_inject) {
-        wprintf(L"[*] MGMP_NOINJECT=1 -- resuming without injecting\n");
+        wprintf(L"[*] MGMP_NOINJECT=1 -- reprise sans injection\n");
         ResumeThread(pi.hThread);
     } else {
         uintptr_t image_base = 0, entry = 0;
         if (!remote_image_base(pi.hProcess, &image_base))
-            return abort_launch(L"could not read the target's PEB image base");
+            return abort_launch(L"impossible de lire la base de l'image du jeu (PEB)");
         if (!entry_point_of(pi.hProcess, image_base, &entry))
-            return abort_launch(L"could not read the target's PE entry point");
+            return abort_launch(L"impossible de lire le point d'entree PE du jeu");
 
         uintptr_t park_at = image_base + mgmp::kParkRva;
-        wprintf(L"[*] image base %p, entry %p, park %p (FrameBegin)\n",
+        wprintf(L"[*] base de l'image %p, point d'entree %p, pause %p (FrameBegin)\n",
                 (void*)image_base, (void*)entry, (void*)park_at);
 
         // --- stage 1: hold at the entry point ---------------------------------
@@ -566,26 +591,27 @@ int wmain(int argc, wchar_t** argv) {
         // to plant the real park point.
         unsigned char saved_entry[2] = {};
         if (!ReadProcessMemory(pi.hProcess, (void*)entry, saved_entry, sizeof(saved_entry), nullptr))
-            return abort_launch(L"could not read the entry point bytes");
+            return abort_launch(L"impossible de lire les octets du point d'entree");
         const unsigned char park_insn[2] = { 0xEB, 0xFE };   // jmp $
         if (!write_code(pi.hProcess, entry, park_insn, sizeof(park_insn)))
-            return abort_launch(L"could not patch the entry point");
+            return abort_launch(L"impossible de modifier le point d'entree");
 
         ResumeThread(pi.hThread);
         if (!wait_until_parked(pi.hThread, entry, 30000))
-            return abort_launch(L"timed out waiting for the target to reach its entry point");
+            return abort_launch(L"delai depasse : le jeu n'a pas atteint son point d'entree");
 
         // --- stage 2: move the park to FrameBegin -----------------------------
         unsigned char actual_sig[16] = {};
         if (!ReadProcessMemory(pi.hProcess, (void*)park_at, actual_sig, sizeof(actual_sig), nullptr))
-            return abort_launch(L"could not read the park point");
+            return abort_launch(L"impossible de lire le point de pause");
         if (memcmp(actual_sig, mgmp::kParkSig, sizeof(actual_sig)) != 0)
-            return abort_launch(L"park point prologue does not match the pinned build "
-                                L"-- refusing to patch (re-derive kParkRva)");
+            return abort_launch(L"le debut de FrameBegin ne correspond pas a la version du jeu "
+                                L"visee (1.1.21239) -- aucune modification. Le jeu a-t-il ete "
+                                L"mis a jour ? (recalculer kParkRva)");
 
         unsigned char saved_park[2] = { actual_sig[0], actual_sig[1] };
         if (!write_code(pi.hProcess, park_at, park_insn, sizeof(park_insn)))
-            return abort_launch(L"could not patch the park point");
+            return abort_launch(L"impossible de modifier le point de pause");
 
         // Let the game start up for real: CRT init, initSystems, Steam init.
         write_code(pi.hProcess, entry, saved_entry, sizeof(saved_entry));
@@ -594,7 +620,7 @@ int wmain(int argc, wchar_t** argv) {
         if (GetThreadContext(pi.hThread, &ctx)) { ctx.Rip = entry; SetThreadContext(pi.hThread, &ctx); }
         ResumeThread(pi.hThread);
 
-        wprintf(L"[*] running startup, waiting for the first frame...\n");
+        wprintf(L"[*] demarrage du jeu, attente de la premiere image...\n");
         DWORD  parked_tid = 0;
         bool   exited     = false;
         HANDLE parked = wait_until_parked_any(pi.hProcess, pi.dwProcessId,
@@ -616,17 +642,32 @@ int wmain(int argc, wchar_t** argv) {
             // the game is visibly fine and the loader is visibly stuck.
             DWORD code = 0;
             GetExitCodeProcess(pi.hProcess, &code);
-            wprintf(L"[*] the target exited during startup (code %lu) before reaching frame 1 "
-                    L"-- this is SteamAPI_RestartAppIfNecessary; Steam is re-launching the "
-                    L"game as a new process.\n", code);
 
             // Only chase a clean exit. exit(0) is what the restart path does; a
             // startup crash exits nonzero, and following that would turn a
             // legible failure into a confusing hunt for a process that is never
             // going to appear.
+            // Mewgenics Multi : et ne pas parler de relance ni de steam_appid.txt
+            // dans ce cas. 0xC0000409 au demarrage = Steam ferme ou deconnecte
+            // (vu le 20 octobre), le .bat ne voit que le premier.
+            if (code != 0) {
+                fwprintf(stderr,
+                    L"[!] le jeu s'est ferme pendant son demarrage (code %lu, 0x%08lX), "
+                    L"avant le chargement du mod : il n'est PAS injecte.\n"
+                    L"    Cause la plus frequente : Steam ferme ou deconnecte. Ouvre Steam, "
+                    L"attends qu'il soit connecte, puis relance.\n"
+                    L"    Sinon, lance le jeu normalement puis : mgmp_loader.exe --attach <pid>\n",
+                    code, code);
+                CloseHandle(pi.hThread);
+                CloseHandle(pi.hProcess);
+                return 1;
+            }
+            wprintf(L"[*] le jeu s'est ferme proprement pendant son demarrage, avant la "
+                    L"premiere image -- c'est SteamAPI_RestartAppIfNecessary : Steam relance "
+                    L"le jeu dans un nouveau processus.\n");
+
             wchar_t nofollow[8];
-            bool follow = code == 0 &&
-                          !(GetEnvironmentVariableW(L"MGMP_NOFOLLOW", nofollow, 8) > 0 &&
+            bool follow = !(GetEnvironmentVariableW(L"MGMP_NOFOLLOW", nofollow, 8) > 0 &&
                             nofollow[0] == L'1');
 
             DWORD new_pid = 0;
@@ -641,8 +682,8 @@ int wmain(int argc, wchar_t** argv) {
                     DWORD secs = (DWORD)wcstoul(env, nullptr, 10);
                     if (secs) follow_ms = secs * 1000;
                 }
-                wprintf(L"[*] waiting for the re-launched process (up to %lus; "
-                        L"MGMP_FOLLOW_TIMEOUT=<seconds> to change)...\n", follow_ms / 1000);
+                wprintf(L"[*] attente du jeu relance (jusqu'a %lus ; "
+                        L"MGMP_FOLLOW_TIMEOUT=<secondes> pour changer)...\n", follow_ms / 1000);
                 new_pid = wait_for_relaunch(game, pi.dwProcessId, since, follow_ms);
             }
 
@@ -651,33 +692,33 @@ int wmain(int argc, wchar_t** argv) {
 
             if (!new_pid) {
                 fwprintf(stderr,
-                    L"[!] no re-launched process appeared, so the game is NOT injected.\n"
-                    L"    Fixes: put a steam_appid.txt containing the app id next to "
-                    L"Mewgenics.exe\n"
-                    L"    (the id is the number in steamapps\\appmanifest_<id>.acf), which stops\n"
-                    L"    the re-launch happening at all -- or start the game normally and use:\n"
+                    L"[!] aucun jeu relance n'est apparu : le jeu n'est PAS injecte.\n"
+                    L"    Solutions : mettre a cote de Mewgenics.exe un steam_appid.txt qui "
+                    L"contient l'id du jeu\n"
+                    L"    (le nombre dans steamapps\\appmanifest_<id>.acf), ce qui empeche la\n"
+                    L"    relance -- ou lancer le jeu normalement puis :\n"
                     L"        mgmp_loader.exe --attach <pid>\n");
                 return 1;
             }
 
-            wprintf(L"[*] following the re-launch into pid %lu\n", new_pid);
+            wprintf(L"[*] suivi de la relance : pid %lu\n", new_pid);
             if (!wait_modules_ready(new_pid, 30000))
-                fwprintf(stderr, L"[!] kernel32 never showed up in pid %lu's module list; "
-                                 L"injecting anyway\n", new_pid);
+                fwprintf(stderr, L"[!] kernel32 n'est jamais apparu dans les modules du "
+                                 L"pid %lu ; injection quand meme\n", new_pid);
 
             HANDLE np = OpenProcess(PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION |
                                     PROCESS_VM_OPERATION | PROCESS_VM_WRITE | PROCESS_VM_READ,
                                     FALSE, new_pid);
             if (!np) {
-                fwprintf(stderr, L"[!] could not open pid %lu (%lu) -- attach by hand with: "
-                                 L"mgmp_loader.exe --attach %lu\n",
+                fwprintf(stderr, L"[!] impossible d'ouvrir le pid %lu (%lu) -- injecter a la "
+                                 L"main avec : mgmp_loader.exe --attach %lu\n",
                          new_pid, GetLastError(), new_pid);
                 return 1;
             }
             bool nok = inject(np, dll);
             CloseHandle(np);
             if (!nok) {
-                fwprintf(stderr, L"[!] injection into the re-launched process failed.\n");
+                fwprintf(stderr, L"[!] l'injection dans le jeu relance a echoue.\n");
                 return 1;
             }
             // Deliberately NOT the pre-frame-1 path: this process was started by
@@ -685,7 +726,7 @@ int wmain(int argc, wchar_t** argv) {
             // Nothing the mod hooks runs before frame 1, so this is equivalent in
             // practice -- but it is the less-exercised route, and saying so here
             // is what makes an odd log afterwards interpretable.
-            wprintf(L"[+] injected into the re-launched game (late attach). "
+            wprintf(L"[+] mod injecte dans le jeu relance (injection tardive). "
                     L"trace -> %s\\mgmp_trace.log\n", dir);
             return 0;
         }
@@ -698,20 +739,22 @@ int wmain(int argc, wchar_t** argv) {
             unsigned char now[2] = {};
             if (ReadProcessMemory(pi.hProcess, (void*)park_at, now, sizeof(now), nullptr) &&
                 (now[0] != 0xEB || now[1] != 0xFE)) {
-                fwprintf(stderr, L"[!] the park patch at FrameBegin is gone -- expected EB FE, "
-                                 L"found %02X %02X. Something in the target restored that code "
-                                 L"page after we wrote it.\n", now[0], now[1]);
+                fwprintf(stderr, L"[!] la pause posee sur FrameBegin a disparu -- attendu EB FE, "
+                                 L"trouve %02X %02X. Quelque chose dans le jeu (overlay, "
+                                 L"antivirus, anti-triche) a restaure cette page de code.\n",
+                         now[0], now[1]);
                 TerminateProcess(pi.hProcess, 1);
                 CloseHandle(pi.hThread);
                 CloseHandle(pi.hProcess);
                 return 1;
             }
-            return abort_launch(L"timed out waiting for the game to reach its first frame "
-                                L"(the park bytes are still in place, so no thread ever "
-                                L"executed FrameBegin)");
+            return abort_launch(L"delai depasse : le jeu n'a pas atteint sa premiere image "
+                                L"(les octets de pause sont toujours la : aucun fil n'a "
+                                L"execute FrameBegin)");
         }
         if (parked_tid != GetThreadId(pi.hThread))
-            wprintf(L"[*] note: the frame loop runs on thread %lu, not the initial thread %lu\n",
+            wprintf(L"[*] note : la boucle d'images tourne sur le fil %lu, pas sur le fil "
+                    L"initial %lu\n",
                     parked_tid, GetThreadId(pi.hThread));
 
         // --- stage 3: inject, then let frame 1 proceed ------------------------
@@ -730,14 +773,14 @@ int wmain(int argc, wchar_t** argv) {
         swprintf_s(ev_name, L"Local\\mgmp_hooks_ready_%lu", pi.dwProcessId);
         HANDLE ready = CreateEventW(nullptr, TRUE, FALSE, ev_name);
 
-        wprintf(L"[*] parked before frame 1; injecting %s\n", dll);
+        wprintf(L"[*] jeu en pause avant la premiere image ; injection de %s\n", dll);
         bool ok = inject(pi.hProcess, dll);
 
         if (ok && ready) {
             if (WaitForSingleObject(ready, 30000) != WAIT_OBJECT_0)
-                wprintf(L"[!] timed out waiting for hooks-ready; unparking anyway\n");
+                wprintf(L"[!] delai depasse en attendant les crochets ; reprise quand meme\n");
             else
-                wprintf(L"[*] hooks reported ready\n");
+                wprintf(L"[*] crochets prets\n");
         }
         if (ready) CloseHandle(ready);
 
@@ -751,17 +794,17 @@ int wmain(int argc, wchar_t** argv) {
         ResumeThread(parked);
         CloseHandle(parked);
 
-        if (!ok) return abort_launch(L"injection failed");
+        if (!ok) return abort_launch(L"l'injection a echoue : le jeu est ferme");
     }
 
-    wprintf(L"[+] resumed. trace -> %s\\mgmp_trace.log\n", dir);
+    wprintf(L"[+] jeu repris avec le mod. trace -> %s\\mgmp_trace.log\n", dir);
 
     int rc = 0;
     if (wait_exit) {
         WaitForSingleObject(pi.hProcess, INFINITE);
         DWORD code = 0;
         GetExitCodeProcess(pi.hProcess, &code);
-        wprintf(L"[*] game exited with code %lu (0x%08lX)\n", code, code);
+        wprintf(L"[*] le jeu s'est termine avec le code %lu (0x%08lX)\n", code, code);
         rc = (int)code;
     }
 
