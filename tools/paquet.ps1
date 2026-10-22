@@ -54,7 +54,16 @@ New-Item -ItemType Directory -Force $contenu | Out-Null
 Copy-Item (Join-Path $paquet '*') $contenu
 Copy-Item (Join-Path $src 'mgmp.dll'), (Join-Path $src 'mgmp_loader.exe') $contenu
 $zip = Join-Path $Dossier 'mgmp-pour-ton-ami.zip'
-Compress-Archive -Path $contenu -DestinationPath $zip -Force
+# Pas Compress-Archive : sous Windows PowerShell 5.1, il ecrit les chemins avec des \
+# (mgmp\mgmp.dll), que certains outils d'extraction prennent pour un nom de fichier.
+Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+if (Test-Path $zip) { Remove-Item $zip -Force }
+$archive = [IO.Compression.ZipFile]::Open($zip, 'Create')
+try {
+    foreach ($f in Get-ChildItem $contenu -File) {
+        [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $f.FullName, "mgmp/$($f.Name)") | Out-Null
+    }
+} finally { $archive.Dispose() }
 Write-Host "zip de l'ami : $zip"
 
 # 4. L'installation chez Hizu.
