@@ -2467,6 +2467,11 @@ void lockstep_shutdown() {
 }
 
 bool lockstep_active() { return g.active && net_active(); }
+// Mewgenics Multi : l'invite dont le lien est tombe, encore dans la copie du combat
+// commun -- GetChoice passe encore par lockstep_fill_choice (la garde du protocole 61).
+bool lockstep_link_lost() {
+    return g.active && !net_active() && net_role() == NetRole::Client && snap_current() && savefile_in_coop();
+}
 bool lockstep_halted() { return g.halted; }
 bool lockstep_in_battle() { return g.active && g.snapped && !g.halted; }
 
@@ -3031,8 +3036,9 @@ void lockstep_pump() {
                              m.halt.reason);
                     // Hote : son jeu est fige dans ce combat, il n'enverra jamais le
                     // CONTROL du suivant -- il n'en sera pas membre (la barriere
-                    // l'attendrait pour toujours) avant d'etre revenu.
-                    if (lockstep_is_host() && m.from < kMaxPeers && m.from != net_self())
+                    // l'attendrait pour toujours) avant d'etre revenu. Pas apres la
+                    // sortie de l'hote : cet arret est celui de l'aventure quittee.
+                    if (lockstep_is_host() && !g.host_left && m.from < kMaxPeers && m.from != net_self())
                         g.halted_peers |= member_bit(m.from);
                     break;
                 }
@@ -3970,6 +3976,9 @@ void lockstep_host_left_run() {
     g.stats.halted    = false;
     g.halted_watching = false;
     g.halted_battle   = kNoBattle;
+    // Les invites arretes en regardant : de l'aventure quittee aussi. Revenus par le
+    // vote de depart (sans catch-up), ils resteraient hors de tous ses combats.
+    g.halted_peers    = 0;
     // Les decisions gardees et vues, les empreintes : de l'aventure quittee. Le
     // meme combat, rejoue apres un rechargement, a les memes numeros de tour.
     g.pend_head  = 0;

@@ -55,6 +55,9 @@ void lockstep_set_base(uintptr_t base);
 void lockstep_init();
 void lockstep_shutdown();
 bool lockstep_active();
+// Mewgenics Multi : invite, lien tombe, encore dans la copie du combat commun. Seul
+// GetChoice s'en sert (ses chats attendent) : la copie est abandonnee par « Rentrer ».
+bool lockstep_link_lost();
 
 // Drains the network queue and dispatches. Safe to call every frame; it is
 // called from the frame hook so messages arrive even while no brain is polled.
