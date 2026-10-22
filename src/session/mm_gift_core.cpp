@@ -271,4 +271,150 @@ int32_t gift_clamp(int64_t want, int64_t have) {
     return (int32_t)v;
 }
 
+// --- « Échanger » dans la boite du jeu --------------------------------------------------
+
+int64_t trade_amount_key(int64_t value, int key, int64_t max) {
+    if (key == kTradeKeyAll) return gift_clamp(max, max);
+    value = gift_clamp(value, kGiftMaxMoney);
+    if (key == kTradeKeyBack) value /= 10;
+    else if (key >= 0 && key <= 9) value = value * 10 + key;
+    return gift_clamp(value, max);
+}
+
+std::string trade_fold(const std::string& s) {
+    // U+00C0 a U+00FF (C3 80 a C3 BF en UTF-8) : leur lettre de base.
+    static const char kLatin1[] = "aaaaaaaceeeeiiiidnooooo*ouuuuyts"
+                                  "aaaaaaaceeeeiiiidnooooo*ouuuuyty";
+    std::string out;
+    for (size_t i = 0; i < s.size(); ++i) {
+        const uint8_t c = (uint8_t)s[i];
+        const uint8_t d = i + 1 < s.size() ? (uint8_t)s[i + 1] : 0;
+        if (c >= 'A' && c <= 'Z') {
+            out += (char)(c + 32);
+        } else if (c == 0xC3 && (d & 0xC0) == 0x80) {
+            out += kLatin1[d - 0x80];
+            ++i;
+        } else if (c == 0xC5 && (d == 0x92 || d == 0x93)) {   // Œ, œ
+            out += "oe";
+            ++i;
+        } else {
+            out += (char)c;
+        }
+    }
+    return out;
+}
+
+std::vector<TradeLine> trade_lines(const TradeList& l) {
+    std::vector<TradeLine> all;
+    std::map<std::string, size_t> at;
+    for (const std::string& s : l.labels) {
+        const auto it = at.find(s);
+        if (it != at.end()) {
+            ++all[it->second].have;
+            continue;
+        }
+        at.emplace(s, all.size());
+        TradeLine t;
+        t.label = s;
+        t.have  = 1;
+        all.push_back(std::move(t));
+    }
+    const std::string f = trade_fold(l.filter);
+    std::vector<TradeLine> out;
+    for (TradeLine& t : all) {
+        if (!f.empty() && trade_fold(t.label).find(f) == std::string::npos) continue;
+        const auto p = l.picked.find(t.label);
+        t.picked = p == l.picked.end() ? 0 : std::min(p->second, t.have);
+        out.push_back(std::move(t));
+    }
+    return out;
+}
+
+size_t trade_picked(const TradeList& l) {
+    size_t n = 0;
+    for (const auto& kv : l.picked) n += kv.second;
+    return n;
+}
+
+void trade_list_fit(TradeList& l) {
+    std::map<std::string, size_t> have;
+    for (const std::string& s : l.labels) ++have[s];
+    size_t total = 0;
+    for (auto it = l.picked.begin(); it != l.picked.end();) {
+        const auto h = have.find(it->first);
+        const size_t n = std::min(h == have.end() ? 0 : std::min(it->second, h->second), kGiftMaxItems - total);
+        total += n;
+        if (n) {
+            it->second = n;
+            ++it;
+        } else {
+            it = l.picked.erase(it);
+        }
+    }
+    const size_t lines = trade_lines(l).size();
+    if (l.cursor >= lines) l.cursor = lines ? lines - 1 : 0;
+}
+
+void trade_list_key(TradeList& l, TradeListKey k, size_t page) {
+    const std::vector<TradeLine> lines = trade_lines(l);
+    if (lines.empty()) return;
+    if (!page) page = 1;
+    size_t& c = l.cursor;
+    if (c >= lines.size()) c = lines.size() - 1;
+    const TradeLine& t   = lines[c];
+    const bool       one = t.picked < t.have && trade_picked(l) < kGiftMaxItems;   // un de plus possible
+    switch (k) {
+    case TradeListKey::Up:       if (c) --c; break;
+    case TradeListKey::Down:     if (c + 1 < lines.size()) ++c; break;
+    case TradeListKey::PageUp:   c = c >= page ? c - page : 0; break;
+    case TradeListKey::PageDown: c = std::min(c + page, lines.size() - 1); break;
+    case TradeListKey::More:     if (one) l.picked[t.label] = t.picked + 1; break;
+    case TradeListKey::Less:
+        if (t.picked > 1) l.picked[t.label] = t.picked - 1;
+        else l.picked.erase(t.label);
+        break;
+    case TradeListKey::Toggle:
+        if (one) l.picked[t.label] = t.picked + 1;
+        else l.picked.erase(t.label);
+        break;
+    }
+}
+
+std::vector<size_t> trade_list_chosen(const TradeList& l) {
+    std::map<std::string, size_t> left = l.picked;
+    std::vector<size_t> out;
+    for (size_t i = 0; i < l.labels.size() && out.size() < kGiftMaxItems; ++i) {
+        const auto it = left.find(l.labels[i]);
+        if (it == left.end() || !it->second) continue;
+        --it->second;
+        out.push_back(i);
+    }
+    return out;
+}
+
+std::string trade_list_text(const TradeList& l, size_t page) {
+    if (l.labels.empty()) return u8"Rien à donner dans ton rangement.";
+    if (!page) page = 1;
+    std::string s = l.filter.empty() ? std::string(u8"Tape des lettres pour chercher un objet.")
+                                     : u8"Recherche : " + purse_safe(l.filter) + "_";
+    s += "\n\n";
+    const std::vector<TradeLine> lines = trade_lines(l);
+    if (lines.empty()) return s + u8"Aucun objet ne correspond.";
+    const size_t cur   = std::min(l.cursor, lines.size() - 1);
+    const size_t first = cur / page * page;
+    for (size_t i = first; i < lines.size() && i < first + page; ++i) {
+        const TradeLine& t = lines[i];
+        // Pas de [ ] : le jeu les prendrait pour des balises de couleur.
+        s += i == cur ? "> " : "    ";
+        s += !t.picked ? std::string("( ) ") : t.have == 1 ? std::string("(x) ") : "(" + std::to_string(t.picked) + ") ";
+        s += purse_safe(t.label);
+        if (t.have > 1) s += " x" + std::to_string(t.have);
+        s += "\n";
+    }
+    const size_t pages = (lines.size() + page - 1) / page;
+    if (pages > 1) s += "(page " + std::to_string(first / page + 1) + " sur " + std::to_string(pages) + ")";
+    else s.pop_back();
+    return s;
+}
+
 } // namespace mgmp

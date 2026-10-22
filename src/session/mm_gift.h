@@ -1,6 +1,6 @@
 #pragma once
 // mm_gift -- Mewgenics Multi : les dons entre joueurs (protocole 62). Le message et
-// les regles : mm_gift_core.h ; la fenetre « Échanger » : mm_trade_ui.
+// les regles : mm_gift_core.h ; « Échanger », dans les fenetres du jeu : mm_trade_ui.
 //
 // LE JEU (1.1.21239, releve le 18 octobre)
 //   - L'or et la nourriture de la maison : House+0xB4 et +0xB0 (int32). La maison
@@ -30,7 +30,9 @@
 //   parti (sinon a son retour dans cette save), l'or et la nourriture quittent sa
 //   maison tout de suite (pas sous 0), les objets son rangement une fois l'ecran
 //   des objets ferme, et il sauve. Sans reponse en 35 s, rien n'a quitte sa maison
-//   (une reponse en retard, dans les 5 minutes, compte encore).
+//   (une reponse en retard, dans les 5 minutes, compte encore : 4 dons au plus).
+//   Celui qui recoit n'est pas arrete : la fenetre « Cadeau de ... » attend que sa
+//   maison soit deja en pause (Echap, le menu pause).
 //   Pas d'objets (ni donnes ni recus) pour un invite dont les chats sont encore
 //   dans l'aventure de l'hote : son rangement attend leur retour (mm_team).
 //   Presence (MM_GIFT, pour la fenetre) : a = 1 joueur -> hote, c = 1 il peut
@@ -62,12 +64,16 @@ void gift_on_team(uint8_t from, const uint8_t* p, size_t n);
 void gift_on_mm(uint8_t from, const MmMsg& m);
 
 // mm_purse : une nouvelle d'un don entre bourses -- `mine` : la reponse au don de
-// CE joueur (la fenetre la montre) ; sinon un don recu.
-void gift_purse_note(const std::string& text_utf8, bool mine);
+// CE joueur (la fenetre la montre ; `kept` : il est passe) ; sinon un don recu.
+void gift_purse_note(const std::string& text_utf8, bool mine, bool kept = false);
 
-// --- la fenetre « Échanger » (mm_trade_ui), qui peut tourner sur un autre fil -------
-// Tout passe par des copies sous verrou : la fenetre lit un etat publie par
-// gift_pump et lui laisse ses demandes.
+// Ce joueur peut donner et recevoir a la maison maintenant (en session, dans SA
+// maison, sans depart ni defense) : le bouton « Échanger » du menu pause (mm_menu).
+bool gift_house_open();
+
+// --- « Échanger » (mm_trade_ui) -------------------------------------------------------
+// Tout passe par des copies sous verrou : la suite de fenetres lit un etat publie
+// par gift_pump et lui laisse ses demandes.
 
 enum class TradeMode : uint8_t {
     None  = 0,   // rien a echanger maintenant (why_none dit pourquoi)
@@ -95,7 +101,7 @@ struct TradeToast {
 
 struct TradeView {
     uint32_t    serial = 0;      // change a chaque etat publie
-    bool        show   = false;  // le bouton « Échanger » se montre
+    bool        show   = false;  // a la maison, ou en aventure sur la carte (la touche E)
     TradeMode   mode   = TradeMode::None;
     std::string why_none;        // UTF-8
     std::vector<TradePeer> peers;          // les autres joueurs
@@ -109,14 +115,15 @@ struct TradeView {
     bool        pending = false;           // son don attend sa reponse
     std::string status;                    // la derniere nouvelle de ses dons (UTF-8)
     uint32_t    status_id = 0;
-    std::vector<TradeToast> toasts;        // les nouvelles de moins de 8 s
+    bool        status_kept = false;       // ... et elle dit que son don est passe
+    std::vector<TradeToast> toasts;        // les nouvelles de moins de 8 s (des fenetres du jeu)
 };
 
 // Copie l'etat publie si son numero n'est pas `have` ; vrai : copie faite.
 bool gift_view(TradeView& out, uint32_t have);
-// La fenetre est ouverte : le rangement est lu (deux fois par seconde).
+// Les objets se choisissent : le rangement est lu (deux fois par seconde).
 void gift_window_open(bool open);
-// Une demande de la fenetre (la derniere compte) ; gift_pump la traite.
+// Une demande de « Échanger » (la derniere compte) ; gift_pump la traite.
 void gift_request(TradeMode mode, uint8_t to, int64_t coins, int64_t food, const std::vector<uint64_t>& item_ids);
 
 } // namespace mgmp

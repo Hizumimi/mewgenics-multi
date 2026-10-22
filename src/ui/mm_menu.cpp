@@ -48,6 +48,7 @@
 #include "mm_npcgift.h"        // les dons des invites aux PNJ
 #include "mm_shop.h"           // les achats en boutique avec sa bourse
 #include "mm_gift.h"           // les dons entre joueurs (protocole 62)
+#include "mm_trade_ui.h"       // « Échanger », dans les fenetres du jeu
 #include "mgmp_steam.h"        // jouer ensemble par Steam (protocole 59)
 
 #include <winsock2.h>   // avant windows.h : types reseau d'iphlpapi
@@ -435,14 +436,14 @@ char g_peer_names[8][64] = {};
 
 enum class Screen { None, Choice, HostLobby, JoinEntry, ClientLobby, BadAddress, NightWait,
                     NightNotice, DepartWait, EmbarkWait, ArrivalWait, DepartOffer, RunOffer, JoinWait,
-                    HomeOffer, Info, Vote, Loot, QuitRun };
+                    HomeOffer, Info, Vote, Loot, QuitRun, Trade };
 
 // Les demandes posees par les clics et par le clavier, traitees au debut de
 // l'image suivante. Un seul emplacement : il n'y a jamais deux clics a la fois.
 enum class Action { None, OpenAuto, StartHost, OpenJoin, DoJoin, ClickPlay, StopSession, OpenBadAddress,
                     CancelNight, NightReadyNow, DepartCancel, DepartYes, DepartNo, RunJoin, RunLater,
                     GoHome, JoinCancel, ArrivalDismiss, EmbarkNoWait, VoteYes, VoteNo, LootYes, LootNo,
-                    QuitRun };
+                    QuitRun, TradeYes, TradeNo };
 Action g_action = Action::None;
 
 // La fenetre du vote du chemin ouverte (mm_vote) : ses boutons, d'apres
@@ -2389,6 +2390,121 @@ void adventure_live() {
     }
 }
 
+// --- Mewgenics Multi : « Échanger » (mm_trade_ui) ----------------------------------
+//
+// A la maison, un bouton du menu pause. PauseMenu::SetupMainSidebar (0x14028B620)
+// enregistre un 5e bouton, « Button_PauseMenu_GiveUp » (« Abandonner l'aventure »,
+// anim pb_abandon, 0x14028BE3F), et le cache hors d'une aventure (0x14028C022 :
+// etat 4, puis le bit 0x20 « visible » de Clip+8 efface -- ce que fait
+// MenuPanel::hide_button, 0x14097C930). En session, dans SA maison, on le remontre
+// comme MenuPanel::show_button (0x14097CA00 : etat 5 « enable », que Button::update
+// passe a 0 a la fin de l'animation, 0x14097E6BA ; bit 0x20 remis), nomme
+// « Échanger ». Son clic appelle PauseMenu::TryAbandonRun (0x140296FB0, par le
+// lambda 0x14029CDB0) : h_TryAbandonRun ouvre alors la suite « Échanger ». Pendant
+// « Défendre ! », c'est « Abandonner le combat » (MewDirector+0x70C) : gift_house_open
+// l'exclut, et un bouton que le jeu montre n'est jamais a nous.
+constexpr uintptr_t kBtn_Clip        = 0x48;   // Button+0x48 : son clip SWF
+constexpr uintptr_t kClip_Flags      = 0x08;   // Clip+8 : ses drapeaux
+constexpr uint8_t   kClip_Visible    = 0x20;   // ... dont « visible »
+constexpr int32_t   kBtnState_Enable = 5;      // l'animation « enable », puis 0 (up)
+constexpr char      kBtnName_PauseGiveUp[] = "Button_PauseMenu_GiveUp";
+
+void*    g_trade_btn     = nullptr;   // le bouton remontre (ce menu pause)
+uint32_t g_trade_btn_at  = 0;         // son dernier passage dans Button::update
+bool     g_trade_ok_only = false;     // notre boite « Échanger » n'a qu'un bouton
+
+// Le jeu le cache aussi pendant l'ecran des objets, le choix des colliers, une
+// cinematique ou le choix de l'acte (0x14028BF25 a 0x14028C00A) : nous aussi.
+bool trade_button_wanted() {
+    return gift_house_open() && !find_scene("StorageItems") && !find_scene("Cutscene") &&
+           !find_scene("ActSelection");
+}
+
+// Apres Button::update de chaque bouton : celui-ci, s'il est le GiveUp du menu pause.
+void trade_on_button(void* b) {
+    char name[64] = {};
+    if (!mem_read_std_string((char*)b + kBtn_Name, name, sizeof(name)) || strcmp(name, kBtnName_PauseGiveUp) != 0)
+        return;
+    int32_t state = 0;
+    void*   clip  = nullptr;
+    uint8_t flags = 0;
+    if (!mem_read((char*)b + kBtn_State, &state, sizeof(state)) || !mem_read((char*)b + kBtn_Clip, &clip, sizeof(clip)) ||
+        !clip || !mem_read((char*)clip + kClip_Flags, &flags, 1))
+        return;
+    const bool want = trade_button_wanted();
+    if (b == g_trade_btn && (flags & kClip_Visible)) {
+        if (want) {
+            g_trade_btn_at = g_frame;
+            return;
+        }
+        // Plus d'echange possible ici (la session finie...) : cache, comme le jeu l'a laisse.
+        state  = kBtnState_Disabled;
+        flags &= (uint8_t)~kClip_Visible;
+        mem_write((char*)b + kBtn_State, &state, sizeof(state));
+        mem_write((char*)clip + kClip_Flags, &flags, 1);
+        g_trade_btn = nullptr;
+        log_line("MULTI", "menu pause : « Echanger » cache a nouveau (plus d'echange possible ici)");
+        return;
+    }
+    // Seulement le bouton que le jeu a cache : visible, c'est le sien.
+    if (!want || state != kBtnState_Disabled || (flags & kClip_Visible)) return;
+    const int32_t shown_state = kBtnState_Enable;
+    const uint8_t shown_flags = flags | kClip_Visible;
+    if (!mem_write((char*)clip + kClip_Flags, &shown_flags, 1) ||
+        !mem_write((char*)b + kBtn_State, &shown_state, sizeof(shown_state))) {
+        mem_write((char*)clip + kClip_Flags, &flags, 1);
+        log_line("MULTI", "!! menu pause : le bouton « Abandonner » cache n'a pas pu etre remontre");
+        return;
+    }
+    if (!set_button_label(b, u8"Échanger")) log_line("MULTI", "!! menu pause : libelle « Echanger » impossible");
+    g_trade_btn    = b;
+    g_trade_btn_at = g_frame;
+    log_line("MULTI", "menu pause de la maison : le bouton « Abandonner » cache devient « Echanger » "
+                      "(drapeaux du clip 0x%02X -> 0x%02X)", (unsigned)flags, (unsigned)shown_flags);
+}
+
+// h_TryAbandonRun : le clic vient de notre bouton (vu a l'image d'avant, dans la
+// maison) -- la suite « Échanger » s'ouvre a la place de l'abandon.
+bool trade_button_clicked() {
+    if (!g_trade_btn || g_frame - g_trade_btn_at > 2 || !find_scene("House")) return false;
+    log_line("MULTI", "menu pause : « Echanger » clique");
+    trade_ui_open_house();
+    return true;
+}
+
+} // namespace
+
+bool mm_trade_box_open(const std::string& text_utf8, const char* yes, const char* no) {
+    if (g_live.alive) return false;
+    if (!open_popup(Screen::Trade, text_utf8, yes, no, no == nullptr, Action::TradeYes, Action::TradeNo))
+        return false;
+    g_trade_ok_only = no == nullptr;
+    return true;
+}
+
+bool mm_trade_box_alive() { return g_live.alive && g_live.screen == Screen::Trade; }
+
+void mm_trade_box_text(const std::string& text_utf8) {
+    if (mm_trade_box_alive() && !g_live.pressed) popup_set_text(text_utf8);
+}
+
+bool mm_trade_box_yes() { return mm_trade_box_alive() && !g_click_target && popup_press("yes"); }
+
+bool mm_trade_box_close() {
+    if (!mm_trade_box_alive() || g_click_target) return false;
+    g_silent = g_live.serial;
+    return popup_press(g_trade_ok_only ? "yes" : "no");
+}
+
+bool mm_info_quiet() {
+    if (g_live.alive || g_info_wanted || game_prompt_alive() || g_trip.active) return false;
+    if (find_scene("Battle") || find_scene("Event")) return false;
+    bool paused = false;
+    return (find_scene("House", &paused) || find_scene("Map", &paused)) && paused;
+}
+
+namespace {
+
 // --- detours -------------------------------------------------------------------
 
 void __fastcall h_MainMenuInit(void* self) {
@@ -2523,6 +2639,8 @@ bool __fastcall h_PipePlace(void* pipe, void* cat) {
 
 // « Abandonner l'aventure » (PauseMenu::TryAbandonRun).
 void __fastcall h_TryAbandonRun(void* pause_menu) {
+    // Mewgenics Multi : dans sa maison, ce bouton est notre « Échanger » (plus haut).
+    if (trade_button_clicked()) return;
     // Un invite dans la copie de l'aventure de l'hote : ce n'est pas la sienne.
     // L'abandon du jeu y serait une defaite dans sa copie seulement -- ses chats
     // « pas revenus » dans sa propre save (journal du 17 octobre), pendant que
@@ -3086,6 +3204,12 @@ void mm_menu_pump() {
         case Action::LootNo:
             loot_popup_button(g_loot_layout, false);
             break;
+        case Action::TradeYes:
+            trade_ui_button(true);
+            break;
+        case Action::TradeNo:
+            trade_ui_button(false);
+            break;
     }
 
     host_adventure_pump();
@@ -3097,7 +3221,8 @@ void mm_menu_pump() {
     npcgift_pump();                 // Mewgenics Multi : les dons des invites aux PNJ
     shop_pump();                    // Mewgenics Multi : les achats en boutique avec sa bourse
     gift_pump();                    // Mewgenics Multi : les dons entre joueurs (protocole 62)
-    defense_pump();                 // Mewgenics Multi : la defense de la maison, seul
+    trade_ui_pump();                // Mewgenics Multi : « Échanger », dans les fenetres du jeu
+    defense_pump();                // Mewgenics Multi : la defense de la maison, seul
     team_ui_pump();                 // Mewgenics Multi : fenetres de l'equipe mixte
     trip_pump();
     night_pump();
@@ -3201,6 +3326,7 @@ void mm_menu_pump() {
 void mm_on_button_update(void* button) {
     if (button) trip_on_button(button);
     if (button) embark_on_button_update(button);
+    if (button) trade_on_button(button);      // Mewgenics Multi : « Échanger » du menu pause
     if (!button || button != g_click_target) return;
     g_click_target = nullptr;
     auto click = call_target<FnButtonClick>(C_ButtonClick);
@@ -3214,6 +3340,9 @@ bool mm_menu_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (g_live.alive && g_live.screen == Screen::Loot && wp == VK_ESCAPE &&
         (msg == WM_KEYDOWN || msg == WM_KEYUP || msg == WM_SYSKEYDOWN || msg == WM_SYSKEYUP))
         return true;
+    // Mewgenics Multi : « Échanger » -- sa boite ouverte, le clavier est a elle ; sur
+    // la carte, la touche E l'ouvre (mm_trade_ui).
+    if (trade_ui_key(msg, wp, lp, g_live.alive && g_live.screen == Screen::Trade)) return true;
     if (!g_live.alive || g_live.screen != Screen::JoinEntry) return false;
 
     switch (msg) {

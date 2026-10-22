@@ -50,6 +50,7 @@ constexpr uint64_t kPresenceStaleMs = 30000;   // invite : le masque de l'hote, 
 constexpr uint64_t kViewGapMs       = 400;     // l'etat de la fenetre, au plus souvent
 constexpr uint64_t kToastMs         = 8000;    // une nouvelle reste a l'ecran
 constexpr size_t   kMaxIncoming     = 8;
+constexpr size_t   kMaxLate         = 4;       // dons sans reponse a temps, encore attendus
 constexpr size_t   kDoneRing        = 32;
 constexpr size_t   kMaxToasts       = 4;
 constexpr size_t   kMaxRemovals     = 32;
@@ -128,7 +129,9 @@ struct State {
     uint32_t next_id = 0;
 
     Outgoing out;                // le don en cours
-    Outgoing late;               // le dernier reste sans reponse a temps
+    // Ceux restes sans reponse a temps (kMaxLate au plus) : une reponse en retard
+    // trouve encore le sien, meme apres un autre don reste sans reponse.
+    std::vector<Outgoing> late;
     std::vector<Removal> removals;
     bool     save_due = false;   // la maison a change : sauver des que possible
 
@@ -153,6 +156,7 @@ struct State {
     std::map<uint64_t, std::string> labels;   // empreinte -> nom affiche
     std::string status;
     uint32_t    status_id = 0;
+    bool        status_kept = false;          // la nouvelle dit que son don est passe
     std::vector<Toast> toasts;
     uint32_t    toast_id = 0;
     std::vector<std::string> popups;          // fenetres du jeu a ouvrir, dans sa maison
@@ -304,8 +308,8 @@ bool items_blocked(std::string* why) {
 // serait plus le meme objet chez l'autre -- il ne se donne pas.
 bool item_fits(const ItemFields& f) { return f.name.size() <= kGiftMaxName && f.text.size() <= kGiftMaxText; }
 
-// Les objets du rangement promis par ses dons pas encore finis (le don en cours, le
-// dernier reste sans reponse a temps, ceux qui attendent d'etre retires) : ils ne se
+// Les objets du rangement promis par ses dons pas encore finis (le don en cours,
+// ceux restes sans reponse a temps, ceux qui attendent d'etre retires) : ils ne se
 // redonnent pas. Par leur id, sinon par leur empreinte (le rangement relu entre-temps).
 std::vector<bool> promised_mask(const std::vector<LootStoredItem>& store) {
     std::vector<const OutItem*> promised;
@@ -313,7 +317,7 @@ std::vector<bool> promised_mask(const std::vector<LootStoredItem>& store) {
         for (const OutItem& o : v) promised.push_back(&o);
     };
     if (g.out.on) add(g.out.items);
-    if (g.late.on) add(g.late.items);
+    for (const Outgoing& o : g.late) add(o.items);
     for (const Removal& r : g.removals) add(r.items);
     std::vector<bool> mask(store.size(), false);
     if (promised.empty()) return mask;
@@ -379,10 +383,12 @@ std::string label_of(const ItemFields& f) {
     return l;
 }
 
-// Une nouvelle : pour la fenetre (`status`) et/ou a l'ecran quelques secondes.
-void note(const std::string& text, bool status, bool toast, bool result) {
+// Une nouvelle : pour la fenetre (`status` ; `kept` : son don est passe) et/ou une
+// fenetre du jeu (mm_trade_ui).
+void note(const std::string& text, bool status, bool toast, bool result, bool kept = false) {
     if (status) {
-        g.status = text;
+        g.status      = text;
+        g.status_kept = kept;
         ++g.status_id;
     }
     if (toast) {
@@ -559,6 +565,7 @@ void incoming_pump() {
         const std::string list = gift_list_text(m.coins, m.food, labels);
         log_line("DON", "<- don %u de %s garde : %d piece(s), %d nourriture(s), %zu objet(s)%s", m.id, giver.c_str(),
                  m.coins, m.food, m.items.size(), saved ? " (partie sauvee)" : "");
+        if (g.popups.size() >= kMaxIncoming) g.popups.erase(g.popups.begin());   // elles attendent une pause
         g.popups.push_back(gift_received_text(giver, list, saved));
         g.in.erase(g.in.begin() + (ptrdiff_t)i);
     }
@@ -755,7 +762,7 @@ void removals_pump() {
                                        u8"des objets sera fermé."
                                      : u8" a bien reçu ton don : tes objets quitteront ton rangement dès que possible "
                                        u8"(après le départ, la défense de ta maison ou le retour de tes chats)."),
-                         true, false, true);
+                         true, false, true, true);
                 }
                 ++i;
                 continue;
@@ -784,7 +791,7 @@ void removals_pump() {
             r.items.clear();
             g.save_due = true;
         }
-        note(gift_done_text(r.name, r.list, r.kept, r.late), true, true, true);
+        note(gift_done_text(r.name, r.list, r.kept, r.late), true, true, true, true);
         g.removals.erase(g.removals.begin() + (ptrdiff_t)i);
     }
     // La maison a change : sa sauvegarde, des que rien ne l'empeche (sinon le jeu
@@ -812,17 +819,24 @@ void on_answer(uint8_t from, const GiftMsg& m, const uint8_t* raw, size_t n) {
     } else if (from != kHostPeer || m.giver != net_self()) {
         return;
     }
-    Outgoing* o = (g.out.on && g.out.id == m.id && g.out.target == m.target)    ? &g.out
-                : (g.late.on && g.late.id == m.id && g.late.target == m.target) ? &g.late
-                                                                                : nullptr;
-    if (!o) {
+    // Le don en cours, ou l'un de ceux restes sans reponse a temps : il est fini.
+    Outgoing taken;
+    const auto late = std::find_if(g.late.begin(), g.late.end(),
+                                   [&](const Outgoing& x) { return x.id == m.id && x.target == m.target; });
+    if (g.out.on && g.out.id == m.id && g.out.target == m.target) {
+        taken = std::move(g.out);
+        g.out = Outgoing{};
+    } else if (late != g.late.end()) {
+        taken = std::move(*late);
+        g.late.erase(late);
+    } else {
         log_line("DON", "reponse a un don inconnu ou fini (%u) -- ignoree", m.id);
         return;
     }
+    const Outgoing* o = &taken;
     if (m.op == kGiftRefused) {
         log_line("DON", "<- don %u refuse par %s (raison %u)", o->id, o->name.c_str(), (unsigned)m.why);
         note(gift_refused_text(o->name, m.why), true, true, true);
-        *o = Outgoing{};
         return;
     }
     // Garde chez l'autre : ce qui a ete donne quitte sa maison (removals_pump). Le
@@ -837,8 +851,7 @@ void on_answer(uint8_t from, const GiftMsg& m, const uint8_t* raw, size_t n) {
     std::vector<std::string> labels;
     for (const OutItem& it : o->items) labels.push_back(it.label);
     rm.list  = gift_list_text(o->coins, o->food, labels);
-    rm.items = std::move(o->items);
-    *o = Outgoing{};
+    rm.items = std::move(taken.items);
     log_line("DON", "<- don %u garde par %s", rm.id, rm.name.c_str());
     if (g.removals.size() >= kMaxRemovals) {
         log_line("DON", "!! trop de dons a retirer : le plus ancien (%u) reste aussi chez toi", g.removals.front().id);
@@ -852,7 +865,7 @@ void on_answer(uint8_t from, const GiftMsg& m, const uint8_t* raw, size_t n) {
     // saura, et le retrait attend son retour.
     if (!giver_here(save))
         note(purse_safe(who) + u8" a bien reçu ton don : ce que tu as donné quittera ta maison à ton retour "
-                               u8"dans cette save.", true, true, true);
+                               u8"dans cette save.", true, true, true, true);
 }
 
 void outgoing_pump() {
@@ -868,14 +881,22 @@ void outgoing_pump() {
             } else {
                 note(u8"Pas de réponse " + purse_of(g.out.name) + u8" pour ton don : rien n'a quitté ta maison.", true,
                      true, true);
-                g.late      = g.out;
-                g.late.late = true;
-                g.out       = Outgoing{};
+                if (g.late.size() >= kMaxLate) {
+                    log_line("DON", "!! trop de dons sans reponse : le plus ancien (%u) n'attend plus la sienne",
+                             g.late.front().id);
+                    g.late.erase(g.late.begin());
+                }
+                g.out.late = true;
+                g.late.push_back(std::move(g.out));
+                g.out = Outgoing{};
             }
         }
     }
-    if (g.late.on && (now - g.late.sent_at > kLateMs || !in_session() || !present(g.late.target)))
-        g.late = Outgoing{};
+    g.late.erase(std::remove_if(g.late.begin(), g.late.end(),
+                                [&](const Outgoing& o) {
+                                    return now - o.sent_at > kLateMs || !in_session() || !present(o.target);
+                                }),
+                 g.late.end());
     removals_pump();
 }
 
@@ -1006,8 +1027,9 @@ void publish(bool window) {
         v.why_none = u8"Les échanges marchent dans ta maison, ou en aventure à plusieurs avec ta bourse. "
                      u8"Pour l'instant : " + why + ".";
     }
-    v.status    = g.status;
-    v.status_id = g.status_id;
+    v.status      = g.status;
+    v.status_id   = g.status_id;
+    v.status_kept = g.status_kept;
     g.toasts.erase(std::remove_if(g.toasts.begin(), g.toasts.end(),
                                   [&](const Toast& t) { return now - t.at >= kToastMs; }),
                    g.toasts.end());
@@ -1023,9 +1045,11 @@ void publish(bool window) {
     g_view   = std::move(v);
 }
 
+// « Cadeau de ... » : celui qui recoit n'est pas arrete par la nouvelle. Elle attend
+// que sa maison soit deja en pause (le menu pause), sans autre fenetre (mm_info_quiet).
 void popups_pump() {
     if (g.popups.empty()) return;
-    if (!mm_house() || mm_info_busy() || mm_game_prompt_open()) return;
+    if (!mm_house() || !mm_info_quiet()) return;
     mm_show_info(g.popups.front());
     g.popups.erase(g.popups.begin());
 }
@@ -1104,7 +1128,9 @@ void gift_on_mm(uint8_t from, const MmMsg& m) {
     }
 }
 
-void gift_purse_note(const std::string& text, bool mine) { note(text, mine, true, mine); }
+void gift_purse_note(const std::string& text, bool mine, bool kept) { note(text, mine, true, mine, kept); }
+
+bool gift_house_open() { return at_home(true, nullptr); }
 
 bool gift_view(TradeView& out, uint32_t have) {
     Lock l;
