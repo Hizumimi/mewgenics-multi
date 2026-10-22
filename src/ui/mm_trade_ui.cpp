@@ -421,6 +421,9 @@ void trade_ui_pump() {
     }
 
     keys_pump();
+    // Un « oui » demande au clavier que Button::Click a refuse (boite encore dans
+    // son animation d'ouverture) : le refaire, popup_press espace les essais.
+    if (t.box && t.closing) mm_trade_box_yes();
     if (t.box && !t.closing) mm_trade_box_text(step_text());
     if (t.step != Step::Off && !t.box) open_box();
     // Une boite que nous avons quittee et que le jeu n'a pas encore refermee.

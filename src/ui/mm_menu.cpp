@@ -1462,6 +1462,7 @@ bool     g_arrival_wanted  = false;   // ouvrir l'attente des arrivants
 bool     g_host_in_run     = false;   // derniere annonce de l'hote
 bool     g_dep_req_live    = false;   // la demande de depart de l'hote tient toujours
 uint8_t  g_dep_req_seq     = 0;       // son numero, repris dans la reponse
+uint8_t  g_dep_late_seq    = 0;       // le vote ou l'hote a dit « trop tard » (0 : aucun) : plus repropose
 bool     g_dep_offer       = false;   // la proposer a ce joueur
 uint32_t g_dep_offer_at    = 0;       // pas avant cette image (« Pas encore »)
 bool     g_run_offer       = false;   // proposer de rejoindre l'aventure en cours
@@ -2238,7 +2239,8 @@ void client_adventure_pump() {
                               u8"%s est entré dans une case que ton jeu\n"
                               u8"n'a pas pu suivre : ta copie de l'aventure\n"
                               u8"n'était plus la même. Tu es rentré ; tes\n"
-                              u8"chats restent dans son équipe, il les dirige.\n\n"
+                              u8"chats restent dans son équipe, l'IA du jeu\n"
+                              u8"les joue.\n\n"
                               u8"Pour revenir dans l'aventure, clique sur\n"
                               u8"un panneau de ta maison.", host_display().c_str()));
             else
@@ -2257,6 +2259,7 @@ void client_adventure_pump() {
         g_host_in_run   = false;
         g_dep_req_live  = false;
         g_dep_offer     = false;
+        g_dep_late_seq  = 0;          // un autre hote, ou le meme relance : ses votes repartent de 1
         g_run_offer     = false;
         g_run_offer_quiet = false;
         // La connexion est coupee pendant qu'il partait : il ne la rejoint plus.
@@ -3452,8 +3455,9 @@ void mm_menu_pump() {
                 g_dep_offer    = false;
                 show_info(fmt(u8"Départ en aventure\n\n"
                               u8"Tes chats sont déjà partis avec l'équipe de %s :\n"
-                              u8"tant que tu n'es pas là, %s les dirige,\n"
-                              u8"et ils rentreront chez toi à la fin de l'aventure.",
+                              u8"tant que tu n'es pas là, l'IA du jeu les joue\n"
+                              u8"en combat et %s choisit pour eux ; ils rentreront\n"
+                              u8"chez toi à la fin de l'aventure.",
                               host_display().c_str(), host_display().c_str()));
             } else if (g_dep_req_live) {             // le vote tient : « pas encore »
                 send_depart_answer(false);
@@ -3918,6 +3922,9 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
         case MM_DEPART_REQ:
             if (net_role() != NetRole::Client) break;
             if (m.a) {
+                // L'hote redit sa demande a chaque changement de joueurs pendant le
+                // depart : pas a celui a qui il a deja dit « trop tard » pour ce vote.
+                if (m.b == g_dep_late_seq) break;
                 g_dep_req_live = true;
                 g_dep_req_seq  = m.b;
                 if (!savefile_join_armed()) {
@@ -3942,6 +3949,7 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
                 const bool in_copy = embark_guest_active();
                 embark_guest_cancel(late ? "annule apres le vote" : nobody ? "personne ne part" : "depart annule par l'hote");
                 if (late) {
+                    g_dep_late_seq = m.b;
                     if (in_copy) {
                         g_home_due     = true;
                         g_home_no_trip = true;
@@ -4010,8 +4018,10 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
             // Le vote est passe : un « Annuler » l'a sorti pour de bon de l'equipe
             // preparee et de ceux qu'on attend -- un « J'arrive » de plus n'y
             // remettrait ni lui ni ses chats. Il le sait, et ce vote ne lui est
-            // plus propose (il rejoindra l'aventure sur la carte).
-            if ((g_dep_embark || g_dep_go) && (!m.a || (g_dep_out & (1u << from)))) {
+            // plus propose (il rejoindra l'aventure sur la carte). Seulement a celui qui
+            // avait dit « J'arrive » : un arrivant qui repond « Pas encore » n'a rien annule.
+            if ((g_dep_embark || g_dep_go) &&
+                ((!m.a && g_dep_answer[from] == 1) || (g_dep_out & (1u << from)))) {
                 g_dep_out |= 1u << from;
                 MmMsg r{};
                 r.kind = MM_DEPART_REQ;
@@ -4043,6 +4053,7 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
             if (g_host_in_run) {
                 g_dep_req_live = false;           // le depart a eu lieu
                 g_dep_offer    = false;
+                g_dep_late_seq = 0;               // les numeros de vote reviennent a 1 apres 255
                 if (!savefile_in_coop() && !savefile_join_armed()) {
                     g_run_offer    = true;
                     g_run_offer_at = 0;

@@ -125,6 +125,7 @@ struct State {
     uint64_t  cp_tag     = 0;        // et son etiquette (director_tag)
     std::vector<Gift> cp_gifts;
     bool      reloading  = false;    // l'aventure dechargee (ou un autre Director) pendant le suivi
+    bool      cp_stale   = false;    // joue hors session depuis le point de reprise : il ne suit plus
     // Les appels suivis en cours, du plus exterieur au plus interieur.
     Ctx       ctx[kMaxCtx];
     int       depth      = 0;
@@ -399,6 +400,7 @@ void checkpoint() {
     g.cp_dir   = director();
     g.cp_tag   = director_tag();
     g.cp_gifts.clear();
+    g.cp_stale = false;
     shop_purse_checkpoint();                 // la note des achats, au meme instant
 }
 
@@ -407,6 +409,26 @@ void checkpoint() {
 // les joueurs les ont vus faits) ; l'ecart qui reste au compte est partage.
 void restore_checkpoint() {
     g.reloading = false;
+    // Joue hors session depuis le point de reprise (le suivi de la carte s'arrete
+    // avec la session) : il est perime, et y revenir partagerait ce qui a ete
+    // attribue depuis. Les bourses restent telles quelles, le compte relu repart
+    // de zero, et tous les achats notes restent a leur acheteur.
+    if (g.cp_stale) {
+        int64_t c = 0, f = 0;
+        if (read_run(c, f)) {
+            g.seen_coins = c;
+            g.seen_food  = f;
+        }
+        g.finds.clear();
+        shop_purse_checkpoint();             // rien d'oublie : la note entiere est gardee
+        shop_purse_reloaded();
+        g.dirty = true;
+        log_line("PURSE", "aventure rechargee apres une session perdue : point de reprise perime, bourses gardees "
+                          "(compte : %lld et %lld)", (long long)g.seen_coins, (long long)g.seen_food);
+        checkpoint();
+        host_send(true);
+        return;
+    }
     g.book      = g.cp_book;
     for (const Gift& d : g.cp_gifts)
         if (!g.book.transfer(d.from, d.to, d.coins, d.food))
@@ -480,6 +502,7 @@ void host_pump() {
         restore_checkpoint();
     }
     take_pending("compte");
+    if (!net_active()) g.cp_stale = true;    // le suivi de la carte s'arrete avec la session
     if (follow_on_map() && !follow_node_live()) checkpoint();
     host_send(false);
 }
