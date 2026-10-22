@@ -35,17 +35,18 @@ jeu à plusieurs, copie du document de conception en ligne) et `docs/NOTES_MGMP.
   était fermé, section 10). Elle corrige le gel du 18 octobre (section 7).
 - **Les joueurs** : Hizu (propriétaire du dépôt, l'hôte en général) et un ami
   (l'invité), chacun sur son PC, par Steam ou par adresse IP. Les deux doivent avoir
-  la même build : un protocole différent est refusé à la connexion, avec la raison
-  dans le salon.
+  le même protocole (en pratique, la même build) : un autre protocole est refusé à la
+  connexion, avec la raison dans le salon. La connexion compare le protocole et les
+  empreintes du jeu et de `resources.gpak`, pas le numéro de build.
 
 ## 2. Où sont les choses
 
 | Quoi | Où |
 |---|---|
 | Le code | ce dépôt : `src/`, `loader/`, `tests/`, `tools/` |
-| Les règles du jeu à plusieurs | document en ligne https://claude.ai/code/artifact/5e9195c8-3a1e-446a-a5a6-a43fea7459f7 ; copie du 22 octobre : `docs/CONCEPTION.md`. Un paragraphe par build dans « Plan de développement », les décisions de Hizu datées dans « Questions ouvertes » |
-| Le binaire du jeu | `docs/NOTES_MGMP.md` (écrit par l'auteur de mgmp ; les sections « Protocol 59 » à « Protocols 64–66 » ont été ajoutées pour Mewgenics Multi) |
-| L'historique du protocole | le commentaire de `kProtoVersion`, `src/net/mgmp_proto.h` ligne 54 : une phrase par version, de 66 (en tête) à 28. **Une seule ligne de 24 Ko** : la lire par morceaux (`grep -n -a … \| cut -c1-200`) |
+| Les règles du jeu à plusieurs | document en ligne https://claude.ai/code/artifact/5e9195c8-3a1e-446a-a5a6-a43fea7459f7 ; copie du 22 octobre : `docs/CONCEPTION.md`. Dans « Plan de développement », les builds 1–18 sont dans les étapes numérotées, puis un paragraphe par build ou groupe de builds, les décisions de Hizu datées dans « Questions ouvertes » |
+| Le binaire du jeu | `docs/NOTES_MGMP.md` (écrit par l'auteur de mgmp ; tenues à jour depuis la build 40 : sections « Protocol 59 » à « Protocols 64–66 », « Steam transport », et le paragraphe « protocol 58 » de « Reconnect and mid-fight join » ; avant, les trouvailles sur le binaire sont dans les messages de commit et les commentaires du code) |
+| L'historique du protocole | le commentaire de `kProtoVersion`, `src/net/mgmp_proto.h` ligne 54 : une phrase par version, de 66 (en tête) à 28 (avec deux entrées « 48 »), puis l'historique de mgmp, 2 à 27, en anglais. **Une seule ligne de 24 Ko** : la lire par morceaux (`grep -n -a … \| cut -c1-200`) |
 | Le pourquoi de chaque changement | les messages de commit (en français depuis le 11 octobre : la règle, le cas, le protocole, les tests) |
 | Les builds | releases `build-1` à `build-52` du dépôt |
 | Le zip de l'ami | modèle dans `paquet/` ; `tools/paquet.ps1` (Windows) ou `tools/linux/paquet.sh` le refont |
@@ -70,12 +71,14 @@ jeu à plusieurs, copie du document de conception en ligne) et `docs/NOTES_MGMP.
   dans des notes. Outils : Python avec `pefile` et `capstone` (désassembler, trouver
   les appels et les références d'une fonction), Ghidra en mode headless pour
   décompiler une fonction, `tools/gen_sig.py` pour la signature d'une nouvelle
-  cible. Les adresses des sources sont virtuelles, base `0x140000000`
-  (RVA = adresse − `0x140000000`).
+  cible. Les tables du code (`mgmp_addresses.h`,
+  `mgmp_sigs.generated.h`) et le journal (`Mewgenics.exe+0x…`) donnent des RVA ; les
+  commentaires, les commits et les notes donnent souvent l'adresse virtuelle,
+  base `0x140000000` (RVA = adresse − `0x140000000`).
 - **Les journaux d'abord.** Un bug de partie se diagnostique dans les journaux des
   deux joueurs avant de toucher au code (section 9) ; la cause et la mesure sont
   écrites dans le commit et, pour ce qui touche au binaire, dans
-  `docs/NOTES_MGMP.md`.
+  `docs/NOTES_MGMP.md` (depuis la build 40).
 - **Le protocole.** Tout changement de ce que calcule ou envoie un pair :
   `kProtoVersion` + 1 et une phrase en tête de l'historique (ligne 54). Les deux
   joueurs mettent alors à jour.
@@ -98,7 +101,7 @@ jeu à plusieurs, copie du document de conception en ligne) et `docs/NOTES_MGMP.
 `ctest --test-dir build --build-config Release --output-on-failure` (25 tests), puis
 la pré-release `build-<numéro du run>` avec `mgmp.dll`, `mgmp_loader.exe` et
 `SHA256SUMS.txt`. Le numéro de build est dans la DLL : en tête de chaque journal
-(`mod : Mewgenics Multi, build N`) et dans le titre du panneau F1. Les builds
+(`mod    : Mewgenics Multi, build N`) et dans le titre du panneau F1. Les builds
 récentes compilaient sans aucun avertissement. Un commit dont le message contient
 `[skip ci]` ne lance pas de build : utile quand il ne touche pas au mod
 (documentation, scripts), comme celui de cette note.
@@ -114,12 +117,12 @@ Visual Studio 2022 (C++ x64) et CMake 3.21 ou plus : `cmake -B build -A x64` pui
 `ctest --test-dir build -C Release`. Seul MSVC x64 convient pour la DLL : le mod
 partage avec le jeu des objets de la bibliothèque standard (`std::string`,
 `std::function`) dont la taille et la disposition sont celles de MSVC
-(`src/ui/mm_menu.cpp` le vérifie ligne 84).
+(`src/ui/mm_menu.cpp` le vérifie lignes 82 à 84).
 
 ### Sous Linux, pour vérifier seulement
 
-Ce que j'utilisais dans le conteneur de claude.ai pour ne pousser que du code qui
-compile et passe les tests (aucun des deux ne produit la DLL) :
+Les vérifications faites à la main dans le conteneur de claude.ai avant chaque push,
+mises en scripts le 22 octobre (aucun des deux ne produit la DLL) :
 
 - `tools/linux/tests.sh` : les 22 tests de logique pure, avec g++ (les 3 autres,
   `test_config`, `test_sigscan`, `test_resolve_live`, demandent Windows).
@@ -140,10 +143,11 @@ compile et passe les tests (aucun des deux ne produit la DLL) :
      revérifie toutes les signatures ;
   3. `src/core/mgmp_addresses.h` : une valeur dans l'enum (avant `T_COUNT`) et une
      ligne dans la table (RVA, nom court, symbole) ;
-  4. `src/core/mgmp_config.cpp` : éteint par défaut, allumé dans
-     `hooks_implied_by` quand le réseau est configuré (voir `T_CharFace`) ;
+  4. rien à faire dans `src/core/mgmp_config.cpp` : toutes les cibles y sont
+     allumées par défaut, et `hooks_implied_by(true)` est appelé à chaque chargement
+     (la paire éteint / allumé de `T_CharFace` n'a pas d'effet) ;
   5. `src/core/mgmp_hooks.cpp` : le détour `h_…`, le pointeur `o_…` et la liaison
-     `{ T_…, &h_…, &o_… }`.
+     `{ T_…, (void*)&h_…, (void**)&o_… }`.
 
   Au démarrage, le journal liste chaque crochet : `[+]` posé, `[!]` pas posé (et
   pourquoi).
@@ -202,7 +206,8 @@ Les combats du jeu sont déterministes : seules les décisions des joueurs circu
 reste. `GetChoice` est interrogé à chaque image : tant que la décision d'un autre
 joueur n'est pas arrivée, le mod répond « rien » et le jeu attend. À chaque fin de
 tour, une empreinte de l'état (`MSG_HASH`) est comparée ; au premier écart, le
-combat s'arrête (`debug.desync_halt`) et chacun écrit l'état (`STATEDUMP`). `g.turn`
+combat s'arrête (`debug.desync_halt`) ; chacun envoie à l'autre son tableau des champs
+hachés par chat (`STATEDUMP`) et chaque journal écrit la différence champ par champ. `g.turn`
 est le numéro du tour en cours ; l'empreinte du tour T part à sa fin. Un chat est
 désigné par sa place dans la liste des personnages du combat (ordre d'apparition),
 pas dans l'ordre des tours, rebattu à chaque manche. **L'orientation des chats
@@ -213,8 +218,9 @@ Ajouts de Mewgenics Multi au combat :
 - qui joue (`mgmp_members.h`) : l'hôte choisit les membres d'un combat à l'entrée
   de la case ; les chats d'un absent ou d'un joueur parti sont dirigés par l'hôte et
   joués par l'IA du jeu (`mm_ai`), dont la décision part chez tous ;
-- revenir en plein combat (build 39) : l'état d'entrée de la case, puis celui du
-  milieu ; chaque décision porte son auteur et son rang (`mgmp_seen.h`) ;
+- revenir en plein combat (build 39) : l'état d'entrée de la case, puis toutes les
+  décisions déjà jouées, rejouées chez lui (et l'empreinte du tour 0) ; chaque
+  décision porte son auteur et son rang (`mgmp_seen.h`) ;
 - l'aperçu de visée ne tourne plus le chat (crochet `T_CharFace`, build 50) ;
 - un combat fini d'un seul côté (`mgmp_orphan.h`, builds 50–52).
 
@@ -275,7 +281,9 @@ rôle : le `mgmp.json` livré a `role: off`.
 
 Dates d'octobre 2026. « Proto » : la version du protocole de la build. La dernière
 colonne dit ce que l'on sait de sa livraison et d'une partie jouée avec elle
-(d'après le document de conception) ; une case vide veut dire : pas de retour.
+(d'après le document de conception, sauf : 34 d'après le commit `81fe344`, 46
+d'après `docs/NOTES_MGMP.md` et l'historique du protocole, 31 de mémoire de la
+session) ; une case vide veut dire : pas de retour.
 
 | Build | Date | Proto | Ce qui change | Livrée, jouée |
 |---|---|---|---|---|
@@ -355,9 +363,12 @@ colonne dit ce que l'on sait de sa livraison et d'une partie jouée avec elle
     Character::Face empeche` ;
   - à la fin : `Character::Face : N appel(s) de l'apercu de visee et M pendant une
     cloture d'etat empeche(s)` ;
-  - et plus jamais `!! combat … : l'hote l'a fini` ni `!! combat … : ce joueur l'a
-    fini`. Si l'une de ces lignes revient, le filet a servi : une autre divergence
-    existe, à chercher avec la méthode de la section 9.
+  - et plus jamais `!! combat … : l'hote l'a fini`, `!! combat … : ce joueur l'a
+    fini pendant son tour` (chez un invité) ni `!! combat … : le joueur N l'a fini
+    chez lui` (chez l'hôte). Si l'une revient, le filet a servi : une autre
+    divergence existe, à chercher avec la méthode de la section 9. La variante
+    `… ce joueur l'a fini a son tour … rien n'attend` signale une divergence sur
+    laquelle le filet n'a pas eu à agir.
 
 ## 8. Ce qui reste
 
@@ -370,7 +381,11 @@ un événement (24), les bourses (21), le défilé du butin (26), la boutique (3
 recrues (28), l'IA des absents (32–34), revenir en plein combat (39), « Défendre ! »
 (35–36), la Némésis (38), la faveur en direct (12), les dons de l'invité aux PNJ
 (29), la 4e place et le jeu à 3 ou 4 (39, jamais joué à plus de deux), Steam (39),
-les échanges (49).
+les échanges (49) ; et, toujours « à tester » dans le document : la fin normale
+d'une aventure, victoire ou défaite (9), un invité qui équipe ses chats de son
+rangement au départ (17), les objets en aventure et reconnus d'un joueur à l'autre
+(20, 22, 24–25), les builds 19 et 40, la nuit votée à distance, et une aventure
+complète à deux.
 
 ### Questions et propositions sans réponse
 
@@ -419,10 +434,12 @@ les échanges (49).
   (`mgmp_trace_AAAAMMJJ-HHMMSS.log`) ; ceux de l'hôte et de l'invité d'une même partie
   ont des noms à quelques secondes d'écart. Ceux de l'ami sont dans son propre
   dossier `mgmp` : les lui demander. Un journal se lit sur une copie.
-- **Le format.** En tête : la build (`mod : Mewgenics Multi, build N`), la
+- **Le format.** En tête : la build (`mod    : Mewgenics Multi, build N`), la
   résolution des adresses (125 dans la build 52, toutes à l'adresse attendue),
-  chaque crochet (`[+]` / `[!]`). Puis une ligne par événement : numéro de ligne,
-  tour (`g.turn`), secondes depuis le lancement, étiquette (`LOCKSTEP`, `NODEHASH`,
+  chaque crochet (`[+]` / `[!]`). Puis une ligne par événement : numéro de
+  séquence, compteur de tours du processus (jamais remis à zéro ; ce n'est pas
+  `g.turn`, qui est dans le texte, par exemple `turn N hash …`), secondes depuis la
+  première ligne, étiquette (`LOCKSTEP`, `NODEHASH`,
   `TEAM`, `MULTI`, `CHOICE`, `SAC`, `BUTIN`, `PURSE`, `SHOP`, `PNJ`, `DON`, `VOTE`,
   `EMBARK`, `FOLLOW`, `SAVEFILE`, `WORLD`, `NET`, `STEAM`…), texte. `!!` marque une
   anomalie ; `->` et `<-` les messages envoyés et reçus.
@@ -431,7 +448,8 @@ les échanges (49).
   tour comparé et le premier où quelque chose diffère (une décision, une
   orientation, un tirage) ; puis lire le binaire pour comprendre qui écrit la valeur
   qui diffère. Avec `debug.desync_halt` (vrai par défaut), un écart d'empreinte
-  arrête le combat et chacun écrit l'état complet (`STATEDUMP`) : comparer les deux.
+  arrête le combat et chaque journal écrit `STATE DIFF at turn N` : les champs qui
+  diffèrent, chat par chat (un seul journal suffit pour les nommer).
 - **Les outils de `tools/`** : `gen_sig.py` et `verify_sigs.py` (signatures),
   `analyze_trace.py` (les `TurnAction` d'un journal), `decode_record.py` (un
   enregistrement `debug.record`), `gpak.py` (lire `resources.gpak` ; ne jamais
@@ -460,8 +478,9 @@ les échanges (49).
   montées de niveau ; « Espace » sur un pion au repos en appelle une autre
   (`follow_node_end_counts` les trie).
 - L'aperçu de décision d'un chat humain n'est calculé que chez son propriétaire
-  (chez les autres, le mod répond « rien » à `GetChoice`) ; celui des IA (ennemis,
-  chats d'absents) l'est chez tous, au rythme de l'horloge. Tout effet de bord d'un
+  (chez les autres, le mod répond « rien » à `GetChoice`) ; celui des ennemis l'est
+  chez tous, au rythme de l'horloge. Le chat d'un absent est décidé par l'IA du jeu
+  chez l'hôte seul (`mm_ai`), dans une clôture d'état où `Face` est empêché. Tout effet de bord d'un
   aperçu est une divergence en puissance.
 - Les saves sont des bases sqlite, que le jeu peut tenir ouvertes (`-wal`,
   `-journal`) : ne les lire que sur des copies. Le mod écrit dans une save (le monde
