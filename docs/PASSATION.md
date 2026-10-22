@@ -561,7 +561,12 @@ chaque chargement, et « Échanger » qui n'a pas le style du jeu).
    (commits « Fusion du lot … », dont les messages résument les conflits), puis le
    protocole passe à 67 en une fois.
 3. Relecture croisée du diff complet (`9c01142..` la fusion), sous sept angles,
-   chaque défaut à nouveau vérifié par trois.
+   chaque défaut à nouveau vérifié par trois : quatre défauts nés de la fusion
+   (commit `ee29749` : une boîte « Échanger » bloquée au clavier, un départ
+   reproposé après « trop tard », les bourses après une session perdue, deux
+   textes), puis une dernière relecture de ces corrections a fait corriger un
+   numéro de joueur redonné qui héritait de la réponse au vote du partant
+   (`d807cb9`). Aucun défaut sur le saut de l'intro.
 Le détail de chaque correction (scénario, preuve, essai en partie) est dans les
 messages de commit de chaque lot (`git log 9c01142..HEAD`).
 
