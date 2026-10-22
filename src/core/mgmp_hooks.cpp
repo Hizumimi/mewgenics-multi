@@ -257,7 +257,8 @@ void* __fastcall h_GetChoice(void* self, void* out) {
     //     the one already in flight.
     // Lockstep and replay are alternatives, never both: one injects from a
     // socket, the other from a file, and they would fight over the same buffer.
-    if (lockstep_active()) {
+    // Mewgenics Multi : lien tombe chez l'invite -- ses chats attendent, sans jouer seuls.
+    if (lockstep_active() || lockstep_link_lost()) {
         if (lockstep_fill_choice(self, ret)) return ret;
     } else if (replay_active()) {
         if (replay_fill_choice(self, ret)) {
