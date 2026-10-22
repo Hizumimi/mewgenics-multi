@@ -84,9 +84,13 @@ void read_path(const json& o, const char* key, const wchar_t* dll_dir,
     const std::string s = v->get<std::string>();
     if (s.empty()) { out[0] = 0; return; }
 
+    // Mewgenics Multi : nlohmann rend de l'UTF-8 ; mbstowcs_s (locale "C")
+    // etendait chaque octet, et un accent (C3 A9) devenait deux caracteres.
     wchar_t w[512];
-    size_t conv = 0;
-    mbstowcs_s(&conv, w, s.c_str(), _TRUNCATE);
+    if (!MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, w, (int)_countof(w))) {
+        warn("%s is too long or not valid UTF-8, kept the default", key);
+        return;
+    }
     if (w[0] && (w[1] == L':' || w[0] == L'\\')) wcsncpy_s(out, cap, w, _TRUNCATE);
     else                                         swprintf_s(out, cap, L"%s\\%s", dll_dir, w);
 }

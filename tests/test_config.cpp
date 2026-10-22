@@ -21,6 +21,7 @@
 #include <cstring>
 #include <cwchar>
 #include <fstream>
+#include <string>
 
 using namespace mgmp;
 
@@ -154,6 +155,18 @@ int main() {
         check(wcsstr(c.log_path,    L"runF.log") != nullptr, "log path honoured");
         check(wcsstr(c.record_path, L"runF.mgr") != nullptr,
               "and the capture takes the same stem");
+    }
+    // Mewgenics Multi : le Bloc-notes enregistre en UTF-8 ; C3 A9 doit donner U+00E9.
+    {
+        const Config& c = load("{ \"log\": \"D:\\\\Jeux vid\xC3\xA9o\\\\run.log\" }");
+        check(wcscmp(c.log_path, L"D:\\Jeux vid\u00E9o\\run.log") == 0,
+              "an accented absolute path is decoded as UTF-8");
+    }
+    {
+        const std::string long_path(600, 'a');
+        const Config& c = load(("{ \"log\": \"" + long_path + "\" }").c_str());
+        check(wcsstr(c.log_path, L"mgmp_trace.log") != nullptr && warned(),
+              "a path too long for the buffer keeps the default and warns");
     }
 
     printf("-- hooks the file cannot name are still implied correctly --\n");
