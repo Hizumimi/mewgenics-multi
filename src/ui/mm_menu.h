@@ -121,7 +121,8 @@ bool     mm_host_in_run();
 // Mewgenics Multi : invite dans sa propre maison, sa save ouverte -- `line` (un
 // avis court, UTF-8 : sa bourse, son butin...) n'y sera qu'a son prochain
 // chargement. Une seule fenetre regroupe ces avis, avec « Recharger » (le mod
-// passe par le menu et rouvre sa save, comme « Rentrer ») et « Plus tard » ; des
+// passe par le menu et rouvre sa save, comme « Rentrer ») et « Plus tard » -- son
+// emplacement inconnu, les etapes pour la recharger lui-meme a la place ; des
 // qu'aucun depart, nuit, defense ni defile du butin n'est en cours. Faux s'il
 // n'est pas chez lui (rien d'affiche : sa save se chargera en rentrant).
 bool     mm_offer_reload(const std::string& line_utf8);

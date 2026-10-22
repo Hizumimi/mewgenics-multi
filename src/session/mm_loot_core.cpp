@@ -637,8 +637,8 @@ LootScreen loot_screen(const LootView& v) {
                       loot_join(nobody) + ".";
         if (!any) s.text += u8"\nAucun objet n'a été partagé.";
         if (!v.is_host && !per[v.self].empty())
-            s.text += v.at_home ? u8"\n\nTa save est déjà ouverte : « Recharger », juste après,\n"
-                                  u8"la rouvre avec ton butin."
+            s.text += v.at_home ? u8"\n\nTa save est déjà ouverte : la fenêtre suivante\n"
+                                  u8"te dit comment la recharger avec ton butin."
                                 : u8"\n\nTon butin t'attend dans ton rangement, chez toi.";
         if (v.is_host && others) s.text += u8"\n\nCe que les autres remportent quitte ton rangement.";
         s.yes = u8"D'accord";

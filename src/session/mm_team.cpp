@@ -2830,10 +2830,12 @@ bool team_guest_send(uint8_t seq, std::string& problem) {
     // leur etat final a rendre -- sauf un parti du meme numero sans etat final :
     // il vient d'une session de l'hote d'avant (ses votes repartent de 1 a chaque
     // lancement), qui ne le rendra plus, et il retiendrait le butin et les
-    // recrues de ce vote-ci (apply_loot, apply_new_cats, departure).
+    // recrues de ce vote-ci (apply_loot, apply_new_cats, departure). Ses chats
+    // dans l'aventure de l'hote (k.owners) : c'est celui de cette session, garde.
+    const bool in_run = team_guest_has_cats_in_run();
     k.departs.erase(std::remove_if(k.departs.begin(), k.departs.end(),
-                                   [seq](const GuestDepart& d) {
-                                       return !d.departed || (d.seq == seq && !d.have_results);
+                                   [seq, in_run](const GuestDepart& d) {
+                                       return !d.departed || (d.seq == seq && !d.have_results && !in_run);
                                    }),
                     k.departs.end());
     if (msg.cats.empty()) {
