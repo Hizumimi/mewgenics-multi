@@ -1,0 +1,275 @@
+﻿Mewgenics Multi - mod coop pour Mewgenics (version du jeu 1.1.21239)
+
+1. Extrais le dossier mgmp de ce zip, par exemple sur ton Bureau.
+   Garde tous les fichiers ensemble, sauf steam_appid.txt (voir l'étape 2).
+
+2. Copie steam_appid.txt dans le dossier du jeu, à côté de Mewgenics.exe
+   (par défaut : C:\Program Files (x86)\Steam\steamapps\common\Mewgenics).
+   Sans ce fichier, Steam relance le jeu et le mod ne se charge pas.
+   Si Windows demande une autorisation pour le copier, accepte.
+
+3. Si ton jeu n'est pas dans le dossier par défaut ci-dessus, ouvre mgmp.json
+   avec le Bloc-notes et corrige la ligne "game" en doublant chaque \.
+
+4. Laisse Steam ouvert, puis double-clique sur « Lancer Mewgenics coop.bat ».
+   Si Windows affiche « Windows a protégé votre ordinateur », clique sur
+   « Informations complémentaires » puis « Exécuter quand même ».
+
+5. Le plus simple : par Steam. Quand l'hôte a cliqué sur « Multijoueur »
+   puis « Héberger », ouvre ta liste d'amis Steam et choisis « Rejoindre la
+   partie » sur son nom (ou accepte son invitation « Inviter à jouer »). Ton
+   jeu, lancé avec le mod (étape 4), se connecte tout seul : pas d'adresse à
+   taper, ni de port à ouvrir, ni de VPN. Si tu n'es pas au menu principal,
+   la connexion attend que tu y reviennes.
+   Sans Steam : dans le menu du jeu, clique sur « Multijoueur », puis sur
+   « Rejoindre ». Tape l'adresse que l'hôte t'a donnée (ou colle-la avec
+   Ctrl+V), puis Entrée.
+   Puis clique sur « Choisir ta sauvegarde » (si la partie de l'hôte n'est pas
+   encore là, l'écran des sauvegardes s'ouvre tout seul dès qu'elle arrive) :
+   prends ta save, ou un emplacement vide pour une nouvelle partie. Chacun joue
+   dans sa maison, avec ses chats.
+   (Si Steam pose un problème, ouvre mgmp.json avec le Bloc-notes et ajoute
+   "steam": false dans la partie "net" : il ne reste que l'adresse.)
+
+6. Le monde est celui de l'hôte : ses PNJ (faveur, quêtes, boutiques), son
+   histoire et ses déblocages (pièces de la maison compris) sont repris dans
+   ta save à chaque chargement, en plus des tiens. Quand l'hôte donne un chat
+   à un PNJ, la jauge de ce PNJ avance aussi chez toi, tout de suite.
+   C'est l'hôte qui prend ses récompenses (le PNJ passe alors à la suivante
+   chez toi aussi) ; ce qu'elles débloquent arrive chez toi au prochain
+   chargement de ta save (au retour d'une aventure).
+   Tes chats, tes meubles, ton or, ton inventaire et ton jour ne changent pas.
+   Avant la première modification, une copie de ta save est rangée dans le
+   dossier des saves du jeu, sous mgmp_backups (colle
+   %APPDATA%\Glaiel Games\Mewgenics dans la barre d'adresse de l'Explorateur,
+   puis ouvre ton numéro Steam, puis saves).
+   Tu peux aussi donner tes chats aux PNJ depuis ta maison, par le tuyau,
+   comme seul : leur faveur compte chez l'hôte, donc pour tout le monde.
+   Si ton chat remplit la jauge d'un PNJ, la récompense est pour toi :
+   l'hôte la prend dès qu'il est dans sa maison, et ses pièces, sa
+   nourriture et ses objets arrivent dans ta maison au prochain chargement
+   de ta save (une fenêtre te le dit) ; ce qu'elle débloque (pièces de la
+   maison, boutiques...) est pour tout le monde. Si tu n'es plus connecté
+   quand l'hôte la prend, elle reste chez lui. Un chat donné pendant que la
+   récompense d'un PNJ attend d'être prise compte pour la suivante. Dans la
+   maison de l'hôte (au départ d'une aventure), le tuyau refuse tes chats.
+
+7. En fin de journée, la nuit ne passe que quand tout le monde a cliqué sur
+   le panneau « Fin de journée ». Quand un ami attend, ton panneau affiche
+   « 1 joueur attend » et une petite fenêtre te propose « Passer la nuit ».
+
+8. Pour partir à l'aventure, chacun met ses chats dans sa boîte de départ
+   (chez Butch) : 2 chacun à deux joueurs, 1 chacun à quatre. À trois, 1
+   chacun, et la 4e place va au premier qui met un 2e chat dans sa boîte (une
+   fenêtre le lui dit ; il la garde tant qu'il en a deux) ; sans volontaire,
+   l'équipe part à 3 chats.
+   C'est l'hôte qui clique sur « À l'aventure ! ». Clique sur « J'arrive » :
+   le jeu charge sa partie et tu pars avec lui.
+   Au choix des colliers de classe, chacun regarde le chat qu'il veut (avec
+   les flèches) et choisit les colliers de ses propres chats. Les colliers
+   d'un chat qui n'est pas à toi sont grisés, et ceux que posent les autres
+   apparaissent tout de suite chez toi. Un collier pris n'est plus libre :
+   le premier qui le prend l'a. C'est l'hôte qui valide, dis-lui quand tes
+   chats ont leurs colliers.
+   Au choix des objets, tu retrouves ton propre rangement : équipe tes chats
+   avec tes objets, comme chez toi. Les objets d'un chat qui n'est pas à toi
+   sont grisés ; chacun ne voit en direct que ses propres choix. C'est encore
+   l'hôte qui valide, dis-lui quand tes chats sont équipés. Les objets que tu
+   as pris quittent ton rangement : ils reviennent avec tes chats, sur eux.
+   Puis la carte s'ouvre : d'habitude c'est déjà celle de l'hôte, et rien ne
+   se recharge. Sinon, ton jeu charge l'aventure de l'hôte (une fenêtre te le
+   dit). Tes chats partent avec toi, et en combat tu diriges les tiens.
+   Quand tu vises, ton chat ne se tourne plus vers la cible : il se tourne
+   quand l'action part, de la même façon chez tout le monde (sinon les
+   combats des deux jeux pouvaient se séparer). À la fin, le jeu te ramène dans ta maison
+   avec tes chats. Ils suivent la règle du jeu, comme ceux de l'hôte : ceux
+   qui meurent ne reviennent pas (avec leurs objets), et personne ne revient
+   d'une aventure abandonnée ou perdue. Le butin de l'aventure va dans le
+   rangement de l'hôte.
+   Tu peux aussi venir sans chat : tu joueras avec ceux des autres.
+   Tant que tu n'es pas rentré chez toi, ne ferme pas le jeu : sinon tes chats
+   restent tels qu'au départ. Avant de les recopier dans ta save, une copie
+   de sécurité est rangée dans mgmp_backups (voir l'étape 6).
+   Si ta maison est attaquée (le panneau dit « Défendre ! »), défends-la
+   comme seul, avec les chats de ta boîte de départ : ce combat se joue chez
+   toi seulement, la session reste ouverte, et les autres le savent (une
+   fenêtre, et leurs listes d'attente disent que tu défends ta maison).
+   Chacun défend sa maison. Si l'hôte propose de partir pendant ton combat,
+   tu lui réponds à la fin. Si tu as déjà dit « J'arrive », ta maison
+   attendra ton retour.
+
+9. Sur la carte, le chemin se vote. Clique sur une case : au lieu d'y aller,
+   tu votes pour elle. Une fenêtre montre en direct le vote de chacun et le
+   temps qui reste. « Même chemin » reprend le choix des autres, « Choisir »
+   ferme la fenêtre pour cliquer sur une case, « Changer » pour changer ton
+   vote. Le premier vote lance 30 secondes (le temps attend que tout le
+   monde soit sur la carte) ; à la fin, la case qui a le plus de voix
+   l'emporte, et en cas d'égalité le sort décide. Puis le pion de l'hôte
+   part tout seul, et tu le suis. Si ton vote n'est pas pris (par exemple
+   si l'hôte n'est pas sur la carte), la fenêtre te le dit.
+   Les choix pendant les événements : voir l'étape 13.
+   La Némésis vient aussi quand vous êtes plusieurs : elle avance sur la
+   carte de chacun, et quand elle rattrape l'équipe, son combat se joue
+   ensemble, comme une case.
+
+10. Les objets en aventure. Le sac est commun, comme dans le jeu : tout le
+   monde y prend et y range. Mais chacun n'équipe que ses propres chats :
+   les objets d'un chat qui n'est pas à toi sont grisés. Change les objets
+   de tes chats sur la carte, entre deux cases (pendant une case, par
+   exemple dans une boutique ou à une montée de niveau, c'est l'hôte qui
+   décide).
+   Chaque changement (équiper, ranger dans le sac, lire un livre) arrive
+   tout de suite chez tout le monde, même sac ouvert : tu vois en direct ce
+   que les autres prennent et rangent.
+   Si deux joueurs prennent le même objet au même instant, le premier l'a ;
+   l'autre voit une fenêtre, et son sac se remet comme chez l'hôte quand il
+   le ferme. Si un autre joueur lit le même livre pendant que tu choisis la
+   capacité à remplacer, ta lecture est annulée (une fenêtre te le dit).
+   Si l'hôte entre dans une case juste avant que ton changement ne lui
+   arrive, il est annulé : refais-le sur la carte.
+   Ton sac reste grisé tant qu'il ne peut pas être à jour : juste après une
+   case (attends que l'hôte soit revenu sur la carte), ou quand il attend
+   l'état de l'hôte (ferme-le puis rouvre-le). Quand l'hôte entre dans une
+   case, le jeu attend que tu fermes ton sac pour t'y emmener.
+
+11. Chacun sa bourse. À l'écran, les pièces et la nourriture de l'aventure
+   restent un seul compte (la boutique, les combats et les événements le
+   voient pareil chez tout le monde), mais l'hôte tient une bourse par
+   joueur :
+   - ce qu'un de tes chats trouve dans un événement, ou ramasse en combat,
+     va dans ta bourse ; ce que coûte un choix d'événement pour ton chat, ou
+     ce qu'il y perd, est pris sur ta bourse ;
+   - ce que tu achètes en boutique est pris sur ta bourse (voir plus bas) ;
+   - le reste (les provisions du départ, les récompenses des combats) est
+     partagé à parts égales entre les joueurs qui ont amené des chats. Une
+     bourse peut passer sous zéro : tes trouvailles suivantes la
+     remboursent.
+   La fenêtre du vote du chemin dit ce qui a été trouvé depuis la case
+   d'avant, pour qui, et ce qu'il y a dans ta bourse.
+   Quand l'aventure est gagnée, tu rapportes ta bourse dans ta maison (sans
+   dépasser ce qu'il reste dans le compte) : elle s'ajoute à ton or et à ta
+   nourriture quand ta save se recharge, avec tes chats (gardée même si tu
+   fermes le jeu avant, comme le butin). L'hôte rapporte le reste. Une
+   aventure perdue ou abandonnée ne rapporte rien, comme dans le jeu. Si tu
+   n'es plus connecté à la fin, ta bourse reste chez l'hôte. Les boîtes de
+   meubles vont toujours à l'hôte.
+   En boutique, chacun achète avec sa bourse : le compteur de pièces de la
+   boutique montre ta bourse (pas le compte de l'équipe), et tu cliques sur
+   un objet comme seul. Chez un invité, l'achat se fait chez l'hôte (il
+   faut un court instant, ne clique pas plusieurs fois) : le prix est pris
+   sur ta bourse et l'objet arrive dans le sac commun, chez tout le monde.
+   Il est à toi : à la victoire, il ne passe pas au partage du butin, il
+   rentre chez toi (équipé sur un de tes chats, il rentre avec lui). Si ta
+   bourse ne suffit pas, ou si l'objet vient d'être vendu, une fenêtre te
+   le dit. Un invité achète des objets, de la nourriture et des pièces ;
+   les bonbons et les familiers, c'est l'hôte qui les achète (avec sa
+   bourse à lui). Un bonbon que l'hôte donne au chat d'un invité : l'hôte
+   choisit aussi sa montée de niveau (l'invité n'a pas cet écran), et le
+   chat la retrouve chez son propriétaire après la case. Achète tant que
+   l'hôte est dans la boutique : s'il veut en sortir pendant que tu
+   achètes encore (ou que tu n'es pas encore arrivé), une fenêtre le
+   prévient (il peut sortir quand même).
+
+12. Les montées de niveau : chacun choisit pour ses chats. Quand un de tes
+   chats monte de niveau, c'est toi qui choisis son option, qui relances la
+   liste et qui choisis la capacité à remplacer. Chez les autres, l'écran
+   affiche « À … de choisir » avec ton nom, et leurs clics ne font rien ;
+   pour les chats des autres, c'est pareil chez toi. Les chats de l'hôte sont
+   à l'hôte ; un chat qui rejoint l'équipe en route est à celui à qui il a été
+   attribué (voir l'étape 16). Si le propriétaire d'un chat a quitté
+   l'aventure, l'hôte choisit à sa place (« À toi de choisir »). Ton clic passe par l'hôte avant de s'appliquer : l'écran peut
+   mettre un court instant à changer, ne clique pas plusieurs fois.
+
+13. Les événements : c'est le propriétaire du chat de l'événement qui
+   choisit. Quand un événement parle d'un de tes chats, c'est toi qui
+   choisis l'option, à chaque étape ; chez les autres, la fenêtre de
+   l'événement affiche « À … de choisir » avec ton nom, sous le texte de
+   l'événement, et leurs clics ne font rien (le texte revient tel quel une
+   fois le choix fait). Un événement sur un chat de l'hôte, ou sans chat,
+   est choisi par l'hôte ; sur une recrue, par celui à qui elle est.
+   Quand un événement demande quel chat y va, chacun ne peut envoyer qu'un
+   de ses propres chats, et le premier envoyé y va ; sur le chat d'un
+   autre, la fenêtre affiche « Ce chat est à … » quelques secondes et rien
+   ne se passe.
+   Comme pour les montées de niveau, ton clic passe par l'hôte : l'écran
+   peut mettre un court instant à changer, ne clique pas plusieurs fois.
+   Si tu lis encore la première page de l'événement quand le choix est
+   fait, il t'attend : il s'applique quand tu arrives aux options.
+
+14. Le partage du butin. Quand une aventure est gagnée, les objets du sac
+   (ceux que le jeu range dans la maison ; un objet équipé rentre avec son
+   chat ; un objet acheté en boutique rentre chez celui qui l'a payé) passent
+   un par un dans une fenêtre, chez chaque joueur qui a amené des chats. Pour chaque objet, tu as 30 secondes :
+   - « Je le veux », puis « Besoin » (il te sert : tu passes avant les
+     autres) ou « Cupidité » (tu le prends si personne n'en a besoin) ;
+   - « Passer » : tu n'en veux pas (sans réponse, tu passes aussi).
+   Un dé de 100 départage ceux qui ont choisi Besoin, sinon ceux qui ont
+   choisi Cupidité ; une égalité en tête est relancée. Si personne n'en
+   veut, l'objet reste à l'hôte. Le résultat reste quelques secondes à
+   l'écran, puis l'objet suivant arrive ; à la fin, une fenêtre dit qui a
+   remporté quoi.
+   Ce que tu remportes va dans ton rangement quand ta save se recharge, avec
+   tes chats (si ta save est déjà ouverte, retourne au menu principal et
+   recharge-la). C'est gardé même si tu fermes le jeu avant : ce sera ajouté
+   la prochaine fois que tu chargeras cette save en multijoueur. Ce que les
+   autres remportent quitte le rangement de l'hôte.
+   Le défilé attend que chacun ait sa fenêtre ouverte (3 minutes au plus ;
+   l'hôte peut cliquer sur « Commencer » sans attendre) ; ensuite, un joueur
+   qui n'a pas sa fenêtre (un chargement, une autre fenêtre) passe son tour
+   jusqu'à ce qu'elle s'ouvre. La fenêtre « Rentrer » attend la fin du
+   défilé. Quand l'hôte n'a pas sa fenêtre ouverte, le temps s'arrête pour
+   tout le monde ; chez lui, la nuit et le départ attendent la fin du défilé.
+
+15. Quitter l'aventure en route. Dans la partie de l'hôte, « Abandonner
+   l'aventure » (menu pause) ne fait plus perdre tes chats : seul l'hôte
+   peut l'abandonner, et une fenêtre te propose plutôt de la quitter. Si tu
+   la quittes (ou si ta connexion coupe), l'aventure continue sans toi : tes
+   chats restent dans l'équipe, l'IA du jeu les joue dans les combats (celle
+   qui joue un chat devenu incontrôlable) et l'hôte choisit pour eux
+   (montées de niveau, événements), puis ils rentrent chez toi à la fin de
+   l'aventure (si tu n'es plus connecté à ce moment-là, ils restent chez toi
+   tels qu'au départ).
+   Pour la rejoindre, clique sur un panneau de ta maison.
+   Les combats n'attendent plus un joueur absent : celui qui arrive en plein
+   combat le regarde (le même combat que chez l'hôte, rejoué jusqu'où il en
+   est), et dirige ses chats à partir du combat suivant ; d'ici là, l'IA du
+   jeu les joue. Pendant leur tour, la barre des capacités de
+   l'hôte est grisée : ce n'est pas lui qui clique, chaque action part
+   après un court instant.
+   Si ta copie d'un combat que tu regardes se désynchronise de celle de
+   l'hôte, ou si ton combat ne se finit pas en même temps que le sien,
+   tu rentres chez toi tout seul (une fenêtre te le dit) : un panneau de
+   ta maison te ramène dans l'aventure.
+   Chez l'hôte, abandonner une aventure à plusieurs est une défaite pour
+   toute l'équipe : les chats des autres ne rentrent pas non plus (la
+   confirmation du jeu le rappelle).
+
+16. Les recrues. Un chat qui rejoint l'équipe pendant l'aventure (un
+   événement, par exemple) est attribué à un joueur : d'abord à celui qui n'a
+   plus de chat vivant dans l'équipe (ou qui est venu sans chat) depuis le
+   plus longtemps, sinon à celui qui a le moins de chats vivants ; en cas
+   d'égalité, le sort décide. Une fenêtre dit à chacun à qui il est, une fois
+   revenu sur la carte. Son joueur le dirige en combat et choisit pour lui
+   (montées de niveau, événements), et à la fin de l'aventure il rentre chez
+   lui comme ses propres chats (s'il n'est plus connecté à ce moment-là, le
+   chat reste chez l'hôte). Il arrive dans ta maison quand ta save se
+   recharge, comme ton butin.
+
+17. Les échanges. Un bouton « Échanger » s'affiche en haut à droite de
+   l'écran (tu peux le déplacer en le tirant par son bord) :
+   - dans ta maison, tu donnes des pièces, de la nourriture et des objets de
+     ton rangement (16 au plus par don) à un joueur qui est lui aussi dans
+     sa maison : choisis à qui, combien, coche les objets, puis « Donner ».
+     Le don arrive chez lui tout de suite (une fenêtre le lui dit), et vos
+     deux saves sont enregistrées. Rien ne quitte ta maison avant qu'il
+     l'ait reçu : s'il n'est pas dans sa maison, ou s'il garde l'écran des
+     objets ouvert trop longtemps, le don ne passe pas et tu gardes tout (la
+     fenêtre te le dit) ;
+   - pendant une aventure à plusieurs, sur la carte, tu donnes des pièces et
+     de la nourriture de ta bourse à la bourse d'un autre joueur (le compte
+     de l'équipe ne change pas). Les objets, eux, sont déjà dans le sac
+     commun.
+
+Pendant une aventure, la partie de l'hôte est rangée à part (mgmp_coop.sav) :
+ta propre save ne change qu'à ton retour, pour tes chats et ton rangement.
+Vous devez avoir exactement la même version du jeu, et la même version du mod.

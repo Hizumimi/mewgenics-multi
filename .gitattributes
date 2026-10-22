@@ -1,0 +1,5 @@
+# Mewgenics Multi : les fichiers du paquet de l'ami (paquet/) partent tels quels
+# dans le zip -- fins de ligne CRLF et BOM UTF-8 gardes, aucune conversion.
+paquet/** -text
+# Les scripts de tools/linux/ gardent des fins de ligne LF, meme extraits sous Windows.
+tools/linux/*.sh text eol=lf
