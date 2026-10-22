@@ -60,12 +60,16 @@
 //     (0x1403B4F03) ; puis une liste de proprietaires vide pour tous ;
 //   - l'invite calcule aussi cet etat dans SA copie de l'aventure, qui finit en
 //     meme temps (lockstep) : il peut rentrer avant que l'hote ait fini ;
-//     l'etat de l'hote, s'il arrive avant, est celui qui compte ;
+//     l'etat de l'hote, s'il arrive avant, est celui qui compte ; tant que
+//     l'hote est encore en aventure (une copie divergente a pu perdre seule),
+//     celui de la copie n'est pas recopie : il ne sert que si l'hote finit sans
+//     rien envoyer ;
 //   - l'invite le recopie dans sa save juste avant que le jeu ne l'ouvre
 //     (team_prepare_own_save, appele par mgmp_savefile a cote du monde), apres
 //     une copie de securite. Arrive trop tard (sa save a ete chargee depuis le
 //     depart), un chat n'est recopie que s'il n'a pas change depuis le depart.
-//     Une fenetre le lui dit, une fois chez lui. Son rangement aussi, s'il a
+//     Une fois chez lui, la fenetre « Recharger » (mm_offer_reload) le lui
+//     dit et rouvre sa save s'il le veut. Son rangement aussi, s'il a
 //     equipe ses chats au depart (mm_gear) : il devient, dans la meme
 //     transaction, celui de la photo que l'hote a appliquee -- si tous ses chats
 //     sont recopies et si le rangement de la save n'a pas change depuis
@@ -188,8 +192,8 @@ void team_guest_storage_after(uint8_t seq, const std::vector<uint8_t>& post);
 // mixte.) Pour la fenetre « Rejoindre l'aventure ».
 bool team_guest_has_cats_in_run();
 // Mewgenics Multi (protocole 63, mm_gift) : un depart de ses chats en invite, rentre
-// (l'etat final est arrive), dont le rangement (photo prise a « J'arrive », mm_gear)
-// attend d'etre remis dans la save chargee -- au prochain chargement de celle-ci
+// (l'etat final est arrive), dont le rangement (photo prise a « J'arrive », mm_gear,
+// et appliquee par l'hote) attend d'etre remis dans la save chargee -- au prochain chargement de celle-ci
 // (apply_results). Il ne doit pas changer d'ici la : sinon il est laisse tel quel
 // (kStorageChanged), et les objets partis sur ses chats y restent aussi.
 bool team_guest_storage_pending();

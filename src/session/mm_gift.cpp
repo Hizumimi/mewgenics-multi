@@ -290,7 +290,7 @@ bool items_blocked(std::string* why) {
     if (cats_away()) {
         if (why)
             *why = u8"ton rangement attend ce que tes chats rapportent de l'aventure de l'hôte (s'ils sont "
-                   u8"rentrés, recharge ta save depuis le menu)";
+                   u8"rentrés, recharge ta save : Échap, « Quitter vers le menu », puis « Jouer » et ta save)";
         return true;
     }
     if (storage_held()) {

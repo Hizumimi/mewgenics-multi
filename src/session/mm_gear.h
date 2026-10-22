@@ -43,12 +43,15 @@
 //     clic est retenu. Les fleches et le tri restent a chacun, ainsi que les
 //     confirmations du jeu en equipant. Les clics de l'hote ne sont plus rejoues
 //     chez l'invite, sauf « Valider » (mm_embark) ; celui de l'invite est
-//     retenu, avec une fenetre une fois.
+//     retenu, avec une fenetre une fois, mais c'est son « fini » : sa derniere
+//     photo part. Le premier « Valider » de l'hote est retenu, avec une
+//     fenetre, si un invite qui suit n'a pas fini : le suivant passe.
 //   - Invite : toutes les 0,5 s, une photo de ses chats (serialises par le jeu)
 //     et de son rangement ; si elle a change, elle part chez l'hote (MSG_TEAM
-//     kTeamGear, numerotee). Quand le « Valider » de l'hote arrive (ou que son
-//     ecran se ferme), une derniere photo (refaite si l'envoi echoue), puis ses
-//     objets sont grises.
+//     kTeamGear, numerotee). Quand il valide, que le « Valider » de l'hote
+//     arrive ou que son ecran se ferme, une derniere photo (refaite si l'envoi
+//     echoue), puis ses objets sont grises. Rien a equiper (son rangement pas
+//     charge) : « fini » des l'ouverture.
 //   - Hote : il garde la derniere photo de chaque invite. Arrive sur la carte,
 //     juste avant de publier son aventure (gear_hold_publish), il attend 3 s au
 //     plus les dernieres photos de ceux qui suivent, puis applique chacune a ses

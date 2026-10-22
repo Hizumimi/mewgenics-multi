@@ -379,7 +379,7 @@ static void test_screen() {
     CHECK(has(s.text, u8"Ton butin t'attend dans ton rangement"));
     v.at_home = true;
     s = loot_screen(v);
-    CHECK(has(s.text, "recharge-la"));
+    CHECK(has(s.text, u8"la fenêtre suivante") && s.text.find("retourne au menu") == std::string::npos);
     // Gagne mais pas donne (l'hote ne l'avait plus) : dit a part.
     v.at_home = false; v.track_received = true; v.received = 0;
     s = loot_screen(v);

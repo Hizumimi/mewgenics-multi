@@ -933,6 +933,9 @@ void guest_give(const LootMsg& m) {
         if (ok) {
             if (g.noted.size() >= kMaxNoted) g.noted.erase(g.noted.begin());
             g.noted.push_back(key);
+            // Deja chez lui, sa save ouverte : la fenetre « Recharger » (mm_menu),
+            // apres le defile (loot_holds_home).
+            mm_offer_reload(u8"Butin : " + item_name(m.index) + ".");
         }
     }
     r.ok = ok ? 1 : 0;

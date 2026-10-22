@@ -573,6 +573,10 @@ void embark_pump() {
                 guest_reset("l'hote est deja parti : il le rejoint sur la carte");
                 break;
             }
+            // Sa save attend encore la copie (a 3 ou 4, le vote attend les autres
+            // reponses, sans delai) : le delai ne compte qu'a partir de son
+            // chargement. Un vote annule, « Annuler » ou une coupure le liberent.
+            if (savefile_join_armed()) g.join_from = g.now;
             // La copie de la maison de l'hote est chargee : il le dit.
             if (savefile_in_coop() && mm_house()) {
                 g.guest    = Guest::Ready;
@@ -732,6 +736,13 @@ void embark_no_wait() {
     log_line("EMBARK", "l'hote n'attend plus son equipe");
 }
 
+void embark_forget_joiner(uint8_t peer) {
+    if ((g.host != Host::Waiting && g.host != Host::Going) || peer >= 32 || !(g.joiners & (1u << peer))) return;
+    g.joiners &= ~(1u << peer);
+    g.ready   &= ~(1u << peer);
+    log_line("EMBARK", "%s ne vient plus : l'hote ne l'attend plus", mm_peer_name(peer).c_str());
+}
+
 std::string embark_wait_text() {
     std::string lines;
     for (uint8_t id = 1; id < 8; ++id) {
@@ -889,6 +900,7 @@ void embark_on_mm(uint8_t from, const MmMsg& m) {
         case kEmbarkCollarReq:
         case kEmbarkCollarSet:
         case kEmbarkChooserOpen:
+        case kEmbarkCollarsDone:
             collars_on_mm(from, m);
             return;
         case kEmbarkGone:
@@ -952,6 +964,11 @@ void embark_on_mm(uint8_t from, const MmMsg& m) {
     if (m.a == kEmbarkAlive) {
         if (net_role() != NetRole::Client || from != kHostPeer || m.b != g.gseq) return;
         if (g.guest == Guest::Departed) g.last_click = g.now;
+        // Arrive trop tard, ou miroir fini avant l'hote : il attend la copie de
+        // l'aventure, publiee seulement quand l'hote quitte ces ecrans -- pas de
+        // « Retour a la maison » tant qu'il y est.
+        if (g.late_until)   g.late_until   = g.now + kLateMs;
+        if (g.linger_until) g.linger_until = g.now + kLingerMs;
         return;
     }
     if (m.a == kEmbarkClick) {
