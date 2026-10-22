@@ -30,8 +30,10 @@ jeu à plusieurs, copie du document de conception en ligne) et `docs/NOTES_MGMP.
   (mgmp) → **66**.
 - **Où on en est (22 octobre)** : la **build 52** (commit `9606ec7`, protocole 66)
   est installée chez Hizu depuis le 18 octobre au soir, et le zip pour son ami est
-  prêt dans le même dossier. **Elle n'a pas encore été jouée.** Elle corrige le gel
-  du 18 octobre (section 7).
+  prêt dans le même dossier. **Elle n'a pas encore été jouée** : aucun journal du
+  mod depuis le 18 octobre, et le dernier lancement, le 20 octobre, a échoué au
+  démarrage du jeu, avant le mod (section 8). Elle corrige le gel du 18 octobre
+  (section 7).
 - **Les joueurs** : Hizu (propriétaire du dépôt, l'hôte en général) et un ami
   (l'invité), chacun sur son PC, par Steam ou par adresse IP. Les deux doivent avoir
   la même build : un protocole différent est refusé à la connexion, avec la raison
@@ -359,6 +361,22 @@ colonne dit ce que l'on sait de sa livraison et d'une partie jouée avec elle
     existe, à chercher avec la méthode de la section 9.
 
 ## 8. Ce qui reste
+
+### D'abord : le lancement raté du 20 octobre
+
+Le 20 octobre vers 21 h 45, un lancement par `Lancer Mewgenics coop.bat` a échoué
+(`Bureau\mgmp\loader.txt`) : le jeu s'est fermé pendant son démarrage, avant la
+première image, donc avant que le mod soit chargé (aucun journal du mod ce jour-là),
+avec le code 3221226505 (`0xC0000409`, un arrêt d'urgence du programme : `abort`,
+`__fastfail` ou dépassement de tampon détecté). Le 22 octobre, `steam_appid.txt`
+(686060) était bien à côté de `Mewgenics.exe`, et le jeu installé est toujours la
+1.1.21239 (même SHA-256). Le loader attribue toute fermeture au démarrage à une
+relance par Steam, mais ce chemin-là sort avec le code 0 : pour un code non nul, son
+message est trompeur (à corriger dans `loader/mgmp_loader.cpp` ; le loader ne
+calcule rien pour les pairs, pas de changement de protocole). Cause inconnue (Steam
+fermé ou pas connecté ?). Au prochain lancement, regarder `loader.txt` ; si ça
+recommence, démarrer le jeu par Steam puis `mgmp_loader.exe --attach <pid>`, comme
+le propose le loader, dit déjà si le jeu seul démarre.
 
 ### À voir marcher en partie
 
