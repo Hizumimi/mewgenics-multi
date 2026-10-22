@@ -8,7 +8,8 @@
 #include "mgmp_tuning.h"
 #include "mgmp_gpak.h"
 #include "mgmp_cursor.h"
-#include "mgmp_lockstep.h"   // lockstep_solo_battle (Mewgenics Multi)
+#include "mgmp_lockstep.h"   // lockstep_solo_battle, lockstep_battle_id (Mewgenics Multi)
+#include "mgmp_battleid.h"   // kNoBattle (Mewgenics Multi)
 #include "mgmp_log.h"
 #include "mgmp_mem.h"
 #include "mgmp_net.h"
@@ -321,6 +322,7 @@ struct Peer {
     uint8_t  owns_turn = 0;
     uint64_t at = 0;
     bool     have = false;
+    uint64_t battle = kNoBattle;     // Mewgenics Multi : le combat ou est ce pointeur
 };
 
 struct State {
@@ -1291,9 +1293,18 @@ void overlay_on_swap(void* window) {
 
     const uint8_t self = net_self();
     const uint64_t now = GetTickCount64();
+    // Mewgenics Multi : un pointeur n'a de sens que sur le plateau ou il est ne.
+    // Le joueur reste a la maison, au menu ou au chargement (kNoBattle) ne voit
+    // donc rien, et un pair d'un autre combat est cache comme dans le reticule
+    // de mgmp_cursor -- il revient des que les deux numeros concordent.
+    const uint64_t here = lockstep_battle_id();
+    auto same_board = [&](const Peer& p) {
+        return test || (here != kNoBattle && p.battle == here);
+    };
     bool any = false;
     for (uint8_t i = 0; i < kMaxPeers && !any; ++i)
-        any = (i != self) && g.peers[i].have && (now - g.peers[i].at <= kStaleMs);
+        any = (i != self) && g.peers[i].have && (now - g.peers[i].at <= kStaleMs)
+              && same_board(g.peers[i]);
     if (!any && !test) {
         if (!g.said_quiet) {
             trace("no peer position has arrived yet -- nothing to draw."
@@ -1388,6 +1399,9 @@ void overlay_on_swap(void* window) {
         if (i == self) continue;
         Peer& p = g.peers[i];
         if (!p.have || now - p.at > kStaleMs) continue;
+        // Cache : au retour, la fleche se pose d'un coup au lieu de glisser depuis
+        // sa position sur l'autre plateau.
+        if (!same_board(p)) { p.placed = false; continue; }
 
         // Chase the reported position. The first sample SNAPS: easing in from
         // (0,0) would send the arrow sailing across the screen the moment a
@@ -1441,6 +1455,7 @@ void overlay_on_message(uint8_t from, const CursorMsg& c) {
     p.ny = c.ny;
     p.mode = c.mode;
     p.owns_turn = c.owns_turn;
+    p.battle = c.battle_id;
     p.at = GetTickCount64();
     if (tune::kCursorTrace && g.traced_peer < 60) {
         trace("TRACE peer %u sent %.3f,%.3f", (unsigned)from, p.nx, p.ny);
