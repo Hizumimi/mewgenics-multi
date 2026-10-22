@@ -2002,8 +2002,14 @@ void host_adventure_pump() {
                 memset(g_peer_run, 0, sizeof(g_peer_run));
                 g_arrival_dismissed = 0;
             }
+            // Un joueur parti : son numero sera redonne a un arrivant, qui n'herite ni
+            // de sa reponse au vote de depart ni d'un « trop tard ».
             for (uint8_t id = 0; id < 8; ++id)
-                if (!(roster & (1u << id))) g_peer_run[id] = false;
+                if (!(roster & (1u << id))) {
+                    g_peer_run[id]   = false;
+                    g_dep_answer[id] = 0;
+                    g_dep_out       &= ~(1u << id);
+                }
             // Un joueur arrive pendant un vote de depart : la demande pour lui
             // aussi (ceux qui ont deja repondu ne la revoient pas s'ils viennent).
             if (g_dep_active && roster != g_host_run_roster) {
@@ -3453,6 +3459,7 @@ void mm_menu_pump() {
                 log_line("MULTI", "depart : annule par le joueur, mais ses chats sont deja partis avec l'hote");
                 g_dep_req_live = false;              // ce vote est fini pour lui : plus propose (panneau compris)
                 g_dep_offer    = false;
+                g_dep_late_seq = g_dep_req_seq;      // ni quand l'hote redit sa demande (changement de joueurs)
                 show_info(fmt(u8"Départ en aventure\n\n"
                               u8"Tes chats sont déjà partis avec l'équipe de %s :\n"
                               u8"tant que tu n'es pas là, l'IA du jeu les joue\n"
