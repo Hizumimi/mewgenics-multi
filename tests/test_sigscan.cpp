@@ -14,6 +14,7 @@
 // hooks whichever of two ICF-folded functions the scan happened to reach first.
 #include "mgmp_sigscan.h"
 #include "mgmp_sigs.generated.h"   // Mewgenics Multi : tous les motifs livres
+#include "mgmp_addresses.h"        // Mewgenics Multi : kSwfCut_SkipPattern
 
 #include <cstdio>
 #include <cstring>
@@ -261,6 +262,17 @@ static void test_generated_tables() {
             CHECK((int)d.insn_end_off <= p.len && d.disp_off + 4u <= d.insn_end_off,
                   "donnee %s : deplacement (%u) ou fin d'instruction (%u) hors du motif (%u octets)",
                   d.name, (unsigned)d.disp_off, (unsigned)d.insn_end_off, (unsigned)p.len);
+    }
+    // Mewgenics Multi : le test de la cinematique que mm_menu cherche avant d'ecrire
+    // (kSwfCut_SkipPattern) -- passe le parseur, et reconnait les octets du jeu en
+    // 0x140829B12 (comisd xmm7,[rdi+0x128] ; ja ; mov byte [rdi+0x119],1).
+    const bool ok = sig_parse(kSwfCut_SkipPattern, &p, err, sizeof(err));
+    CHECK(ok, "kSwfCut_SkipPattern refuse par sig_parse : %s", err);
+    const uint8_t game[] = { 0x66,0x0F,0x2F,0xBF,0x28,0x01,0x00,0x00, 0x0F,0x87,0xA3,0x00,0x00,0x00,
+                             0xC6,0x87,0x19,0x01,0x00,0x00,0x01 };
+    if (ok) {
+        CHECK(p.len == (int)sizeof(game), "kSwfCut_SkipPattern : %d octets", p.len);
+        CHECK(sig_matches_at(game, p), "kSwfCut_SkipPattern ne reconnait pas le code du jeu");
     }
 }
 

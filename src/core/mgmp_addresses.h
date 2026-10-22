@@ -1534,6 +1534,30 @@ constexpr const char kScene_House      [] = "House";
 constexpr const char kScene_MainMenu   [] = "MainMenu";
 constexpr const char kScene_SaveSelect [] = "SaveSelectionScreen";
 
+// Mewgenics Multi : la cinematique d'ouverture apres « Quitter vers le menu ».
+// Ce retour redemarre le jeu a chaud (app+0xDA0 = 1 en 0x14029FDFA ; la boucle
+// 0x1409BA694 detruit les scenes et rappelle l'init), et GameBase::init rejoue
+// MewDirector::init("test00.sav") (0x14075882F) puis PlayCutscene("game_intro")
+// (0x140751A23) dans la scene « Cutscene ». Le menu n'arrive qu'a sa fin.
+//
+// Les composants d'une scene : AddComponent<SwfCutscene> (0x14082A9D0) range le
+// composant en Scene+0xE0[Scene+0xDC] (u32 a +0xDC, capacite a +0xD8). Le
+// nettoyage des scenes (0x14096BC31) remet a nul les entrees dont l'octet +0xF
+// du composant est pose (composant mort).
+constexpr const char kScene_Cutscene[]   = "Cutscene";
+constexpr uintptr_t  kScene_CompCount    = 0xDC;   // u32
+constexpr uintptr_t  kScene_Comps        = 0xE0;   // Component**
+constexpr uintptr_t  kComp_Dead          = 0x0F;   // u8, 1 = a retirer
+// glaiel::SwfCutscene (vtable 0x14111FCA8) : +0x128 (double) monte tant que
+// l'action « SkipCutscene » est maintenue ; l'update (0x140829A00) la compare a
+// 1.0 en 0x140829B12 et, au-dela, pose +0x119 = 1 (saut en cours : fondu, puis
+// la fin normale de la cinematique, qui ouvre le menu). Le motif est ce test
+// meme : il confirme les deux offsets.
+constexpr uintptr_t  kSwfCut_Skipping    = 0x119;  // u8
+constexpr uintptr_t  kSwfCut_SkipHold    = 0x128;  // double
+constexpr const char kSwfCut_SkipPattern[] =
+    "66 0F 2F BF 28 01 00 00 0F 87 ? ? ? ? C6 87 19 01 00 00 01";
+
 // glaiel::Brain -- the Character the brain drives. Read off the two sites in
 // Brain::UpdateDecision described in the PREVIEWFACE target above: one passes
 // [rdi+38h] straight to Character::Face, the other walks it +0x60 -> +0x48,

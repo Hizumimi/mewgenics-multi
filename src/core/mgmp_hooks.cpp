@@ -794,6 +794,9 @@ void* __fastcall h_MewDirInit(void* self, void* name) {
     // le drapeau si la save en reprend une. Celui d'une defense quittee par
     // « Quitter vers le menu » ne doit pas la suivre (mm_team.h).
     team_house_defense_forget_stale();
+    // Mewgenics Multi : le redemarrage a chaud apres « Quitter vers le menu »
+    // (son intro sera passee, mm_menu.h).
+    mm_on_director_init(name);
     if (const void* sub = savefile_redirect_load())
         return o_MewDirInit(self, (void*)sub);
     return o_MewDirInit(self, name);

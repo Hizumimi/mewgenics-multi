@@ -49,6 +49,8 @@
 #include "mm_shop.h"           // les achats en boutique avec sa bourse
 #include "mm_gift.h"           // les dons entre joueurs (protocole 62)
 #include "mgmp_steam.h"        // jouer ensemble par Steam (protocole 59)
+#include "mgmp_rtti.h"         // la cinematique d'ouverture : glaiel::SwfCutscene
+#include "mgmp_sigscan.h"      // ... et le test du jeu qu'on reproduit
 
 #include <winsock2.h>   // avant windows.h : types reseau d'iphlpapi
 #include <ws2tcpip.h>
@@ -435,14 +437,14 @@ char g_peer_names[8][64] = {};
 
 enum class Screen { None, Choice, HostLobby, JoinEntry, ClientLobby, BadAddress, NightWait,
                     NightNotice, DepartWait, EmbarkWait, ArrivalWait, DepartOffer, RunOffer, JoinWait,
-                    HomeOffer, Info, Vote, Loot, QuitRun };
+                    HomeOffer, Info, Vote, Loot, QuitRun, SteamJoinGo };
 
 // Les demandes posees par les clics et par le clavier, traitees au debut de
 // l'image suivante. Un seul emplacement : il n'y a jamais deux clics a la fois.
 enum class Action { None, OpenAuto, StartHost, OpenJoin, DoJoin, ClickPlay, StopSession, OpenBadAddress,
                     CancelNight, NightReadyNow, DepartCancel, DepartYes, DepartNo, RunJoin, RunLater,
                     GoHome, JoinCancel, ArrivalDismiss, EmbarkNoWait, VoteYes, VoteNo, LootYes, LootNo,
-                    QuitRun };
+                    QuitRun, SteamJoinGo };
 Action g_action = Action::None;
 
 // La fenetre du vote du chemin ouverte (mm_vote) : ses boutons, d'apres
@@ -834,6 +836,15 @@ bool client_world_wait_over() {
     return g_frame - g_client_ready_at > 30 * 60;
 }
 
+// Mewgenics Multi : la connexion ne deviendra pas une session -- refusee par
+// l'hote (il ne la coupe que 30 s apres son REFUSE), ou la connexion Steam a
+// echoue (le tunnel local, lui, reste ouvert). Memes tests que client_lobby_text.
+bool client_join_dead() {
+    if (steam_client_on() && steam_client_state(nullptr) == 3) return true;
+    const char* status = session_status();
+    return !session_ready() && status && strstr(status, "refus");
+}
+
 std::string client_lobby_text() {
     const std::string target = fmt("%s", g_join_ip.c_str());
     const NetRole  r  = net_role();
@@ -887,37 +898,52 @@ std::string client_lobby_text() {
                        u8"cliqué sur « Héberger ».", target.c_str());
         return u8"Salon multijoueur\n\nDéconnecté.";
     }
+    // Mewgenics Multi : « Choisir ta sauvegarde » deja clique pendant la connexion.
+    const char* later = g_play_when_world ? u8"\n\nL'écran des sauvegardes s'ouvrira tout seul." : "";
     if (st == NetState::Connecting)
-        return fmt(u8"Salon multijoueur\n\nConnexion à %s...", target.c_str());
+        return fmt(u8"Salon multijoueur\n\nConnexion à %s...%s", target.c_str(), later);
     if (st == NetState::Closed || st == NetState::Failed)
         return u8"Salon multijoueur\n\n[c:red]La connexion avec l'hôte est coupée.[/c]\n"
                u8"Quitte le salon, puis rejoins-le à nouveau.";
     if (!session_ready()) {
         if (steam == 1)
             return fmt(u8"Salon multijoueur\n\nConnexion à %s par Steam...\n"
-                       u8"(quelques secondes)", target.c_str());
-        return u8"Salon multijoueur\n\nConnecté, présentation à l'hôte...";
+                       u8"(quelques secondes)%s", target.c_str(), later);
+        return fmt(u8"Salon multijoueur\n\nConnecté, présentation à l'hôte...%s", later);
     }
 
     const std::string host = peer_name(0);
-    const std::string me   = display_name(mm_local_name());
+    // Mewgenics Multi : tous les joueurs du salon (le PEERS de l'hote), comme
+    // host_lobby_text. Les noms des autres invites ne viennent pas jusqu'ici (leur
+    // HELLO n'est pas relaye) : ils s'affichent « Joueur N ».
+    std::string players = fmt(u8"  %s (hôte)\n  %s (toi)\n", host.c_str(),
+                              display_name(mm_local_name()).c_str());
+    int count = 2;
+    uint8_t ids[8] = {};
+    const uint8_t n = net_peer_count();
+    if (n && net_peer_ids(ids, 8))
+        for (uint8_t i = 0; i < n && i < 8; ++i) {
+            if (ids[i] == 0 || ids[i] == net_self()) continue;
+            players += "  " + peer_name(ids[i]) + "\n";
+            ++count;
+        }
     if (!world_have_host() && !client_world_wait_over())
         return fmt(u8"Salon multijoueur\n\n"
                    u8"Tu as rejoint la partie de %s !\n\n"
-                   u8"Joueurs :\n  %s (hôte)\n  %s\n\n"
+                   u8"Joueurs (%d/4) :\n%s\n"
                    u8"En attente de la partie de %s :\n"
                    u8"dès qu'il aura choisi sa sauvegarde,\n"
                    u8"%s",
-                   host.c_str(), host.c_str(), me.c_str(), host.c_str(),
+                   host.c_str(), count, players.c_str(), host.c_str(),
                    g_play_when_world ? u8"l'écran des sauvegardes s'ouvrira tout seul."
                                      : u8"tu pourras choisir la tienne.");
     return fmt(u8"Salon multijoueur\n\n"
                u8"Tu as rejoint la partie de %s !\n\n"
-               u8"Joueurs :\n  %s (hôte)\n  %s\n\n"
+               u8"Joueurs (%d/4) :\n%s\n"
                u8"Choisis ta sauvegarde : ta maison, tes chats.\n"
                u8"Les PNJ et l'histoire seront ceux de %s,\n"
                u8"et pour partir à l'aventure, tu rejoindras son équipe.",
-               host.c_str(), host.c_str(), me.c_str(), host.c_str());
+               host.c_str(), count, players.c_str(), host.c_str());
 }
 
 // --- ouverture des ecrans --------------------------------------------------------
@@ -1439,6 +1465,9 @@ uint32_t g_run_offer_at    = 0;
 // Il a quitte l'aventure de lui-meme (« Quitter l'aventure ») : on ne la lui
 // repropose plus tout seul -- un clic sur un panneau de sa maison le fait.
 bool     g_run_offer_quiet = false;
+// Mewgenics Multi : le depart arme vient de « Rejoindre » (aventure en cours), pas
+// d'un depart ensemble -- l'attente au menu le dit (join_wait_text).
+bool     g_join_running    = false;
 // « Abandonner l'aventure » dans le menu pause (PauseMenu::TryAbandonRun) : chez
 // un invite dans la copie, notre fenetre « Quitter l'aventure » a la place, a
 // l'image suivante (par-dessus le menu pause, toujours ouvert) ; chez l'hote
@@ -1632,6 +1661,62 @@ void trip_on_button(void* button) {
     if (click) click(button, false);
 }
 
+// --- l'intro du jeu apres « Quitter vers le menu » ------------------------------
+//
+// Ce retour redemarre le jeu a chaud, qui rejoue son intro (« game_intro », 3 a
+// 7 s) avant le menu : a chaque depart, « Rejoindre » ou retour chez soi d'un
+// invite (mgmp_addresses.h, kScene_Cutscene). Armee par le MewDirector::init de
+// ce redemarrage, on la passe comme le jeu le fait quand la touche de saut est
+// maintenue : SwfCutscene+0x128 au-dela de 1.0, tant que le saut n'est pas parti
+// (+0x119). Le jeu fait lui-meme son fondu et sa fin normale, qui ouvre le menu.
+bool g_intro_skip = false;          // arme jusqu'au MainMenu::init
+bool g_intro_said = false;          // passee : dit une fois au journal
+int  g_intro_code = 0;              // le test du jeu : 0 pas vu, 1 trouve, -1 absent
+
+// Le test de 0x140829B12 est-il la, une seule fois (kSwfCut_SkipPattern) ?
+// Cherche une fois par processus ; sinon on ne touche a rien.
+bool intro_code_ok() {
+    if (g_intro_code) return g_intro_code > 0;
+    g_intro_code = -1;
+    SigRegion text;
+    SigPattern p;
+    char err[96] = {};
+    const uint8_t* at = nullptr;
+    if (sigscan_text_section((uintptr_t)GetModuleHandleW(nullptr), &text) &&
+        sig_parse(kSwfCut_SkipPattern, &p, err, sizeof(err)) && sig_find_all(text, p, &at) == 1)
+        g_intro_code = 1;
+    else
+        log_line("MULTI", "!! cinematique d'ouverture : le code du jeu n'est pas celui attendu, "
+                          "elle ne sera pas passee");
+    return g_intro_code > 0;
+}
+
+void intro_skip_pump() {
+    if (!g_intro_skip) return;
+    void* scene = find_scene(kScene_Cutscene);
+    if (!scene) return;
+    uint32_t n = 0;
+    void**   comps = nullptr;
+    if (!mem_read((char*)scene + kScene_CompCount, &n, sizeof(n)) ||
+        !mem_read((char*)scene + kScene_Comps, &comps, sizeof(comps)) || !comps || n > 64)
+        return;
+    for (uint32_t i = 0; i < n; ++i) {
+        void* c = nullptr;
+        uint8_t dead = 1, skipping = 1;
+        if (!mem_read(comps + i, &c, sizeof(c)) || !c) continue;
+        if (!mem_read((char*)c + kComp_Dead, &dead, 1) || dead) continue;
+        char cls[64];
+        if (strcmp(rtti_class_name(c, cls, sizeof(cls)), "glaiel::SwfCutscene") != 0) continue;
+        if (!mem_read((char*)c + kSwfCut_Skipping, &skipping, 1) || skipping) continue;
+        // 2.0 et non 1.0 : la baisse d'une image (touche relachee) la laisse au-dela.
+        const double held = 2.0;
+        if (mem_write((char*)c + kSwfCut_SkipHold, &held, sizeof(held)) && !g_intro_said) {
+            g_intro_said = true;
+            log_line("MULTI", "retour au menu : cinematique d'ouverture du jeu passee");
+        }
+    }
+}
+
 // --- textes ---
 
 std::string host_display() { return peer_name(0); }
@@ -1667,8 +1752,9 @@ std::string arrival_text() {
             lines += "  " + peer_name(id) + (peer_defending(id) ? u8" : défend sa maison\n"
                                                                 : u8" : pas encore là\n");
     return fmt(u8"En attente de ton équipe\n\n%s\n"
-               u8"Si tu avances sans l'attendre, tu diriges\n"
-               u8"ses chats dans les combats jusqu'à son arrivée.", lines.c_str());
+               u8"Si tu avances sans l'attendre, l'IA du jeu\n"
+               u8"joue ses chats dans les combats jusqu'à\n"
+               u8"son arrivée.", lines.c_str());
 }
 
 std::string depart_offer_text() {
@@ -1689,8 +1775,9 @@ std::string run_offer_text() {
     if (team_guest_has_cats_in_run())
         return fmt(u8"Aventure en cours\n\n"
                    u8"%s est en aventure avec tes chats !\n"
-                   u8"Tant que tu n'es pas là, il les dirige.\n"
-                   u8"Rejoins son équipe ?", h.c_str());
+                   u8"Tant que tu n'es pas là, l'IA du jeu les joue\n"
+                   u8"en combat et %s choisit pour eux.\n"
+                   u8"Rejoins son équipe ?", h.c_str(), h.c_str());
     return fmt(u8"Aventure en cours\n\n"
                u8"%s est en aventure !\n"
                u8"Rejoins son équipe ?", h.c_str());
@@ -1713,14 +1800,22 @@ std::string quit_run_text() {
     return fmt(u8"Quitter l'aventure\n\n"
                u8"C'est l'aventure de %s : seul lui peut\n"
                u8"l'abandonner. Elle continue sans toi, et tes\n"
-               u8"chats restent dans son équipe : il les dirige,\n"
-               u8"puis ils rentrent chez toi à la fin.\n\n"
+               u8"chats restent dans son équipe : l'IA du jeu\n"
+               u8"les joue en combat, puis ils rentrent chez\n"
+               u8"toi à la fin.\n\n"
                u8"Tu rentres dans ta maison ? Pour revenir,\n"
                u8"clique sur un panneau de ta maison.", h.c_str());
 }
 
 std::string join_wait_text() {
     const std::string h = host_display();
+    // L'hote garde une demande faite pendant une case ou il a deja choisi
+    // (MM_RUN_REQ) : l'invite ne le sait pas, d'ou le conditionnel.
+    if (g_join_running)
+        return fmt(u8"Rejoindre l'aventure\n\n"
+                   u8"Le jeu de %s t'envoie l'aventure en cours.\n"
+                   u8"S'il est au milieu d'une case (événement,\n"
+                   u8"combat), tu arriveras à son retour sur la carte.", h.c_str());
     return fmt(u8"En route pour l'aventure\n\n"
                u8"La partie de %s va se charger :\n"
                u8"tu partiras avec lui.", h.c_str());
@@ -1945,6 +2040,7 @@ void start_join(const char* why) {
     lockstep_rejoin_run();                   // la reprise de l'hote va arriver : elle compte
     g_dep_offer = false;
     g_run_offer = false;
+    g_join_running = false;                  // RunJoin le remet juste apres
     if (g_night_ready) set_night_ready(false);   // il part : plus pret pour la nuit
     start_menu_trip(why);
 }
@@ -2088,7 +2184,7 @@ void client_adventure_pump() {
                               u8"Ta copie du combat s'est désynchronisée de\n"
                               u8"celle de %s : le combat continuait sans toi,\n"
                               u8"alors tu es rentré. Tes chats restent dans\n"
-                              u8"son équipe, il les dirige.\n\n"
+                              u8"son équipe, l'IA du jeu les joue.\n\n"
                               u8"Pour revenir dans l'aventure, clique sur\n"
                               u8"un panneau de ta maison.", host_display().c_str()));
             g_halt_note_kind = 0;
@@ -2314,7 +2410,15 @@ void adventure_popups() {
 
 // Les mises a jour des fenetres de l'aventure ouvertes (appele chaque image).
 void adventure_live() {
-    if (!g_live.alive || g_live.pressed) return;
+    if (!g_live.alive) return;
+    if (g_live.pressed) {
+        // Une fermeture silencieuse deja decidee que Button::Click a refusee (bouton
+        // encore en animation d'ouverture) : on la refait, popup_press espace les
+        // essais (kPressRetry). Sans relancer la condition : celle de Info est deja
+        // retombee, et la boite, modale, bloquerait le menu ou la carte.
+        if (g_silent == g_live.serial && !g_click_target) popup_press("yes");
+        return;
+    }
     auto close_silently = [] {
         if (g_click_target) return;
         g_silent = g_live.serial;
@@ -2396,6 +2500,10 @@ void __fastcall h_MainMenuInit(void* self) {
     // Le menu principal se reconstruit : la partie d'avant (la copie de
     // l'aventure de l'hote, peut-etre) n'est plus chargee.
     savefile_left_game();
+    // L'intro du redemarrage a chaud est finie : on ne touche plus aux cinematiques.
+    if (g_intro_skip && !g_intro_said)
+        log_line("MULTI", "!! retour au menu : la cinematique d'ouverture n'a pas ete trouvee");
+    g_intro_skip = false;
 
     void* panel = nullptr;
     if (!mem_read((char*)self + kMainMenu_Panel, &panel, sizeof(panel)) || !panel) {
@@ -2905,6 +3013,27 @@ static void steam_menu_pump() {
         return;
     }
     if (!at_main_menu()) {
+        // Mewgenics Multi : dans sa maison (pas en combat ni en evenement, ou un
+        // depart ferait perdre ce qui est en cours), on propose d'y aller : le
+        // trajet vers le menu est celui du mod (start_menu_trip), la connexion part
+        // a l'arrivee, plus bas. « Plus tard » : elle attend son retour au menu.
+        if (!g_steam_join_said && !g_trip.active && find_scene("House") && !find_scene("Battle") &&
+            !find_scene("Event")) {
+            if (g_live.alive) return;                // la fenetre ouverte d'abord
+            if (open_popup(Screen::SteamJoinGo,
+                           fmt(u8"Rejoindre %s\n\n"
+                               u8"Ton jeu va revenir au menu principal (ta partie\n"
+                               u8"est sauvegardée, comme avec « Quitter vers le\n"
+                               u8"menu »), puis rejoindre le salon de %s.\n\n"
+                               u8"Plus tard : il le rejoindra quand tu iras\n"
+                               u8"au menu principal.", who.c_str(), who.c_str()),
+                           u8"Y aller", u8"Plus tard", false, Action::SteamJoinGo, Action::None)) {
+                g_steam_join_said = true;
+                log_line("MULTI", "Steam : « Rejoindre la partie » de %s -- aller au menu principal ?",
+                         who.c_str());
+            }
+            return;
+        }
         if (!g_steam_join_said) {
             g_steam_join_said = true;
             log_line("MULTI", "Steam : salon de %s rejoint au retour au menu principal", who.c_str());
@@ -2960,8 +3089,12 @@ void mm_menu_pump() {
         case Action::ClickPlay:
             // Un invite ne choisit sa save qu'une fois le monde de l'hote arrive
             // (sinon elle garderait le sien jusqu'au chargement suivant).
-            if (net_role() == NetRole::Client && session_ready() && !world_have_host() &&
-                !client_world_wait_over()) {
+            // Mewgenics Multi : des la connexion (net_active), pas seulement une
+            // fois la session prete -- par Steam, elle prend quelques secondes.
+            // Une connexion refusee ou une connexion Steam echouee laisse passer le
+            // clic : l'ecran des sauvegardes s'ouvre, en solo.
+            if (net_role() == NetRole::Client && net_active() && !client_join_dead() &&
+                !world_have_host() && !client_world_wait_over()) {
                 if (!g_play_when_world)
                     log_line("MULTI", "salon : le monde de l'hote n'est pas encore arrive -- l'ecran des "
                                       "sauvegardes s'ouvrira des qu'il sera la");
@@ -3027,6 +3160,7 @@ void mm_menu_pump() {
             // D'abord jeter la copie qui attendrait encore, PUIS demander la
             // nouvelle : start_join vide l'attente, la demande part ensuite.
             start_join("rejoindre l'aventure en cours");
+            g_join_running = true;
             send_simple(MM_RUN_REQ, 1);
             log_line("MULTI", "aventure : ce joueur rejoint l'aventure en cours");
             break;
@@ -3036,7 +3170,7 @@ void mm_menu_pump() {
             break;
         case Action::QuitRun:
             log_line("MULTI", "aventure : ce joueur quitte l'aventure de l'hote (ses chats restent dans "
-                              "l'equipe, l'hote les dirige)");
+                              "l'equipe, l'IA du jeu les joue en combat)");
             g_quitting        = savefile_in_coop();
             g_run_offer_quiet = true;
             g_run_offer       = false;
@@ -3047,6 +3181,10 @@ void mm_menu_pump() {
                 log_line("MULTI", "!! quitter l'aventure : la session est finie, ce joueur choisira sa "
                                   "save au menu");
             start_menu_trip("quitter l'aventure");
+            break;
+        case Action::SteamJoinGo:
+            // g_steam_join reste vrai : steam_menu_pump connecte a l'arrivee au menu.
+            if (g_steam_join) start_menu_trip("rejoindre par Steam");
             break;
         case Action::GoHome:
             g_home_offer = false;
@@ -3100,6 +3238,7 @@ void mm_menu_pump() {
     defense_pump();                 // Mewgenics Multi : la defense de la maison, seul
     team_ui_pump();                 // Mewgenics Multi : fenetres de l'equipe mixte
     trip_pump();
+    intro_skip_pump();              // Mewgenics Multi : l'intro du redemarrage a chaud
     night_pump();
     if (g_night_wait_wanted && !g_live.alive) {
         g_night_wait_wanted = false;              // une seule tentative par clic
@@ -3147,7 +3286,7 @@ void mm_menu_pump() {
             // Mewgenics Multi : « Choisir ta sauvegarde » deja demande, le monde
             // de l'hote est la -- le bouton est rappuye pour lui.
             if (g_play_when_world) {
-                if (net_role() != NetRole::Client || !net_active()) {
+                if (net_role() != NetRole::Client || !net_active() || client_join_dead()) {
                     g_play_when_world = false;
                 } else if ((world_have_host() || client_world_wait_over()) && !g_click_target &&
                            !g_live.pressed && popup_press("yes")) {
@@ -3167,7 +3306,8 @@ void mm_menu_pump() {
             // Plus pret (annule ailleurs : un depart en aventure, par exemple) :
             // l'attente se ferme sans lancer « Annuler ».
             if (!g_night_ready && !g_night_go) {
-                if (!g_live.pressed && !g_click_target) {
+                // Sans garde sur `pressed` : un appui refuse est refait (kPressRetry).
+                if (!g_click_target) {
                     g_silent = g_live.serial;
                     popup_press("yes");
                 }
@@ -3292,12 +3432,25 @@ const char* mm_local_name() {
 // les deux, mgmp_leave peut deja ramener l'invite au menu (si son menu pause
 // est ouvert) : la copie ne compterait plus quand MM_HOST_RUN 0 arriverait, et
 // le retour a la maison serait oublie. On le note donc ici, tout de suite.
+void mm_on_director_init(const void* name) {
+    char file[32] = {};
+    if (!mem_read_std_string(name, file, sizeof(file)) || strcmp(file, "test00.sav") != 0) return;
+    // Premier lancement : le menu n'a jamais ete construit (g_director nul), l'intro
+    // se joue. Hors session, le jeu reste celui du solo.
+    if (!g_director || net_role() == NetRole::None || !intro_code_ok()) return;
+    g_intro_skip = true;
+    g_intro_said = false;
+}
+
 void mm_on_host_left() {
     if (net_role() != NetRole::Client) return;
     if (g_host_in_run)
         log_line("MULTI", "aventure : %s a quitte son aventure", host_display().c_str());
     g_host_in_run   = false;
     g_run_offer     = false;
+    // La prochaine aventure se propose : MM_HOST_RUN 0, qui arrive apres, ne voit
+    // plus de changement et ne le ferait pas.
+    g_run_offer_quiet = false;
     g_peer_run_sent = -1;                    // redire a l'hote ou on en est
     if (savefile_join_armed() && !savefile_in_coop())
         cancel_join("l'aventure de l'hote est finie");
