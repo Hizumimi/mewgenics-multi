@@ -95,7 +95,9 @@ static void test_message() {
     rd.ready = 0;
     w = loot_encode(rd);
     CHECK(loot_decode(w.data(), w.size(), back) && back.ready == 0);
-    w.back() = 2;                                             // ni 0 ni 1
+    w.back() = kLootReadyQuit;                                // il abandonne le defile
+    CHECK(loot_decode(w.data(), w.size(), back) && back.ready == kLootReadyQuit);
+    w.back() = 3;                                             // ni 0, ni 1, ni 2
     CHECK(!loot_decode(w.data(), w.size(), back));
     // Un defile sans objet : le message dit qu'il n'y en a pas.
     LootMsg e; e.op = kLootStart; e.parade = 80; e.seq = 1; e.players = 3;
@@ -235,6 +237,15 @@ static void test_host() {
     w.set_ready(1, true, t + 20);
     CHECK(!w.tick(t + 10 + kLootIntroMs - 1, rng) && w.state(t + 10 + kLootIntroMs - 1).phase == LootPhase::Waiting);
     CHECK(w.tick(t + 10 + kLootIntroMs, rng) && w.state(t + 10 + kLootIntroMs).phase == LootPhase::Choosing);
+    // Lou abandonne avant le premier objet (kLootReadyQuit -> gone) : le defile
+    // part apres l'intro, sans attendre kLootReadyWaitMs.
+    LootHost q;
+    q.start(10, 1, { item("Pipe") }, 0x6, 0, t);
+    q.set_ready(0, true, t + 10);
+    q.set_ready(1, true, t + 20);
+    CHECK(!q.tick(t + 10 + kLootIntroMs, rng));        // Lou n'est pas pret
+    q.gone(2);
+    CHECK(q.tick(t + 10 + kLootIntroMs + 1, rng) && q.state(t + 10 + kLootIntroMs + 1).players == 0x3);
     // Rien : pas de defile.
     LootHost e;
     e.start(6, 1, {}, 0x2, 0, t);

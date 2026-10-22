@@ -136,6 +136,7 @@ struct State {
     ShopLedger         ledger;
     bool               ledger_on  = false;
     uint32_t           ledger_gen = 0;
+    size_t             ledger_cp  = 0;    // achats notes a la derniere image des bourses sur la carte
     std::deque<Req>    reqs;
     uint32_t           bought = 0, refused = 0;
     // la victoire
@@ -240,6 +241,14 @@ bool special_shop(void* shop) {
     uint8_t h = 1, t = 1;
     return !shop || !mem_read((const char*)shop + kShop_House, &h, 1) || h != 0 ||
            !mem_read((const char*)shop + kShop_Treasure, &t, 1) || t != 0;
+}
+
+// L'empreinte d'un achat, pour le retrouver apres un rechargement : sans ce qui
+// change a l'usage (a les charges, c les drapeaux, f l'usure), qui a pu servir
+// en combat entre l'achat et la sauvegarde.
+uint64_t bought_digest(ItemFields f) {
+    f.a = f.c = f.f = 0;
+    return item_digest(f);
 }
 
 // Les objets de la boutique : [begin, end), verifies.
@@ -391,7 +400,7 @@ bool buy_for(void* shop, uintptr_t begin, uint16_t index, const ItemView& v, int
         // L'objet arrive dans le sac avec l'id de celui de la boutique (insert_item
         // le copie) : un exemplaire de plus de cet id.
         const size_t n1 = shop_count(bag_ids(), v.eq_id);
-        for (size_t k = n0; k < n1; ++k) g.ledger.add(v.eq_id, item_digest(v.f), (uint8_t)slot, label);
+        for (size_t k = n0; k < n1; ++k) g.ledger.add(v.eq_id, bought_digest(v.f), (uint8_t)slot, label);
         if (n1 <= n0)
             log_line("SHOP", "%s : %s achete, mais pas retrouve dans le sac (devenu autre chose ?)", who,
                      label.c_str());
@@ -672,11 +681,13 @@ void ledger_pump() {
     if (on && (!g.ledger_on || gen != g.ledger_gen)) {
         if (g.ledger.size()) log_line("SHOP", "nouvelle aventure mixte : %zu achat(s) de la precedente oublies", g.ledger.size());
         g.ledger.clear();
+        g.ledger_cp  = 0;
         g.ledger_on  = true;
         g.ledger_gen = gen;
     } else if (!on && g.ledger_on) {
         if (g.ledger.size()) log_line("SHOP", "fin de l'aventure mixte : %zu achat(s) notes oublies", g.ledger.size());
         g.ledger.clear();
+        g.ledger_cp = 0;
         g.ledger_on = false;
     }
 }
@@ -937,6 +948,15 @@ void shop_on_team(uint8_t from, const uint8_t* data, size_t size) {
     }
 }
 
+void shop_purse_checkpoint() { g.ledger_cp = g.ledger.size(); }
+
+void shop_purse_reloaded() {
+    if (!g.ledger.size()) return;
+    const size_t n = g.ledger.reloaded(g.ledger_cp);
+    log_line("SHOP", "aventure rechargee : %zu achat(s) de la case annulee oublie(s) (rembourse(s)), %zu a retrouver "
+                     "dans le sac a la victoire", n, g.ledger.size());
+}
+
 void shop_victory_before() {
     g.snap = false;
     g.snap_owned.clear();
@@ -953,10 +973,10 @@ void shop_victory_before() {
         std::vector<uint64_t> ids, digests;
         for (const LootStoredItem& b : bag) {
             ids.push_back(b.id);
-            digests.push_back(item_digest(b.f));
+            digests.push_back(bought_digest(b.f));
         }
         if (const size_t n = shop_rekey_owned(g.snap_owned, ids, digests))
-            log_line("SHOP", "victoire : %zu achat(s) retrouve(s) dans le sac par leur empreinte (aventure rechargee ?)",
+            log_line("SHOP", "victoire : %zu achat(s) retrouve(s) dans le sac par leur empreinte (aventure rechargee)",
                      n);
     }
     for (const ShopOwned& o : g.snap_owned) {

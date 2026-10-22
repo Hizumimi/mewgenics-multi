@@ -86,7 +86,7 @@ std::vector<uint8_t> loot_encode(const LootMsg& m) {
         break;
     }
     case kLootReady:
-        put<uint8_t>(b, m.ready ? 1 : 0);
+        put<uint8_t>(b, m.ready > kLootReadyQuit ? 1 : m.ready);
         break;
     case kLootChoose:
         put<uint8_t>(b, m.index);
@@ -160,7 +160,7 @@ bool loot_decode(const uint8_t* p, size_t n, LootMsg& out) {
     }
     case kLootReady:
         m.ready = r.get<uint8_t>();
-        if (r.ok && m.ready > 1) return false;
+        if (r.ok && m.ready > kLootReadyQuit) return false;
         break;
     case kLootChoose:
         m.index  = r.get<uint8_t>();

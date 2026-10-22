@@ -324,6 +324,13 @@ void ShopLedger::add(uint64_t id, uint64_t digest, uint8_t slot, const std::stri
     owned_.push_back(std::move(o));
 }
 
+size_t ShopLedger::reloaded(size_t keep) {
+    const size_t dropped = owned_.size() > keep ? owned_.size() - keep : 0;
+    owned_.resize(owned_.size() - dropped);
+    for (ShopOwned& o : owned_) o.reloaded = true;
+    return dropped;
+}
+
 int ShopLedger::owner(uint64_t id) const {
     for (const ShopOwned& o : owned_)
         if (o.id == id) return o.slot;
@@ -355,11 +362,11 @@ size_t shop_rekey_owned(std::vector<ShopOwned>& owned, const std::vector<uint64_
     std::vector<bool> taken(bag_ids.size(), false);
     for (int k : by_id)
         if (k >= 0) taken[(size_t)k] = true;
-    // shortcut: un achat disparu (equipe, utilise) peut prendre un objet identique
-    // trouve ailleurs dans l'aventure ; reperer le rechargement lui-meme si ca arrive en partie.
+    // shortcut: apres un rechargement, un achat disparu (equipe, utilise) peut
+    // prendre un objet identique trouve ailleurs ; noter l'id relu au chargement si ca arrive en partie.
     size_t n = 0;
     for (size_t i = 0; i < owned.size(); ++i) {
-        if (by_id[i] >= 0 || !owned[i].digest) continue;
+        if (!owned[i].reloaded || by_id[i] >= 0 || !owned[i].digest) continue;
         for (size_t k = 0; k < bag_ids.size() && k < bag_digests.size(); ++k)
             if (!taken[k] && bag_digests[k] == owned[i].digest) {
                 taken[k]    = true;

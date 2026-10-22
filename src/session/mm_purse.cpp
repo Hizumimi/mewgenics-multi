@@ -122,6 +122,7 @@ struct State {
     int64_t   cp_coins   = 0;
     int64_t   cp_food    = 0;
     void*     cp_dir     = nullptr;  // le Director d'alors (un nouveau a chaque chargement)
+    uint64_t  cp_tag     = 0;        // et son etiquette (director_tag)
     std::vector<Gift> cp_gifts;
     bool      reloading  = false;    // l'aventure dechargee (ou un autre Director) pendant le suivi
     // Les appels suivis en cours, du plus exterieur au plus interieur.
@@ -181,6 +182,16 @@ void* director() {
     void* d = nullptr;
     if (!slot || !mem_read(slot, &d, sizeof(d))) return nullptr;
     return d;
+}
+
+// L'etiquette notee a cote de l'emplacement du Director (+8) : son constructeur y
+// copie celle placee juste avant l'objet (0x1403A6BE2), et le jeu reconnait son
+// Director par elle, pas par son adresse (mm_npc.cpp, progress).
+uint64_t director_tag() {
+    const void** slot = (const void**)addr_of_data(D_MewDirectorPtr);
+    uint64_t tag = 0;
+    if (!slot || !mem_read(slot + 1, &tag, sizeof(tag))) return 0;
+    return tag;
 }
 
 void* inventory() {
@@ -386,7 +397,9 @@ void checkpoint() {
     g.cp_coins = g.seen_coins;
     g.cp_food  = g.seen_food;
     g.cp_dir   = director();
+    g.cp_tag   = director_tag();
     g.cp_gifts.clear();
+    shop_purse_checkpoint();                 // la note des achats, au meme instant
 }
 
 // De retour sur la carte apres un rechargement : les bourses de la derniere
@@ -402,6 +415,7 @@ void restore_checkpoint() {
     g.seen_coins = g.cp_coins;
     g.seen_food  = g.cp_food;
     g.finds.clear();                         // celles de la case annulee
+    shop_purse_reloaded();                   // ses achats aussi ; les autres ont de nouveaux ids
     g.dirty = true;
     log_line("PURSE", "aventure rechargee : bourses remises a la derniere sauvegarde (%zu don(s) rejoue(s))",
              g.cp_gifts.size());
@@ -456,8 +470,9 @@ void host_pump() {
     if (g.ended) return;
     // L'hote recharge l'aventure (le menu, puis la meme save) : rien n'est partage
     // en attendant (le compte lu au menu n'est pas celui de l'aventure) ; de retour
-    // sur la carte, les bourses reviennent a la derniere sauvegarde.
-    if (!savefile_adventure_is_loaded() || director() != g.cp_dir) {
+    // sur la carte, les bourses reviennent a la derniere sauvegarde. Une fois leve,
+    // le drapeau y mene toujours : le Director recharge peut avoir la meme adresse.
+    if (g.reloading || !savefile_adventure_is_loaded() || director() != g.cp_dir || director_tag() != g.cp_tag) {
         if (!g.reloading)
             log_line("PURSE", "l'aventure n'est plus chargee (rechargement ?) : les bourses attendent la carte");
         g.reloading = true;

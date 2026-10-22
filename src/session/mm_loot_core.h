@@ -32,7 +32,8 @@
 //               bit par numero de joueur), u8 nombre d'objets (0 : pas de defile),
 //               puis chaque objet : nom, texte (u16 n + octets), a, b, c, d (u32),
 //               e, f (u8).
-//   kLootReady  invite -> hote : u8 1 il voit le defile, 0 il ne le voit plus.
+//   kLootReady  invite -> hote : u8 1 il voit le defile, 0 il ne le voit plus,
+//               2 il l'a abandonne (kLootReadyQuit : l'hote le retire du defile).
 //   kLootChoose invite -> hote : u8 objet, u8 choix (LootChoice).
 //   kLootState  hote -> invites : u8 objet, u8 phase (LootPhase), u32 ms restantes,
 //               u32 joueurs, u32 prets, u32 ont choisi cet objet, u8 decide,
@@ -60,6 +61,7 @@ constexpr uint32_t kLootIntroMs     = 2500;     // au moins, la fenetre d'attent
 constexpr size_t   kLootMaxItems    = 64;
 constexpr uint8_t  kLootNobody      = 0xFF;
 constexpr uint8_t  kLootUndecided   = 0xFE;
+constexpr uint8_t  kLootReadyQuit   = 2;        // kLootReady : l'invite a abandonne le defile
 constexpr int      kLootMaxRerolls  = 20;
 
 enum LootChoice : uint8_t { kLootNone = 0, kLootPass = 1, kLootGreed = 2, kLootNeed = 3 };
