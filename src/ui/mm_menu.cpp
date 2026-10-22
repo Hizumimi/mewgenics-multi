@@ -2049,9 +2049,9 @@ void client_adventure_pump() {
         // se sont pas finies ensemble (mgmp_orphan.h) -- l'hote avait fini et pas
         // lui (personne ne joue plus son combat), ou l'inverse. Meme sortie : une
         // copie qui a diverge ne se rattrape pas, la save de l'hote la remplacera.
-        // Mewgenics Multi : ou une case de l'hote dont il est membre n'a pas pu
-        // etre suivie ici (follow_refused_member) -- l'hote l'attendrait a la
-        // barriere du combat pour toujours. Meme sortie.
+        // Mewgenics Multi : ou une case de l'hote n'a pas pu etre suivie ici
+        // (follow_refused_member) -- l'hote l'attendrait pour toujours, a la
+        // barriere du combat ou aux choix de ses chats. Meme sortie.
         const uint8_t orphan = lockstep_orphan();
         const bool can_leave = savefile_in_coop() && !g_quitting && !g_trip.active;
         const bool halted    = lockstep_halted_watching();

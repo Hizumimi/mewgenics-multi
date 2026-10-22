@@ -12,7 +12,6 @@
 #include "mm_menu.h"         // mm_run_peers_mask : les membres d'un combat (Mewgenics Multi)
 #include "mgmp_savefile.h"   // savefile_in_coop (Mewgenics Multi)
 #include "mgmp_lockstep.h"
-#include "mgmp_members.h"    // member_in (Mewgenics Multi)
 #include "mgmp_net.h"
 #include "mgmp_config.h"
 #include "mgmp_tuning.h"
@@ -102,7 +101,6 @@ struct State {
         bool     live_held = false; // Mewgenics Multi : « attend la fin de sa case » deja dit
         uint64_t nem_since = 0;     // Mewgenics Multi : premiere tentative de recopier la Nemesis
         bool     nem_said  = false; // Mewgenics Multi : l'ecart d'id du combat de la Nemesis deja dit
-        uint8_t  members   = 0;     // Mewgenics Multi : EnterNodeMsg::members (voir refused_member)
     };
     PendingNode pending_q[kMaxPendingNodes];
     uint32_t    pending_head  = 0;
@@ -115,11 +113,12 @@ struct State {
     // follow_epoch.
     uint32_t    epoch = 0;
 
-    // Mewgenics Multi (invite) : une case de l'hote dont il est membre vient d'etre
-    // abandonnee ici (carte ou graine differente, Nemesis impossible a rejouer,
-    // file pleine). L'hote l'attend a la barriere du combat, sans delai : il rentre
-    // chez lui (mm_menu, follow_refused_member) -- MM_PEER_RUN 0, l'hote prend ses
-    // chats, et la copie de l'hote le remettra d'accord en revenant.
+    // Mewgenics Multi (invite) : une case de l'hote vient d'etre abandonnee ici
+    // (carte ou graine differente, Nemesis impossible a rejouer, file pleine). Membre,
+    // l'hote l'attend a la barriere du combat ; membre ou non (un arrivant en pleine
+    // case), ses chats y montent de niveau et l'hote attend ses choix -- sans delai.
+    // Il rentre chez lui (mm_menu, follow_refused_member) : MM_PEER_RUN 0, l'hote
+    // prend ses chats, et la copie de l'hote le remettra d'accord en revenant.
     bool        refused_member = false;
 
     // The node this peer is standing in, remembered so a peer that connects
@@ -223,11 +222,11 @@ void pending_pop() {
 void pending_clear() { g.pending_head = 0; g.pending_count = 0; }
 
 // Mewgenics Multi : une case de l'hote abandonnee ici -- la couche des choix
-// l'oublie, et ce joueur rentre chez lui s'il en est membre (0 : inconnu, il
-// l'est). Guard tenu.
-void node_given_up(uint64_t seed, uint8_t members) {
+// l'oublie, et ce joueur rentre chez lui, membre ou non : sa copie a diverge, et
+// l'hote attendrait aussi les choix de ses chats (voir refused_member). Guard tenu.
+void node_given_up(uint64_t seed) {
     choice_on_node_skipped(seed);
-    if (!members || member_in(members, net_self())) g.refused_member = true;
+    if (savefile_in_coop()) g.refused_member = true;
 }
 
 bool read_nodes(void* map, uint32_t& count, void*& data) {
@@ -892,7 +891,7 @@ void follow_on_message(const EnterNodeMsg& m) {
                            " to follow the run and the two are no longer the same"
                            " run.",
                  g.pending_count, m.index);
-        node_given_up(m.seed0, m.members);
+        node_given_up(m.seed0);
         return;
     }
 
@@ -915,7 +914,6 @@ void follow_on_message(const EnterNodeMsg& m) {
     p.live_held = false;
     p.nem_since = 0;
     p.nem_said  = false;
-    p.members   = m.members;
     // Mewgenics Multi (protocole 59) : ce joueur va y entrer -- un choix de l'hote
     // pour cette case est a garder (voir choice_on_node_announced).
     choice_on_node_announced(m.seed0);
@@ -1070,9 +1068,8 @@ void* follow_map_update(void* map_screen) {
                            " following; the two runs are not the same run",
                  p.count, count);
         const uint64_t lost = p.seed;
-        const uint8_t  members = p.members;
         pending_pop();
-        node_given_up(lost, members);
+        node_given_up(lost);
         return nullptr;
     }
 
@@ -1081,9 +1078,8 @@ void* follow_map_update(void* map_screen) {
         log_line("FOLLOW", "!! node %u is out of range on our map (%u nodes)",
                  p.index, count);
         const uint64_t lost = p.seed;
-        const uint8_t  members = p.members;
         pending_pop();
-        node_given_up(lost, members);
+        node_given_up(lost);
         return nullptr;
     }
 
@@ -1120,11 +1116,10 @@ void* follow_map_update(void* map_screen) {
             // deux (une transition en cours) : on reessaie. Un etat impossible a
             // recopier ne s'arrangera pas : abandon tout de suite.
             if (na == NemApply::Done && waited < kNemesisFightRetryMs) return nullptr;
-            const uint8_t members = p.members;
             pending_pop();
             log_line("FOLLOW", "!! combat de la Nemesis sur la case %u : impossible a rejouer ici apres %llu ms -- "
                                "abandonne, ce joueur ne le suivra pas", entering, (unsigned long long)waited);
-            node_given_up(id, members);
+            node_given_up(id);
             return nullptr;
         }
         pending_pop();
@@ -1153,9 +1148,8 @@ void* follow_map_update(void* map_screen) {
                  p.index, (unsigned long long)seed,
                  (unsigned long long)p.seed);
         const uint64_t lost = p.seed;
-        const uint8_t  members = p.members;
         pending_pop();
-        node_given_up(lost, members);
+        node_given_up(lost);
         return nullptr;
     }
 
