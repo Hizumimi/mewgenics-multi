@@ -275,6 +275,7 @@ struct State {
     const void** director_slot = nullptr;
     bool     said_no_flush = false;
     bool     said_mid_node = false;
+    bool     said_map_idle = false;   // Mewgenics Multi : carte arretee, hors case
 
     // --- client ---
     uint8_t* blob      = nullptr;
@@ -482,15 +483,26 @@ bool flush_live_run() {
     // tourne par moments pendant un evenement (voir follow_node_live). Ecrire la
     // save a ce moment-la est le meme coin : la case en cours, pas resolue, et la
     // save de l'hote lui-meme reecrite ainsi.
+    // Mewgenics Multi : deux raisons, deux lignes dites chacune une fois. La
+    // carte arretee hors d'une case (une fenetre, un ecran par-dessus) n'est pas
+    // « inside a node » : la save sur le disque est celle du retour sur la carte.
     if (!follow_on_map() || follow_node_live()) {
-        if (!g.said_mid_node) {
-            g.said_mid_node = true;
-            log_line("SAVEFILE", "not flushing: the run is inside a node, and "
-                                 "save_adventure is a node-boundary function -- "
-                                 "writing here would persist an unresolved node "
-                                 "and wedge the run. Sending the last checkpoint; "
-                                 "the joiner is caught up by CATDATA + the action "
-                                 "replay.");
+        const bool in_node = follow_in_node();
+        bool& said = in_node ? g.said_mid_node : g.said_map_idle;
+        if (!said) {
+            said = true;
+            if (in_node)
+                log_line("SAVEFILE", "not flushing: the run is inside a node, and "
+                                     "save_adventure is a node-boundary function -- "
+                                     "writing here would persist an unresolved node "
+                                     "and wedge the run. Sending the last checkpoint; "
+                                     "the joiner is caught up by CATDATA + the action "
+                                     "replay.");
+            else
+                log_line("SAVEFILE", "not flushing: the map is not running (a window or "
+                                     "a screen over it) -- the save on disk is the last "
+                                     "return to the map; the cats, the inventory and the "
+                                     "run history follow.");
         }
         return false;
     }
@@ -575,6 +587,12 @@ bool publish(uint8_t to, bool fresh) {
         // prises (lockstep_catchup) le menent ou en est l'hote.
         log_line("SAVEFILE", "   (inside a node: the joiner gets the last checkpoint, then the "
                              "node's entry state and the decisions already taken)");
+    } else if (in_run && g.click_mtime && mtime != g.click_mtime && g.save_adventure &&
+               g.director_slot) {
+        // Mewgenics Multi : le flush ne pouvait etre refuse que par la carte
+        // arretee (flush_live_run) -- pas une anomalie, pas de « !! ».
+        log_line("SAVEFILE", "   (the map is not running: the joiner gets the save of the last "
+                             "return to the map, then the current cats, inventory and run history)");
     } else if (in_run && g.click_mtime && mtime != g.click_mtime) {
         log_line("SAVEFILE", "!! the host has saved progress since choosing this "
                              "file and the live run could not be flushed -- the "
@@ -664,7 +682,25 @@ void savefile_shutdown() {
 void savefile_set_base(uintptr_t base) {
     ensure_state();
     g.save_adventure = nullptr;
-    g.director_slot  = nullptr;
+    // Mewgenics Multi : le director et Button::Click AVANT le test de
+    // save_adventure -- sans eux, plus d'aventure vue (adventure_is_loaded_impl)
+    // ni d'appui sur « Jouer », et le repli annonce ci-dessous n'existait pas.
+    g.director_slot  = (const void**)addr_of_data(D_MewDirectorPtr);
+
+    // glaiel::Button::Click, for pressing Play on a client stuck on the menu.
+    // Its own feature turns itself off by name if it does not resolve, which is
+    // the graded-refusal rule: a client that cannot press Play is back to where
+    // it was before this existed -- waiting for a human -- and the log has to
+    // say that rather than let the player wonder.
+    g.button_click = nullptr;
+    const uintptr_t click = addr_of_call(C_ButtonClick);
+    if (!click)
+        log_line_lvl(LogLevel::Error, "SAVEFILE",
+                     "!! %s did not resolve by signature -- this peer cannot press "
+                     "Play for itself and a client will have to do it by hand",
+                     kCalls[C_ButtonClick].name);
+    else
+        g.button_click = (void(*)(void*, bool))click;
 
     // This is the target the second signature window existed for:
     // save_adventure and MewDirector::ContinueAdventure are byte-identical for
@@ -684,22 +720,6 @@ void savefile_set_base(uintptr_t base) {
         return;
     }
     g.save_adventure = (void(*)(void*))addr;
-    g.director_slot  = (const void**)addr_of_data(D_MewDirectorPtr);
-
-    // glaiel::Button::Click, for pressing Play on a client stuck on the menu.
-    // Its own feature turns itself off by name if it does not resolve, which is
-    // the graded-refusal rule: a client that cannot press Play is back to where
-    // it was before this existed -- waiting for a human -- and the log has to
-    // say that rather than let the player wonder.
-    g.button_click = nullptr;
-    const uintptr_t click = addr_of_call(C_ButtonClick);
-    if (!click)
-        log_line_lvl(LogLevel::Error, "SAVEFILE",
-                     "!! %s did not resolve by signature -- this peer cannot press "
-                     "Play for itself and a client will have to do it by hand",
-                     kCalls[C_ButtonClick].name);
-    else
-        g.button_click = (void(*)(void*, bool))click;
 }
 
 void savefile_catchup(uint8_t peer) {

@@ -19,7 +19,9 @@
 //
 // THE MECHANISM, one screen earlier than the map layer's:
 //
-//     ContinueSlot(SaveSelection* this, int slot, bool play_sound) @ 0x1401BCE90
+//     ContinueSlot(SaveSelection* this, int slot, bool play_sound) @ 0x1401BD8B0
+//     (Mewgenics Multi : l'ancienne adresse 0x1401BCE90 venait d'un autre build ;
+//     dans 1.1.21239 elle tombe au milieu de 0x1401BCCD0..0x1401BD01C, .pdata)
 //
 // Every route from the save-selection screen into a run passes through it (two
 // callers, both Button callbacks; its only data xref is .pdata, so it is not
