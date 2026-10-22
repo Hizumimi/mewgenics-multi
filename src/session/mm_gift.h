@@ -115,7 +115,7 @@ struct TradeView {
     bool        pending = false;           // son don attend sa reponse
     std::string status;                    // la derniere nouvelle de ses dons (UTF-8)
     uint32_t    status_id = 0;
-    bool        status_kept = false;       // ... et elle dit que son don est passe
+    uint32_t    kept_count  = 0;           // ses dons passes, meme en retard (mm_trade_ui oublie le choix)
     std::vector<TradeToast> toasts;        // les nouvelles de moins de 8 s (des fenetres du jeu)
 };
 

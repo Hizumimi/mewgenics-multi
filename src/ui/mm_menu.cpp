@@ -2402,7 +2402,9 @@ void adventure_live() {
 // « Échanger ». Son clic appelle PauseMenu::TryAbandonRun (0x140296FB0, par le
 // lambda 0x14029CDB0) : h_TryAbandonRun ouvre alors la suite « Échanger ». Pendant
 // « Défendre ! », c'est « Abandonner le combat » (MewDirector+0x70C) : gift_house_open
-// l'exclut, et un bouton que le jeu montre n'est jamais a nous.
+// l'exclut, et un bouton que le jeu montre n'est jamais a nous (le notre porte le
+// libelle « Échanger », relu a chaque image : un menu pause suivant peut reprendre
+// son adresse).
 constexpr uintptr_t kBtn_Clip        = 0x48;   // Button+0x48 : son clip SWF
 constexpr uintptr_t kClip_Flags      = 0x08;   // Clip+8 : ses drapeaux
 constexpr uint8_t   kClip_Visible    = 0x20;   // ... dont « visible »
@@ -2420,6 +2422,8 @@ bool trade_button_wanted() {
            !find_scene("ActSelection");
 }
 
+bool read_game_wstring(const GameWString* s, std::wstring& out);   // plus bas
+
 // Apres Button::update de chaque bouton : celui-ci, s'il est le GiveUp du menu pause.
 void trade_on_button(void* b) {
     char name[64] = {};
@@ -2432,7 +2436,15 @@ void trade_on_button(void* b) {
         !clip || !mem_read((char*)clip + kClip_Flags, &flags, 1))
         return;
     const bool want = trade_button_wanted();
-    if (b == g_trade_btn && (flags & kClip_Visible)) {
+    // Le menu pause est refait a chaque Echap : le GiveUp d'un menu suivant peut
+    // reprendre l'adresse du notre. Il n'est a nous que s'il porte encore « Échanger ».
+    if (b == g_trade_btn) {
+        std::wstring label;
+        if (!(flags & kClip_Visible) || !read_game_wstring((const GameWString*)((char*)b + kButton_Label), label) ||
+            label != utf8_to_wide(u8"Échanger"))
+            g_trade_btn = nullptr;
+    }
+    if (b == g_trade_btn) {
         if (want) {
             g_trade_btn_at = g_frame;
             return;
@@ -2456,7 +2468,13 @@ void trade_on_button(void* b) {
         log_line("MULTI", "!! menu pause : le bouton « Abandonner » cache n'a pas pu etre remontre");
         return;
     }
-    if (!set_button_label(b, u8"Échanger")) log_line("MULTI", "!! menu pause : libelle « Echanger » impossible");
+    // Sans son libelle, il ne serait plus reconnu (plus haut) : un clic serait l'abandon du jeu.
+    if (!set_button_label(b, u8"Échanger")) {
+        mem_write((char*)b + kBtn_State, &state, sizeof(state));
+        mem_write((char*)clip + kClip_Flags, &flags, 1);
+        log_line("MULTI", "!! menu pause : libelle « Echanger » impossible -- le bouton reste cache");
+        return;
+    }
     g_trade_btn    = b;
     g_trade_btn_at = g_frame;
     log_line("MULTI", "menu pause de la maison : le bouton « Abandonner » cache devient « Echanger » "

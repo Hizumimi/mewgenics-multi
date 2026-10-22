@@ -53,7 +53,7 @@ struct Trade {
     int64_t   coins   = 0;
     int64_t   food    = 0;
     TradeList list;              // les objets (a la maison)
-    bool      waiting  = false;  // un don parti, sa nouvelle finale pas encore vue
+    uint32_t  kept_seen = 0;     // TradeView::kept_count deja vu
     uint32_t  sent_sid = 0;      // le numero de la nouvelle au moment de « Donner »
     std::vector<Key>  keys;      // recues par trade_ui_key, traitees par trade_ui_pump
     std::vector<Note> notes;     // les nouvelles a montrer (fenetres d'information)
@@ -131,6 +131,11 @@ std::string what_text() {
     return gift_list_text(t.coins, t.food, labels);
 }
 
+// A la maison, pourquoi l'etape des objets est sautee (« Pas d'objets maintenant : ... »).
+std::string items_why_text() {
+    return t.mode == TradeMode::House && !t.v.items_ok && !t.v.items_why.empty() ? "\n" + t.v.items_why : "";
+}
+
 std::string step_text() {
     const TradeView&  v    = t.v;
     const std::string with = std::string(kTitle) + u8" avec " + target_name();
@@ -143,7 +148,7 @@ std::string step_text() {
     case Step::Coins:
     case Step::Food: {
         const bool coins = t.step == Step::Coins;
-        return with + "\n\n" + v.have_text + "\n\n" + (coins ? u8"Pièces à donner : " : u8"Nourriture à donner : ") +
+        return with + "\n\n" + v.have_text + items_why_text() + "\n\n" + (coins ? u8"Pièces à donner : " : u8"Nourriture à donner : ") +
                std::to_string(coins ? t.coins : t.food) + u8"_\n\nTape un nombre (T : tout), puis Entrée.";
     }
     case Step::Items: {
@@ -158,9 +163,10 @@ std::string step_text() {
         const std::string what = what_text();
         if (what.empty())
             return std::string(kTitle) + (first_step() != Step::Confirm ? u8"\n\nTu n'as rien choisi à donner."
-                                                                        : u8"\n\nTu n'as rien à donner pour l'instant.");
+                                                                        : u8"\n\nTu n'as rien à donner pour l'instant.") +
+                   items_why_text();
         return std::string(kTitle) + u8"\n\nDonner " + what + (t.mode == TradeMode::Run ? u8" de ta bourse" : "") +
-               u8"\nà " + target_name() + u8" ?";
+               u8"\nà " + target_name() + u8" ?" + items_why_text();
     }
     case Step::Wait:
         if (v.status_id == t.sent_sid) return std::string(kTitle) + u8"\n\nEnvoi du don...";
@@ -259,7 +265,6 @@ void send() {
     for (size_t i : chosen())
         if (i < t.v.items.size()) ids.push_back(t.v.items[i].id);
     t.sent_sid = t.v.status_id;
-    t.waiting  = true;
     gift_request(t.mode, (uint8_t)t.target, t.coins, t.food, ids);
 }
 
@@ -346,13 +351,19 @@ void take_toasts() {
     }
 }
 
+// La premiere nouvelle qui peut s'ouvrir : celle d'un don recu, qui attend une
+// pause, ne retient pas les autres derriere elle.
 void notes_pump() {
     if (t.notes.empty() || t.step != Step::Off) return;
-    const Note& n = t.notes.front();
     // Celui qui recoit n'est pas arrete : sa nouvelle attend une pause (Echap).
-    if (n.quiet ? !mm_info_quiet() : (mm_info_busy() || mm_game_prompt_open())) return;
-    mm_show_info(n.text, kInfoYieldToFollow);
-    t.notes.erase(t.notes.begin());
+    const bool quiet_ok = mm_info_quiet();
+    const bool loud_ok  = !mm_info_busy() && !mm_game_prompt_open();
+    for (auto it = t.notes.begin(); it != t.notes.end(); ++it)
+        if (it->quiet ? quiet_ok : loud_ok) {
+            mm_show_info(it->text, kInfoYieldToFollow);
+            t.notes.erase(it);
+            return;
+        }
 }
 
 } // namespace
@@ -368,16 +379,14 @@ void trade_ui_pump() {
     const TradeView& v = t.v;
     take_toasts();
 
-    // La nouvelle finale d'un don parti : passe, ce qui etait choisi est oublie ;
-    // refuse, tout reste pour la fois suivante.
-    if (t.waiting && v.status_id != t.sent_sid && !v.pending) {
-        t.waiting = false;
-        if (v.status_kept) {
-            t.coins = 0;
-            t.food  = 0;
-            t.list.picked.clear();
-            t.list.filter.clear();
-        }
+    // Un don passe, meme en retard (apres « Pas de réponse ») : ce qui etait choisi
+    // est oublie ; refuse ou sans reponse, tout reste pour la fois suivante.
+    if (v.kept_count != t.kept_seen) {
+        t.kept_seen = v.kept_count;
+        t.coins     = 0;
+        t.food      = 0;
+        t.list.picked.clear();
+        t.list.filter.clear();
     }
 
     // Un invite que l'hote emmene dans une case : rien ne doit arreter sa carte.

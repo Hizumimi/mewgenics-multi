@@ -156,7 +156,7 @@ struct State {
     std::map<uint64_t, std::string> labels;   // empreinte -> nom affiche
     std::string status;
     uint32_t    status_id = 0;
-    bool        status_kept = false;          // la nouvelle dit que son don est passe
+    uint32_t    kept_count  = 0;              // les nouvelles `kept` (TradeView::kept_count)
     std::vector<Toast> toasts;
     uint32_t    toast_id = 0;
     std::vector<std::string> popups;          // fenetres du jeu a ouvrir, dans sa maison
@@ -388,8 +388,8 @@ std::string label_of(const ItemFields& f) {
 void note(const std::string& text, bool status, bool toast, bool result, bool kept = false) {
     if (status) {
         g.status      = text;
-        g.status_kept = kept;
         ++g.status_id;
+        if (kept) ++g.kept_count;
     }
     if (toast) {
         Toast t;
@@ -1029,7 +1029,7 @@ void publish(bool window) {
     }
     v.status      = g.status;
     v.status_id   = g.status_id;
-    v.status_kept = g.status_kept;
+    v.kept_count  = g.kept_count;
     g.toasts.erase(std::remove_if(g.toasts.begin(), g.toasts.end(),
                                   [&](const Toast& t) { return now - t.at >= kToastMs; }),
                    g.toasts.end());
