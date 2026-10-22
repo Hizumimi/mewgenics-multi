@@ -1,8 +1,8 @@
 # Mewgenics Multi — Document de conception
 
 > Copie du document de conception en ligne
-> (https://claude.ai/code/artifact/5e9195c8-3a1e-446a-a5a6-a43fea7459f7, révision 114,
-> prise le 22 octobre 2026), pour qu'il se lise sans claude.ai. Ses trois schémas
+> (https://claude.ai/code/artifact/5e9195c8-3a1e-446a-a5a6-a43fea7459f7, révision 118,
+> prise le 22 octobre 2026, après la build 53), pour qu'il se lise sans claude.ai. Ses trois schémas
 > n'y sont pas. Le document en ligne est celui que Hizu lit : une règle qui change
 > se note dans les deux. Ce qui a été fait build par build : `docs/PASSATION.md`.
 
@@ -143,7 +143,7 @@ Un joueur qui a choisi Passer ne participe à aucun lancer.
 - Les dés sont lancés par l'hôte, et tout le monde voit les résultats (build 26).
 - Sans choix à la fin des 30 secondes, le joueur passe ; un objet que personne ne veut reste à l'hôte (build 26).
 
-**Défilé** (build 26) : à la victoire d'une aventure mixte, les objets du sac rangés chez l'hôte défilent chez chaque joueur qui a amené des chats, 30 secondes par objet (« Je le veux » puis Besoin ou Cupidité, ou Passer), puis le résultat 4 secondes. Le premier objet attend que chacun ait sa fenêtre ouverte (3 minutes au plus, l'hôte peut commencer avant) ; ensuite, un joueur sans fenêtre passe son tour jusqu'à ce qu'elle s'ouvre, et quand l'hôte ne voit pas le défilé, le temps s'arrête pour tous. Un objet gagné par un invité quitte le rangement de l'hôte quand l'invité l'a pris, et rejoint le rangement de sa save à son prochain chargement, avec ses chats ; en attendant, il est gardé dans un fichier à côté de la save, avec sa bourse.
+**Défilé** (build 26) : à la victoire d'une aventure mixte, les objets du sac rangés chez l'hôte défilent chez chaque joueur qui a amené des chats, 30 secondes par objet (« Je le veux » puis Besoin ou Cupidité, ou Passer), puis le résultat 2 secondes (1 seconde si personne n'en veut ; 4 secondes avant la build 53). Le premier objet attend que chacun ait sa fenêtre ouverte (3 minutes au plus, l'hôte peut commencer avant) ; ensuite, un joueur sans fenêtre passe son tour jusqu'à ce qu'elle s'ouvre, et quand l'hôte ne voit pas le défilé, le temps s'arrête pour tous. Un objet gagné par un invité quitte le rangement de l'hôte quand l'invité l'a pris, et rejoint le rangement de sa save à son prochain chargement, avec ses chats ; en attendant, il est gardé dans un fichier à côté de la save, avec sa bourse.
 
 **Or** (build 21) : chaque joueur qui a amené des chats a sa bourse, que l'hôte tient à côté du compte de l'aventure ; le compte du jeu, lui, ne change pas. Ce qu'un chat trouve dans un événement ou ramasse en combat, et le prix d'un choix d'événement pour lui, vont à la bourse de son propriétaire. En boutique, chacun paie avec sa bourse (build 30). Le reste (provisions, récompenses des combats) est partagé à parts égales, et une bourse peut passer sous zéro. À la victoire, chaque invité encore connecté rapporte sa bourse dans sa maison et l'hôte le reste ; un joueur parti ne touche rien. La fenêtre du vote du chemin montre les trouvailles et la bourse de chacun.
 
@@ -151,10 +151,11 @@ En boutique pendant l'aventure, chacun paie avec sa bourse, et l'objet acheté v
 
 ## Échanges entre joueurs
 
-Chacun peut donner à un autre joueur par un bouton « Échanger » ; celui qui reçoit n'a rien à accepter (décidé le 18 octobre, build 49).
+Chacun peut donner à un autre joueur par « Échanger » ; celui qui reçoit n'a rien à accepter (décidé le 18 octobre, build 49). Depuis la build 53, tout se fait dans les fenêtres du jeu (choix de Hizu, 22 octobre) : à la maison, « Échanger » est un bouton du menu pause (Échap) ; en aventure à plusieurs, la touche E sur la carte. Une suite de fenêtres du jeu demande à qui, combien de pièces, combien de nourriture, quels objets (une liste au clavier), puis le résumé et la réponse.
 
 - **À la maison** : des pièces, de la nourriture et des objets du rangement (16 au plus par don), à un joueur qui est lui aussi dans sa propre maison. Le don arrive tout de suite chez lui, et les deux saves sont enregistrées.
-- **Rien ne se perd** : le don ne quitte la maison du donneur qu'une fois gardé par l'autre. S'il n'est pas dans sa maison, garde l'écran des objets ouvert plus de 20 secondes, part ou ne répond pas, le donneur garde tout et la fenêtre dit pourquoi.
+- **Rien ne se perd** : le don ne quitte la maison du donneur qu'une fois gardé par l'autre. S'il n'est pas dans sa maison, garde l'écran des objets ouvert plus de 20 secondes, part ou ne répond pas, le donneur garde tout, la fenêtre dit pourquoi, et ses choix restent prêts pour la fois suivante.
+- **Celui qui reçoit n'est pas interrompu** : la fenêtre « Cadeau de … » attend sa prochaine pause (build 53).
 - **En aventure à plusieurs**, sur la carte : des pièces et de la nourriture de sa bourse, à la bourse d'un autre joueur. Le compte de l'équipe ne change pas ; les objets sont déjà dans le sac commun.
 
 ## Architecture technique
@@ -191,6 +192,7 @@ Messages réseau à ajouter à ceux de mgmp :
 | Bourses | Hôte | Les bourses, chaque trouvaille, puis ce que chaque invité rapporte à la fin (build 21) |
 | Attribution | Hôte | Nouveau chat donné à un joueur, chats confiés à l'IA |
 | Don | Joueur, relayé par l'hôte | Un don à la maison, sa réponse et qui peut recevoir ; en aventure, un don de bourse vérifié par l'hôte (build 49) |
+| Noms des joueurs | Hôte | Le pseudo de chaque joueur, redit à tous à chaque arrivée : à 3 ou 4, chacun voit le nom des autres invités (build 53) |
 
 ## Plan de développement
 
@@ -216,7 +218,7 @@ Le plus rapide est de partir de mgmp, un mod coop open source qui synchronise d�
 8. **Combat avec des chats de maisons différentes**, en gardant la synchronisation de mgmp : validé le 13 octobre, un combat de 30 tours avec 2 chats chacun, sans désynchronisation.
    - Terminé quand : un combat entier se joue sans désynchronisation.
 9. **Votes** : chemin, puis événements. Dans mgmp, l'hôte décide seul hors combat.
-   - Chemin, build 18, à tester : un clic sur une case est un vote. La fenêtre du jeu montre en direct qui a voté quoi et le temps restant (« Même chemin », « Choisir », « Changer »). Le premier vote lance 30 secondes, qui n'avancent que quand tout le monde est sur la carte ; une égalité est tirée au sort par l'hôte. Le résultat s'affiche 2,5 secondes, puis le pion de l'hôte part et les invités suivent. Le pion d'un invité arrive aussi sur chaque case.
+   - Chemin, build 18, à tester : un clic sur une case est un vote. La fenêtre du jeu montre en direct qui a voté quoi et le temps restant (« Même chemin », « Choisir », « Changer »). Le premier vote lance 30 secondes, qui n'avancent que quand tout le monde est sur la carte ; une égalité est tirée au sort par l'hôte. Le résultat s'affiche 1 seconde quand tout le monde a choisi la même case, 2,5 secondes sinon (build 53), puis le pion de l'hôte part et les invités suivent. Le pion d'un invité arrive aussi sur chaque case.
    - Événements et montées de niveau : chaque choix revient au propriétaire du chat concerné, pas à un vote. La montée de niveau et l'option d'un événement ont marché dans la partie du 17 octobre (build 23) ; le nom de celui qui décide s'affiche pendant un événement depuis la build 24, à tester. Depuis la build 38, la Némésis revient dans une aventure à plusieurs : elle avance chez chacun et son combat se joue ensemble, à tester.
 10. **Butin et or** : l'or est fait, à tester (build 21, chacun sa bourse) ; le butin en objets se partage au défilé, à tester (build 26) ; en boutique, chacun paie avec sa bourse et garde ce qu'il achète, à tester (build 30).
 11. **Mort, spectateur, nouveaux chats, déconnexion et IA** : les recrues vont aux spectateurs et rentrent chez leur joueur (build 28, à tester) ; un joueur qui part en plein combat laisse ses chats à l'hôte, et un combat n'attend plus un absent (builds 27 à 29 ; celui qui revient en plein combat construit le même combat que l'hôte depuis la build 39) ; l'IA du jeu joue les chats d'un absent (builds 32 à 34, à tester).
@@ -262,6 +264,18 @@ Build 23, les événements au propriétaire du chat et les objets sac ouvert, à
 **Build 49, les échanges.** Un bouton « Échanger » ouvre une fenêtre pour donner à un autre joueur, sans qu'il ait à accepter : à la maison, des pièces, de la nourriture et des objets du rangement ; en aventure, des pièces et de la nourriture de sa bourse (voir Échanges entre joueurs). Le donneur ne perd rien tant que l'autre n'a pas gardé le don, ce qu'il donne ne quitte que la save d'où le don est parti, et les deux saves sont enregistrées aussitôt. Trois relectures ont fait serrer le reste : un objet promis à un don en cours, au butin ou à un achat ne se redonne pas, et le rangement d'un invité ne bouge pas tant qu'il attend ce que ses chats rapportent. Protocole 63 : les deux joueurs mettent à jour.
 
 **Build 52, l'orientation des chats en combat, à tester.** La partie du 18 octobre (build 49) s'est figée chez l'invité : le combat était fini chez l'hôte et continuait chez lui. Les échanges n'y étaient pour rien. Au tour 16, Katara a fini son tour tournée vers l'ouest chez l'hôte et vers le sud chez l'invité ; les deux jeux ne comparent pas l'orientation, et au tour 20 une IA ennemie, qui la lit, a joué autrement. En visant, le jeu tourne le chat vers la cible avec une animation de demi-tour qui écrit l'orientation après coup, et seulement chez celui qui vise : 5 parties à deux sur 10 avaient de tels écarts. En combat à plusieurs, le chat ne se tourne plus vers la visée ; il se tourne quand l'action part, pareil chez tous. Si deux copies d'un combat ne finissent quand même pas ensemble, le joueur dont la copie attend en vain rentre chez lui avec un message (un panneau de sa maison le ramène), et un hôte qui attend un joueur dont le combat est fini laisse l'IA du jeu jouer ses chats. Deux relectures ont fait serrer ce filet de secours. Protocole 66 : les deux joueurs mettent à jour.
+
+**Build 53, relecture complète du mod, Échanger dans les fenêtres du jeu, à tester.** Une relecture de tout le mod (16 relecteurs, chaque point vérifié par 3 autres) a confirmé 49 points, tous traités ; une seconde relecture a vérifié l'ensemble. Ce qui change pour les joueurs :
+- L'invité ne regarde plus l'intro du jeu à chaque fois que le mod le fait passer par le menu (départ, rejoindre l'aventure, retour chez lui). « Quitter vers le menu » redémarre le jeu à chaud, et le jeu rejouait son intro ; elle est maintenant passée comme si le joueur maintenait la touche pour la passer : il reste un fondu d'environ 1 seconde.
+- « Échanger » se fait dans les fenêtres du jeu : bouton du menu pause à la maison, touche E sur la carte en aventure (voir « Échanges entre joueurs »).
+- Départ ensemble : le « Valider » d'un invité, aux colliers comme aux objets, dit à l'hôte qu'il a fini ; si l'hôte valide avant, une fenêtre le prévient une fois. Un invité qui clique « Annuler » après le vote part sans ses chats : l'hôte ne l'attend plus, et il pourra rejoindre l'aventure sur la carte.
+- Retour : quand la bourse, le butin, les chats, les recrues ou la récompense d'un PNJ arrivent chez un invité déjà dans sa maison, une seule fenêtre « Ce qui t'attend » propose « Recharger » (le mod recharge sa save) ou « Plus tard ». Tant que l'hôte est en aventure, l'état final vu dans la copie d'un invité n'est plus recopié dans sa save : c'est celui de l'hôte qui compte.
+- Aventure : un invité qui ne peut pas suivre une case de l'hôte rentre chez lui (une fenêtre le dit) au lieu de figer le combat de l'hôte ; un invité au sac ouvert est prévenu que l'hôte est entré dans une case ; un vote est pris même quand la carte de l'hôte est en pause ; un vote ouvert quand le combat de la Némésis commence est abandonné ; un votant n'est écarté qu'après 60 secondes d'absence d'affilée ; une montée de niveau dont la liste diffère chez l'hôte est prise en main par l'hôte, et l'invité choisit chez lui.
+- Butin et bourses : un invité qui abandonne le défilé le dit à l'hôte, qui ne l'attend plus ; après un rechargement de l'aventure par l'hôte, les bourses reviennent à la dernière sauvegarde et les achats en boutique rentrent toujours chez leur acheteur.
+- À 3 ou 4, chacun voit le pseudo des autres invités (et plus « Joueur 3 »). Le salon de l'invité liste tous les joueurs.
+- Combat : un invité arrêté dans le dernier combat d'une aventure redevient membre des combats de la suivante ; un invité dont la connexion tombe en plein combat ne joue plus ses chats seul.
+- Lancement : le .bat dit quand Steam est fermé, les messages du lanceur sont en français et justes, un chemin du jeu avec des accents marche. « Rejoindre la partie » par Steam depuis sa maison propose « Y aller ».
+Protocole 67 : les deux joueurs mettent à jour.
 
 ## Questions ouvertes et sources
 

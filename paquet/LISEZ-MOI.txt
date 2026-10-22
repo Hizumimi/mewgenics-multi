@@ -12,6 +12,8 @@
    avec le Bloc-notes et corrige la ligne "game" en doublant chaque \.
 
 4. Laisse Steam ouvert, puis double-clique sur « Lancer Mewgenics coop.bat ».
+   Si Steam est fermé, la fenêtre noire te le dit : ouvre Steam, attends
+   qu'il soit connecté, puis appuie sur une touche dans cette fenêtre.
    Si Windows affiche « Windows a protégé votre ordinateur », clique sur
    « Informations complémentaires » puis « Exécuter quand même ».
 
@@ -19,8 +21,9 @@
    puis « Héberger », ouvre ta liste d'amis Steam et choisis « Rejoindre la
    partie » sur son nom (ou accepte son invitation « Inviter à jouer »). Ton
    jeu, lancé avec le mod (étape 4), se connecte tout seul : pas d'adresse à
-   taper, ni de port à ouvrir, ni de VPN. Si tu n'es pas au menu principal,
-   la connexion attend que tu y reviennes.
+   taper, ni de port à ouvrir, ni de VPN. Si tu es dans ta maison, une
+   fenêtre te propose d'y aller (« Y aller ») : le jeu revient au menu et se
+   connecte. Ailleurs, la connexion attend que tu reviennes au menu principal.
    Sans Steam : dans le menu du jeu, clique sur « Multijoueur », puis sur
    « Rejoindre ». Tape l'adresse que l'hôte t'a donnée (ou colle-la avec
    Ctrl+V), puis Entrée.
@@ -64,18 +67,24 @@
    fenêtre le lui dit ; il la garde tant qu'il en a deux) ; sans volontaire,
    l'équipe part à 3 chats.
    C'est l'hôte qui clique sur « À l'aventure ! ». Clique sur « J'arrive » :
-   le jeu charge sa partie et tu pars avec lui.
+   le jeu charge sa partie et tu pars avec lui. (Pour charger une partie, le
+   mod repasse par le menu du jeu : l'intro du jeu est alors passée toute
+   seule, il ne reste qu'un court fondu au noir.) Si tu cliques sur
+   « Annuler » une fois le vote passé, l'hôte part sans toi ni tes chats ;
+   tu pourras le rejoindre sur la carte.
    Au choix des colliers de classe, chacun regarde le chat qu'il veut (avec
    les flèches) et choisit les colliers de ses propres chats. Les colliers
    d'un chat qui n'est pas à toi sont grisés, et ceux que posent les autres
    apparaissent tout de suite chez toi. Un collier pris n'est plus libre :
-   le premier qui le prend l'a. C'est l'hôte qui valide, dis-lui quand tes
-   chats ont leurs colliers.
+   le premier qui le prend l'a. Clique sur « Valider » quand tu as fini :
+   l'hôte le sait. C'est son « Valider » qui ferme l'écran pour tout le
+   monde ; s'il valide avant toi, une fenêtre le prévient une fois.
    Au choix des objets, tu retrouves ton propre rangement : équipe tes chats
    avec tes objets, comme chez toi. Les objets d'un chat qui n'est pas à toi
-   sont grisés ; chacun ne voit en direct que ses propres choix. C'est encore
-   l'hôte qui valide, dis-lui quand tes chats sont équipés. Les objets que tu
-   as pris quittent ton rangement : ils reviennent avec tes chats, sur eux.
+   sont grisés ; chacun ne voit en direct que ses propres choix. Là aussi,
+   clique sur « Valider » quand tu as fini : tes choix partent chez l'hôte
+   et se figent, et l'hôte le sait. Les objets que tu as pris quittent ton
+   rangement : ils reviennent avec tes chats, sur eux.
    Puis la carte s'ouvre : d'habitude c'est déjà celle de l'hôte, et rien ne
    se recharge. Sinon, ton jeu charge l'aventure de l'hôte (une fenêtre te le
    dit). Tes chats partent avec toi, et en combat tu diriges les tiens.
@@ -130,7 +139,8 @@
    Ton sac reste grisé tant qu'il ne peut pas être à jour : juste après une
    case (attends que l'hôte soit revenu sur la carte), ou quand il attend
    l'état de l'hôte (ferme-le puis rouvre-le). Quand l'hôte entre dans une
-   case, le jeu attend que tu fermes ton sac pour t'y emmener.
+   case, le jeu attend que tu fermes ton sac pour t'y emmener (une fenêtre
+   te le rappelle).
 
 11. Chacun sa bourse. À l'écran, les pièces et la nourriture de l'aventure
    restent un seul compte (la boutique, les combats et les événements le
@@ -209,8 +219,9 @@
    l'écran, puis l'objet suivant arrive ; à la fin, une fenêtre dit qui a
    remporté quoi.
    Ce que tu remportes va dans ton rangement quand ta save se recharge, avec
-   tes chats (si ta save est déjà ouverte, retourne au menu principal et
-   recharge-la). C'est gardé même si tu fermes le jeu avant : ce sera ajouté
+   tes chats (si ta save est déjà ouverte, une fenêtre « Ce qui t'attend »
+   te propose de la recharger : « Recharger » le fait pour toi, « Plus
+   tard » attend). C'est gardé même si tu fermes le jeu avant : ce sera ajouté
    la prochaine fois que tu chargeras cette save en multijoueur. Ce que les
    autres remportent quitte le rangement de l'hôte.
    Le défilé attend que chacun ait sa fenêtre ouverte (3 minutes au plus ;
@@ -237,9 +248,10 @@
    l'hôte est grisée : ce n'est pas lui qui clique, chaque action part
    après un court instant.
    Si ta copie d'un combat que tu regardes se désynchronise de celle de
-   l'hôte, ou si ton combat ne se finit pas en même temps que le sien,
-   tu rentres chez toi tout seul (une fenêtre te le dit) : un panneau de
-   ta maison te ramène dans l'aventure.
+   l'hôte, si ton combat ne se finit pas en même temps que le sien, ou si
+   ton jeu ne peut pas suivre une case de l'hôte, tu rentres chez toi tout
+   seul (une fenêtre te le dit) : un panneau de ta maison te ramène dans
+   l'aventure.
    Chez l'hôte, abandonner une aventure à plusieurs est une défaite pour
    toute l'équipe : les chats des autres ne rentrent pas non plus (la
    confirmation du jeu le rappelle).
@@ -255,20 +267,32 @@
    chat reste chez l'hôte). Il arrive dans ta maison quand ta save se
    recharge, comme ton butin.
 
-17. Les échanges. Un bouton « Échanger » s'affiche en haut à droite de
-   l'écran (tu peux le déplacer en le tirant par son bord) :
-   - dans ta maison, tu donnes des pièces, de la nourriture et des objets de
-     ton rangement (16 au plus par don) à un joueur qui est lui aussi dans
-     sa maison : choisis à qui, combien, coche les objets, puis « Donner ».
-     Le don arrive chez lui tout de suite (une fenêtre le lui dit), et vos
-     deux saves sont enregistrées. Rien ne quitte ta maison avant qu'il
-     l'ait reçu : s'il n'est pas dans sa maison, ou s'il garde l'écran des
-     objets ouvert trop longtemps, le don ne passe pas et tu gardes tout (la
-     fenêtre te le dit) ;
-   - pendant une aventure à plusieurs, sur la carte, tu donnes des pièces et
-     de la nourriture de ta bourse à la bourse d'un autre joueur (le compte
-     de l'équipe ne change pas). Les objets, eux, sont déjà dans le sac
-     commun.
+17. Les échanges. Tu peux donner à un autre joueur, sans qu'il ait rien à
+   accepter :
+   - dans ta maison : Échap, puis « Échanger » dans le menu pause (sous
+     « Quitter vers le bureau »). Des fenêtres du jeu s'enchaînent : à qui
+     (si vous êtes plus de deux : Haut ou Bas, puis Entrée), combien de
+     pièces, combien de nourriture (tape le nombre, T pour tout, Entrée pour
+     valider, « Passer » pour aucun), puis les objets de ton rangement (16 au
+     plus par don) : Haut et Bas pour aller d'une ligne à l'autre, Espace
+     pour cocher (les objets de même nom sont sur une seule ligne : Gauche et
+     Droite pour en donner plus ou moins), des lettres pour chercher un objet
+     par son nom, Entrée pour finir. Enfin « Donner ... à ... ? » : clique
+     « Donner », et la réponse s'affiche dans la même fenêtre. Échap annule à
+     tout moment.
+     Le don arrive chez lui tout de suite, et vos deux saves sont
+     enregistrées. Rien ne quitte ta maison avant qu'il l'ait reçu : s'il
+     n'est pas dans sa maison, ou s'il garde l'écran des objets ouvert trop
+     longtemps, le don ne passe pas, tu gardes tout, et ce que tu avais
+     choisi reste prêt pour la fois suivante ;
+   - celui qui reçoit n'est jamais interrompu : la fenêtre « Cadeau de ... »
+     s'affiche à sa prochaine pause (Échap) ;
+   - pendant une aventure à plusieurs, sur la carte : la touche E ouvre les
+     mêmes fenêtres, pour donner des pièces et de la nourriture de ta bourse
+     à la bourse d'un autre joueur (le compte de l'équipe ne change pas). Les
+     objets, eux, sont déjà dans le sac commun.
+   Les nombres se tapent au clavier : le réglage « ui » de mgmp.json doit
+   rester activé (il l'est par défaut).
 
 Pendant une aventure, la partie de l'hôte est rangée à part (mgmp_coop.sav) :
 ta propre save ne change qu'à ton retour, pour tes chats et ton rangement.

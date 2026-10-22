@@ -26,13 +26,16 @@ jeu à plusieurs, copie du document de conception en ligne) et `docs/NOTES_MGMP.
   `Bureau\mgmp\PASSATION.md`.
 - **Une build par commit** : chaque push sur `main` est compilé par GitHub Actions
   (Windows, MSVC), testé, et publié en pré-release `build-N` (sauf un commit marqué
-  `[skip ci]`, section 4). 52 builds du 11 au 18 octobre ; protocole réseau 27
-  (mgmp) → **66**.
+  `[skip ci]`, section 4). 52 builds du 11 au 18 octobre, puis la 53 le 22 ;
+  protocole réseau 27 (mgmp) → **67**.
 - **Où on en est (22 octobre)** : la **build 52** (commit `9606ec7`, protocole 66)
-  est installée chez Hizu depuis le 18 octobre au soir, et le zip pour son ami est
-  prêt dans le même dossier. **Elle n'a pas encore été jouée** : aucun journal du
-  mod depuis le 18 octobre (le lancement du 20 octobre a échoué parce que Steam
-  était fermé, section 10). Elle corrige le gel du 18 octobre (section 7).
+  est installée chez Hizu depuis le 18 octobre au soir. **Elle n'a pas été jouée** :
+  aucun journal du mod depuis le 18 octobre (le lancement du 20 octobre a échoué
+  parce que Steam était fermé, section 10). Elle corrige le gel du 18 octobre
+  (section 7). Le 22 octobre, dans Claude Code, une **relecture complète** du mod a
+  donné la **build 53** (protocole 67, section 11) : 49 défauts confirmés et
+  corrigés, l'intro du jeu passée chez l'invité, « Échanger » dans les fenêtres du
+  jeu. Elle n'est pas encore jouée non plus.
 - **Les joueurs** : Hizu (propriétaire du dépôt, l'hôte en général) et un ami
   (l'invité), chacun sur son PC, par Steam ou par adresse IP. Les deux doivent avoir
   le même protocole (en pratique, la même build) : un autre protocole est refusé à la
@@ -45,10 +48,11 @@ jeu à plusieurs, copie du document de conception en ligne) et `docs/NOTES_MGMP.
 |---|---|
 | Le code | ce dépôt : `src/`, `loader/`, `tests/`, `tools/` |
 | Les règles du jeu à plusieurs | document en ligne https://claude.ai/code/artifact/5e9195c8-3a1e-446a-a5a6-a43fea7459f7 ; copie du 22 octobre : `docs/CONCEPTION.md`. Dans « Plan de développement », les builds 1–18 sont dans les étapes numérotées, puis un paragraphe par build ou groupe de builds, les décisions de Hizu datées dans « Questions ouvertes » |
-| Le binaire du jeu | `docs/NOTES_MGMP.md` (écrit par l'auteur de mgmp ; tenues à jour depuis la build 40 : sections « Protocol 59 » à « Protocols 64–66 », « Steam transport », et le paragraphe « protocol 58 » de « Reconnect and mid-fight join » ; avant, les trouvailles sur le binaire sont dans les messages de commit et les commentaires du code) |
-| L'historique du protocole | le commentaire de `kProtoVersion`, `src/net/mgmp_proto.h` ligne 54 : une phrase par version, de 66 (en tête) à 28 (avec deux entrées « 48 »), puis l'historique de mgmp, 2 à 27, en anglais. **Une seule ligne de 24 Ko** : la lire par morceaux (`grep -n -a … \| cut -c1-200`) |
+| Le binaire du jeu | `docs/NOTES_MGMP.md` (écrit par l'auteur de mgmp ; tenues à jour depuis la build 40 : sections « Protocol 59 » à « Protocol 67 », « Steam transport », et le paragraphe « protocol 58 » de « Reconnect and mid-fight join » ; avant, les trouvailles sur le binaire sont dans les messages de commit et les commentaires du code) |
+| L'historique du protocole | le commentaire de `kProtoVersion`, `src/net/mgmp_proto.h` ligne 54 : une phrase par version, de 67 (en tête) à 28 (avec deux entrées « 48 »), puis l'historique de mgmp, 2 à 27, en anglais. **Une seule ligne de 24 Ko** : la lire par morceaux (`grep -n -a … \| cut -c1-200`) |
 | Le pourquoi de chaque changement | les messages de commit (en français depuis le 11 octobre : la règle, le cas, le protocole, les tests) |
-| Les builds | releases `build-1` à `build-52` du dépôt |
+| Les builds | releases `build-1` à `build-53` du dépôt |
+| Le graphe du projet | `graphify-out/` (ignoré par git, refait par `/graphify` dans Claude Code) : `graph.html`, `GRAPH_REPORT.md`, `graph.json` |
 | Le zip de l'ami | modèle dans `paquet/` ; `tools/paquet.ps1` (Windows) ou `tools/linux/paquet.sh` le refont |
 | Le mod chez Hizu | `C:\Users\Hizumi\Desktop\mgmp` : `mgmp.dll`, `mgmp_loader.exe`, `mgmp.json`, `Lancer Mewgenics coop.bat`, les journaux, `mgmp-pour-ton-ami.zip` ; `original-mgmp-v1\` (les binaires de mgmp v1, gardés à part) et `outils\` (des scripts des débuts, qui listent les fichiers du jeu) |
 | Le jeu | `C:\Program Files (x86)\Steam\steamapps\common\Mewgenics`, avec `steam_appid.txt` (686060) à côté de `Mewgenics.exe` : sans lui, Steam relance le jeu sans le mod |
@@ -114,7 +118,11 @@ Suivre une build : `gh run list -R Hizumimi/mewgenics-multi --commit <sha>`,
 
 Visual Studio 2022 (C++ x64) et CMake 3.21 ou plus : `cmake -B build -A x64` puis
 `cmake --build build --config Release` ; les tests :
-`ctest --test-dir build -C Release`. Seul MSVC x64 convient pour la DLL : le mod
+`ctest --test-dir build -C Release`. Sur le PC de Hizu, Visual Studio 2022
+Community est installé avec MSVC 14.44 et le SDK Windows : CMake est
+`C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe`
+(et `ctest.exe` à côté). `gh` n'y est pas installé : `tools\paquet.ps1` y demande
+`-Depuis`. Seul MSVC x64 convient pour la DLL : le mod
 partage avec le jeu des objets de la bibliothèque standard (`std::string`,
 `std::function`) dont la taille et la disposition sont celles de MSVC
 (`src/ui/mm_menu.cpp` le vérifie lignes 82 à 84).
@@ -329,6 +337,7 @@ session) ; une case vide veut dire : pas de retour.
 | 42–45 | 18 | 61 | Seconde vérification globale : un joueur refusé ne bloque plus le salon et voit la raison, un combat arrêté ne fige plus les suivants, un invité coupé ne joue plus seul, le départ n'attend plus un invité parti | 42–44 jamais installées ; 45 livrée |
 | 46–49 | 18 | 62–63 | Échanges entre joueurs (« Échanger », don direct : à la maison pièces, nourriture et objets ; en aventure, de bourse à bourse) ; 47–48 : relectures ; 49 : un départ sans état final ne bloque plus les objets | 46 jamais livrée ; 49 livrée et jouée le 18 : gel en combat |
 | 50–52 | 18 | 64–66 | L'aperçu de visée ne tourne plus le chat ; un combat fini d'un seul côté ne fige plus personne ; 51–52 : relectures | 52 livrée le 18, pas encore jouée |
+| 53 | 22 | 67 | Relecture complète (section 11) : 49 défauts corrigés, intro du jeu passée chez l'invité, « Échanger » en fenêtres du jeu, .bat qui détecte Steam fermé | |
 
 ## 7. Le dernier bug corrigé : le gel du 18 octobre (builds 50–52)
 
@@ -375,7 +384,16 @@ session) ; une case vide veut dire : pas de retour.
 
 ### À voir marcher en partie
 
-Dans l'ordre : la **build 52** (des combats entiers à deux, sans gel). Puis tout ce
+D'abord la **build 53** : chaque correction de la section 11 a son essai en partie
+(les comptes rendus des lots, dans les messages de commit « Fusion du lot … » et
+les commits de chaque lot). Les plus importants : l'intro passée chez l'invité
+(journal « retour au menu : cinematique d'ouverture du jeu passee », environ 1 à
+1,5 s entre « Quitter vers le menu » et le menu principal) ; le bouton
+« Échanger » du menu pause de la maison (la seule inconnue : le bouton caché du
+jeu se réaffiche-t-il proprement ? journal MULTI « devient Echanger », une seule
+fois par menu pause) ; la touche E en aventure ; les « Valider » du départ ;
+la fenêtre « Recharger ». Puis, comme avant, des combats entiers à deux, sans gel
+(build 52). Puis tout ce
 qui n'a encore aucun retour de partie (le document de conception en marque la
 plupart « à tester ») : le vote du chemin (18), le nom de celui qui décide pendant
 un événement (24), les bourses (21), le défilé du butin (26), la boutique (30), les
@@ -413,6 +431,24 @@ complète à deux.
 - Une recrue dont le joueur est parti avant la fin reste chez l'hôte.
 - Un joueur qui revient en plein combat le regarde, et reprend ses chats au combat
   suivant.
+- Build 53 :
+  - un « Annuler » cliqué après le vote de départ ne se rattrape plus : l'invité
+    rejoint l'aventure sur la carte, sans ses chats ;
+  - la fenêtre « Recharger » montre au plus 6 avis (tout reste appliqué au
+    chargement), et les avis sont oubliés au menu principal ;
+  - si le dernier départ d'un invité n'a qu'un état de copie et que l'hôte enchaîne
+    une autre aventure sans lui, la recopie attend la fin de cette autre aventure ;
+  - après un rechargement de l'aventure par l'hôte seulement : un achat en boutique
+    disparu (équipé, utilisé) peut être retrouvé sur un objet de même sorte du sac ;
+    si `savefile_adventure_is_loaded()` clignotait une image en pleine case, cette
+    case serait traitée comme rechargée (bourses remises au point de reprise) ;
+  - « Échanger » : les montants se tapent au clavier (`ui.enabled`) ; la fenêtre
+    « Cadeau de … » et les dons de bourse reçus attendent la prochaine pause du
+    receveur ; 8 objets par page (la hauteur de la boîte n'est pas mesurée) ; 4 dons
+    sans réponse suivis au plus ; l'or et la nourriture attendent encore que le
+    receveur ferme son écran des objets ;
+  - l'intro du jeu n'est passée qu'après le premier lancement, en session ou pendant
+    un trajet du mod ; il reste environ 1 s de fondu.
 
 ### Risques connus
 
@@ -460,12 +496,28 @@ complète à deux.
 ## 10. Pièges connus
 
 - **Steam doit être ouvert avant le .bat.** Sinon le jeu se ferme pendant son
-  démarrage, avant le mod (code 3221226505, `0xC0000409`), et `loader.txt` parle à
-  tort d'une relance par Steam et de `steam_appid.txt` : c'est arrivé le 20 octobre,
-  Steam était fermé. Depuis le 22 octobre, le .bat vérifie que `steam.exe` tourne ;
-  sinon il le dit et attend une touche avant de lancer. Le loader lancé seul parle
-  encore de `steam_appid.txt` pour un code de sortie non nul
-  (`loader/mgmp_loader.cpp`).
+  démarrage, avant le mod (code 3221226505, `0xC0000409`) ; avant la build 53,
+  `loader.txt` parlait à tort d'une relance par Steam et de `steam_appid.txt` : c'est
+  arrivé le 20 octobre, Steam était fermé. Depuis le 22 octobre, le .bat vérifie que
+  `steam.exe` tourne ; sinon il le dit et attend une touche avant de lancer. Depuis
+  la build 53, le loader distingue le code 0 (relance par Steam :
+  `SteamAPI_RestartAppIfNecessary`, `glaiel::SteamAPI::init` @ `0x140A06630` →
+  `exit(0)` ; seulement là il parle de relance puis de `steam_appid.txt`) d'un code
+  non nul (« le jeu s'est ferme pendant son demarrage … Steam ferme ou
+  deconnecte »). Ses messages sont en français sans accents : en locale « C »,
+  `wprintf` écrit l'octet latin-1 et `type` l'affiche en page 850.
+- **« Quitter vers le menu » redémarre le jeu à chaud** (`app+0xDA0`, comme
+  `soft_reset`) : toutes les scènes sont détruites, `GameBase::init` recharge
+  `test00.sav` et rejoue l'intro (docs/NOTES_MGMP.md, « Protocol 67 »). Tout état du
+  mod lié à une scène ou à un objet du jeu doit survivre à ce redémarrage ou être
+  oublié avec lui.
+- **Le bouton « Échanger » est le bouton caché « Abandonner » du menu pause.**
+  `h_TryAbandonRun` ne doit jamais appeler l'original quand c'est notre bouton qui
+  vient d'être cliqué ; le bouton se reconnaît à son libellé « Échanger », relu à
+  chaque image (le menu pause est refait à chaque Échap et un bouton suivant peut
+  reprendre la même adresse) ; il n'est repris que si le jeu l'a caché (état 4, bit
+  `0x20` éteint) : un bouton visible est celui du jeu (« Abandonner l'aventure »,
+  « Abandonner le combat »).
 - `src/net/mgmp_proto.h`, ligne 54 : 24 Ko sur une ligne. Ne jamais l'afficher en
   entier ; une modification se fait par un remplacement exact.
 - La DLL partage des `std::string` et `std::function` avec le jeu : MSVC x64
@@ -490,3 +542,71 @@ complète à deux.
   `mgmp_backups\` ; garder cette règle pour toute nouvelle écriture.
 - Ne jamais mettre dans le dépôt d'image, de son, de police ni de donnée du jeu
   (`CLAUDE.md`).
+
+## 11. La build 53 : la relecture complète du 22 octobre
+
+Faite dans Claude Code, à la demande de Hizu (« vérifier un peu tout et corriger
+un maximum », avec deux gênes nommées : l'intro du jeu que l'invité regarde à
+chaque chargement, et « Échanger » qui n'a pas le style du jeu).
+
+**La méthode.** Trois passes d'agents, chacune en lecture seule sauf la deuxième :
+1. Relecture : 12 relecteurs du code (un par partie du mod), un des 52 journaux,
+   un des parcours de jeu (fluidité), deux enquêtes dans le binaire sur la
+   cinématique, une sur « Échanger ». Chaque défaut proposé a été soumis à trois
+   vérificateurs indépendants (reproduire, intention, impact) ; 49 sur 63 ont été
+   confirmés par au moins deux.
+2. Correction : 9 lots, chacun dans son worktree git, avec ses propres fichiers ;
+   chaque lot compile et passe les 25 tests, puis deux relecteurs relisent son diff
+   et un agent corrige ce qu'ils trouvent. Les lots sont fusionnés dans `main`
+   (commits « Fusion du lot … », dont les messages résument les conflits), puis le
+   protocole passe à 67 en une fois.
+3. Relecture croisée du diff complet (`9c01142..` la fusion), sous sept angles,
+   chaque défaut à nouveau vérifié par trois.
+Le détail de chaque correction (scénario, preuve, essai en partie) est dans les
+messages de commit de chaque lot (`git log 9c01142..HEAD`).
+
+**La cinématique.** Ce n'était pas le chargement : « Quitter vers le menu »
+redémarre le jeu à chaud, et le jeu rejouait son intro `game_intro` (3,8 à 7 s)
+avant le menu, à chaque trajet du mod (départ, rejoindre l'aventure, retour chez
+soi). L'hôte ne la voyait qu'au lancement. Le mod la passe maintenant comme si le
+joueur maintenait la touche « passer » (docs/NOTES_MGMP.md, « Protocol 67 »). Les
+transitions du jeu (cercle de la save, départ en aventure) restent : l'hôte les
+voit aussi, et celle du départ tire dans l'aléatoire de la simulation.
+
+**« Échanger ».** Choix de Hizu, le 22 octobre : « Tout en fenêtres du jeu ». À la
+maison, un bouton du jeu dans le menu pause (le bouton « Abandonner » que le jeu y
+cache, réaffiché et renommé) ; en aventure, la touche E sur la carte ; puis une
+suite de boîtes de confirmation du jeu (`src/ui/mm_trade_ui.cpp`). Le bouton et la
+fenêtre ImGui ont disparu ; le panneau ImGui ne sert plus qu'à F1. Le « bug avec
+Échanger » dont Hizu se souvenait était le gel du 18 octobre (section 7), sans lien
+avec les échanges ; un vrai défaut a quand même été corrigé (un don sans réponse en
+écrasait un autre).
+
+**Les lots** (numéros des points dans les messages de commit) :
+- combat : les invités arrêtés en regardant un combat sont oubliés à la sortie de
+  l'hôte ; la garde « lien tombé » du protocole 61 était inatteignable ;
+- lanceur : chemins accentués dans `mgmp.json`, jeu fermé si l'injection échoue
+  (il restait figé), messages justes et en français ;
+- carte, votes et choix : un invité qui ne peut pas suivre une case rentre chez lui
+  (il figeait l'hôte) ; cases sautées, prise en main d'une montée de niveau, vote
+  carte en pause, vote abandonné au combat de la Némésis, absence comptée
+  d'affilée, résultat unanime en 1 s, avis du sac ouvert ;
+- départ et équipe : « Valider » de l'invité qui prévient l'hôte, « Annuler » après
+  le vote, état final d'une copie non recopié tant que l'hôte est en aventure,
+  fenêtre « Recharger », délais du miroir du départ ;
+- saves et session : relance d'une fermeture refusée, pseudos des invités
+  (`MM_PEER_NAME`), journaux justes, adresses périmées dans les commentaires ;
+- menu et cinématique : l'intro passée, `JoinWait` qui ne bloque plus « Jouer »,
+  « Choisir ta sauvegarde » pendant la connexion, textes justes, salon complet,
+  « Y aller » par Steam ;
+- économie : abandon du défilé annoncé, achats et bourses justes après un
+  rechargement de l'hôte, résultat d'un objet en 2 s ;
+- Échanger : voir plus haut ;
+- overlay : la flèche d'un joueur n'apparaît que dans le même combat.
+
+**Laissé de côté** (noté dans les comptes rendus) : l'hôte ne voit pas « sac
+ouvert » chez un invité au vote (changerait le protocole sans gain net) ; pas
+d'état « prêt » dans le titre des écrans des colliers et des objets (champ texte
+non identifié) ; l'or et la nourriture d'un don attendent encore que le receveur
+ferme son écran des objets ; la copie désynchronisée qui regarde un combat garde la
+flèche de l'hôte (même plateau, voulu).

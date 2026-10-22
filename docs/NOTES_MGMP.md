@@ -1308,7 +1308,10 @@ comparing names. `sub_1409CA630(Director*, std::string*)` is that scan;
 | has components yet | `Scene+1200` `u8`, read by `sub_1401BFE80` |
 
 `Component+40` has **three readings that agree**: `MewDirector::IsTutorialRunActive`
-@ `0x1403AECB0` (`*(this+40)` → the `Cutscene` lookup), `PauseMenu::SetupMainSidebar`
+@ `0x1403AECB0` (`*(this+40)` → the `Cutscene` lookup; *Mewgenics Multi, build 53:
+in 1.1.21239 this address and `0x1409CA700`, `0x1401BFE80`, `0x140756DE0` are not
+function starts per `.pdata` — they come from another build; only the RVAs of
+`mgmp_addresses.h` / `mgmp_sigs.generated.h` are pinned*), `PauseMenu::SetupMainSidebar`
 (`*(this+40)` → the `House` lookup), and the two main-menu transition bodies
 (`*(MainMenu+40)` → get-or-create `MainMenu`). `Scene+1243` is confirmed from the
 write side: `sub_1401BFE80` and `sub_1401BFDC0` both set it on the current scene
@@ -1333,7 +1336,7 @@ suggestive: `MewDirector::ContinueAdventure`'s first statement is
 ### The pause menu, and why a client cannot be dragged out of a run
 
 `Button_PauseMenu_QuitToMenu` is registered by `PauseMenu::SetupMainSidebar` @
-`0x14028AB50` the same way the main menu registers Play —
+`0x14028AB50` (*1.1.21239: `0x14028B620`, see "Protocol 67"*) the same way the main menu registers Play —
 `MenuPanel::register_button` then `sub_140052080(button + 504, ...)`. Its
 callback is the lambda whose body is `SetupMainSidebar__inner_3` @ `0x14029E7F0`,
 which builds a `QuitToMenuTransition` component. So **clicking it is quitting to
@@ -2090,7 +2093,7 @@ what a human reads; what the mod hooks is whatever the signature resolves to.
 | `0x140382A00` | `LevelUpScreen::select_option` | **the level-up choice boundary.** `LevelUpScreen+160` is the subject `CatData*` |
 | `0x140382640` | `LevelUpScreen::update` | the client's apply tick |
 | `0x14038E7D0` | `MapScreen::update` | the follow tick; only reliable source of a live `MapScreen*` |
-| `0x1401BCE90` | `SaveSelection::ContinueSlot(int slot, bool play_sound)` | **the save-screen boundary.** Calling it *is* clicking that slot |
+| `0x1401BCE90` (*1.1.21239: `0x1401BD8B0`*) | `SaveSelection::ContinueSlot(int slot, bool play_sound)` | **the save-screen boundary.** Calling it *is* clicking that slot |
 | `0x1401BAD60` | `SaveSelection::update` | the auto-continue tick |
 | `0x1403A5FC0` | `MewDirector::init(std::string)` | takes the filename **by value**, so substituting our own redirects the load |
 | `0x1409764B0` | `Button::Click(Button*, bool force)` | **calling it is pressing that button.** A call target, not a hook — see the main-menu section |
@@ -3067,6 +3070,84 @@ same turn while that animation runs (a reaction, a backstab) could still differ
 between peers. The fix removes the owner/non-owner asymmetry, not the deferred
 write; facing stays out of the state hash for that reason.
 
+### Protocol 67 — the full review of build 52 (Mewgenics Multi, build 53)
+
+All addresses below were read with capstone and `.pdata` on 1.1.21239
+(SHA-256 `4127cd6a…`).
+
+**"Quit to Menu" is a warm restart, and the game replays its intro.** The end
+callback of `QuitToMenuTransition` (`Do_call` `0x14029FD40`) saves, then writes
+`app+0xDA0 = 1` at `0x14029FDFA` (`app` = `[0x1413C4A30]`) — the same flag as the
+`soft_reset` debug command (`0x1407597D3`). The application loop tests it at
+`0x1409BA694`, destroys every scene (`0x1409D4FB0` on `app+0x180`; the Director
+lives inside the application and survives), recreates `Shared`, clears the flag
+and calls `MewApplication::init` (`[vtable+0x10]`, `0x1409BA711`), which ends in
+`GameBase::init` (`0x140750F90`). That calls `MewDirector::init("test00.sav")`
+(`0x14075882F`; `MewDirector::init` = `0x1403A6B90`, other callers `0x1401BE352`,
+`0x14031C3BC`) and then `PlayCutscene("game_intro")` (`0x140751A23` →
+`0x140827ED0`). The `MainMenu` scene is only created by the intro's end callback.
+Every trip of the mod through the menu (departure, joining, going home) therefore
+cost the guest 3.8 to 7 s of intro.
+
+The game's own skip: `SwfCutscene` (vtable `0x14111FCA8`, RTTI `0x1413A0868`)
+accumulates the held `SkipCutscene` action into `+0x128` (double); its update
+compares it with 1.0 at `0x140829B12` (`comisd xmm7,[rdi+0x128]`, unique pattern
+`66 0F 2F BF 28 01 00 00 0F 87 ? ? ? ? C6 87 19 01 00 00 01`), sets `+0x119`
+(skipping), mutes, fades for ~1 s and calls its normal end. Components of a scene
+are `Scene+0xE0[Scene+0xDC]` (u32 count, capacity `+0xD8`, filled by
+`AddComponent<SwfCutscene>` `0x14082A9D0`); a dead component has its byte `+0xF`
+set (the scene sweep `0x14096B750` nulls those). Build 53 arms the skip in
+`h_MewDirInit` only for `test00.sav` after the first launch, in a session or
+during a mod trip, writes 2.0 into `+0x128` while `+0x119` is 0, and disarms at
+`MainMenu::init`. Nothing else is touched: no save, no simulation stream.
+
+**The pause menu's hidden fifth button.** `PauseMenu::SetupMainSidebar` is
+`0x14028B620` (called for `pause_house` at `0x14028AF8C`). After Resume,
+Settings, QuitToMenu and QuitToDesktop it registers `Button_PauseMenu_GiveUp`
+(`MenuPanel::register_button` `0x14097C070` at `0x14028BE3F`, anim `pb_abandon`).
+Outside a run it hides it at `0x14028C022`: `Button+0x2F0 = 4`, then
+`and byte [[Button+0x48]+8], 0xDF` — bit `0x20` of a SWF object is "visible".
+`MenuPanel::hide_button` `0x14097C930`, `show_button` `0x14097CA00` (state 4 →
+5, then `or 0x20`), `set_button_visible` `0x14097CAD0`. `Button::update`
+`0x14097E330`: state 5 plays "enable" then goes to 0 (`0x14097E6BA`); state 4
+refuses the click (`0x14097E813`). The label is `Button+0x1B8`
+(`Button::refresh_label` `0x14097EC60`). With `MewDirector+0x70C != 0` (house
+under attack) the label becomes `PAUSE_MENU_BUTTON_ABANDONFIGHT`. The click
+lambda (vtable `0x140F05E80`, slot 2 = `0x14029CDB0`) tail-jumps to
+`PauseMenu::TryAbandonRun` `0x140296FB0`. Build 53 re-shows that button in the
+house of a session, renames it "Échanger", recognises it by its label every
+frame (the pause menu is rebuilt on each Escape, a later GiveUp may reuse the
+address), and never calls the original `TryAbandonRun` for it.
+
+**The game's confirmation box** sets its scene priority to 1e6
+(`scene+0x460`, `0x14077D307`) and pauses (`Scene+0x4D8`) the lower scenes that
+were not paused yet, except `Director+0x18`, resuming only those on close
+(`0x14077D330`–`0x14077D381`): it draws over every screen, the bag included,
+and a box opened over the pause menu leaves the house paused when it closes.
+
+**Spotting a reloaded adventure.** `D_MewDirectorPtr` (`0x1413DAC30`) is written
+only at `0x1403A6BD4` and its tag (`0x1413DAC38`, the value at `Director-8`) only
+at `0x1403A6BE7`/`0x1403A6BF0`, all in the constructor `0x1403A6B90`.
+`mm_purse` keeps both in its checkpoint: a new Director is seen even at the same
+address.
+
+**Addresses from another build.** Per `.pdata`, these are not function starts in
+1.1.21239: `0x1401BCE90` (real `SaveSelection::ContinueSlot` = `0x1401BD8B0`,
+"CircleTransition_SaveFile" at `0x1401BD993`), `0x1401BBA70`, `0x1401BE840`,
+`0x1401BFD10`, `0x1401BD780`, `0x1401BFE80`, `0x1409CA700`, `0x140756DE0`,
+`0x1403AECB0`, `0x14028AB50`, `0x1402964E0`. Treat every address in prose as a
+lead; only the RVAs of `kAddresses` / `mgmp_sigs.generated.h` are pinned.
+
+**Wire additions (protocol 67).** `MM_PEER_NAME = 16` (host → all, `b` = peer,
+text = nickname; never the host's own slot, which comes from its HELLO);
+`MM_EMBARK kEmbarkCollarsDone = 11` (guest → host: done with the collars);
+`MM_DEPART_REQ a = 0, c = kDepartOff_TooLate = 2, x = peer` (a guest who cancelled
+after the vote: the host leaves without them and their cats); `kLootReady` value
+2 (the guest left the loot parade; the host stops waiting for them). The
+protocol-61 guard "a guest whose link dropped does not play its own cats" was
+unreachable (`h_GetChoice` went through the lockstep only while `net_active()`);
+it is now reached through `lockstep_link_lost()`.
+
 ### Steam transport (Mewgenics Multi, `src/net/mgmp_steam.cpp`)
 
 **The mod's transport stays TCP; Steam is a byte pipe beside it.** The host's
@@ -3320,7 +3401,8 @@ was exercised**, so a run where only the host acted cannot be mistaken for a pas
 ### Leaving the tutorial
 
 **`MewDirector::SkipTutorial` @ `0x1403AE940` is shipped and supported.**
-`PauseMenu::TryAbandonRun` @ `0x1402964E0` swaps its confirmation text to
+`PauseMenu::TryAbandonRun` @ `0x1402964E0` (*1.1.21239: `0x140296FB0`; `0x1403AE940` and
+`0x1403AECB0` here are from another build too*) swaps its confirmation text to
 `{POPUP_TRY_SKIP_TUTORIAL}` whenever `MewDirector::IsTutorialRunActive` @
 `0x1403AECB0` is true, and `AbandonRun` then calls `SkipTutorial`. So **Pause →
 Abandon Run during the tutorial *is* Skip Tutorial.** No patching.
