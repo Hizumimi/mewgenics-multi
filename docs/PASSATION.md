@@ -374,9 +374,10 @@ avec le code 3221226505 (`0xC0000409`, un arrêt d'urgence du programme : `abort
 relance par Steam, mais ce chemin-là sort avec le code 0 : pour un code non nul, son
 message est trompeur (à corriger dans `loader/mgmp_loader.cpp` ; le loader ne
 calcule rien pour les pairs, pas de changement de protocole). Cause inconnue (Steam
-fermé ou pas connecté ?). Au prochain lancement, regarder `loader.txt` ; si ça
-recommence, démarrer le jeu par Steam puis `mgmp_loader.exe --attach <pid>`, comme
-le propose le loader, dit déjà si le jeu seul démarre.
+fermé ou pas connecté ?). Au prochain lancement, regarder `loader.txt`. Si ça
+recommence, démarrer le jeu par Steam, sans le mod, dit si le jeu seul démarre ; le
+mod peut ensuite s'y injecter avec `mgmp_loader.exe --attach <pid>`, comme le
+propose le loader.
 
 ### À voir marcher en partie
 
