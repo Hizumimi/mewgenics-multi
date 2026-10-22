@@ -75,6 +75,8 @@ void mm_on_host_left();
 // d'ouverture (« game_intro ») est passee comme si le joueur maintenait la touche
 // de saut, jusqu'au MainMenu::init qui suit. Pas au premier lancement.
 void mm_on_director_init(const void* name);
+// SwfCutscene::update (h_SwfCutUpdate), avant le jeu : le saut arme ci-dessus.
+void mm_on_swf_cutscene_update(void* cutscene);
 
 // La maison du jeu est la (scene « House » vivante) : celle du joueur, ou celle
 // de la copie d'une aventure chez un invite (voir savefile_in_coop).

@@ -35,7 +35,12 @@ jeu à plusieurs, copie du document de conception en ligne) et `docs/NOTES_MGMP.
   (section 7). Le 22 octobre, dans Claude Code, une **relecture complète** du mod a
   donné la **build 53** (protocole 67, section 11) : 49 défauts confirmés et
   corrigés, l'intro du jeu passée chez l'invité, « Échanger » dans les fenêtres du
-  jeu. Elle n'est pas encore jouée non plus.
+  jeu. **Jouée le 22 octobre au soir** (deux jeux sur le PC de Hizu, journaux
+  `mgmp_trace_20261022-234852` hôte et `-234917` invité, 22 minutes) : une aventure
+  entière sans désynchronisation, « Échanger » qui marche, mais l'intro **pas**
+  passée (section 11, « La partie du 22 octobre »). La **build 54** corrige l'intro
+  (un crochet sur `SwfCutscene::update`) et une fausse fenêtre « Ta save est en
+  pleine aventure » ; elle n'est pas encore jouée.
 - **Les joueurs** : Hizu (propriétaire du dépôt, l'hôte en général) et un ami
   (l'invité), chacun sur son PC, par Steam ou par adresse IP. Les deux doivent avoir
   le même protocole (en pratique, la même build) : un autre protocole est refusé à la
@@ -190,7 +195,7 @@ remplacé le 22 octobre dans le zip et chez Hizu (section 10).
 `Lancer Mewgenics coop.bat` lance `mgmp_loader.exe`, qui démarre `Mewgenics.exe`
 (chemin : `game` dans `mgmp.json`) et y injecte `mgmp.dll` ; le jeu n'est pas modifié
 sur le disque. La DLL lit `mgmp.json` à côté d'elle, retrouve ses cibles par
-signature (125 dans la build 52 ; `mgmp_sigscan`, `mgmp_resolve`,
+signature (126 dans la build 54 ; `mgmp_sigscan`, `mgmp_resolve`,
 `mgmp_sigs.generated.h`), vérifie leurs prologues et pose les crochets MinHook
 (`src/core/mgmp_hooks.cpp`). Elle ne contient aucune donnée du jeu : ce qu'il lui en
 faut est lu dans `resources.gpak` sur la machine du joueur (`mgmp_gpak`).
@@ -337,7 +342,8 @@ session) ; une case vide veut dire : pas de retour.
 | 42–45 | 18 | 61 | Seconde vérification globale : un joueur refusé ne bloque plus le salon et voit la raison, un combat arrêté ne fige plus les suivants, un invité coupé ne joue plus seul, le départ n'attend plus un invité parti | 42–44 jamais installées ; 45 livrée |
 | 46–49 | 18 | 62–63 | Échanges entre joueurs (« Échanger », don direct : à la maison pièces, nourriture et objets ; en aventure, de bourse à bourse) ; 47–48 : relectures ; 49 : un départ sans état final ne bloque plus les objets | 46 jamais livrée ; 49 livrée et jouée le 18 : gel en combat |
 | 50–52 | 18 | 64–66 | L'aperçu de visée ne tourne plus le chat ; un combat fini d'un seul côté ne fige plus personne ; 51–52 : relectures | 52 livrée le 18, pas encore jouée |
-| 53 | 22 | 67 | Relecture complète (section 11) : 49 défauts corrigés, intro du jeu passée chez l'invité, « Échanger » en fenêtres du jeu, .bat qui détecte Steam fermé | |
+| 53 | 22 | 67 | Relecture complète (section 11) : 49 défauts corrigés, intro du jeu passée chez l'invité, « Échanger » en fenêtres du jeu, .bat qui détecte Steam fermé | compilée sur le PC de Hizu, installée et jouée le 22 au soir : tout marche sauf l'intro |
+| 54 | 23 | 67 | L'intro passée depuis `SwfCutscene::update` (nouveau crochet `T_SwfCutUpdate`, diagnostic au journal) ; plus de fausse fenêtre « Ta save est en pleine aventure » au chargement de la maison | |
 
 ## 7. Le dernier bug corrigé : le gel du 18 octobre (builds 50–52)
 
@@ -472,7 +478,7 @@ complète à deux.
   ont des noms à quelques secondes d'écart. Ceux de l'ami sont dans son propre
   dossier `mgmp` : les lui demander. Un journal se lit sur une copie.
 - **Le format.** En tête : la build (`mod    : Mewgenics Multi, build N`), la
-  résolution des adresses (125 dans la build 52, toutes à l'adresse attendue),
+  résolution des adresses (126 dans la build 54, toutes à l'adresse attendue),
   chaque crochet (`[+]` / `[!]`). Puis une ligne par événement : numéro de
   séquence, compteur de tours du processus (jamais remis à zéro ; ce n'est pas
   `g.turn`, qui est dans le texte, par exemple `turn N hash …`), secondes depuis la
@@ -615,3 +621,39 @@ d'état « prêt » dans le titre des écrans des colliers et des objets (champ 
 non identifié) ; l'or et la nourriture d'un don attendent encore que le receveur
 ferme son écran des objets ; la copie désynchronisée qui regarde un combat garde la
 flèche de l'hôte (même plateau, voulu).
+
+**La partie du 22 octobre (build 53).** Deux jeux sur le PC de Hizu, hôte
+`mgmp_trace_20261022-234852`, invité `-234917`, de 23 h 48 à 0 h 11. Ce qui a
+marché, d'après les deux journaux :
+- salon et monde de l'hôte, nuit votée deux fois ;
+- « Échanger » à la maison, dans les fenêtres du jeu : le bouton du menu pause
+  apparaît (« Abandonner » caché devient « Échanger »), un don de 10 pièces de
+  l'hôte et un de 1 pièce de l'invité (tapé au clavier), gardés et sauvés des deux
+  côtés ; en aventure, la touche E ouvre la suite (fermée par Échap, sans don) ;
+- départ ensemble : colliers et objets rejoués chez l'invité, même carte gardée
+  sans second chargement ;
+- l'aventure jusqu'au boss puis le retour anticipé : votes, événements, montée de
+  niveau choisie par l'invité, achat en boutique avec sa bourse (rentré chez lui),
+  défilé du butin (4 objets), bourse et butin recopiés dans sa save au retour ;
+- les combats : **aucune désynchronisation**, 1 161 appels de l'aperçu de visée à
+  `Character::Face` empêchés, aucune ligne « l'a fini » (le correctif du gel tient).
+Ce qui n'a pas marché, corrigé en build 54 :
+- **l'intro n'a pas été passée** (« !! retour au menu : la cinematique d'ouverture
+  n'a pas ete trouvee », deux fois ; 3,5 s d'intro au retour). Le saut était bien
+  armé, mais il cherchait la `SwfCutscene` dans `Scene+0xE0[Scene+0xDC]`, qui
+  n'est pas la liste des composants de la scène mais la file des composants en
+  attente, vidée dès la première image (la liste vivante est `Scene+0xC0[+0xBC]` ;
+  trouvé par la relecture de la build 54, docs/NOTES_MGMP.md « Protocol 67 »).
+  Build 54 écrit depuis `SwfCutscene::update` (`T_SwfCutUpdate`, RVA `0x829A00`),
+  qui reçoit la cinématique elle-même ; si elle n'est toujours pas passée, le
+  journal dit combien de mises à jour de cinématique ont été vues et, après 30
+  images, quelles scènes et quels composants sont là ;
+- **une fausse fenêtre « Ta save est en pleine aventure »** chez l'invité, juste
+  après le chargement de sa maison (déjà vue le 11 octobre) : la liste des chats de
+  l'aventure du Director reste parfois remplie un instant. La fenêtre demande
+  maintenant aussi que la scène « House » soit absente.
+Sans conséquence : « !! cat 13 slot 4:5 is 'tk_WaterBottle_Empty' here and
+'tk_WaterBottle_Half' on the peer » (l'aperçu de visée de l'invité, parti juste
+avant qu'il boive sa gourde, arrive après l'action chez l'hôte : la visée n'est pas
+dessinée, rien d'autre) ; « !! bouton 'yes' introuvable dans la fenetre » après un
+résultat de vote (déjà là en build 41 : la boîte se ferme pendant la relance).

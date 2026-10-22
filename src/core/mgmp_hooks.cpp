@@ -130,6 +130,8 @@ fn_this_c     o_HighlightRefresh = nullptr;
 // passe dans rdx, comme un entier. Rien de rendu.
 typedef void (__fastcall* fn_char_face)(void* ch, uint64_t dir, unsigned char now, unsigned char force);
 fn_char_face  o_CharFace = nullptr;
+// Mewgenics Multi : SwfCutscene::update(this) -- l'intro du redemarrage a chaud.
+fn_this       o_SwfCutUpdate = nullptr;
 // L'adresse de retour de l'appel de Face par l'apercu de visee de
 // Brain::UpdateDecision (0x1401381EE sur 1.1.21239), retrouvee au demarrage
 // (find_preview_face_ret) ; 0 tant qu'elle ne l'est pas.
@@ -700,6 +702,14 @@ void __fastcall h_CharFace(void* ch, uint64_t dir, unsigned char now, unsigned c
     o_CharFace(ch, dir, now, force);
 }
 
+// Mewgenics Multi : chaque image d'une cinematique SWF. Apres un « Quitter vers le
+// menu » du mod, l'intro rejouee est passee ici, juste avant la comparaison du
+// maintien de la touche de saut (mm_menu.h) ; sinon rien ne change.
+void __fastcall h_SwfCutUpdate(void* self) {
+    mm_on_swf_cutscene_update(self);
+    o_SwfCutUpdate(self);
+}
+
 // La seule instruction `call Character::Face` du corps de Brain::UpdateDecision
 // (0x1401381E9 sur 1.1.21239, une seule dans ses 0x693 octets), cherchee plutot
 // que posee : une autre build la deplace. Le corps -- ses bornes d'apres la table
@@ -890,6 +900,7 @@ const Binding kBindings[] = {
     { T_HighlightRefresh, (void*)&h_HighlightRefresh, (void**)&o_HighlightRefresh },
     { T_UpdateDecision,   (void*)&h_UpdateDecision, (void**)&o_UpdateDecision },
     { T_CharFace,         (void*)&h_CharFace,       (void**)&o_CharFace },
+    { T_SwfCutUpdate,     (void*)&h_SwfCutUpdate,   (void**)&o_SwfCutUpdate },
 
     { T_SaveScumPenalty, (void*)&h_SaveScum, (void**)&o_SaveScum },
     { T_TimeDelayTick,   (void*)&h_TimeDelay, (void**)&o_TimeDelay },

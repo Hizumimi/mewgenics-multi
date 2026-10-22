@@ -24,6 +24,7 @@
 #include "mm_menu.h"
 
 #include "mgmp_config.h"
+#include "mgmp_hooks.h"     // hooks_is_live (le crochet de l'intro)
 #include "mgmp_log.h"
 #include "mgmp_mem.h"
 #include "mgmp_net.h"
@@ -1705,9 +1706,16 @@ void trip_on_button(void* button) {
 // ce redemarrage, on la passe comme le jeu le fait quand la touche de saut est
 // maintenue : SwfCutscene+0x128 au-dela de 1.0, tant que le saut n'est pas parti
 // (+0x119). Le jeu fait lui-meme son fondu et sa fin normale, qui ouvre le menu.
-bool g_intro_skip = false;          // arme jusqu'au MainMenu::init
-bool g_intro_said = false;          // passee : dit une fois au journal
-int  g_intro_code = 0;              // le test du jeu : 0 pas vu, 1 trouve, -1 absent
+// Build 53 la cherchait chaque image dans la scene « Cutscene », mais dans la file
+// des composants en attente (vide des la premiere image, mgmp_addresses.h) : elle
+// n'y etait jamais. Build 54 l'ecrit depuis SwfCutscene::update (h_SwfCutUpdate),
+// qui recoit la cinematique elle-meme, dans le meme appel que la comparaison ; la
+// recherche, sur la liste vivante, ne sert plus qu'au journal si elle n'est pas passee.
+bool     g_intro_skip    = false;   // arme jusqu'au MainMenu::init
+bool     g_intro_said    = false;   // passee : dit une fois au journal
+int      g_intro_code    = 0;       // le test du jeu : 0 pas vu, 1 trouve, -1 absent
+uint32_t g_intro_frames  = 0;       // images pendant le saut arme (diagnostic)
+uint32_t g_intro_updates = 0;       // mises a jour de cinematique vues pendant ce temps
 
 // Le test de 0x140829B12 est-il la, une seule fois (kSwfCut_SkipPattern) ?
 // Cherche une fois par processus ; sinon on ne touche a rien.
@@ -1727,31 +1735,68 @@ bool intro_code_ok() {
     return g_intro_code > 0;
 }
 
+// Diagnostic, une fois par saut arme, une demi-seconde apres (30 images) s'il
+// n'est toujours pas passe : les scenes du Director (« * » : a detruire) et, pour
+// « Cutscene », ses composants (classe ; pour une SwfCutscene, +0x119 et +0x128).
 void intro_skip_pump() {
-    if (!g_intro_skip) return;
-    void* scene = find_scene(kScene_Cutscene);
-    if (!scene) return;
-    uint32_t n = 0;
-    void**   comps = nullptr;
-    if (!mem_read((char*)scene + kScene_CompCount, &n, sizeof(n)) ||
-        !mem_read((char*)scene + kScene_Comps, &comps, sizeof(comps)) || !comps || n > 64)
-        return;
-    for (uint32_t i = 0; i < n; ++i) {
-        void* c = nullptr;
-        uint8_t dead = 1, skipping = 1;
-        if (!mem_read(comps + i, &c, sizeof(c)) || !c) continue;
-        if (!mem_read((char*)c + kComp_Dead, &dead, 1) || dead) continue;
-        char cls[64];
-        if (strcmp(rtti_class_name(c, cls, sizeof(cls)), "glaiel::SwfCutscene") != 0) continue;
-        if (!mem_read((char*)c + kSwfCut_Skipping, &skipping, 1) || skipping) continue;
-        // 2.0 et non 1.0 : la baisse d'une image (touche relachee) la laisse au-dela.
-        const double held = 2.0;
-        if (mem_write((char*)c + kSwfCut_SkipHold, &held, sizeof(held)) && !g_intro_said) {
-            g_intro_said = true;
-            log_line("MULTI", "retour au menu : cinematique d'ouverture du jeu passee");
+    if (!g_intro_skip || g_intro_said || ++g_intro_frames != 30) return;
+    std::string list;
+    void** begin = nullptr;
+    void** end   = nullptr;
+    if (g_director && mem_read((char*)g_director + kDirector_ScenesBegin, &begin, sizeof(begin)) &&
+        mem_read((char*)g_director + kDirector_ScenesEnd, &end, sizeof(end)) && begin && end >= begin &&
+        end - begin <= 64) {
+        for (void** it = begin; it < end; ++it) {
+            void* s = nullptr;
+            char name[48] = {};
+            uint8_t dying = 0;
+            if (!mem_read(it, &s, sizeof(s)) || !s || !mem_read_std_string((char*)s + kScene_Name, name, sizeof(name)))
+                continue;
+            mem_read((char*)s + kScene_Destroying, &dying, 1);
+            list += fmt("%s%s%s", list.empty() ? "" : ", ", name, dying ? "*" : "");
+            if (strcmp(name, kScene_Cutscene) != 0) continue;
+            uint32_t n = 0;
+            void**   comps = nullptr;
+            if (!mem_read((char*)s + kScene_CompCount, &n, sizeof(n)) ||
+                !mem_read((char*)s + kScene_Comps, &comps, sizeof(comps)) || !comps)
+                continue;
+            list += fmt(" (%u composant(s)", n);
+            for (uint32_t i = 0; i < n && i < 4; ++i) {
+                void* c = nullptr;
+                uint8_t dead = 0, skipping = 0;
+                double held = 0;
+                char cls[64];
+                if (!mem_read(comps + i, &c, sizeof(c)) || !c) continue;
+                mem_read((char*)c + kComp_Dead, &dead, 1);
+                mem_read((char*)c + kSwfCut_Skipping, &skipping, 1);
+                mem_read((char*)c + kSwfCut_SkipHold, &held, sizeof(held));
+                list += fmt(" ; %s%s +0x119=%u +0x128=%.2f", rtti_class_name(c, cls, sizeof(cls)), dead ? " mort" : "",
+                            (unsigned)skipping, held);
+            }
+            list += ")";
         }
     }
+    log_line("MULTI", "retour au menu : intro pas encore passee apres 30 images (%u mise(s) a jour de cinematique "
+                      "vue(s)) -- scenes : %s", g_intro_updates, list.empty() ? "?" : list.c_str());
 }
+
+}  // namespace
+
+// Chaque image d'une cinematique SWF (h_SwfCutUpdate), avant le jeu.
+void mm_on_swf_cutscene_update(void* cut) {
+    if (!g_intro_skip || !cut) return;
+    ++g_intro_updates;
+    uint8_t skipping = 1;
+    if (!mem_read((char*)cut + kSwfCut_Skipping, &skipping, 1) || skipping) return;
+    // 2.0 et non 1.0 : la baisse d'une image (touche relachee) la laisse au-dela.
+    const double held = 2.0;
+    if (mem_write((char*)cut + kSwfCut_SkipHold, &held, sizeof(held)) && !g_intro_said) {
+        g_intro_said = true;
+        log_line("MULTI", "retour au menu : cinematique d'ouverture du jeu passee");
+    }
+}
+
+namespace {
 
 // --- textes ---
 
@@ -2282,10 +2327,15 @@ void client_adventure_pump() {
     // aventure chargee (mgmp_savefile) ; avant lui, pendant le fondu qui suit le
     // clic sur « Défendre ! », la liste des chats de la course est deja remplie et
     // le boss attaque encore -- la defense est en route.
+    //
+    // Ni dans sa maison : la liste des chats de l'aventure reste parfois remplie un
+    // instant au chargement de la maison (vu le 11 et le 22 octobre : une fausse
+    // fenetre « Ta save est en pleine aventure »). Une vraie aventure n'a jamais la
+    // scene « House » : ContinueAdventure commence par la detruire.
     static bool said_own_run = false;
     if (others && !savefile_in_coop() && !g_copy_on_screen && !savefile_join_armed() &&
         !g_home_due && !g_trip.active && savefile_adventure_is_loaded() && !at_main_menu() &&
-        !team_house_defense_pending()) {
+        !find_scene("House") && !team_house_defense_pending()) {
         if (!said_own_run) {
             said_own_run = true;
             log_line("MULTI", "!! la save de ce joueur est en pleine aventure : elle ne peut "
@@ -2723,7 +2773,8 @@ void __fastcall h_MainMenuInit(void* self) {
     savefile_left_game();
     // L'intro du redemarrage a chaud est finie : on ne touche plus aux cinematiques.
     if (g_intro_skip && !g_intro_said)
-        log_line("MULTI", "!! retour au menu : la cinematique d'ouverture n'a pas ete trouvee");
+        log_line("MULTI", "!! retour au menu : la cinematique d'ouverture n'a pas ete passee (%u image(s), %u mise(s) "
+                          "a jour de cinematique vue(s))", g_intro_frames, g_intro_updates);
     g_intro_skip = false;
 
     void* panel = nullptr;
@@ -3719,8 +3770,13 @@ void mm_on_director_init(const void* name) {
     // se joue. Hors session, le jeu reste celui du solo -- sauf un trajet du mod
     // (« Y aller » de Steam : la connexion ne part qu'a l'arrivee au menu).
     if (!g_director || (net_role() == NetRole::None && !g_trip.active) || !intro_code_ok()) return;
-    g_intro_skip = true;
-    g_intro_said = false;
+    g_intro_skip    = true;
+    g_intro_said    = false;
+    g_intro_frames  = 0;
+    g_intro_updates = 0;
+    if (!hooks_is_live(T_SwfCutUpdate))
+        log_line("MULTI", "!! retour au menu : le crochet de SwfCutscene::update n'est pas pose, l'intro ne "
+                          "sera pas passee");
 }
 
 void mm_on_host_left() {

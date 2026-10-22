@@ -3094,12 +3094,24 @@ accumulates the held `SkipCutscene` action into `+0x128` (double); its update
 compares it with 1.0 at `0x140829B12` (`comisd xmm7,[rdi+0x128]`, unique pattern
 `66 0F 2F BF 28 01 00 00 0F 87 ? ? ? ? C6 87 19 01 00 00 01`), sets `+0x119`
 (skipping), mutes, fades for ~1 s and calls its normal end. Components of a scene
-are `Scene+0xE0[Scene+0xDC]` (u32 count, capacity `+0xD8`, filled by
-`AddComponent<SwfCutscene>` `0x14082A9D0`); a dead component has its byte `+0xF`
-set (the scene sweep `0x14096B750` nulls those). Build 53 arms the skip in
+are `Scene+0xC0[Scene+0xBC]` (the live list; `AddComponent<SwfCutscene>`
+`0x14082A9D0` queues new ones in `Scene+0xE0[Scene+0xDC]` first, see below); a
+dead component has its byte `+0xF` set (the scene sweep `0x14096B750` nulls those). Build 53 arms the skip in
 `h_MewDirInit` only for `test00.sav` after the first launch, in a session or
 during a mod trip, writes 2.0 into `+0x128` while `+0x119` is 0, and disarms at
 `MainMenu::init`. Nothing else is touched: no save, no simulation stream.
+In game (2026-10-22, build 53) the per-frame walk of the `Cutscene` scene never
+found the component, because `Scene+0xE0[Scene+0xDC]` is not the scene's
+component list: it is the **pending-add queue**. `AddComponent` writes there; the
+scene update (`0x14096AC50`, `lea rbx,[rdi+0xB8]`) merges a non-empty queue into
+the live list (`0x14096D5C0`) and zeroes `+0xDC` (`0x14096ADDB`), otherwise it
+calls slot 10 of each component of the **live list** `Scene+0xC0[Scene+0xBC]`
+(`0x14096AD98`), skipping null entries and those with `+0xF` set. So the queue is
+empty from the first frame on. Build 54 writes from `SwfCutscene::update` itself
+(`T_SwfCutUpdate`, `0x140829A00`, vtable slot 10, the only reference to it): it
+reads only `rcx` (`xmm7` is loaded from a constant, `xmm1` written before read)
+and returns nothing (both vtable call sites ignore it), so a one-argument detour
+is safe. The scene walk, now on `+0xBC/+0xC0`, is kept as a log-only diagnostic.
 
 **The pause menu's hidden fifth button.** `PauseMenu::SetupMainSidebar` is
 `0x14028B620` (called for `pause_house` at `0x14028AF8C`). After Resume,

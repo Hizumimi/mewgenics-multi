@@ -136,6 +136,8 @@ enum Target : int {
     T_MapChapter,        // sub_14021AE00 -- MapScreen : la mise en place du chapitre (copie TLS+0x178 dans la graine de la carte)
     // --- Mewgenics Multi (protocole 64) : l'orientation des chats (src/session/mgmp_lockstep.cpp) --
     T_CharFace,          // sub_14010CE50 -- glaiel::Character::Face(Character*, iVec2D, bool tout_de_suite, bool)
+    // --- Mewgenics Multi : l'intro du redemarrage a chaud (src/ui/mm_menu.cpp) --
+    T_SwfCutUpdate,      // sub_140829A00 -- glaiel::SwfCutscene::update (entree 10 de sa vtable)
     T_COUNT
 };
 
@@ -791,6 +793,11 @@ static const TargetDesc kTargets[T_COUNT] = {
     // (Brain::UpdateDecision, 0x1401381E9 ; son adresse de retour, retrouvee au
     // demarrage) et tout appel pendant une cloture d'etat de mgmp_lockstep.
     { 0x0010CE50, "CHARFACE",  "glaiel::Character::Face" },
+    // Mewgenics Multi : SwfCutscene::update (vtable 0x14111FCA8, entree 10). Ne
+    // lit que rcx : ni argument flottant ni retour. C'est elle qui compare
+    // +0x128 (le maintien de « SkipCutscene ») a 1.0 en 0x140829B12 ; l'intro du
+    // redemarrage a chaud est passee juste avant son appel (mm_menu.h).
+    { 0x00829A00, "SWFCUTUPD", "glaiel::SwfCutscene::update" },
 };
 
 // Coarse module guard, checked before the per-target signatures.
@@ -1548,13 +1555,17 @@ constexpr const char kScene_SaveSelect [] = "SaveSelectionScreen";
 // MewDirector::init("test00.sav") (0x14075882F) puis PlayCutscene("game_intro")
 // (0x140751A23) dans la scene « Cutscene ». Le menu n'arrive qu'a sa fin.
 //
-// Les composants d'une scene : AddComponent<SwfCutscene> (0x14082A9D0) range le
-// composant en Scene+0xE0[Scene+0xDC] (u32 a +0xDC, capacite a +0xD8). Le
-// nettoyage des scenes (0x14096BC31) remet a nul les entrees dont l'octet +0xF
-// du composant est pose (composant mort).
+// Les composants d'une scene, liste vivante en Scene+0xC0[Scene+0xBC] : la mise a
+// jour de la scene (0x14096AC50) y appelle l'entree 10 de chacun (0x14096AD98).
+// AddComponent (0x14082A9D0) n'y ecrit pas : il range le nouveau composant dans la
+// file d'attente Scene+0xE0[Scene+0xDC], que la mise a jour suivante fusionne
+// dans la liste vivante (0x14096D5C0) avant de remettre +0xDC a 0 (0x14096ADDB).
+// La build 53 lisait cette file : vide des la premiere image, l'intro n'y etait
+// jamais. Le nettoyage des scenes (0x14096BC31) remet a nul les entrees dont
+// l'octet +0xF du composant est pose (composant mort).
 constexpr const char kScene_Cutscene[]   = "Cutscene";
-constexpr uintptr_t  kScene_CompCount    = 0xDC;   // u32
-constexpr uintptr_t  kScene_Comps        = 0xE0;   // Component**
+constexpr uintptr_t  kScene_CompCount    = 0xBC;   // u32
+constexpr uintptr_t  kScene_Comps        = 0xC0;   // Component** (entrees nulles possibles)
 constexpr uintptr_t  kComp_Dead          = 0x0F;   // u8, 1 = a retirer
 // glaiel::SwfCutscene (vtable 0x14111FCA8) : +0x128 (double) monte tant que
 // l'action « SkipCutscene » est maintenue ; l'update (0x140829A00) la compare a
