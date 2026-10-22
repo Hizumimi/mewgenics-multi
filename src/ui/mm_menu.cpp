@@ -2370,15 +2370,17 @@ void adventure_live() {
         case Screen::Info:
             // kInfoYieldToFollow : l'hote est entre dans une case, la fenetre se
             // referme pour que la carte de ce joueur le suive ; elle reviendra.
-            if (g_info_live_yield && net_role() == NetRole::Client && savefile_in_coop() &&
-                follow_pending_count() != 0) {
-                if (!g_info_wanted) {
+            // Une fois l'appui demande (pressed), il est refait apres kPressRetry
+            // s'il n'a pas pris ; elle n'est remise en file qu'a ce premier appui.
+            if (g_info_live_yield && (g_live.pressed || (net_role() == NetRole::Client &&
+                                      savefile_in_coop() && follow_pending_count() != 0))) {
+                const bool first = !g_live.pressed;
+                close_silently();
+                if (first && g_live.pressed && !g_info_wanted) {
                     g_info_text   = g_info_live_text;
                     g_info_wanted = true;
                     g_info_yield  = true;
                 }
-                g_info_live_yield = false;
-                close_silently();
             }
             break;
         case Screen::JoinWait:
@@ -3752,6 +3754,9 @@ void mm_on_peer_hello(uint8_t peer, const char* name_utf8) {
     // chaque joueur connu (l'arrivant compris), sinon un invite ne voit que
     // « Joueur N » pour les autres invites. Celui de l'hote vient de son HELLO.
     if (net_role() != NetRole::Host) return;
+    // Sa propre place n'a pas de HELLO : elle peut garder le nom de l'hote d'une
+    // session d'avant (ce joueur l'avait rejoint), qui partirait chez tous.
+    if (net_self() < 8) g_peer_names[net_self()][0] = 0;
     for (uint8_t id = 0; id < 8; ++id) {
         if (!g_peer_names[id][0]) continue;
         MmMsg m{};
