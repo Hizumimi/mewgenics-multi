@@ -29,6 +29,8 @@
 *.exe
 
 mgmp.json
+# Mewgenics Multi : celui du zip de l'ami (paquet/) est le modele livre, il est suivi.
+!/paquet/mgmp.json
 mgmp.ini
 mgmp.ini.bak
 
