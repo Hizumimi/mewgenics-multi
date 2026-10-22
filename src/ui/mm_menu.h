@@ -134,6 +134,21 @@ bool     mm_host_in_run();
 bool     mm_offer_reload(const std::string& line_utf8);
 // Le nom d'un joueur de la session (pseudo Steam, « Joueur N » a defaut).
 std::string mm_peer_name(uint8_t id);
+// Mewgenics Multi : « Échanger » (mm_trade_ui) dans la boite du jeu, l'une de nos
+// fenetres -- une a la fois, ouverte depuis trade_ui_pump seulement (`no` nul : un
+// seul bouton) ; ses boutons reviennent par trade_ui_button. Alive : a l'ecran, pas
+// encore refermee. Text : son texte, s'il a change. Yes : appuie sur « oui » (son
+// action suit) ; close : la referme sans action.
+bool mm_trade_box_open(const std::string& text_utf8, const char* yes, const char* no);
+bool mm_trade_box_alive();
+void mm_trade_box_text(const std::string& text_utf8);
+bool mm_trade_box_yes();
+bool mm_trade_box_close();
+// Une fenetre d'information maintenant n'arreterait rien que le joueur utilise : sa
+// maison ou sa carte est deja en pause (le menu pause), sans combat ni evenement,
+// et aucune autre fenetre n'est ouverte ou n'attend. Les nouvelles de celui qui
+// recoit un don attendent ce moment (mm_gift, mm_trade_ui).
+bool mm_info_quiet();
 // Mewgenics Multi (protocole 62, mm_gift) : un depart en aventure est en cours pour
 // ce joueur -- le choix des colliers ouvert ; hote : son vote, le depart ensemble ;
 // invite : la proposition de l'hote, « J'arrive » dit, le chargement de la copie

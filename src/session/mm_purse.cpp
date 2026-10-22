@@ -917,7 +917,7 @@ void purse_on_mm(uint8_t from, const MmMsg& m) {
                      mm_peer_name(giver).c_str(), coins, food, mm_peer_name(to).c_str());
             if (from_me || to_me)
                 gift_purse_note(purse_given_line(from_me, to_me, mm_peer_name(giver), mm_peer_name(to), coins, food),
-                                from_me);
+                                from_me, from_me);
             break;
         }
         case kPurseGiveNo: {
@@ -1058,7 +1058,7 @@ bool purse_give(uint8_t to, int64_t coins, int64_t food, std::string& why) {
         purse_encode_given(r, kHostPeer, to, (int32_t)coins, (int32_t)food, 0);
         if (!net_send_mm(r)) log_line("PURSE", "!! envoi du don impossible (les bourses suivent quand meme)");
         host_send(true);
-        gift_purse_note(purse_given_line(true, false, "", mm_peer_name(to), coins, food), true);
+        gift_purse_note(purse_given_line(true, false, "", mm_peer_name(to), coins, food), true, true);
         return true;
     }
     if (g.give_pending) {

@@ -8,7 +8,9 @@
 //   - ce que fait celui qui recoit (garder, attendre, refuser) ;
 //   - le don d'une bourse a une autre (le compte de l'aventure ne change pas) et
 //     les messages MM_PURSE a = 4, 5, 6 ;
-//   - les textes en francais (elisions comprises).
+//   - les textes en francais (elisions comprises) ;
+//   - « Échanger » dans la boite du jeu : le montant tape, la recherche sans
+//     accents, la liste des objets (groupes par nom, Espace, 16 au plus, pages).
 
 #include "mm_gift_core.h"
 #include "mm_purse_core.h"
@@ -335,6 +337,87 @@ void test_text() {
     check(purse_give_no_text(kPurseNoEnough) == u8"ta bourse n'en a pas autant", "bourse : refus");
 }
 
+// « Échanger » dans la boite du jeu : le montant tape, la recherche, la liste des objets.
+void test_trade_amount() {
+    check(trade_amount_key(0, 4, 100) == 4 && trade_amount_key(4, 2, 100) == 42, "montant : des chiffres");
+    check(trade_amount_key(42, 7, 100) == 100, "montant : ramene au plus");
+    check(trade_amount_key(42, kTradeKeyBack, 100) == 4 && trade_amount_key(4, kTradeKeyBack, 100) == 0,
+          "montant : Retour arriere");
+    check(trade_amount_key(3, kTradeKeyAll, 77) == 77, "montant : T, tout");
+    check(trade_amount_key(5, 1, 0) == 0 && trade_amount_key(0, kTradeKeyAll, -3) == 0, "montant : rien a donner");
+    check(trade_amount_key(kGiftMaxMoney, 9, 50000000) == kGiftMaxMoney, "montant : kGiftMaxMoney au plus");
+}
+
+void test_trade_list() {
+    check(trade_fold(u8"Épée ÉCLATÉE") == "epee eclatee" && trade_fold(u8"Cœur") == "coeur" &&
+              trade_fold(u8"Pâté") == "pate",
+          "recherche : sans casse ni accents");
+
+    TradeList l;
+    l.labels = { u8"Casse-croûte", u8"Épée", u8"Casse-croûte", "Gem", u8"Casse-croûte" };
+    std::vector<TradeLine> lines = trade_lines(l);
+    check(lines.size() == 3 && lines[0].label == u8"Casse-croûte" && lines[0].have == 3 && lines[1].label == u8"Épée" &&
+              lines[2].have == 1,
+          "liste : les memes noms groupes, dans l'ordre du rangement");
+
+    // Espace : un de plus, puis aucun une fois tous pris.
+    trade_list_key(l, TradeListKey::Toggle, 8);
+    trade_list_key(l, TradeListKey::Toggle, 8);
+    check(trade_picked(l) == 2 && l.picked[u8"Casse-croûte"] == 2, "liste : Espace, deux casse-croutes");
+    trade_list_key(l, TradeListKey::Toggle, 8);
+    trade_list_key(l, TradeListKey::Toggle, 8);
+    check(trade_picked(l) == 0, "liste : Espace, apres les trois, aucun");
+    trade_list_key(l, TradeListKey::More, 8);
+    trade_list_key(l, TradeListKey::Down, 8);
+    trade_list_key(l, TradeListKey::Toggle, 8);
+    trade_list_key(l, TradeListKey::Toggle, 8);
+    check(l.cursor == 1 && l.picked.count(u8"Épée") == 0 && trade_picked(l) == 1, "liste : un seul objet, coche puis "
+                                                                                    "decoche");
+    trade_list_key(l, TradeListKey::More, 8);
+    const std::vector<size_t> ch = trade_list_chosen(l);
+    check(ch.size() == 2 && ch[0] == 0 && ch[1] == 1, "liste : les objets choisis, les premiers de chaque nom");
+    const std::string page = trade_list_text(l, 8);
+    check(page.find(u8"(1) Casse-croûte x3") != std::string::npos && page.find(u8"> (x) Épée") != std::string::npos &&
+              page.find("( ) Gem") != std::string::npos && page.find('[') == std::string::npos,
+          "liste : le texte de la page (sans [ ])");
+
+    // La recherche : sans accents, le curseur ramene, le choix garde.
+    l.filter = "epe";
+    trade_list_fit(l);
+    lines = trade_lines(l);
+    check(lines.size() == 1 && lines[0].label == u8"Épée" && l.cursor == 0 && trade_picked(l) == 2,
+          "liste : la recherche ne garde que les noms qui correspondent");
+    l.filter = "zzz";
+    trade_list_fit(l);
+    check(trade_lines(l).empty() && trade_list_text(l, 8).find(u8"Aucun objet") != std::string::npos,
+          "liste : rien ne correspond");
+    l.filter.clear();
+
+    // Le rangement relu : un objet parti, le choix ramene a ce qui reste.
+    l.labels = { u8"Épée" };
+    trade_list_fit(l);
+    check(trade_picked(l) == 1 && l.picked.count(u8"Casse-croûte") == 0, "liste : le rangement relu");
+
+    // 16 objets au plus, et des pages.
+    TradeList big;
+    for (int i = 0; i < 20; ++i) big.labels.push_back("Objet " + std::to_string(100 + i));
+    for (int i = 0; i < 20; ++i) {
+        trade_list_key(big, TradeListKey::Toggle, 8);
+        trade_list_key(big, TradeListKey::Down, 8);
+    }
+    check(trade_picked(big) == kGiftMaxItems && trade_list_chosen(big).size() == kGiftMaxItems,
+          "liste : 16 objets au plus");
+    big.cursor = 0;
+    trade_list_key(big, TradeListKey::PageDown, 8);
+    check(big.cursor == 8 && trade_list_text(big, 8).find("(page 2 sur 3)") != std::string::npos,
+          "liste : la page suivante");
+    trade_list_key(big, TradeListKey::PageDown, 8);
+    trade_list_key(big, TradeListKey::PageDown, 8);
+    check(big.cursor == 19, "liste : pas plus loin que la derniere ligne");
+    TradeList none;
+    check(trade_list_text(none, 8) == u8"Rien à donner dans ton rangement.", "liste : rangement vide");
+}
+
 } // namespace
 
 int main() {
@@ -344,6 +427,8 @@ int main() {
     test_purse_transfer();
     test_purse_messages();
     test_text();
+    test_trade_amount();
+    test_trade_list();
     std::printf("%s (%d verifications, %d echec(s))\n", g_fail ? "ECHEC" : "ok", g_ok + g_fail, g_fail);
     return g_fail ? 1 : 0;
 }

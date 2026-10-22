@@ -30,6 +30,7 @@
 #include "mm_team_merge.h"   // ItemFields, kTeamMagic, kTeamFormat, kTeamGift
 
 #include <cstdint>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -120,5 +121,47 @@ GiftStep gift_receiver_step(bool at_home, bool busy, uint64_t waited_ms, uint8_t
 
 // Ce que le donneur peut donner : `want` ramene entre 0 et `have` (et kGiftMaxMoney).
 int32_t gift_clamp(int64_t want, int64_t have);
+
+// --- « Échanger » dans la boite du jeu (mm_trade_ui) : la partie sans le jeu -----------
+
+// Un montant tape au clavier : un chiffre (0 a 9), kTradeKeyBack (Retour arriere)
+// ou kTradeKeyAll (T : tout). Le resultat reste entre 0 et `max` (gift_clamp).
+constexpr int kTradeKeyBack = -1;
+constexpr int kTradeKeyAll  = -2;
+int64_t trade_amount_key(int64_t value, int key, int64_t max);
+
+// Un nom pour la recherche : minuscules, sans les accents latins (« Épée » -> « epee »).
+std::string trade_fold(const std::string& utf8);
+
+// La liste des objets du rangement, dans le texte de la boite : les objets de meme
+// nom sur une ligne, une recherche par lettres, un curseur, des pages. Le choix est
+// garde par nom : le rangement relu change les ids des objets, pas leurs noms.
+struct TradeList {
+    std::vector<std::string>      labels;   // les objets donnables, dans l'ordre (UTF-8)
+    std::map<std::string, size_t> picked;   // nom -> combien en donner
+    std::string                   filter;   // les lettres tapees (UTF-8)
+    size_t                        cursor = 0;   // parmi les lignes visibles
+};
+struct TradeLine {
+    std::string label;
+    size_t      have   = 0;
+    size_t      picked = 0;
+};
+// Les lignes visibles (la recherche appliquee), dans l'ordre du premier objet de
+// chaque nom.
+std::vector<TradeLine> trade_lines(const TradeList& l);
+// Combien d'objets sont choisis (kGiftMaxItems au plus).
+size_t trade_picked(const TradeList& l);
+// Apres un rangement relu ou une recherche changee : les choix ramenes a ce qui
+// est la, le curseur sur une ligne visible.
+void trade_list_fit(TradeList& l);
+// Une touche : Haut, Bas, pages, Droite (un de plus), Gauche (un de moins), Espace
+// (un de plus, puis aucun une fois tous pris ou kGiftMaxItems atteint).
+enum class TradeListKey { Up, Down, PageUp, PageDown, More, Less, Toggle };
+void trade_list_key(TradeList& l, TradeListKey k, size_t page);
+// Les objets a donner : leurs indices dans `labels` (les premiers de chaque nom).
+std::vector<size_t> trade_list_chosen(const TradeList& l);
+// Une page de la liste, pour la boite : « > (2) Casse-croûte x5 » ; `page` lignes.
+std::string trade_list_text(const TradeList& l, size_t page);
 
 } // namespace mgmp
