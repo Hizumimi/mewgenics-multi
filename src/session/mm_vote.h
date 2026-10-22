@@ -93,6 +93,10 @@ void vote_map_update(void* map);
 // Une case est entree : par l'hote (h_EnterNode), ou par un invite qui le suit.
 void vote_on_enter_node();
 
+// Hote : le combat de la Nemesis commence (h_Fight) -- un tour encore en vote est
+// abandonne (le resultat deja tombe, lui, se joue apres le combat).
+void vote_on_nemesis_fight();
+
 // MM_VOTE d'un autre joueur.
 void vote_on_mm(uint8_t from, const MmMsg& m);
 

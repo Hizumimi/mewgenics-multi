@@ -4,8 +4,9 @@
 //   - le tour : ouverture au premier vote, votants fixes, changement de vote,
 //     resultat a l'unanimite, a la majorite, egalite tiree au sort ;
 //   - le compte a rebours de 30 s : arrete tant qu'un votant n'est pas sur la
-//     carte, absent ecarte apres 60 s (jamais l'hote), retour d'un ecarte,
-//     plafond de 3 minutes, pas de temps plafonne ;
+//     carte, absent ecarte apres 60 s d'affilee (jamais l'hote), retour d'un
+//     ecarte, plafond de 3 minutes, pas de temps plafonne ;
+//   - la duree du resultat (courte a l'unanimite) ;
 //   - les votants qui partent (et leur vote), le tour abandonne sans vote ;
 //   - le message MM_VOTE (aller-retour, refus des messages faux) ;
 //   - la fenetre de chaque joueur (« Même chemin », « Changer »...) et son texte.
@@ -369,6 +370,44 @@ void test_view() {
     check(has(t, u8"Joueur 2 : pas de vote"), "nom par defaut");
 }
 
+// L'absence se compte d'affilee : 40 s, de retour, 40 s -- pas ecarte ; puis
+// 60 s d'un trait -- ecarte.
+void test_absence_in_a_row() {
+    VoteHost h; h.set_never_drop(kHost);
+    FixedRng rng;
+    uint64_t now = 0;
+    h.cast(0, 5, 5, kHost | kGuest, now);
+    run(h, now, 40000, kHost, rng);
+    run(h, now, 1000, kHost | kGuest, rng);
+    run(h, now, 40000, kHost, rng);
+    check(!(h.state().dropped & kGuest), "absences coupees par un retour : pas ecarte");
+    check(h.state().phase == VotePhase::Voting, "on l'attend encore");
+    run(h, now, 20000, kHost, rng);
+    check(h.state().phase == VotePhase::Result, "60 s d'affilee : ecarte, le vote de l'hote l'emporte");
+}
+
+// La duree du resultat : courte quand tout le monde a choisi la meme case.
+void test_result_show() {
+    VoteState s;
+    s.phase  = VotePhase::Result;
+    s.voters = kHost | kGuest;
+    s.ballot[0] = {4, 12};
+    s.ballot[1] = {4, 12};
+    s.winner    = {4, 12};
+    check(vote_unanimous(s) && vote_result_show_ms(s) == kVoteResultSameMs, "unanime : resultat court");
+    s.ballot[1] = {7, 5};
+    check(!vote_unanimous(s) && vote_result_show_ms(s) == kVoteResultMs, "majorite : resultat entier");
+    s.ballot[1] = VoteBallot{};
+    check(!vote_unanimous(s), "une abstention : pas unanime");
+    s.ballot[1] = {4, 12};
+    s.drawn = true;
+    check(!vote_unanimous(s), "tirage au sort : pas unanime");
+    s.drawn  = false;
+    s.voters = kHost;
+    s.ballot[1] = VoteBallot{};
+    check(!vote_unanimous(s), "un seul votant : pas unanime");
+}
+
 } // namespace
 
 int main() {
@@ -381,6 +420,8 @@ int main() {
     test_round_numbers();
     test_message();
     test_view();
+    test_absence_in_a_row();
+    test_result_show();
     if (g_fail) { std::printf("%d echec(s)\n", g_fail); return 1; }
     std::printf("ok\n");
     return 0;

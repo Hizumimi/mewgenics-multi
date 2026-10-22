@@ -1457,6 +1457,8 @@ bool     g_halt_note_due   = false;   // il est rentre parce que sa copie du com
 // l'hote, ou continue apres lui (OrphanKind, mgmp_orphan.h) ; 0 : elle s'est
 // arretee pendant qu'il regardait.
 uint8_t  g_halt_note_kind  = 0;
+// ... ou parce qu'une case de l'hote n'a pas pu etre suivie (follow_refused_member).
+constexpr uint8_t kHaltNoteRefused = 3;
 bool     g_home_offer      = false;   // proposer de rentrer
 // L'aventure de l'hote est finie (abandon, victoire, defaite, connexion coupee)
 // et ce joueur n'est pas encore rentre chez lui : vrai dans la copie, et encore
@@ -2047,20 +2049,27 @@ void client_adventure_pump() {
         // se sont pas finies ensemble (mgmp_orphan.h) -- l'hote avait fini et pas
         // lui (personne ne joue plus son combat), ou l'inverse. Meme sortie : une
         // copie qui a diverge ne se rattrape pas, la save de l'hote la remplacera.
+        // Mewgenics Multi : ou une case de l'hote dont il est membre n'a pas pu
+        // etre suivie ici (follow_refused_member) -- l'hote l'attendrait a la
+        // barriere du combat pour toujours. Meme sortie.
         const uint8_t orphan = lockstep_orphan();
-        if ((lockstep_halted_watching() || orphan) && savefile_in_coop() && !g_quitting && !g_trip.active) {
+        const bool can_leave = savefile_in_coop() && !g_quitting && !g_trip.active;
+        const bool halted    = lockstep_halted_watching();
+        const bool refused   = can_leave && follow_refused_member();
+        if ((halted || orphan || refused) && can_leave) {
             log_line("MULTI", "aventure : la copie du combat de ce joueur s'est desynchronisee (%s) -- "
                               "il quitte l'aventure, il pourra la rejoindre",
                      orphan == kOrphanHostDone ? "le combat de l'hote etait fini, pas le sien"
                      : orphan == kOrphanMineDone ? "son combat etait fini, pas celui de l'hote"
-                                                 : "il regardait");
+                     : halted                    ? "il regardait"
+                                                 : "une case de l'hote n'a pas pu etre suivie ici");
             g_quitting        = true;
             g_run_offer_quiet = true;
             g_run_offer       = false;
             g_home_offer      = false;
             g_home_due        = false;
             g_halt_note_due   = true;
-            g_halt_note_kind  = orphan;
+            g_halt_note_kind  = (uint8_t)(orphan ? orphan : halted ? 0 : kHaltNoteRefused);
             savefile_go_home();
             start_menu_trip("copie du combat desynchronisee");
         }
@@ -2081,6 +2090,14 @@ void client_adventure_pump() {
                               u8"désynchronisée. Tu es rentré ; tes chats\n"
                               u8"restent dans son équipe, l'IA du jeu les\n"
                               u8"joue jusqu'à la fin du combat.\n\n"
+                              u8"Pour revenir dans l'aventure, clique sur\n"
+                              u8"un panneau de ta maison.", host_display().c_str()));
+            else if (g_halt_note_kind == kHaltNoteRefused)
+                show_info(fmt(u8"Retour à la maison\n\n"
+                              u8"%s est entré dans une case que ton jeu\n"
+                              u8"n'a pas pu suivre : ta copie de l'aventure\n"
+                              u8"n'était plus la même. Tu es rentré ; tes\n"
+                              u8"chats restent dans son équipe, il les dirige.\n\n"
                               u8"Pour revenir dans l'aventure, clique sur\n"
                               u8"un panneau de ta maison.", host_display().c_str()));
             else
@@ -3611,7 +3628,10 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
                 // serait jamais renvoye : on attend le retour sur la carte.
                 // follow_in_node : un evenement fait tourner la carte par moments
                 // (follow_inside_node seul la croyait alors finie).
-                if (follow_in_node() && choice_made_in_node()) {
+                // Mewgenics Multi : de meme une case finie dont l'hote n'est pas
+                // encore sorti (ses montees de niveau, avant le premier choix) :
+                // servie, l'arrivant rejouerait tout le combat.
+                if (follow_in_node() && (choice_made_in_node() || follow_node_ended())) {
                     g_run_req_pending |= 1u << from;
                     log_line("MULTI", "aventure : il la recevra au retour sur la carte");
                 } else {
