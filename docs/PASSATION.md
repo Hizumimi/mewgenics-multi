@@ -172,7 +172,8 @@ mises en scripts le 22 octobre (aucun des deux ne produit la DLL) :
 
 Le zip contient un dossier `mgmp\` : `LISEZ-MOI.txt`, `Lancer Mewgenics coop.bat`,
 `mgmp.json`, `steam_appid.txt`, `mgmp.dll`, `mgmp_loader.exe`. Celui de la build 52,
-refait par les deux scripts, est identique à celui livré le 18 octobre.
+refait par les deux scripts, est identique à celui livré le 18 octobre, sauf le .bat,
+remplacé le 22 octobre dans le zip et chez Hizu (section 10).
 
 ## 5. Comment marche le mod
 
@@ -461,9 +462,10 @@ complète à deux.
 - **Steam doit être ouvert avant le .bat.** Sinon le jeu se ferme pendant son
   démarrage, avant le mod (code 3221226505, `0xC0000409`), et `loader.txt` parle à
   tort d'une relance par Steam et de `steam_appid.txt` : c'est arrivé le 20 octobre,
-  Steam était fermé. Le message du loader pourrait le dire pour un code de sortie
-  non nul (`loader/mgmp_loader.cpp` ; le loader ne calcule rien pour les pairs,
-  pas de changement de protocole).
+  Steam était fermé. Depuis le 22 octobre, le .bat vérifie que `steam.exe` tourne ;
+  sinon il le dit et attend une touche avant de lancer. Le loader lancé seul parle
+  encore de `steam_appid.txt` pour un code de sortie non nul
+  (`loader/mgmp_loader.cpp`).
 - `src/net/mgmp_proto.h`, ligne 54 : 24 Ko sur une ligne. Ne jamais l'afficher en
   entier ; une modification se fait par un remplacement exact.
 - La DLL partage des `std::string` et `std::function` avec le jeu : MSVC x64
