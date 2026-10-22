@@ -113,6 +113,14 @@ struct State {
     // follow_epoch.
     uint32_t    epoch = 0;
 
+    // Mewgenics Multi (invite) : une case de l'hote vient d'etre abandonnee ici
+    // (carte ou graine differente, Nemesis impossible a rejouer, file pleine). Membre,
+    // l'hote l'attend a la barriere du combat ; membre ou non (un arrivant en pleine
+    // case), ses chats y montent de niveau et l'hote attend ses choix -- sans delai.
+    // Il rentre chez lui (mm_menu, follow_refused_member) : MM_PEER_RUN 0, l'hote
+    // prend ses chats, et la copie de l'hote le remettra d'accord en revenant.
+    bool        refused_member = false;
+
     // The node this peer is standing in, remembered so a peer that connects
     // afterwards can be told where the run is. ENTERNODE used to be published
     // once, at the moment of entry, and nothing kept it -- so a reconnecting
@@ -212,6 +220,14 @@ void pending_pop() {
 }
 
 void pending_clear() { g.pending_head = 0; g.pending_count = 0; }
+
+// Mewgenics Multi : une case de l'hote abandonnee ici -- la couche des choix
+// l'oublie, et ce joueur rentre chez lui, membre ou non : sa copie a diverge, et
+// l'hote attendrait aussi les choix de ses chats (voir refused_member). Guard tenu.
+void node_given_up(uint64_t seed) {
+    choice_on_node_skipped(seed);
+    if (savefile_in_coop()) g.refused_member = true;
+}
 
 bool read_nodes(void* map, uint32_t& count, void*& data) {
     count = 0; data = nullptr;
@@ -770,12 +786,14 @@ void follow_drop_pending() {
     pending_clear();
     g.next_fresh = true;         // une copie neuve : sa premiere case est fraiche
     g.live       = false;
+    g.refused_member = false;    // Mewgenics Multi : la copie neuve remet d'accord
 }
 
 void follow_forget_map() {
     Guard guard;
     g.next_fresh = true;
     g.live       = false;
+    g.refused_member = false;    // Mewgenics Multi : voir follow_refused_member
     g.inside     = false;   // Mewgenics Multi : la derniere case de l'aventure d'avant (une defaite...)
     // Mewgenics Multi (protocole 61) : et la case ou l'on « est » -- c'est elle
     // (follow_here_seed) qui marque les choix de l'hote et qu'un arrivant recoit.
@@ -817,6 +835,18 @@ void follow_note_map_update(bool inside_original) {
 bool follow_node_live() {
     Guard guard;
     return g.live;
+}
+
+bool follow_refused_member() {
+    Guard guard;
+    const bool was = g.refused_member;
+    g.refused_member = false;
+    return was;
+}
+
+bool follow_node_ended() {
+    Guard guard;
+    return g.live && g.live_ended;
 }
 
 void follow_on_message(const EnterNodeMsg& m) {
@@ -861,7 +891,7 @@ void follow_on_message(const EnterNodeMsg& m) {
                            " to follow the run and the two are no longer the same"
                            " run.",
                  g.pending_count, m.index);
-        choice_on_node_skipped(m.seed0);
+        node_given_up(m.seed0);
         return;
     }
 
@@ -1039,7 +1069,7 @@ void* follow_map_update(void* map_screen) {
                  p.count, count);
         const uint64_t lost = p.seed;
         pending_pop();
-        choice_on_node_skipped(lost);
+        node_given_up(lost);
         return nullptr;
     }
 
@@ -1049,7 +1079,7 @@ void* follow_map_update(void* map_screen) {
                  p.index, count);
         const uint64_t lost = p.seed;
         pending_pop();
-        choice_on_node_skipped(lost);
+        node_given_up(lost);
         return nullptr;
     }
 
@@ -1089,7 +1119,7 @@ void* follow_map_update(void* map_screen) {
             pending_pop();
             log_line("FOLLOW", "!! combat de la Nemesis sur la case %u : impossible a rejouer ici apres %llu ms -- "
                                "abandonne, ce joueur ne le suivra pas", entering, (unsigned long long)waited);
-            choice_on_node_skipped(id);
+            node_given_up(id);
             return nullptr;
         }
         pending_pop();
@@ -1119,7 +1149,7 @@ void* follow_map_update(void* map_screen) {
                  (unsigned long long)p.seed);
         const uint64_t lost = p.seed;
         pending_pop();
-        choice_on_node_skipped(lost);
+        node_given_up(lost);
         return nullptr;
     }
 

@@ -47,7 +47,7 @@ constexpr uintptr_t kMarker_Frozen = 0x78;
 
 // --- les delais -------------------------------------------------------------------
 
-constexpr uint64_t kResultShowMs   = 2500;    // le resultat reste affiche
+// Le resultat reste affiche : vote_result_show_ms (mm_vote_core).
 // Apres le resultat, au plus ce temps de carte qui tourne (pas en pause) pour
 // rejouer le clic et y entrer : un filet, la fin normale vient des evenements.
 constexpr uint64_t kMoveMapMs      = 30000;
@@ -496,6 +496,10 @@ void host_on_cast(uint8_t from, const MmMsg& m) {
         return;
     }
     void* map = live_map();
+    // Mewgenics Multi : sa carte en pause (ecran des objets, une fenetre du jeu)
+    // n'a pas bouge : le vote est pris. live_map reste la presence (le compte
+    // a rebours l'attend) et le clic rejoue attend que la carte tourne.
+    if (!map && g.map && mm_scene_alive("Map") && !follow_in_node()) map = g.map;
     const char* why = nullptr;
     uint8_t reason = kRefuseNone;
     void* node = nullptr;
@@ -760,7 +764,7 @@ void vote_map_update(void* map) {
     uint8_t frozen = 0;
     if (rd(map, kMk_MapMarker, marker) && marker) rd(marker, kMarker_Frozen, frozen);
     if (!g.applied) {
-        if (now - g.result_at < kResultShowMs) return;
+        if (now - g.result_at < vote_result_show_ms(s)) return;
         if (mm_vote_popup_open() || mm_game_prompt_open()) return;
         if (frozen) return;                     // la Nemesis marche : le clic serait efface
         host_apply(map, now);
@@ -801,6 +805,17 @@ void vote_on_enter_node() {
         return;
     }
     g.pending = VoteBallot{};
+}
+
+void vote_on_nemesis_fight() {
+    if (net_role() != NetRole::Host) return;
+    const VoteState& s = g.host.state();
+    // Un resultat deja tombe se joue apres le combat (vote_map_update) ; un vote
+    // encore ouvert se reglerait pendant le combat, sans les invites.
+    if (s.phase != VotePhase::Voting) return;
+    log_line("VOTE", "tour %u abandonne : le combat de la Nemesis commence pendant le vote",
+             (unsigned)s.round);
+    host_finish(GetTickCount64());
 }
 
 void vote_on_mm(uint8_t from, const MmMsg& m) {
@@ -864,7 +879,7 @@ bool vote_popup(VotePopup& out, uint32_t open_layout) {
     const uint64_t now = GetTickCount64();
     if (lay == VoteLayout::Result) {
         const uint64_t at = md == Mode::Host ? g.result_at : g.result_seen_at;
-        if (now - at >= kResultShowMs) return false;
+        if (now - at >= vote_result_show_ms(*s)) return false;
         if (g.result_closed == s->round) return false;
     } else if (g.dismiss_round == s->round && now < g.dismiss_until) {
         const uint16_t cur = own.valid() ? own.node : s->ballot[self].node;

@@ -12,7 +12,7 @@
 //     changer son vote tant que tout le monde n'a pas vote.
 //   - Le compte a rebours n'avance que quand tous les votants sont sur la carte
 //     (sortir d'un combat prend plus ou moins de temps a chacun). Un votant
-//     absent depuis 60 s n'est plus attendu (il s'abstient, sauf s'il revient
+//     absent depuis 60 s d'affilee n'est plus attendu (il s'abstient, sauf s'il revient
 //     voter a temps) ; l'hote, qui fait le deplacement, est toujours attendu.
 //     Au plus 3 minutes par tour.
 //   - Les votants sont ceux de l'aventure a l'ouverture du tour : ceux qui la
@@ -48,6 +48,10 @@ constexpr uint32_t kVoteSafetyMs    = 180000;    // au plus, par tour
 // Un pas de temps plus long (une image figee par un chargement) ne compte que
 // pour ca : le delai est fait pour les joueurs, pas pour les a-coups du jeu.
 constexpr uint32_t kVoteMaxStepMs   = 500;
+// Le resultat reste affiche avant que le pion parte ; moins quand tout le monde
+// a choisi la meme case (rien a lire).
+constexpr uint32_t kVoteResultMs     = 2500;
+constexpr uint32_t kVoteResultSameMs = 1000;
 
 enum class VotePhase : uint8_t { Idle = 0, Voting = 1, Result = 2 };
 
@@ -97,6 +101,13 @@ struct VoteState {
 
 // Les joueurs qui ont un vote (parmi les votants).
 uint32_t vote_cast_mask(const VoteState& s);
+
+// Le resultat : au moins deux votants, tous pour la case gagnante (sans tirage).
+bool vote_unanimous(const VoteState& s);
+
+// Combien de temps le resultat reste affiche : la meme duree chez l'hote (le
+// clic rejoue) et chez chaque invite (sa fenetre), d'apres l'etat publie.
+uint32_t vote_result_show_ms(const VoteState& s);
 
 // L'hote : le tour en cours et ses regles.
 class VoteHost {

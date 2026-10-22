@@ -254,6 +254,7 @@ bool __fastcall h_Fight(void* map) {
         return false;
     }
     const bool started = o_Fight(map);
+    if (started) vote_on_nemesis_fight();
     if (!started || !host_with_guests() || !coop_ready()) return started;
     // Hote, des invites dans l'aventure : le combat part comme une case.
     void* pawn = nullptr;

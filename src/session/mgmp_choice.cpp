@@ -192,9 +192,12 @@ struct State {
     // Mewgenics Multi (hote) : un choix a deja ete publie dans cette case.
     bool     chose_here = false;
 
-    // NODES THIS PEER WILL NEVER ENTER, so a choice that arrives for one after
-    // the fact can be refused instead of held forever. Same device, and the
-    // same 16 entries, as the retired-battle_id ring in mgmp_battleid.h.
+    // NODES THIS PEER PASSED OVER WITHOUT ENTERING, so a choice that arrives for
+    // one after the fact can be refused instead of held forever. Same device, and
+    // the same 16 entries, as the retired-battle_id ring in mgmp_battleid.h.
+    // Mewgenics Multi : pas « jamais » -- un invite qui revient dans l'aventure
+    // (Rejoindre, une reconnexion) peut y entrer : l'entree la retire de l'anneau
+    // (choice_on_node_entered), une copie neuve de l'hote le vide (choice_forget).
     static constexpr uint32_t kSkippedRing = 16;
     uint64_t skipped[kSkippedRing] = {};
     uint32_t skipped_next          = 0;
@@ -227,6 +230,13 @@ struct State {
     // proprietaire pour cette etape ne peut pas se jouer ici, personne d'autre ne
     // pourrait choisir.
     uint32_t evt_takeover = 0;
+    // Hote : la montee de niveau ou il prend la main -- le chat et le numero de son
+    // ecran (CatData+0xC30 ; 0 : aucune). Meme regle que evt_takeover : la demande
+    // du proprietaire pour CET ecran ne se joue pas ici (les deux listes different).
+    // Invite proprietaire : l'ecran de son chat qu'il joue chez lui, sans publier --
+    // le choix de l'hote qui a pris la main ne s'y joue pas non plus (try_apply).
+    uint64_t lvl_takeover_cat    = 0;
+    uint32_t lvl_takeover_serial = 0;
     // Le choix du chat d'un evenement (setupCatChoice, puis son « ok »), pour un
     // WorldEvent : son panneau a l'ouverture (un autre evenement a la meme adresse
     // n'est pas celui-ci), ouvert, fait, et le repli (le chat choisi ailleurs ne se
@@ -539,6 +549,20 @@ std::string decider_name(int decider) {
 // Hote : il a pris la main sur l'etape ou en est l'evenement (voir host_apply).
 bool host_took_over() { return !g.is_client && g.evt_takeover == g.evt_stage + 1; }
 
+// Ce joueur a pris la main sur l'ecran de montee de niveau `serial` de ce chat (et
+// le choix de la capacite a remplacer qui en vient) -- l'hote voir host_apply,
+// l'invite proprietaire voir try_apply.
+bool took_level(uint64_t cat_id, uint32_t serial) {
+    return cat_id && serial && cat_id == g.lvl_takeover_cat && serial == g.lvl_takeover_serial;
+}
+
+// Ce que fait un clic sur cet ecran de montee de niveau, prise en main comprise
+// (chez un invite, Run se joue sans publier : voir publish).
+Gate gate_for_level(uint64_t cat_id, uint32_t serial, int* decider_out) {
+    const Gate gate = gate_for(cat_id, decider_out);
+    return took_level(cat_id, serial) ? Gate::Run : gate;
+}
+
 // --- injecting -------------------------------------------------------------
 //
 // Both are the game's own commit path with our index substituted, rather than a
@@ -620,6 +644,7 @@ ChoiceMsg to_msg(const Decision& d, uint8_t flags) {
 
 // Hote : le choix part chez tous les invites.
 bool publish(const Decision& d) {
+    if (g.is_client) return false;   // Mewgenics Multi : l'ecran qu'un invite joue chez lui (gate_for_level)
     const ChoiceMsg m = to_msg(d, 0);
     if (!net_send_choice(m)) {
         log_line("CHOICE", "!! %s choice %u could not be sent", kind_name(d.kind), d.index);
@@ -949,6 +974,18 @@ Apply try_apply(Decision& d, void* screen) {
                 log_line("CHOICE", "!! the %s choice was made on %u level-up option(s), this peer has %u --"
                                    " refusing; the two screens are not the same screen",
                          kind_name(d.kind), d.count, count);
+                // Mewgenics Multi (invite) : le choix de l'hote sur l'ecran du chat de CE
+                // joueur -- l'hote a pris la main, sa demande ne se jouait pas chez lui.
+                // Personne d'autre ne choisira ici : il choisit chez lui, sans publier ;
+                // la poussee des chats de l'hote au retour sur la carte les remet d'accord.
+                const uint32_t here = level_serial(screen);
+                if (g.is_client && d.kind == kChoiceLevelUp && (!d.serial || d.serial == here) &&
+                    decider_of(d.cat_id) == (int)self_peer() && !took_level(d.cat_id, here)) {
+                    g.lvl_takeover_cat    = d.cat_id;
+                    g.lvl_takeover_serial = here;
+                    log_line("CHOICE", "!! the host's level-up choice for this player's cat %016llx cannot be played"
+                                       " here -- this player chooses locally", (unsigned long long)d.cat_id);
+                }
                 return Apply::Drop;
             }
         }
@@ -1042,6 +1079,16 @@ void guest_apply(uint8_t screen_kind, void* screen) {
     const uint64_t now = GetTickCount64();
     while (!g.queue.empty()) {
         Decision& d = g.queue.front();
+
+        // Mewgenics Multi : l'ecran de montee de niveau que ce joueur joue chez lui
+        // (voir try_apply) -- la suite des choix de l'hote pour lui (une relance, la
+        // capacite a remplacer de SON option) ne s'y joue pas.
+        if ((screen_kind_of(d.kind) == kChoiceLevelUp || d.kind == kChoiceAbility) && took_level(d.cat_id, d.serial)) {
+            log_line("CHOICE", "dropped the host's %s choice %u -- this player chooses locally on that level-up screen",
+                     kind_name(d.kind), d.index);
+            g.queue.pop_front();
+            continue;
+        }
 
         // NODE IDENTITY FIRST, BEFORE THE COUNT AND BEFORE THE NAME. A mismatch
         // HOLDS, it does not drop: the host publishes the instant it clicks,
@@ -1189,6 +1236,16 @@ void host_apply(uint8_t screen_kind, void* screen) {
             log_line("CHOICE", "!! %s's choice for this step of the event cannot be played here -- the host takes it over",
                      mm_peer_name(d.from).c_str());
         }
+        // Mewgenics Multi : de meme pour une montee de niveau -- la demande faite sur
+        // CET ecran (meme chat, meme numero ; jamais une plus ancienne) ne se joue pas
+        // ici : sans prise en main, chaque clic du proprietaire serait refuse pareil.
+        if (r == Apply::Drop && d.kind == kChoiceLevelUp && d.serial && d.serial == level_serial(screen) &&
+            !took_level(d.cat_id, d.serial)) {
+            g.lvl_takeover_cat    = d.cat_id;
+            g.lvl_takeover_serial = d.serial;
+            log_line("CHOICE", "!! %s's level-up choice for cat %016llx cannot be played on this screen -- the host"
+                               " takes it over", mm_peer_name(d.from).c_str(), (unsigned long long)d.cat_id);
+        }
         if (r == Apply::Applied) {
             ++g.applied;
             const Decision done = d;
@@ -1218,7 +1275,7 @@ void title_level(void* screen) {
     const bool same = g.titled_level == screen && g.titled_cat == cat && g.titled_opts == opts;
     if (same && now - g.titled_at < kTitleRefreshMs) return;
     int decider = 0;
-    const bool other = gate_for(cat, &decider) == Gate::Refuse;
+    const bool other = gate_for_level(cat, level_serial(screen), &decider) == Gate::Refuse;
     // Ce joueur decide : rien a dire -- sauf s'il vient de prendre la main sur cet
     // ecran (son proprietaire a quitte l'aventure), ou « A X de choisir » reste.
     if (!other && !(same && g.titled_other)) return;
@@ -1239,7 +1296,9 @@ void title_level(void* screen) {
 void title_chooser(void* chooser, Chooser* c) {
     if (!team_owners_active() || c->titled || !chooser_replicated(c)) return;
     int decider = 0;
-    if (gate_for(c->cat_id, &decider) != Gate::Refuse) return;
+    if (c->ctx == kCtxLevelUp ? gate_for_level(c->cat_id, cat_levelups(c->cat), &decider) != Gate::Refuse
+                              : gate_for(c->cat_id, &decider) != Gate::Refuse)
+        return;
     void* panel = nullptr;
     if (!mem_read((const uint8_t*)chooser + kAbl_Panel, &panel, sizeof(panel)) || !panel) return;
     c->titled = true;
@@ -1436,7 +1495,7 @@ bool on_level_reroll(void* screen) {
     if (begin && count) option_name(kChoiceLevelUp, begin, d.name, sizeof(d.name));
     else                snprintf(d.name, sizeof(d.name), "reroll");
     int decider = 0;
-    switch (gate_for(d.cat_id, &decider)) {
+    switch (gate_for_level(d.cat_id, d.serial, &decider)) {
         case Gate::Refuse:  refused_click("reroll", d.cat_id, decider); return false;
         case Gate::Request: request(d, screen); return false;
         case Gate::Run:     publish(d); return true;
@@ -1480,7 +1539,11 @@ bool on_ability_pick(void* chooser, int32_t index) {
     d.serial = c->ctx == kCtxLevelUp ? cat_levelups(c->cat) : 0;
     snprintf(d.name, sizeof(d.name), "%d", index);
     int decider = 0;
-    switch (gate_for(d.cat_id, &decider)) {
+    // Mewgenics Multi : la capacite a remplacer d'une montee de niveau dont l'hote a
+    // pris la main est a lui aussi.
+    const Gate gate = c->ctx == kCtxLevelUp ? gate_for_level(d.cat_id, d.serial, &decider)
+                                            : gate_for(d.cat_id, &decider);
+    switch (gate) {
         case Gate::Refuse:  refused_click("ability", d.cat_id, decider); return false;
         case Gate::Request: request(d, chooser); return false;
         case Gate::Run:
@@ -1661,6 +1724,8 @@ void choice_init() {
     g.injecting = false;
     g.evt_stage = 0;
     g.evt_takeover = 0;
+    g.lvl_takeover_cat = 0;
+    g.lvl_takeover_serial = 0;
     catpick_forget();
     etitle_forget();
     if (!g.on) { log_line("CHOICE", "choice replication disabled by net_choice = 0"); return; }
@@ -1824,7 +1889,7 @@ bool choice_on_level_select(void* screen, void* opt) {
     d.index = found;
 
     int decider = 0;
-    switch (gate_for(d.cat_id, &decider)) {
+    switch (gate_for_level(d.cat_id, d.serial, &decider)) {
     case Gate::Refuse:
         refused_click("level-up", d.cat_id, decider);
         return false;
@@ -1980,6 +2045,8 @@ void choice_forget() {
                            " them", (unsigned)g.queue.size());
     g.queue.clear();
     g.announced.clear();
+    std::memset(g.skipped, 0, sizeof(g.skipped));   // Mewgenics Multi : la copie a deja ces cases
+    g.skipped_next = 0;
     for (uint32_t i = 0; i < kMaxChoosers; ++i) g.choosers[i] = Chooser{};
 }
 
@@ -2010,11 +2077,17 @@ void choice_on_node_entered(uint64_t node_seed) {
     g.chose_here = false;
     for (State::Pending& p : g.pend) p = State::Pending{};
     g.evt_done_at = 0;                    // un autre evenement : sa liste peut ressembler a l'ancienne
+    // Mewgenics Multi : y entrer prouve qu'elle n'est plus sautee (un retour dans
+    // la case abandonnee) -- ses choix a venir sont les bons.
+    for (uint64_t& s : g.skipped)
+        if (node_seed && s == node_seed) s = 0;
     if (left != node_seed) {
         // Mewgenics Multi : une autre case, un autre evenement -- ses choix se
         // comptent de zero, son choix du chat et son titre sont les siens.
         g.evt_stage    = 0;
         g.evt_takeover = 0;
+        g.lvl_takeover_cat    = 0;
+        g.lvl_takeover_serial = 0;
         catpick_forget();
         etitle_forget();
     }

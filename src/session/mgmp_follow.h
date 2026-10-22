@@ -146,6 +146,18 @@ uint32_t follow_note_arrival();
 // case ne doit s'appliquer avant.
 bool follow_node_live();
 
+// Mewgenics Multi (invite) : une case de l'hote a ete abandonnee ici (cartes ou
+// graines differentes, combat de la Nemesis impossible a rejouer, file pleine) --
+// l'hote l'attendrait pour toujours, a la barriere du combat (membre) ou aux
+// montees de niveau de ses chats (membre ou non). Lu une fois (remis a faux) :
+// mm_menu le renvoie chez lui.
+bool follow_refused_member();
+
+// Mewgenics Multi : la case de ce joueur a passe sa fin de case, mais la carte n'a
+// pas encore tourne (l'ecran des montees de niveau suit la fin d'un combat). La
+// renvoyer a un arrivant le ferait rejouer une case deja resolue.
+bool follow_node_ended();
+
 // Mewgenics Multi : la fin de case du jeu vient de passer (T_NodeEnd, 0x140392FC0).
 void follow_on_node_end();
 

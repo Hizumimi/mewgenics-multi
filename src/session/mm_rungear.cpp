@@ -1,6 +1,7 @@
 // mm_rungear.cpp -- voir mm_rungear.h.
 #include "mm_rungear.h"
 #include "mm_gear.h"
+#include "mm_gift.h"         // gift_purse_note : un avis par-dessus le sac
 #include "mm_menu.h"
 #include "mm_team.h"
 #include "mm_team_merge.h"
@@ -71,6 +72,8 @@ constexpr uint64_t kAckWaitMs     = 20000;   // invite : un mouvement sans repon
 constexpr uint64_t kSyncRetryMs   = 20000;   // invite : redemander l'etat de l'hote
 constexpr uint64_t kSameCheckMs   = 1000;    // invite : comparer les poussees gardees a son etat, au plus
 constexpr uint64_t kChoiceQuietMs = 600;     // invite : pas de relecture juste apres un ecran de choix
+constexpr uint64_t kBagHoldTellMs = 2000;    // invite : sac ouvert, l'hote dans une case -- l'avis apres...
+constexpr uint64_t kBagRetellMs   = 10000;   // ... et de nouveau (il reste 8 s a l'ecran)
 constexpr uint32_t kStaleFrames   = 120;     // un ecran pas mis a jour depuis : verifier qu'il existe encore
 
 // MM_RUNREV a = 1 (hote -> tous) : x = la revision, b = ces drapeaux, texte[0..7] =
@@ -202,6 +205,8 @@ struct State {
     uint32_t bundle_arrival = 0;
     uint32_t bundle_applied = 0;      // le numero d'arrivee du dernier applique
     uint64_t same_checked   = 0;      // la derniere comparaison des poussees gardees
+    uint64_t bag_hold_since = 0;      // sac ouvert, une case de l'hote en attente : depuis quand...
+    uint64_t bag_told_at    = 0;      // ... et le dernier avis qui le dit
 
     // Les fenetres de ce joueur : une par raison et par ecran ouvert.
     uint32_t    told = 0;
@@ -1168,6 +1173,22 @@ void guest_pump(uint64_t now) {
     // de l'hote avant la decision : appliques ici, ceux d'apres la copie
     // fausseraient la comparaison, et seraient perdus si la copie se charge.
     if (savefile_keep_waiting()) return;
+    // Sac ouvert, l'hote est entre dans une case : le suivi attend sa fermeture
+    // (rungear_hold_follow), et la barriere d'un combat retient l'hote. Le dire,
+    // par-dessus le sac (le message des echanges ; une fenetre du jeu resterait
+    // derriere), apres un court moment et de nouveau tant que ca dure.
+    if (g.n_screens && follow_pending_count()) {
+        if (!g.bag_hold_since) g.bag_hold_since = now;
+        if (now - g.bag_hold_since >= kBagHoldTellMs && (!g.bag_told_at || now - g.bag_told_at >= kBagRetellMs)) {
+            if (!g.bag_told_at)
+                log_line("SAC", "une case de l'hote attend : ecran des objets ouvert, le suivi attend sa fermeture");
+            g.bag_told_at = now;
+            gift_purse_note(u8"L'hôte est entré dans une case : ferme ton sac pour le suivre.", false);
+        }
+    } else {
+        g.bag_hold_since = 0;
+        g.bag_told_at    = 0;
+    }
     const bool on_map = follow_on_map() && guest_between();
     // Les poussees de l'hote gardees parce qu'un ecran des objets est ouvert :
     // identiques a son etat, elles n'ont rien a relire (au plus une fois par

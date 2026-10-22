@@ -104,6 +104,10 @@ bool VoteHost::tick(uint64_t now, Rng rng, void* ctx) {
     const uint32_t dt = (uint32_t)step;
 
     bool changed = false;
+    // Mewgenics Multi : l'absence se compte d'affilee -- un votant revenu sur la
+    // carte repart de zero (un menu ouvert plusieurs fois ne l'ecarte pas).
+    for (uint8_t i = 0; i < kVoteSlots; ++i)
+        if (s_.present & bit(i)) absent_ms_[i] = 0;
     uint32_t eligible = s_.voters & ~s_.dropped;
     const uint32_t absent = eligible & ~s_.present;
     if (!absent) {
@@ -376,7 +380,6 @@ std::string vote_text(const VoteState& s, uint8_t self, const std::string* names
     };
 
     std::string out = u8"Choix du chemin\n\n";
-    uint32_t missing = 0;                        // votants sans vote au resultat
     for (uint8_t i = 0; i < kVoteSlots; ++i) {
         if (!(s.voters & bit(i))) continue;
         std::string line = "  " + who(i);
@@ -384,7 +387,7 @@ std::string vote_text(const VoteState& s, uint8_t self, const std::string* names
         line += " : ";
         const VoteBallot b = ballot_of(s, i, self, own);
         if (b.valid())                            line += lab(b);
-        else if (s.phase == VotePhase::Result)   { line += u8"pas de vote"; missing |= bit(i); }
+        else if (s.phase == VotePhase::Result)   line += u8"pas de vote";
         else if (s.dropped & bit(i))              line += u8"absent, ne vote pas";
         else if (!(s.present & bit(i)))           line += u8"pas encore sur la carte";
         else                                      line += u8"pas encore voté";
@@ -412,18 +415,25 @@ std::string vote_text(const VoteState& s, uint8_t self, const std::string* names
         }
         out += u8"Égalité entre " + list + u8" :\nle sort choisit " + w + ".";
     } else {
-        const uint32_t cast = vote_cast_mask(s);
-        bool same = true;
-        int n = 0;
-        for (uint8_t i = 0; i < kVoteSlots; ++i) {
-            if (!(cast & bit(i))) continue;
-            ++n;
-            if (s.ballot[i].node != s.winner.node) same = false;
-        }
-        if (same && n >= 2 && !missing) out += u8"Tout le monde a choisi " + w + ".";
-        else                            out += w + u8" l'emporte.";
+        if (vote_unanimous(s)) out += u8"Tout le monde a choisi " + w + ".";
+        else                   out += w + u8" l'emporte.";
     }
     return out;
+}
+
+bool vote_unanimous(const VoteState& s) {
+    if (s.phase != VotePhase::Result || s.drawn || !s.winner.valid()) return false;
+    int n = 0;
+    for (uint8_t i = 0; i < kVoteSlots; ++i) {
+        if (!(s.voters & bit(i))) continue;
+        if (!s.ballot[i].valid() || s.ballot[i].node != s.winner.node) return false;
+        ++n;
+    }
+    return n >= 2;
+}
+
+uint32_t vote_result_show_ms(const VoteState& s) {
+    return vote_unanimous(s) ? kVoteResultSameMs : kVoteResultMs;
 }
 
 } // namespace mgmp
