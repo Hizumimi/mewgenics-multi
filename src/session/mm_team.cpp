@@ -2243,7 +2243,8 @@ void on_recruit(uint8_t from, const SaveFileMsg& m) {
     } else if (n.owner == net_self()) {
         k.infos.push_back(fmt(u8"Nouveau chat dans l'équipe\n\n"
                               u8"%s rejoint l'équipe de %s : ce chat est\n"
-                              u8"à toi ! Tant que tu n'es pas là, %s le dirige,\n"
+                              u8"à toi ! Tant que tu n'es pas là, l'IA du jeu\n"
+                              u8"le joue en combat et %s choisit pour lui,\n"
                               u8"et il rentrera chez toi à la fin de l'aventure.", cat.c_str(),
                               no_markup(mm_peer_name(kHostPeer)).c_str(),
                               no_markup(mm_peer_name(kHostPeer)).c_str()));

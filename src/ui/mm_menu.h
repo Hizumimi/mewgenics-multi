@@ -69,6 +69,12 @@ void mm_on_message(uint8_t from, const MmMsg& m);
 // que l'aventure est finie, et qu'il doit rentrer s'il est dans la copie --
 // avant que mgmp_leave ne le ramene au menu, ou la copie ne compterait plus.
 void mm_on_host_left();
+// MewDirector::init (h_MewDirInit), avant le jeu ; `name` est son std::string.
+// « test00.sav » une fois le menu deja construit, c'est le redemarrage a chaud
+// de « Quitter vers le menu » : en session (hote ou invite), sa cinematique
+// d'ouverture (« game_intro ») est passee comme si le joueur maintenait la touche
+// de saut, jusqu'au MainMenu::init qui suit. Pas au premier lancement.
+void mm_on_director_init(const void* name);
 
 // La maison du jeu est la (scene « House » vivante) : celle du joueur, ou celle
 // de la copie d'une aventure chez un invite (voir savefile_in_coop).
