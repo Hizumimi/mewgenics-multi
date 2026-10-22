@@ -1399,9 +1399,7 @@ void overlay_on_swap(void* window) {
         if (i == self) continue;
         Peer& p = g.peers[i];
         if (!p.have || now - p.at > kStaleMs) continue;
-        // Cache : au retour, la fleche se pose d'un coup au lieu de glisser depuis
-        // sa position sur l'autre plateau.
-        if (!same_board(p)) { p.placed = false; continue; }
+        if (!same_board(p)) continue;
 
         // Chase the reported position. The first sample SNAPS: easing in from
         // (0,0) would send the arrow sailing across the screen the moment a
@@ -1455,6 +1453,10 @@ void overlay_on_message(uint8_t from, const CursorMsg& c) {
     p.ny = c.ny;
     p.mode = c.mode;
     p.owns_turn = c.owns_turn;
+    // Mewgenics Multi : autre plateau, la fleche se posera d'un coup au lieu de
+    // glisser depuis l'ancienne position (ici et non au dessin, que le retour
+    // anticipe d'overlay_on_swap saute quand aucun pair n'est visible).
+    if (c.battle_id != p.battle) p.placed = false;
     p.battle = c.battle_id;
     p.at = GetTickCount64();
     if (tune::kCursorTrace && g.traced_peer < 60) {
