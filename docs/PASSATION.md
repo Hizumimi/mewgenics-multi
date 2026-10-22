@@ -31,9 +31,8 @@ jeu à plusieurs, copie du document de conception en ligne) et `docs/NOTES_MGMP.
 - **Où on en est (22 octobre)** : la **build 52** (commit `9606ec7`, protocole 66)
   est installée chez Hizu depuis le 18 octobre au soir, et le zip pour son ami est
   prêt dans le même dossier. **Elle n'a pas encore été jouée** : aucun journal du
-  mod depuis le 18 octobre, et le dernier lancement, le 20 octobre, a échoué au
-  démarrage du jeu, avant le mod (section 8). Elle corrige le gel du 18 octobre
-  (section 7).
+  mod depuis le 18 octobre (le lancement du 20 octobre a échoué parce que Steam
+  était fermé, section 10). Elle corrige le gel du 18 octobre (section 7).
 - **Les joueurs** : Hizu (propriétaire du dépôt, l'hôte en général) et un ami
   (l'invité), chacun sur son PC, par Steam ou par adresse IP. Les deux doivent avoir
   la même build : un protocole différent est refusé à la connexion, avec la raison
@@ -362,23 +361,6 @@ colonne dit ce que l'on sait de sa livraison et d'une partie jouée avec elle
 
 ## 8. Ce qui reste
 
-### D'abord : le lancement raté du 20 octobre
-
-Le 20 octobre vers 21 h 45, un lancement par `Lancer Mewgenics coop.bat` a échoué
-(`Bureau\mgmp\loader.txt`) : le jeu s'est fermé pendant son démarrage, avant la
-première image, donc avant que le mod soit chargé (aucun journal du mod ce jour-là),
-avec le code 3221226505 (`0xC0000409`, un arrêt d'urgence du programme : `abort`,
-`__fastfail` ou dépassement de tampon détecté). Le 22 octobre, `steam_appid.txt`
-(686060) était bien à côté de `Mewgenics.exe`, et le jeu installé est toujours la
-1.1.21239 (même SHA-256). Le loader attribue toute fermeture au démarrage à une
-relance par Steam, mais ce chemin-là sort avec le code 0 : pour un code non nul, son
-message est trompeur (à corriger dans `loader/mgmp_loader.cpp` ; le loader ne
-calcule rien pour les pairs, pas de changement de protocole). Cause inconnue (Steam
-fermé ou pas connecté ?). Au prochain lancement, regarder `loader.txt`. Si ça
-recommence, démarrer le jeu par Steam, sans le mod, dit si le jeu seul démarre ; le
-mod peut ensuite s'y injecter avec `mgmp_loader.exe --attach <pid>`, comme le
-propose le loader.
-
 ### À voir marcher en partie
 
 Dans l'ordre : la **build 52** (des combats entiers à deux, sans gel). Puis tout ce
@@ -458,6 +440,12 @@ les échanges (49).
 
 ## 10. Pièges connus
 
+- **Steam doit être ouvert avant le .bat.** Sinon le jeu se ferme pendant son
+  démarrage, avant le mod (code 3221226505, `0xC0000409`), et `loader.txt` parle à
+  tort d'une relance par Steam et de `steam_appid.txt` : c'est arrivé le 20 octobre,
+  Steam était fermé. Le message du loader pourrait le dire pour un code de sortie
+  non nul (`loader/mgmp_loader.cpp` ; le loader ne calcule rien pour les pairs,
+  pas de changement de protocole).
 - `src/net/mgmp_proto.h`, ligne 54 : 24 Ko sur une ligne. Ne jamais l'afficher en
   entier ; une modification se fait par un remplacement exact.
 - La DLL partage des `std::string` et `std::function` avec le jeu : MSVC x64
