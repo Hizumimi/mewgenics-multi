@@ -2214,12 +2214,9 @@ void on_result(uint8_t from, const SaveFileMsg& m) {
     d->have_results = true;
     d->from_host    = true;
     d->departed     = true;
-    // Deja chez lui : sa save est ouverte par le jeu, on ne peut rien y ecrire.
-    if (d->home_loaded && mm_house() && !savefile_in_coop())
-        say(u8"Retour de l'aventure\n\n"
-            u8"Tes chats sont rentrés de l'aventure, mais ta save\n"
-            u8"est déjà ouverte : retourne au menu principal\n"
-            u8"et recharge-la pour les retrouver.");
+    // Deja chez lui : sa save est ouverte par le jeu, on ne peut rien y ecrire --
+    // la fenetre « Recharger » (mm_menu).
+    if (d->home_loaded) mm_offer_reload(u8"Tes chats sont rentrés de l'aventure.");
 }
 
 } // namespace
@@ -2299,13 +2296,10 @@ void on_newcats(uint8_t from, const SaveFileMsg& m) {
                          "avant de recharger ta save)");
     log_line("TEAM", "<- recrue(s) qui rentrent chez toi : %s -- ajoutee(s) a %s a son prochain chargement",
              join_names(names).c_str(), save.empty() ? "ta save" : save.c_str());
-    // Deja chez lui : sa save est ouverte par le jeu, on ne peut rien y ecrire.
-    if (mm_house() && !savefile_in_coop())
-        say(fmt(u8"Nouveaux chats\n\n"
-                u8"%s %s chez toi, mais ta save est déjà\n"
-                u8"ouverte : retourne au menu principal et\n"
-                u8"recharge-la pour %s.", join_names(names).c_str(),
-                names.size() > 1 ? u8"arrivent" : u8"arrive", names.size() > 1 ? u8"les trouver" : u8"le trouver"));
+    // Deja chez lui : sa save est ouverte par le jeu, on ne peut rien y ecrire --
+    // la fenetre « Recharger » (mm_menu).
+    mm_offer_reload(fmt(u8"Nouveaux chats : %s %s chez toi.", join_names(names).c_str(),
+                        names.size() > 1 ? u8"arrivent" : u8"arrive"));
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -2704,6 +2698,21 @@ void team_forget_peer(uint8_t peer) {
                     g.pending.end());
     if (g.pending.size() != before)
         log_line("TEAM", "%s ne vient plus : ses chats ne partent pas", mm_peer_name(peer).c_str());
+    // Depart ensemble : l'equipe a deja ete preparee au vote (prepare_mixed a vide
+    // g.pending), ses chats sont dans k.run -- ils n'en partent plus (depart_mixed
+    // ne prend que k.run). Leurs lignes deja ecrites dans la save restent
+    // marquees, sans effet (comme refuse_mixed) ; vide, l'hote part sans equipe mixte.
+    if (g.prepared && g.prepared_seq == g.vote_seq) {
+        const size_t had = k.run.size();
+        k.run.erase(std::remove_if(k.run.begin(), k.run.end(),
+                                   [&](const RunCat& rc) { return rc.first_owner == peer; }),
+                    k.run.end());
+        if (k.run.size() != had) {
+            g.prepared_brought = !k.run.empty();
+            log_line("TEAM", "%s ne vient plus : ses %zu chat(s) sortent de l'equipe preparee",
+                     mm_peer_name(peer).c_str(), had - k.run.size());
+        }
+    }
 }
 
 std::string team_guest_offer_line() {
@@ -2791,11 +2800,13 @@ bool team_guest_send(uint8_t seq, std::string& problem) {
                          "depart avant que la save soit rechargee", join_names(waiting).c_str());
         problem = std::string(head) +
                   fmt(u8"%s %s d'une aventure, mais %s retour\n"
-                      u8"n'est pas encore recopié dans ta save : retourne\n"
-                      u8"au menu principal et recharge-la avant de %s\n"
-                      u8"faire repartir.",
+                      u8"n'est pas encore recopié dans ta save : recharge-la\n"
+                      u8"avant de %s faire repartir (« Recharger » te sera\n"
+                      u8"proposé après ce départ ; sinon Échap, « Quitter\n"
+                      u8"vers le menu », puis « Jouer » et ta save).",
                       join_names(waiting).c_str(), many ? u8"reviennent" : u8"revient",
                       many ? u8"leur" : u8"son", many ? u8"les" : u8"le");
+        mm_offer_reload(fmt(u8"Le retour de %s attend d'être recopié.", join_names(waiting).c_str()));
         return false;
     }
     // Pas de maison, pas de boite, boite vide : il vient sans chat (un message
@@ -2816,9 +2827,14 @@ bool team_guest_send(uint8_t seq, std::string& problem) {
     // Ce vote remplace ce qu'il avait repondu plus tot au meme vote, et un vote
     // d'avant qui n'est pas parti (annule, « pas encore ») ne partira plus : sa
     // liste serait arrivee avant ce vote-ci. Les departs partis, eux, gardent
-    // leur etat final a rendre.
+    // leur etat final a rendre -- sauf un parti du meme numero sans etat final :
+    // il vient d'une session de l'hote d'avant (ses votes repartent de 1 a chaque
+    // lancement), qui ne le rendra plus, et il retiendrait le butin et les
+    // recrues de ce vote-ci (apply_loot, apply_new_cats, departure).
     k.departs.erase(std::remove_if(k.departs.begin(), k.departs.end(),
-                                   [](const GuestDepart& d) { return !d.departed; }),
+                                   [seq](const GuestDepart& d) {
+                                       return !d.departed || (d.seq == seq && !d.have_results);
+                                   }),
                     k.departs.end());
     if (msg.cats.empty()) {
         log_line("TEAM", "-> ce joueur part sans chat (vote %u)", (unsigned)seq);
@@ -2907,7 +2923,8 @@ bool team_guest_storage_pending() {
     for (const GuestDepart& d : k.departs) {
         // Sans l'etat final (l'hote parti en pleine aventure), rien ne sera remis :
         // le rangement peut changer. Pendant l'aventure, team_guest_has_cats_in_run.
-        if (!d.departed || !d.storage_ok || !d.have_results) continue;
+        // Sans photo appliquee par l'hote non plus : apply_results n'y touchera pas.
+        if (!d.departed || !d.storage_ok || !d.storage_post_set || !d.have_results) continue;
         // Une save inconnue d'un cote ou de l'autre : on ne sait pas -- prudence.
         if (d.save.empty() || !known || _stricmp(d.save.c_str(), cur) == 0) return true;
     }
@@ -2966,10 +2983,22 @@ void team_prepare_own_save(const char* name) {
     // (le jeu ferme entre-temps) : bourses et butin (mm_purse, mm_loot).
     pending_load(name);
     // Invite (maintenant ou avant) : l'etat final de ses chats, depart par depart.
+    const bool host_playing = mm_host_in_run();
     for (size_t i = 0; i < k.departs.size();) {
         GuestDepart& d = k.departs[i];
         if (!d.save.empty() && _stricmp(d.save.c_str(), name) != 0) { ++i; continue; }
-        if (!d.have_results) {
+        // L'etat vu dans SA copie, l'hote toujours en aventure (connecte) : la copie
+        // a pu finir autrement (divergence) pendant que ses chats continuent chez
+        // l'hote. Pour le dernier depart parti seulement, celui de cette aventure :
+        // comme sans etat final, celui de l'hote le remplacera (on_result) ; la
+        // copie reste le repli si l'hote finit sans rien envoyer.
+        const bool copy_only = d.have_results && !d.from_host && host_playing &&
+                               std::none_of(k.departs.begin() + (ptrdiff_t)i + 1, k.departs.end(),
+                                            [](const GuestDepart& o) { return o.departed; });
+        if (copy_only)
+            log_line("TEAM", "%s se charge, l'etat final de tes chats vu dans ta copie (vote %u) attend : "
+                             "l'aventure de l'hote continue", name, (unsigned)d.seq);
+        if (!d.have_results || copy_only) {
             if (!d.home_loaded) {
                 take_baseline(name, d);
                 d.home_loaded = true;
@@ -3070,12 +3099,8 @@ void team_note_payout(uint8_t seq, int32_t coins, int32_t food) {
                      "son prochain chargement", (unsigned)seq, coins, food,
              p.save.empty() ? "ta save" : p.save.c_str());
     // Deja chez lui, sa save ouverte par le jeu : elle n'y sera qu'au prochain
-    // chargement.
-    if (mm_house() && !savefile_in_coop())
-        say(u8"Retour de l'aventure\n\n"
-            u8"Ta bourse de l'aventure (" + purse_amount_text(coins, food) + u8")\n"
-            u8"t'attend, mais ta save est déjà ouverte : retourne\n"
-            u8"au menu principal et recharge-la pour la recevoir.");
+    // chargement -- la fenetre « Recharger » (mm_menu).
+    mm_offer_reload(u8"Ta bourse de l'aventure : " + purse_amount_text(coins, food) + ".");
 }
 
 bool team_note_loot(uint8_t seq, uint64_t key, const ItemFields& item, const std::string& name) {

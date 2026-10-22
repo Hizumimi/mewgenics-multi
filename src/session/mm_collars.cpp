@@ -141,6 +141,8 @@ struct State {
     bool                            resend  = false;
     bool                            closing = false;   // il a clique sur « Valider »
     std::deque<Request>             requests;
+    uint32_t                        done    = 0;       // les invites qui ont valide leurs colliers
+    bool                            done_warned = false;   // « X choisit encore », une fois
 
     // invite
     std::map<uint64_t, std::string> want;        // cle -> collier chez l'hote
@@ -150,6 +152,11 @@ struct State {
     uint64_t                        unsynced_ms = 0;   // ecart avec l'hote, choix a l'ecran
     uint64_t                        pump_ms     = 0;
     uint32_t                        pump_frame  = 0;
+    // choix a l'ecran sans aucune boite vue (aucun collier, aucun chat classe) :
+    // rien a rendre pareil, « Valider » ne doit pas attendre jusqu'a perdre le miroir
+    uint64_t                        nobox_ms    = 0;
+    uint64_t                        nobox_at    = 0;
+    uint32_t                        nobox_frame = 0;
     bool                            close_info = false;
     std::set<std::string>           warned;
 
@@ -535,12 +542,19 @@ void guest_pump(View& v) {
 
 bool guest_click(void* button, const char* name) {
     if (strcmp(name, "CloseButton") == 0) {
-        log_line("COLLIERS", "« Valider » de ce joueur retenu : c'est l'hote qui valide");
-        if (!c.close_info && !embark_guest_close_queued()) {
+        // Retenu (l'hote valide pour tous), mais il le sait : ce joueur a fini.
+        if (embark_guest_close_queued()) return true;
+        const bool sent = send_collar(kEmbarkCollarsDone, 1, kNone, "");
+        log_line("COLLIERS", "« Valider » de ce joueur retenu : c'est l'hote qui valide -- %s",
+                 sent ? "-> il sait que ce joueur a fini" : "!! (non envoye)");
+        if (!c.close_info) {
             c.close_info = true;
-            mm_show_info(fmt(u8"Choix des colliers\n\n"
-                             u8"C'est %s qui valide le départ :\n"
-                             u8"dis-lui quand tes chats ont leurs colliers.",
+            mm_show_info(fmt(sent ? u8"Choix des colliers\n\n"
+                                    u8"Prêt ! %s sait que tu as fini :\n"
+                                    u8"il validera le départ pour toute l'équipe."
+                                  : u8"Choix des colliers\n\n"
+                                    u8"C'est %s qui valide le départ :\n"
+                                    u8"dis-lui quand tes chats ont leurs colliers.",
                              mm_peer_name(kHostPeer).c_str()));
         }
         return true;
@@ -576,7 +590,37 @@ bool guest_click(void* button, const char* name) {
     return true;
 }
 
+// Hote, « Valider » : un invite qui suit le depart n'a pas encore valide les
+// colliers de ses chats (il en a un a choisir) -- le clic est retenu une fois,
+// avec une fenetre ; le suivant passe.
+bool host_close_early() {
+    if (c.done_warned || c.broken || !c.cc) return false;
+    View v;
+    if (!read_view(c.cc, v)) return false;
+    std::vector<std::string> names;
+    uint32_t seen = 0;
+    for (const TeamCat& t : v.cats) {
+        const int o = owner_of(t);
+        if (!t.free || !follower_active(o) || ((c.done | seen) >> o) & 1) continue;
+        seen |= 1u << o;
+        names.push_back(mm_peer_name((uint8_t)o));
+    }
+    if (names.empty()) return false;
+    c.done_warned = true;
+    std::string who = names[0];
+    for (size_t i = 1; i < names.size(); ++i) who += (i + 1 == names.size() ? " et " : ", ") + names[i];
+    log_line("COLLIERS", "« Valider » de l'hote retenu une fois : %s n'a pas encore valide ses colliers",
+             who.c_str());
+    mm_show_info(fmt(u8"Choix des colliers\n\n"
+                     u8"%s %s encore les colliers de %s chats.\n"
+                     u8"Clique de nouveau sur « Valider » pour partir\n"
+                     u8"quand même.", who.c_str(), names.size() > 1 ? u8"choisissent" : u8"choisit",
+                     names.size() > 1 ? u8"leurs" : u8"ses"));
+    return true;
+}
+
 bool host_click(void* button, const char* name) {
+    if (strcmp(name, "CloseButton") == 0) return host_close_early();
     if (!is_collar_button(name)) return false;
     View v;
     if (!c.cc || !read_view(c.cc, v)) return false;      // illisible : le jeu decide
@@ -659,6 +703,18 @@ void collars_pump() {
         c.cc = nullptr;
     }
     if (c.role == CollarRole::Host) drop_stale_requests();
+    // Invite, aucune boite vue : compte comme unsynced_ms, d'une image du choix
+    // (pas en pause) a la suivante seulement.
+    if (c.role == CollarRole::Guest) {
+        if (c.cc || !alive) {
+            c.nobox_ms = 0;
+        } else if (mm_scene_running(kChooser)) {
+            const uint64_t now = GetTickCount64();
+            if (c.nobox_frame + 1 == c.frame) c.nobox_ms += now - c.nobox_at;
+            c.nobox_at    = now;
+            c.nobox_frame = c.frame;
+        }
+    }
     if (!seen) return;
     View v;
     if (!read_view(c.cc, v)) return;
@@ -681,6 +737,7 @@ bool collars_synced() {
 bool collars_sync_overdue() {
     if (c.role != CollarRole::Guest) return true;
     if (c.broken) return true;
+    if (!c.cc && c.nobox_ms > kOverdueMs) return true;     // aucune boite : rien a synchroniser
     return c.cc && c.synced_cc == c.cc && !c.synced && c.unsynced_ms > kOverdueMs;
 }
 
@@ -730,6 +787,7 @@ void collars_on_mm(uint8_t from, const MmMsg& m) {
                 return;
             }
             c.requests.push_back(Request{ from, m.c != 0, key, text, GetTickCount64() });
+            c.done &= ~(1u << from);          // il change encore : plus « fini »
             log_line("COLLIERS", "<- %s demande : %s %s (chat %llu)", mm_peer_name(from).c_str(),
                      m.c ? "poser" : "retirer", text, (unsigned long long)key);
             return;
@@ -751,6 +809,12 @@ void collars_on_mm(uint8_t from, const MmMsg& m) {
             c.resend = true;
             log_line("COLLIERS", "<- %s voit le choix des colliers : tout l'etat lui sera renvoye",
                      mm_peer_name(from).c_str());
+            return;
+        case kEmbarkCollarsDone:
+            if (c.role != CollarRole::Host || m.b != c.seq || from == kHostPeer || from >= 32) return;
+            if (!((c.done >> from) & 1))
+                log_line("COLLIERS", "<- %s a valide ses colliers : pret", mm_peer_name(from).c_str());
+            c.done |= 1u << from;
             return;
         default:
             return;

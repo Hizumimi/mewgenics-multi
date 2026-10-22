@@ -435,14 +435,14 @@ char g_peer_names[8][64] = {};
 
 enum class Screen { None, Choice, HostLobby, JoinEntry, ClientLobby, BadAddress, NightWait,
                     NightNotice, DepartWait, EmbarkWait, ArrivalWait, DepartOffer, RunOffer, JoinWait,
-                    HomeOffer, Info, Vote, Loot, QuitRun };
+                    HomeOffer, Info, Vote, Loot, QuitRun, ReloadOffer };
 
 // Les demandes posees par les clics et par le clavier, traitees au debut de
 // l'image suivante. Un seul emplacement : il n'y a jamais deux clics a la fois.
 enum class Action { None, OpenAuto, StartHost, OpenJoin, DoJoin, ClickPlay, StopSession, OpenBadAddress,
                     CancelNight, NightReadyNow, DepartCancel, DepartYes, DepartNo, RunJoin, RunLater,
                     GoHome, JoinCancel, ArrivalDismiss, EmbarkNoWait, VoteYes, VoteNo, LootYes, LootNo,
-                    QuitRun };
+                    QuitRun, ReloadNow, ReloadLater };
 Action g_action = Action::None;
 
 // La fenetre du vote du chemin ouverte (mm_vote) : ses boutons, d'apres
@@ -1559,6 +1559,34 @@ void start_menu_trip(const char* why) {
     log_line("MULTI", "aller au menu principal (%s) : Echap, puis « Quitter vers le menu »", why);
 }
 
+// Mewgenics Multi : invite chez lui, ce que l'aventure lui rapporte (bourse,
+// butin, chats, recrues, recompense d'un PNJ) n'est dans sa save qu'a son
+// prochain chargement (team_prepare_own_save). Une seule fenetre pour tous ces
+// avis, avec « Recharger » : le trajet de « Rentrer » (GoHome).
+std::vector<std::string> g_reload_lines;      // un avis par ligne, sans doublon
+bool                     g_reload_wanted = false;
+const std::string kReloadHowto = u8"Échap, « Quitter vers le menu »,\npuis « Jouer » et ta save";
+
+// Sa propre save est a l'ecran (pas la copie de l'hote).
+bool reload_in_own_house() {
+    return net_role() == NetRole::Client && !savefile_in_coop() && mm_house() != nullptr;
+}
+
+// Le mod peut l'y ramener tout de suite : son emplacement est connu, et ni
+// trajet, ni depart, ni nuit, ni defense, ni defile du butin en cours.
+bool reload_can_go() {
+    return reload_in_own_house() && savefile_has_own_slot() && !g_trip.active && !mm_departure_busy() &&
+           !g_night_ready && !team_house_defense_running() && !loot_holds_home();
+}
+
+std::string reload_text() {
+    std::string t = u8"Ce qui t'attend\n";
+    for (const std::string& l : g_reload_lines) t += "\n" + l;
+    return t + u8"\n\nTa save est déjà ouverte : tout cela n'y sera\n"
+               u8"qu'à son prochain chargement. « Recharger » :\n"
+               u8"le mod passe par le menu et la rouvre.";
+}
+
 void trip_pump() {
     if (!g_trip.active) return;
     if (g_trip.key_down && g_frame >= g_trip.key_up) {
@@ -1977,6 +2005,13 @@ void cancel_join(const char* why) {
 
 void client_adventure_pump() {
     if (!g_home_due) g_home_no_trip = false;
+    // Sa save se chargera de toute facon (il rentre, ou part dans la copie de
+    // l'hote, d'ou il rentrera) : les avis « Recharger » n'ont plus d'objet.
+    if (!g_reload_lines.empty() && (net_role() != NetRole::Client || savefile_in_coop() ||
+                                    savefile_join_armed() || savefile_home_armed())) {
+        g_reload_lines.clear();
+        g_reload_wanted = false;
+    }
     if (net_role() != NetRole::Client) {
         // Plus de session (la connexion est tombee) : le retour a la maison
         // attendu reste propose tant qu'il est dans la copie, et n'a plus d'objet
@@ -2292,6 +2327,12 @@ void adventure_popups() {
                      find_scene("Battle") ? " (par-dessus le combat)" : "");
         return;
     }
+    if (g_reload_wanted && reload_can_go()) {
+        if (open_popup(Screen::ReloadOffer, reload_text(), u8"Recharger", u8"Plus tard", false,
+                       Action::ReloadNow, Action::ReloadLater))
+            log_line("MULTI", "fenetre « Recharger » ouverte (%zu avis)", g_reload_lines.size());
+        return;
+    }
     if (g_dep_offer && g_dep_req_live && g_frame >= g_dep_offer_at && !savefile_in_coop() &&
         !savefile_join_armed()) {
         open_popup(Screen::DepartOffer, depart_offer_text(), u8"J'arrive", u8"Pas encore", false,
@@ -2347,6 +2388,11 @@ void adventure_live() {
             // Une nouvelle aventure, deja en route, ou le defile du butin arrive.
             if (!g_home_due || loot_holds_home()) close_silently();
             else popup_set_text(home_offer_text());
+            break;
+        case Screen::ReloadOffer:
+            // Un depart, la nuit... : elle reviendra ; un avis de plus : ajoute.
+            if (!reload_can_go() || g_reload_lines.empty()) close_silently();
+            else popup_set_text(reload_text());
             break;
         case Screen::Loot: {
             // Comme le vote : d'autres boutons, on la referme et la suivante s'ouvre.
@@ -2747,6 +2793,27 @@ uint32_t mm_run_peers_mask() {
 
 bool mm_guest_quitting() { return g_quitting; }
 
+bool mm_host_in_run() { return net_role() == NetRole::Client && session_has_others() && g_host_in_run; }
+
+bool mm_offer_reload(const std::string& line_utf8) {
+    if (!reload_in_own_house()) return false;
+    if (!savefile_has_own_slot()) {
+        // Le mod ne connait pas son emplacement : il ne peut pas l'y ramener.
+        show_info(u8"Ce qui t'attend\n\n" + line_utf8 +
+                  u8"\n\nTa save est déjà ouverte : recharge-la pour\nle recevoir (" + kReloadHowto + ").");
+        return true;
+    }
+    if (std::find(g_reload_lines.begin(), g_reload_lines.end(), line_utf8) == g_reload_lines.end()) {
+        // shortcut: au-dela de 6 avis le plus ancien n'est plus dit (tout reste applique au chargement).
+        if (g_reload_lines.size() >= 6) g_reload_lines.erase(g_reload_lines.begin());
+        g_reload_lines.push_back(line_utf8);
+    }
+    g_reload_wanted = true;
+    log_line("MULTI", "a recevoir au prochain chargement de sa save (%zu avis) : « Recharger » propose",
+             g_reload_lines.size());
+    return true;
+}
+
 bool mm_guest_in_run() {
     return net_role() == NetRole::Client && session_has_others() && savefile_in_coop() &&
            savefile_adventure_is_loaded() && g_host_in_run;
@@ -3057,9 +3124,35 @@ void mm_menu_pump() {
                                   "choisira sa save au menu");
             start_menu_trip("retour chez soi");      // rien a faire s'il est deja au menu
             break;
+        case Action::ReloadNow:
+            // Comme « Rentrer » : au menu, « Jouer » puis son emplacement ; ce qui
+            // l'attendait s'ajoute a sa save juste avant que le jeu l'ouvre.
+            if (!reload_can_go()) {                   // change entre-temps (un depart...) : plus tard
+                log_line("MULTI", "« Recharger » : pas maintenant, la fenetre reviendra");
+                break;
+            }
+            g_reload_lines.clear();
+            g_reload_wanted = false;
+            log_line("MULTI", "ce joueur recharge sa save pour recevoir ce que l'aventure lui rapporte");
+            savefile_go_home();
+            start_menu_trip("recharger sa save");
+            break;
+        case Action::ReloadLater:
+            g_reload_wanted = false;                  // un nouvel avis la rouvrira
+            log_line("MULTI", "« Recharger » : plus tard");
+            break;
         case Action::JoinCancel:
             embark_guest_cancel("annule par le joueur");
-            if (g_dep_req_live) {                    // le vote tient : « pas encore »
+            if (g_dep_req_live && team_guest_has_cats_in_run()) {
+                // Trop tard : l'hote est deja parti avec ses chats (proprietaires
+                // recus). Pas de « pas encore » : ils ne reviendraient pas pour autant.
+                log_line("MULTI", "depart : annule par le joueur, mais ses chats sont deja partis avec l'hote");
+                show_info(fmt(u8"Départ en aventure\n\n"
+                              u8"Tes chats sont déjà partis avec l'équipe de %s :\n"
+                              u8"tant que tu n'es pas là, %s les dirige,\n"
+                              u8"et ils rentreront chez toi à la fin de l'aventure.",
+                              host_display().c_str(), host_display().c_str()));
+            } else if (g_dep_req_live) {             // le vote tient : « pas encore »
                 send_depart_answer(false);
                 team_guest_withdraw(g_dep_req_seq);
                 g_dep_offer    = true;
@@ -3558,7 +3651,10 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
                          peer_name(from).c_str(), (unsigned)m.b, (unsigned)g_dep_seq);
                 break;
             }
-            if (!m.a) team_forget_peer(from);       // ses chats ne partent plus
+            if (!m.a) {
+                team_forget_peer(from);             // ses chats ne partent plus
+                embark_forget_joiner(from);         // depart ensemble : plus la peine de l'attendre
+            }
             if (g_dep_active) {
                 g_dep_answer[from] = m.a ? 1 : 2;
                 log_line("MULTI", "depart : %s %s", peer_name(from).c_str(),

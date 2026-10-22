@@ -63,8 +63,11 @@
 //     l'ecran), puis sa reponse a la confirmation du jeu ; si elle ne s'ouvre que
 //     chez l'invite, celui-ci y repond « oui » (l'hote est deja passe). Apres
 //     son « Valider », l'hote n'applique plus aucune demande (sauf s'il repond
-//     « non » a la confirmation). Celui d'un invite est retenu, avec une
-//     fenetre une fois.
+//     « non » a la confirmation). Celui d'un invite est retenu, mais dit a
+//     l'hote qu'il a fini (kEmbarkCollarsDone ; une demande ensuite l'annule),
+//     avec une fenetre une fois. Le premier « Valider » de l'hote est retenu,
+//     avec une fenetre, si un invite qui suit n'a pas fini (un chat a lui a un
+//     collier a choisir) : le suivant passe.
 //   - Un invite qui ne suit plus le depart (MM_EMBARK kEmbarkGone, ou parti de
 //     la session) rend la main a l'hote sur ses chats ; un « pret » arrive apres
 //     le depart de l'hote le fait suivre quand meme. Une exception dans le clic
@@ -96,12 +99,14 @@ void collars_pump();
 
 // Un clic de ce joueur sur un bouton de « ClassChooser », hors rejeu
 // (embark_on_button_click). Vrai = clic retenu. Les fleches passent toujours ;
-// chez l'invite, « Valider » est retenu.
+// chez l'invite, « Valider » est retenu (chez l'hote, une fois si un invite qui
+// suit n'a pas fini).
 bool collars_on_click(void* button, const char* name);
 
 // Invite : ses colliers sont ceux de l'hote (vrai aussi sans choix ouvert). Le
 // « Valider » de l'hote n'est rejoue qu'alors -- ou quand l'ecart dure depuis
-// 5 secondes de choix a l'ecran (le temps en pause ne compte pas).
+// 5 secondes de choix a l'ecran (le temps en pause ne compte pas), ou que le
+// choix est a l'ecran depuis 5 secondes sans aucune boite (rien a rendre pareil).
 bool collars_synced();
 bool collars_sync_overdue();
 
@@ -119,7 +124,8 @@ int collars_host_prompt_expected();
 // (l'invite laisse le miroir, l'hote choisit pour toute l'equipe).
 bool collars_broken();
 
-// MM_EMBARK, a = kEmbarkCollarReq / kEmbarkCollarSet / kEmbarkChooserOpen.
+// MM_EMBARK, a = kEmbarkCollarReq / kEmbarkCollarSet / kEmbarkChooserOpen /
+// kEmbarkCollarsDone.
 void collars_on_mm(uint8_t from, const MmMsg& m);
 
 // Detour et original de T_ClassTagUpdate.

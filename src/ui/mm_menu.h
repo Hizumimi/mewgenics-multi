@@ -115,6 +115,16 @@ bool     mm_guest_in_run();
 // Invite : il a choisi « Rentrer » dans « Quitter l'aventure » et n'est pas
 // encore sorti de la copie -- il ne suit plus l'hote dans ses cases.
 bool     mm_guest_quitting();
+// Mewgenics Multi : invite, l'hote est connecte et en aventure (sa derniere
+// annonce MM_HOST_RUN), que ce joueur y soit ou non.
+bool     mm_host_in_run();
+// Mewgenics Multi : invite dans sa propre maison, sa save ouverte -- `line` (un
+// avis court, UTF-8 : sa bourse, son butin...) n'y sera qu'a son prochain
+// chargement. Une seule fenetre regroupe ces avis, avec « Recharger » (le mod
+// passe par le menu et rouvre sa save, comme « Rentrer ») et « Plus tard » ; des
+// qu'aucun depart, nuit, defense ni defile du butin n'est en cours. Faux s'il
+// n'est pas chez lui (rien d'affiche : sa save se chargera en rentrant).
+bool     mm_offer_reload(const std::string& line_utf8);
 // Le nom d'un joueur de la session (pseudo Steam, « Joueur N » a defaut).
 std::string mm_peer_name(uint8_t id);
 // Mewgenics Multi (protocole 62, mm_gift) : un depart en aventure est en cours pour

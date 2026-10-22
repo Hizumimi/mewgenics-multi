@@ -109,6 +109,7 @@ struct State {
     uint64_t hold_from    = 0;
     bool     marker_ok    = false;
     uint32_t marker       = 0;
+    bool     close_warned = false;     // « X equipe encore ses chats », une fois
 
     uint32_t sent = 0, received = 0, applied_n = 0, failed = 0, late = 0, blocked = 0;
 };
@@ -361,7 +362,8 @@ void guest_pump() {
     }
     if (g.close_pending) { send_final("« Valider » de l'hote"); return; }
     if (!alive)          { send_final("ecran ferme"); return; }
-    if (!g.loaded) return;
+    // Rien a equiper ici (can_act) : « fini » tout de suite, l'hote ne l'attend pas.
+    if (!g.loaded)       { send_final("rien a equiper ici"); return; }
     if (g.poll_at && now - g.poll_at < kPollMs) return;
     g.poll_at = now;
     Photo ph;
@@ -531,6 +533,28 @@ void after_item_update(void* screen, void* button, uint32_t count) {
     mem_write((char*)button + kBtn_State, &disabled, sizeof(disabled));
 }
 
+// Hote, « Valider » : un invite qui suit le depart n'a pas encore envoye sa
+// derniere photo (son « Valider ») -- le clic est retenu une fois, avec une
+// fenetre ; le suivant passe.
+bool host_close_early() {
+    if (g.close_warned) return false;
+    std::string who;
+    unsigned n = 0;
+    for (uint8_t p = 1; p < kGearPeers; ++p) {
+        if (!embark_follower_active(p) || g.peers[p].final) continue;
+        who += (n ? ", " : "") + mm_peer_name(p);
+        ++n;
+    }
+    if (!n) return false;
+    g.close_warned = true;
+    log_line("OBJETS", "« Valider » de l'hote retenu une fois : %s n'a pas encore valide", who.c_str());
+    mm_show_info(fmt(u8"Choix des objets\n\n"
+                     u8"%s %s encore %s chats.\n"
+                     u8"Clique de nouveau sur « Valider » pour partir\n"
+                     u8"quand même.", who.c_str(), n > 1 ? u8"équipent" : u8"équipe", n > 1 ? u8"leurs" : u8"ses"));
+    return true;
+}
+
 void __fastcall h_ItemUpdate(void* box) {
     // Lus avant : l'update du jeu peut retirer et detruire la boite.
     void* screen = nullptr;
@@ -592,13 +616,18 @@ bool gear_role_active() { return g.role != GearRole::Off; }
 bool gear_on_click(void* button, const char* name) {
     if (g.role == GearRole::Off || !button || !name) return false;
     if (strcmp(name, "CloseButton") == 0) {
-        if (g.role == GearRole::Host) return false;
-        log_line("OBJETS", "« Valider » de ce joueur retenu : c'est l'hote qui valide");
-        if (!g.close_info && !g.close_pending) {
+        if (g.role == GearRole::Host) return host_close_early();
+        // Retenu (l'hote valide pour tous), mais c'est son « fini » : sa derniere
+        // photo part tout de suite, et ses objets sont grises.
+        const bool now = g.seen && !g.frozen && !g.close_pending;
+        log_line("OBJETS", "« Valider » de ce joueur retenu : c'est l'hote qui valide%s",
+                 now ? " -- derniere photo" : "");
+        if (now) send_final("« Valider » de ce joueur");
+        if (now && !g.close_info) {
             g.close_info = true;
             mm_show_info(fmt(u8"Choix des objets\n\n"
-                             u8"C'est %s qui valide le départ :\n"
-                             u8"dis-lui quand tes chats sont équipés.",
+                             u8"Prêt ! Tes chats partent avec ces objets :\n"
+                             u8"%s validera le départ pour toute l'équipe.",
                              mm_peer_name(kHostPeer).c_str()));
         }
         return true;

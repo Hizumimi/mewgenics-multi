@@ -32,7 +32,9 @@
 //      autres apparaissent en direct. Seul « Valider » de l'hote part chez les
 //      invites (MM_EMBARK kEmbarkClick : la scene, le nom du bouton et son rang
 //      parmi les boutons du meme nom), rejoue une fois leurs colliers a jour ;
-//      celui d'un invite est retenu. La confirmation du jeu (« un chat sans
+//      celui d'un invite est retenu, mais dit a l'hote qu'il a fini (aux
+//      objets : sa derniere photo), et le premier « Valider » de l'hote est
+//      retenu une fois si un invite n'a pas fini. La confirmation du jeu (« un chat sans
 //      collier ? », scene « YesNoPrompt ») suit le meme chemin ; l'hote dit
 //      avec son « Valider » s'il l'aura (champ c), et si elle ne s'ouvre que
 //      chez l'invite, il y repond « oui ».
@@ -99,6 +101,9 @@ enum EmbarkMsg : uint8_t {
                              //   de son aventure (carte, cases, historique, chats, sac,
                              //   nom de l'equipe) ; c = 1 : sa carte vient de la graine
     kEmbarkKept        = 10, // invite -> hote : il garde son aventure (meme carte)
+    // Mewgenics Multi : le « Valider » d'un invite dit a l'hote qu'il a fini.
+    kEmbarkCollarsDone = 11, // invite -> hote : ses colliers sont choisis (son « Valider »,
+                             //   retenu chez lui) ; une demande de collier ensuite l'annule
 };
 
 void embark_init();          // session prete
@@ -118,6 +123,9 @@ bool embark_begin(uint8_t seq, uint32_t joiners);
 bool embark_should_go();
 // « Ne pas attendre ».
 void embark_no_wait();
+// Mewgenics Multi : ce joueur ne vient plus (« Annuler » pendant qu'il attendait
+// la partie de l'hote, MM_DEPART_READY a = 0) -- l'hote ne l'attend plus.
+void embark_forget_joiner(uint8_t peer);
 // Le texte de la fenetre d'attente.
 std::string embark_wait_text();
 // Le depart du jeu vient d'avoir lieu (mm_team, apres C_DepartGo) : le miroir

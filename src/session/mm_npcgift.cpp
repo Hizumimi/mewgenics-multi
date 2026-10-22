@@ -649,12 +649,17 @@ void guest_on_gift(const NpcGiftMsg& m) {
     log_line("PNJ", "<- recompense de %s pour ton don : %s", npc_name(m.npc), list.c_str());
     if (seen) return;
     const bool things = (money && (m.coins || m.food)) || !labels.empty();
+    // Chez lui, sa save ouverte (il donne depuis sa maison) : la fenetre
+    // « Recharger » (mm_menu) ; ailleurs, ils arrivent a son retour.
+    if (things && mm_offer_reload(fmt(u8"%s te remercie pour ton chat : %s\n(ses déblocages sont pour tout le monde).",
+                                      npc_label(m.npc).c_str(), list.c_str())))
+        return;
     say(things ? fmt(u8"Récompense de %s\n\n"
                      u8"%s te remercie pour ton chat : %s.\n"
                      u8"Ils arrivent dans ta maison au prochain\n"
-                     u8"chargement de ta save (au retour d'une\n"
-                     u8"aventure, ou recharge-la depuis le menu).\n"
-                     u8"Ses déblocages sont pour tout le monde.",
+                     u8"chargement de ta save (au retour de\n"
+                     u8"l'aventure). Ses déblocages sont pour\n"
+                     u8"tout le monde.",
                      npc_label(m.npc).c_str(), npc_label(m.npc).c_str(), list.c_str())
                : fmt(u8"Récompense de %s\n\n"
                      u8"Ton chat a rempli la jauge de %s :\n"
