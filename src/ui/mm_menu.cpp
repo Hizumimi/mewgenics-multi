@@ -1009,6 +1009,7 @@ void do_join() {
     g_join_port = port;
     write_last_host(g_addr_buf);
     log_line("MULTI", "connexion demandee par le menu : %s:%u", ip.c_str(), (unsigned)port);
+    g_play_when_world = false;               // un clic d'une connexion d'avant ne compte plus
     session_request_join(ip.c_str(), port);
     open_client_lobby();
 }
@@ -1814,8 +1815,9 @@ std::string join_wait_text() {
     if (g_join_running)
         return fmt(u8"Rejoindre l'aventure\n\n"
                    u8"Le jeu de %s t'envoie l'aventure en cours.\n"
-                   u8"S'il est au milieu d'une case (événement,\n"
-                   u8"combat), tu arriveras à son retour sur la carte.", h.c_str());
+                   u8"S'il vient de faire un choix dans une case\n"
+                   u8"(événement, montée de niveau), tu arriveras\n"
+                   u8"à son retour sur la carte.", h.c_str());
     return fmt(u8"En route pour l'aventure\n\n"
                u8"La partie de %s va se charger :\n"
                u8"tu partiras avec lui.", h.c_str());
@@ -2055,6 +2057,7 @@ void stop_menu_trip() {
 void cancel_join(const char* why) {
     if (!savefile_join_armed()) return;
     savefile_set_join(false);
+    g_join_running = false;
     log_line("MULTI", "aventure : on ne la rejoint plus (%s)", why);
     if (savefile_in_coop()) return;
     // Encore dans une ancienne copie (une nouvelle venait d'arriver, et l'hote
@@ -2089,6 +2092,7 @@ void client_adventure_pump() {
 
     if (savefile_in_coop())  g_copy_on_screen = true;
     else if (at_main_menu()) g_copy_on_screen = false;
+    if (savefile_in_coop())  g_join_running = false;   // arrive : « Rejoindre » est servi
 
     // Dire a l'hote si ce joueur est dans l'aventure.
     if (others) {
@@ -3068,6 +3072,7 @@ static void steam_menu_pump() {
     g_join_ip   = who + u8" (Steam)";
     g_join_port = port;
     log_line("MULTI", "Steam : connexion au salon de %s (port local %u)", who.c_str(), (unsigned)port);
+    g_play_when_world = false;               // un clic d'une connexion d'avant ne compte plus
     session_request_join("127.0.0.1", port);
     open_client_lobby();
 }
@@ -3436,8 +3441,9 @@ void mm_on_director_init(const void* name) {
     char file[32] = {};
     if (!mem_read_std_string(name, file, sizeof(file)) || strcmp(file, "test00.sav") != 0) return;
     // Premier lancement : le menu n'a jamais ete construit (g_director nul), l'intro
-    // se joue. Hors session, le jeu reste celui du solo.
-    if (!g_director || net_role() == NetRole::None || !intro_code_ok()) return;
+    // se joue. Hors session, le jeu reste celui du solo -- sauf un trajet du mod
+    // (« Y aller » de Steam : la connexion ne part qu'a l'arrivee au menu).
+    if (!g_director || (net_role() == NetRole::None && !g_trip.active) || !intro_code_ok()) return;
     g_intro_skip = true;
     g_intro_said = false;
 }
