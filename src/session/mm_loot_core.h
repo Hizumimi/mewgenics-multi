@@ -16,8 +16,8 @@
 //     par l'hote, hors du flux aleatoire du jeu (qui doit rester le meme chez
 //     tous).
 //   - 30 s par objet ; sans choix a la fin, le joueur passe. Le resultat tombe des
-//     que tous les joueurs prets ont choisi ; il reste 4 s a l'ecran, puis l'objet
-//     suivant.
+//     que tous les joueurs prets ont choisi ; il reste 2 s a l'ecran (1 s si
+//     personne n'en veut), puis l'objet suivant.
 //   - Un joueur pas encore pret (sa fenetre du defile n'est pas ouverte : un
 //     chargement, une autre fenetre) n'est pas attendu pour un objet : il passe,
 //     et entre dans le defile des qu'il est pret. Le premier objet attend que tous
@@ -53,7 +53,8 @@ namespace mgmp {
 
 constexpr int      kLootSlots       = 8;        // numeros des joueurs (0 = l'hote)
 constexpr uint32_t kLootChoiceMs    = 30000;    // par objet
-constexpr uint32_t kLootResultMs    = 4000;     // le resultat a l'ecran
+constexpr uint32_t kLootResultMs    = 2000;     // le resultat a l'ecran
+constexpr uint32_t kLootNobodyMs    = 1000;     // le resultat quand personne n'en veut
 constexpr uint32_t kLootReadyWaitMs = 180000;   // au plus, pour que tous soient prets
 constexpr uint32_t kLootIntroMs     = 2500;     // au moins, la fenetre d'attente (tous prets d'un coup)
 constexpr size_t   kLootMaxItems    = 64;
@@ -160,6 +161,9 @@ public:
 private:
     void begin_item(uint64_t now);
     void resolve_item(uint64_t now, LootRng& rng);
+    uint32_t result_ms() const {
+        return results_[index_].winner == kLootNobody ? kLootNobodyMs : kLootResultMs;
+    }
 
     LootPhase phase_    = LootPhase::Idle;
     uint32_t  parade_   = 0;

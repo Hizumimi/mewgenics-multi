@@ -315,9 +315,10 @@ bool shop_index_of(uintptr_t begin, uintptr_t end, uintptr_t item, size_t stride
 
 // --- l'hote : les achats et a qui ils sont ----------------------------------------------------
 
-void ShopLedger::add(uint64_t id, uint8_t slot, const std::string& label) {
+void ShopLedger::add(uint64_t id, uint64_t digest, uint8_t slot, const std::string& label) {
     ShopOwned o;
-    o.id    = id;
+    o.id     = id;
+    o.digest = digest;
     o.slot  = slot;
     o.label = label;
     owned_.push_back(std::move(o));
@@ -344,6 +345,30 @@ std::vector<int> shop_match_owned(const std::vector<ShopOwned>& owned, const std
                 break;
             }
     return out;
+}
+
+size_t shop_rekey_owned(std::vector<ShopOwned>& owned, const std::vector<uint64_t>& bag_ids,
+                        const std::vector<uint64_t>& bag_digests) {
+    // D'abord tous les achats par id : un recalage ne prend jamais l'exemplaire
+    // dont un autre achat a l'id exact.
+    const std::vector<int> by_id = shop_match_owned(owned, bag_ids);
+    std::vector<bool> taken(bag_ids.size(), false);
+    for (int k : by_id)
+        if (k >= 0) taken[(size_t)k] = true;
+    // shortcut: un achat disparu (equipe, utilise) peut prendre un objet identique
+    // trouve ailleurs dans l'aventure ; reperer le rechargement lui-meme si ca arrive en partie.
+    size_t n = 0;
+    for (size_t i = 0; i < owned.size(); ++i) {
+        if (by_id[i] >= 0 || !owned[i].digest) continue;
+        for (size_t k = 0; k < bag_ids.size() && k < bag_digests.size(); ++k)
+            if (!taken[k] && bag_digests[k] == owned[i].digest) {
+                taken[k]    = true;
+                owned[i].id = bag_ids[k];
+                ++n;
+                break;
+            }
+    }
+    return n;
 }
 
 } // namespace mgmp

@@ -192,6 +192,7 @@ static void test_host() {
     CHECK(h.tick(t + 20, rng));                        // tous les prets ont choisi
     s = h.state(t + 20);
     CHECK(s.phase == LootPhase::Result && s.result.winner == 1 && s.result.category == kLootNeed);
+    CHECK(s.ms_left == kLootResultMs);
     CHECK(!h.tick(t + 20 + kLootResultMs - 1, rng));
     CHECK(h.tick(t + 20 + kLootResultMs, rng));        // objet suivant
     t += 20 + kLootResultMs;
@@ -221,7 +222,9 @@ static void test_host() {
     CHECK(h.tick(t + 60000 + 2000, rng));
     s = h.state(t + 60000 + 2000);
     CHECK(s.result.winner == kLootNobody && s.players == 0x5);
-    CHECK(h.tick(t + 60000 + 2000 + kLootResultMs, rng));
+    CHECK(h.state(t + 60000 + 2000).ms_left == kLootNobodyMs);   // personne : resultat court
+    CHECK(!h.tick(t + 60000 + 2000 + kLootNobodyMs - 1, rng));
+    CHECK(h.tick(t + 60000 + 2000 + kLootNobodyMs, rng));
     CHECK(h.finished() && !h.running());
     CHECK(h.results().size() == 3 && h.results()[0].winner == 1 && h.results()[1].winner == 2 &&
           h.results()[2].winner == kLootNobody);

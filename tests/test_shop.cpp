@@ -278,11 +278,11 @@ static void test_index_and_ledger() {
 
     ShopLedger L;
     CHECK(L.owner(5) == -1);
-    L.add(5, 2, "Sword");
-    L.add(9, 0, "Shield");
-    CHECK(L.owner(5) == 2 && L.owner(9) == 0 && L.size() == 2);
+    L.add(5, 50, 2, "Sword");
+    L.add(9, 90, 0, "Shield");
+    CHECK(L.owner(5) == 2 && L.owner(9) == 0 && L.size() == 2 && L.all()[1].digest == 90);
     // Un second exemplaire du meme objet (meme id), achete par un autre : un achat de plus.
-    L.add(5, 3, "Sword");
+    L.add(5, 50, 3, "Sword");
     CHECK(L.owner(5) == 2 && L.size() == 3 && L.all()[2].slot == 3);
     L.clear();
     CHECK(L.owner(5) == -1 && L.size() == 0);
@@ -303,6 +303,23 @@ static void test_index_and_ledger() {
     CHECK(m[0] == 0 && m[1] == 1 && m[2] == -1);
     m = shop_match_owned(owned, {});
     CHECK(m[0] == -1 && m[1] == -1 && m[2] == -1);
+
+    // L'hote a recharge l'aventure : nouveaux ids dans le sac, memes empreintes.
+    owned[0].digest = 50; owned[1].digest = 90; owned[2].digest = 50;
+    std::vector<ShopOwned> r = owned;
+    CHECK(shop_rekey_owned(r, { 21, 22, 23, 24 }, { 70, 50, 90, 50 }) == 3);
+    CHECK(r[0].id == 22 && r[1].id == 23 && r[2].id == 24 && r[0].slot == 2 && r[2].slot == 3);
+    // Un id exact garde son exemplaire ; l'autre achat prend le second par empreinte.
+    r = owned;
+    CHECK(shop_rekey_owned(r, { 31, 5, 9 }, { 50, 50, 90 }) == 1);
+    CHECK(r[0].id == 5 && r[1].id == 9 && r[2].id == 31);
+    // Rien de meme empreinte dans le sac : l'achat garde son id (il reste chez l'hote).
+    r = owned;
+    CHECK(shop_rekey_owned(r, { 41 }, { 77 }) == 0 && r[0].id == 5 && r[2].id == 5);
+    // Sans empreinte (0), pas de recalage.
+    r = owned;
+    r[1].digest = 0;
+    CHECK(shop_rekey_owned(r, { 41 }, { 0 }) == 0 && r[1].id == 9);
 }
 
 int main() {

@@ -391,7 +391,7 @@ bool buy_for(void* shop, uintptr_t begin, uint16_t index, const ItemView& v, int
         // L'objet arrive dans le sac avec l'id de celui de la boutique (insert_item
         // le copie) : un exemplaire de plus de cet id.
         const size_t n1 = shop_count(bag_ids(), v.eq_id);
-        for (size_t k = n0; k < n1; ++k) g.ledger.add(v.eq_id, (uint8_t)slot, label);
+        for (size_t k = n0; k < n1; ++k) g.ledger.add(v.eq_id, item_digest(v.f), (uint8_t)slot, label);
         if (n1 <= n0)
             log_line("SHOP", "%s : %s achete, mais pas retrouve dans le sac (devenu autre chose ?)", who,
                      label.c_str());
@@ -946,6 +946,19 @@ void shop_victory_before() {
     g.snap       = true;
     g.snap_owned = g.ledger.all();
     g.snap_seq   = team_run_seq();
+    // L'hote a pu recharger l'aventure depuis l'achat (nouveaux ids) : on recale
+    // la note sur le sac, que loot_victory_before vient de relever lui aussi.
+    std::vector<LootStoredItem> bag;
+    if (loot_bag_items(bag)) {
+        std::vector<uint64_t> ids, digests;
+        for (const LootStoredItem& b : bag) {
+            ids.push_back(b.id);
+            digests.push_back(item_digest(b.f));
+        }
+        if (const size_t n = shop_rekey_owned(g.snap_owned, ids, digests))
+            log_line("SHOP", "victoire : %zu achat(s) retrouve(s) dans le sac par leur empreinte (aventure rechargee ?)",
+                     n);
+    }
     for (const ShopOwned& o : g.snap_owned) {
         bool known = false;
         for (const Owner& w : g.snap_owners) known = known || w.slot == o.slot;

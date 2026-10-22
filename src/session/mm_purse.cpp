@@ -88,6 +88,14 @@ struct Ctx {
     std::string label;               // kCtxShop : ce qu'il achete
 };
 
+// Un don entre bourses (numeros de place), rejoue apres un rechargement.
+struct Gift {
+    uint8_t from  = 0;
+    uint8_t to    = 0;
+    int64_t coins = 0;
+    int64_t food  = 0;
+};
+
 struct State {
     bool told   = false;             // les crochets, dits une fois dans le journal
     bool armed  = false;             // les quatre crochets des evenements et de la fin sont la
@@ -106,6 +114,16 @@ struct State {
     uint32_t  roster_sent = 0;
     uint32_t  finds_made = 0;
     std::vector<std::string> home_notes;   // la fin, une fois dans sa maison
+    // Les bourses a la derniere image sur la carte entre deux cases (l'etat que le
+    // jeu sauve : save_adventure n'est appele que depuis ReturnToMap), et les dons
+    // faits depuis. L'hote qui recharge la meme aventure (k.run et la generation
+    // gardes) y revient : ce que la case annulee avait donne est repris.
+    PurseBook cp_book;
+    int64_t   cp_coins   = 0;
+    int64_t   cp_food    = 0;
+    void*     cp_dir     = nullptr;  // le Director d'alors (un nouveau a chaque chargement)
+    std::vector<Gift> cp_gifts;
+    bool      reloading  = false;    // l'aventure dechargee (ou un autre Director) pendant le suivi
     // Les appels suivis en cours, du plus exterieur au plus interieur.
     Ctx       ctx[kMaxCtx];
     int       depth      = 0;
@@ -337,7 +355,7 @@ void attribute_shop(uint8_t slot, const std::string& label, int64_t dc, int64_t 
 // Ce qui a change depuis la derniere fois : au chat de l'appel suivi en cours le
 // plus interieur ; hors de tout appel suivi, partage.
 void take_pending(const char* what) {
-    if (g.ended) return;
+    if (g.ended || g.reloading) return;      // rechargement : le compte lu n'est pas celui de l'aventure
     int64_t c = 0, f = 0;
     if (!read_run(c, f)) return;
     const int64_t dc = c - g.seen_coins, df = f - g.seen_food;
@@ -362,14 +380,45 @@ void take_pending(const char* what) {
              (long long)dc, (long long)df, (long long)c, (long long)f);
 }
 
+// Sur la carte, entre deux cases : ce qu'un rechargement retrouverait.
+void checkpoint() {
+    g.cp_book  = g.book;
+    g.cp_coins = g.seen_coins;
+    g.cp_food  = g.seen_food;
+    g.cp_dir   = director();
+    g.cp_gifts.clear();
+}
+
+// De retour sur la carte apres un rechargement : les bourses de la derniere
+// sauvegarde, plus les dons faits depuis (ils ne touchent pas le compte du jeu, et
+// les joueurs les ont vus faits) ; l'ecart qui reste au compte est partage.
+void restore_checkpoint() {
+    g.reloading = false;
+    g.book      = g.cp_book;
+    for (const Gift& d : g.cp_gifts)
+        if (!g.book.transfer(d.from, d.to, d.coins, d.food))
+            log_line("PURSE", "!! rechargement : un don de %s a %s ne passe plus -- annule",
+                     team_slot_name(d.from).c_str(), team_slot_name(d.to).c_str());
+    g.seen_coins = g.cp_coins;
+    g.seen_food  = g.cp_food;
+    g.finds.clear();                         // celles de la case annulee
+    g.dirty = true;
+    log_line("PURSE", "aventure rechargee : bourses remises a la derniere sauvegarde (%zu don(s) rejoue(s))",
+             g.cp_gifts.size());
+    take_pending("rechargement");            // normalement rien
+    checkpoint();
+    host_send(true);
+}
+
 void host_pump() {
     uint32_t gen = 0, slots = 0;
     if (!team_run_slots(gen, slots)) {
         if (g.tracking)
             log_line("PURSE", "plus d'aventure mixte : bourses oubliees (%u trouvaille(s) dans celle-ci)",
                      g.finds_made);
-        g.tracking = false;
-        g.ended    = false;
+        g.tracking  = false;
+        g.ended     = false;
+        g.reloading = false;
         g.finds.clear();
         return;
     }
@@ -395,6 +444,8 @@ void host_pump() {
         g.finds_made  = 0;
         g.finds.clear();
         g.home_notes.clear();
+        g.reloading   = false;
+        checkpoint();
         log_line("PURSE", "aventure mixte %u : une bourse par joueur qui a amene des chats (%d%s) ; au depart "
                           "%lld piece(s) et %lld nourriture(s), partagees", gen, popcount(g.slots),
                  (g.slots & (1u << kHostPeer)) ? ", l'hote compris" : ", l'hote n'a pas de chat", (long long)c,
@@ -403,7 +454,18 @@ void host_pump() {
         return;
     }
     if (g.ended) return;
+    // L'hote recharge l'aventure (le menu, puis la meme save) : rien n'est partage
+    // en attendant (le compte lu au menu n'est pas celui de l'aventure) ; de retour
+    // sur la carte, les bourses reviennent a la derniere sauvegarde.
+    if (!savefile_adventure_is_loaded() || director() != g.cp_dir) {
+        if (!g.reloading)
+            log_line("PURSE", "l'aventure n'est plus chargee (rechargement ?) : les bourses attendent la carte");
+        g.reloading = true;
+        if (!savefile_adventure_is_loaded() || !follow_on_map()) return;
+        restore_checkpoint();
+    }
     take_pending("compte");
+    if (follow_on_map() && !follow_node_live()) checkpoint();
     host_send(false);
 }
 
@@ -432,6 +494,7 @@ uint8_t host_transfer(uint8_t giver, uint8_t to, int64_t coins, int64_t food) {
     if (!slot_has_purse(fs) || !slot_has_purse(ts) || fs == ts) return kPurseNoPurse;
     take_pending("avant un don");            // le compte a jour d'abord
     if (!g.book.transfer((uint8_t)fs, (uint8_t)ts, coins, food)) return kPurseNoEnough;
+    g.cp_gifts.push_back(Gift{ (uint8_t)fs, (uint8_t)ts, coins, food });
     g.dirty = true;
     log_line("PURSE", "don : %s donne %lld piece(s) et %lld nourriture(s) a %s (sa bourse : %lld et %lld ; "
                       "l'autre : %lld et %lld)", team_slot_name((uint8_t)fs).c_str(), (long long)coins,

@@ -376,7 +376,7 @@ bool LootHost::tick(uint64_t now, LootRng& rng) {
     }
     case LootPhase::Result:
         if (!host_ready) { since_ += step; return false; }
-        if (now - since_ < kLootResultMs) return false;
+        if (now - since_ < result_ms()) return false;
         if ((size_t)index_ + 1 < items_.size()) {
             ++index_;
             begin_item(now);
@@ -407,7 +407,7 @@ LootState LootHost::state(uint64_t now) const {
         s.ms_left = el < kLootChoiceMs ? (uint32_t)(kLootChoiceMs - el) : 0;
         break;
     case LootPhase::Result:
-        s.ms_left = el < kLootResultMs ? (uint32_t)(kLootResultMs - el) : 0;
+        s.ms_left = el < result_ms() ? (uint32_t)(result_ms() - el) : 0;
         s.result  = results_[index_];
         break;
     case LootPhase::Done:

@@ -839,6 +839,16 @@ void host_on(uint8_t from, const LootMsg& m) {
 void guest_abort(const char* why) {
     if (!g.on) return;
     log_line("BUTIN", "!! defile %u oublie : %s", g.parade, why);
+    // L'hote ne doit plus attendre ce joueur a chaque objet. Sans condition sur
+    // ready_sent : un choix suffit a le marquer pret chez l'hote. Au mieux : perdu
+    // si le lien est coupe, comme avant.
+    if (in_session()) {
+        LootMsg m;
+        m.op     = kLootReady;
+        m.parade = g.parade;
+        m.ready  = 0;
+        if (send_msg(m, kHostPeer)) log_line("BUTIN", "-> tu ne vois plus le defile");
+    }
     reset_parade();
 }
 
