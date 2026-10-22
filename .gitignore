@@ -66,4 +66,7 @@ Thumbs.db
 desktop.ini
 .DS_Store
 
+# Mewgenics Multi : le graphe graphify du projet, refait sur chaque machine.
+/graphify-out/
+
 !third_party/**
