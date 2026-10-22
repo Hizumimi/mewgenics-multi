@@ -394,7 +394,11 @@ void leave_pump() {
     // process: without this, a peer that spent its five presses once could
     // never be taken out of a later run, and the only symptom would be the
     // gave-up line from the previous one.
-    if (here == Where::InRun && (g.presses || g.said_gave_up)) {
+    // Mewgenics Multi : pas pendant le depart en cours (g.pending) -- l'invite y
+    // est encore InRun tant que le clic n'a pas pris, et la remise a zero a
+    // chaque releve rendait la limite de kMaxPresses (et son message) muette.
+    // leave_on_message et leave_request_local remettent le budget a l'armement.
+    if (here == Where::InRun && !g.pending && (g.presses || g.said_gave_up)) {
         g.presses      = 0;
         g.said_gave_up = false;
     }

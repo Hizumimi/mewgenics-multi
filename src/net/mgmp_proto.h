@@ -858,6 +858,9 @@ enum MmKind : uint8_t {
                          // invite -> hote ; x et y = le combat (32 bits bas, hauts), text[0..3] = g.turn
                          // chez celui qui l'envoie quand il s'est fini. Envoye a la fin de la case
                          // (T_NodeEnd) ; l'hote redit la sienne a un arrivant (lockstep_catchup).
+    MM_PEER_NAME    = 16,// hote -> tous : b = un numero, text = son pseudo (UTF-8, tel que son HELLO
+                         // le donne). HELLO ne va qu'a l'hote : sans cela un invite ne connait pas
+                         // le nom des autres invites (« Joueur 3 »). Redit a chaque arrivee.
 };
 constexpr uint8_t kDefendSilent = 1;   // MM_PEER_DEFEND c (protocole 55)
 struct MmMsg {

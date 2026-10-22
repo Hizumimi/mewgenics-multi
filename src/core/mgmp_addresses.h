@@ -247,8 +247,13 @@ static const TargetDesc kTargets[T_COUNT] = {
     // this same update, so injecting here is the same point in the frame.
     { 0x001BB780, "SAVESEL",  "glaiel::SaveSelection::update" },
 
-    // sub_1401BCE90 -- THE SAVE-FILE COMMAND BOUNDARY, and the counterpart of
+    // sub_1401BD8B0 -- THE SAVE-FILE COMMAND BOUNDARY, and the counterpart of
     // MapScreen::EnterNode one screen earlier:
+    //
+    // (Mewgenics Multi : les sub_ de ce bloc -- 1401BBA70, 1401BE840, 1401BFD10,
+    // 1401BD780, et l'ancien 1401BCE90 -- viennent d'un autre build : dans
+    // 1.1.21239 aucun n'est un debut de fonction (.pdata). Seule la RVA de la
+    // table fait foi.)
     //
     //     ContinueSlot(SaveSelection* this, int slot, bool play_sound)
     //
@@ -1516,6 +1521,9 @@ constexpr const char kBtnName_PauseQuitToMenu[] = "Button_PauseMenu_QuitToMenu";
 // MewDirector::IsTutorialRunActive @ 0x1403AECB0 (*(this+40) -> the "Cutscene"
 // lookup), PauseMenu::SetupMainSidebar (*(this+40) -> the "House" lookup), and
 // the MainMenu transitions above (*(MainMenu+40) -> get-or-create "MainMenu").
+// (Mewgenics Multi : 0x1403AECB0, comme 0x1409CA700, 0x1401BFE80 et 0x140756DE0
+// ici, n'est pas un debut de fonction dans 1.1.21239 (.pdata) : adresses d'un
+// autre build, non retrouvees. Les decalages, eux, sont verifies en jeu.)
 constexpr uintptr_t kDir_SceneDirector   = 40;    // MewDirector+40 = Director*
 constexpr uintptr_t kDirector_ScenesBegin = 0;    // Scene**
 constexpr uintptr_t kDirector_ScenesEnd   = 8;    // Scene**

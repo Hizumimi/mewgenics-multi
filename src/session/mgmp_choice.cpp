@@ -2041,8 +2041,10 @@ void choice_forget() {
     etitle_forget();
     g.here_seed    = 0;
     if (!g.queue.empty())
-        log_line("CHOICE", "dropped %u held choice(s) -- the host's save that just arrived already has"
-                           " them", (unsigned)g.queue.size());
+        // Mewgenics Multi : pas « la save les a » -- une montee de niveau vient apres
+        // la save de ReturnToMap (0x1403B3D60 avant 0x1403B7720) ; les chats la portent.
+        log_line("CHOICE", "dropped %u held choice(s) -- the host's save and the cat pushes that follow"
+                           " it carry them", (unsigned)g.queue.size());
     g.queue.clear();
     g.announced.clear();
     std::memset(g.skipped, 0, sizeof(g.skipped));   // Mewgenics Multi : la copie a deja ces cases

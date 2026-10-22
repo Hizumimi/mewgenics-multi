@@ -2379,7 +2379,10 @@ void adventure_popups() {
 
 // Les mises a jour des fenetres de l'aventure ouvertes (appele chaque image).
 void adventure_live() {
-    if (!g_live.alive || g_live.pressed) return;
+    // Apres kPressRetry, un appui qui n'a pas pris (boite encore dans son
+    // animation d'ouverture : JoinWait fermee deux images apres son ouverture,
+    // le 18 octobre) est refait par close_silently ; sinon la boite reste.
+    if (!g_live.alive || (g_live.pressed && g_frame - g_live.pressed_frame < kPressRetry)) return;
     auto close_silently = [] {
         if (g_click_target) return;
         g_silent = g_live.serial;
@@ -2396,7 +2399,8 @@ void adventure_live() {
             break;
         case Screen::ArrivalWait:
             if (!session_has_others() || !g_arrival_mask) {
-                if (session_has_others()) log_line("MULTI", "aventure : toute l'equipe est arrivee");
+                if (session_has_others() && !g_live.pressed)
+                    log_line("MULTI", "aventure : toute l'equipe est arrivee");
                 close_silently();
             } else {
                 popup_set_text(arrival_text());
@@ -2436,20 +2440,22 @@ void adventure_live() {
         case Screen::Info:
             // kInfoYieldToFollow : l'hote est entre dans une case, la fenetre se
             // referme pour que la carte de ce joueur le suive ; elle reviendra.
-            if (g_info_live_yield && net_role() == NetRole::Client && savefile_in_coop() &&
-                follow_pending_count() != 0) {
-                if (!g_info_wanted) {
+            // Une fois l'appui demande (pressed), il est refait apres kPressRetry
+            // s'il n'a pas pris ; elle n'est remise en file qu'a ce premier appui.
+            if (g_info_live_yield && (g_live.pressed || (net_role() == NetRole::Client &&
+                                      savefile_in_coop() && follow_pending_count() != 0))) {
+                const bool first = !g_live.pressed;
+                close_silently();
+                if (first && g_live.pressed && !g_info_wanted) {
                     g_info_text   = g_info_live_text;
                     g_info_wanted = true;
                     g_info_yield  = true;
                 }
-                g_info_live_yield = false;
-                close_silently();
             }
             break;
         case Screen::JoinWait:
             if (savefile_client_waiting_to_load() || !savefile_join_armed() || savefile_in_coop()) {
-                if (savefile_client_waiting_to_load())
+                if (savefile_client_waiting_to_load() && !g_live.pressed)
                     log_line("MULTI", "aventure : la save de l'hote est la, elle se charge");
                 close_silently();
             }
@@ -3681,6 +3687,11 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
         case MM_BATTLE_END:
             lockstep_on_battle_end(from, m); // Mewgenics Multi (protocole 64) : l'hote a fini un combat
             break;
+        case MM_PEER_NAME:
+            // Le nom d'un autre joueur, redit par l'hote (son HELLO ne vient pas ici).
+            if (net_role() == NetRole::Client && m.b < 8 && m.b != net_self())
+                copy_utf8(g_peer_names[m.b], sizeof(g_peer_names[m.b]), m.text);
+            break;
         case MM_DEPART_READY:
             if (net_role() != NetRole::Host || from >= 8) break;
             if (m.b != g_dep_seq) {                 // la reponse a un vote d'avant
@@ -3891,6 +3902,21 @@ void mm_on_peer_hello(uint8_t peer, const char* name_utf8) {
     if (peer >= 8) return;
     copy_utf8(g_peer_names[peer], sizeof(g_peer_names[peer]), name_utf8 ? name_utf8 : "");
     defense_on_hello(peer);              // Mewgenics Multi : les defenses en cours (protocole 55)
+    // Mewgenics Multi : HELLO ne va qu'a l'hote -- il redit a tous le nom de
+    // chaque joueur connu (l'arrivant compris), sinon un invite ne voit que
+    // « Joueur N » pour les autres invites. Celui de l'hote vient de son HELLO.
+    if (net_role() != NetRole::Host) return;
+    // Sa propre place n'a pas de HELLO : elle peut garder le nom de l'hote d'une
+    // session d'avant (ce joueur l'avait rejoint), qui partirait chez tous.
+    if (net_self() < 8) g_peer_names[net_self()][0] = 0;
+    for (uint8_t id = 0; id < 8; ++id) {
+        if (!g_peer_names[id][0]) continue;
+        MmMsg m{};
+        m.kind = MM_PEER_NAME;
+        m.b    = id;
+        copy_utf8(m.text, sizeof(m.text), g_peer_names[id]);
+        net_send_mm(m);
+    }
 }
 
 } // namespace mgmp
