@@ -395,8 +395,9 @@ les échanges (49).
 - Dans le document : « La save multi peut-elle se jouer si un joueur manque ?
   Proposition actuelle : non. »
 - Le document dit encore, au départ, que « les classes premier servi restent à
-  faire », alors que la build 16 fait des colliers « premier qui le prend, l'hôte
-  tranche » : à faire confirmer par Hizu et à harmoniser.
+  faire », alors que depuis la build 16 un collier « n'existe qu'une fois : le
+  premier qui le prend l'a, l'hôte tranche » (message du commit `a4d766e`) : à
+  faire confirmer par Hizu et à harmoniser.
 - Les bonbons et les familiers achetés en boutique restent à l'hôte (build 30) ;
   j'avais proposé de laisser un invité acheter des bonbons : pas de réponse.
 - Une question posée à Hizu sur les boutons « Oui » / « Non » de la confirmation du
