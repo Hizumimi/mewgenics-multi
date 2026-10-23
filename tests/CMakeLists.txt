@@ -172,6 +172,19 @@ target_include_directories(test_orphan PRIVATE ${CMAKE_SOURCE_DIR}/src/session $
 target_compile_options(test_orphan PRIVATE /utf-8)
 add_test(NAME test_orphan COMMAND test_orphan)
 
-foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_members test_battleid test_config test_world_merge test_team_merge test_vote test_purse test_loot test_recruit test_npcgift test_seen test_shop test_ai test_slot test_gift test_orphan)
+# Mewgenics Multi (launcher) : la lecture des SWF du jeu (images, polices) sur un
+# SWF construit par le test, puis l'art du jeu installe (reussit sans le jeu).
+add_executable(test_swf test_swf.cpp ${CMAKE_SOURCE_DIR}/launcher/ml_swf.cpp)
+target_include_directories(test_swf PRIVATE ${CMAKE_SOURCE_DIR}/launcher ${CMAKE_SOURCE_DIR}/third_party)
+target_compile_options(test_swf PRIVATE /utf-8)
+add_test(NAME test_swf COMMAND test_swf)
+
+add_executable(test_assets_live test_assets_live.cpp ${CMAKE_SOURCE_DIR}/launcher/ml_assets.cpp
+               ${CMAKE_SOURCE_DIR}/launcher/ml_swf.cpp ${CMAKE_SOURCE_DIR}/launcher/ml_gpak.cpp)
+target_include_directories(test_assets_live PRIVATE ${CMAKE_SOURCE_DIR}/launcher ${CMAKE_SOURCE_DIR}/third_party)
+target_compile_options(test_assets_live PRIVATE /utf-8)
+add_test(NAME test_assets_live COMMAND test_assets_live)
+
+foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_members test_battleid test_config test_world_merge test_team_merge test_vote test_purse test_loot test_recruit test_npcgift test_seen test_shop test_ai test_slot test_gift test_orphan test_swf test_assets_live)
     target_compile_options(${t} PRIVATE /W3)
 endforeach()
