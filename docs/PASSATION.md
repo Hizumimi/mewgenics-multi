@@ -345,7 +345,7 @@ session) ; une case vide veut dire : pas de retour.
 | 46–49 | 18 | 62–63 | Échanges entre joueurs (« Échanger », don direct : à la maison pièces, nourriture et objets ; en aventure, de bourse à bourse) ; 47–48 : relectures ; 49 : un départ sans état final ne bloque plus les objets | 46 jamais livrée ; 49 livrée et jouée le 18 : gel en combat |
 | 50–52 | 18 | 64–66 | L'aperçu de visée ne tourne plus le chat ; un combat fini d'un seul côté ne fige plus personne ; 51–52 : relectures | 52 livrée le 18, pas encore jouée |
 | 53 | 22 | 67 | Relecture complète (section 11) : 49 défauts corrigés, intro du jeu passée chez l'invité, « Échanger » en fenêtres du jeu, .bat qui détecte Steam fermé | compilée sur le PC de Hizu, installée et jouée le 22 au soir : tout marche sauf l'intro |
-| 54 | 23 | 67 | L'intro passée depuis `SwfCutscene::update` (nouveau crochet `T_SwfCutUpdate`, diagnostic au journal) ; plus de fausse fenêtre « Ta save est en pleine aventure » au chargement de la maison | |
+| 54 | 23 | 67 | L'intro passée depuis `SwfCutscene::update` (nouveau crochet `T_SwfCutUpdate`, diagnostic au journal) ; plus de fausse fenêtre « Ta save est en pleine aventure » au chargement de la maison | jouée le 24 vers 0 h 20 (`mgmp_trace_20261024-002123` / `-002143`) : intro passée aux deux retours au menu (2,6 s au lieu de 4,3 à 5,7), aucune désynchronisation |
 | 55 | 24 | 67 | Le lanceur « Mewgenics Multi.exe » aux couleurs du jeu (section 12), à la place du .bat | |
 
 ## 7. Le dernier bug corrigé : le gel du 18 octobre (builds 50–52)

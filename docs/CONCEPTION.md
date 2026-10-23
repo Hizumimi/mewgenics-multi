@@ -1,8 +1,8 @@
 # Mewgenics Multi — Document de conception
 
 > Copie du document de conception en ligne
-> (https://claude.ai/code/artifact/5e9195c8-3a1e-446a-a5a6-a43fea7459f7, révision 118,
-> prise le 22 octobre 2026, après la build 53), pour qu'il se lise sans claude.ai. Ses trois schémas
+> (https://claude.ai/code/artifact/5e9195c8-3a1e-446a-a5a6-a43fea7459f7, révision 119,
+> prise le 24 octobre 2026, après la build 55), pour qu'il se lise sans claude.ai. Ses trois schémas
 > n'y sont pas. Le document en ligne est celui que Hizu lit : une règle qui change
 > se note dans les deux. Ce qui a été fait build par build : `docs/PASSATION.md`.
 
