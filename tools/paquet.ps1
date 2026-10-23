@@ -6,13 +6,16 @@
 #
 # 1. Les fichiers de la release build-N : telecharges par gh (GitHub CLI, connecte
 #    avec un acces au depot), ou pris dans le dossier -Depuis (mgmp.dll,
-#    mgmp_loader.exe et SHA256SUMS.txt, telecharges a la main depuis la page des
-#    releases).
+#    mgmp_loader.exe, Mewgenics-Multi.exe et SHA256SUMS.txt, telecharges a la main
+#    depuis la page des releases ; le launcher y est sans espace, GitHub en ferait
+#    un point).
 # 2. Leurs empreintes SHA-256 sont verifiees contre SHA256SUMS.txt.
-# 3. Le zip de l'ami (un dossier mgmp\ : les fichiers de paquet\ et les deux
-#    binaires) est ecrit dans -Dossier, sous le nom mgmp-pour-ton-ami.zip.
-# 4. Avec -Installer : mgmp.dll et mgmp_loader.exe remplacent ceux de -Dossier
-#    (le dossier d'ou Hizu lance le jeu), seulement si Mewgenics est ferme.
+# 3. Le zip de l'ami (un dossier mgmp\ : les fichiers de paquet\, les deux
+#    binaires et le launcher sous son nom « Mewgenics Multi.exe ») est ecrit dans
+#    -Dossier, sous le nom mgmp-pour-ton-ami.zip.
+# 4. Avec -Installer : mgmp.dll, mgmp_loader.exe et « Mewgenics Multi.exe »
+#    remplacent ceux de -Dossier (le dossier d'ou Hizu lance le jeu), seulement si
+#    Mewgenics est ferme.
 param(
     [Parameter(Mandatory = $true)][int]$Build,
     [string]$Dossier = (Join-Path ([Environment]::GetFolderPath('Desktop')) 'mgmp'),
@@ -40,7 +43,7 @@ $attendu = @{}
 foreach ($ligne in Get-Content (Join-Path $src 'SHA256SUMS.txt')) {
     if ($ligne -match '^([0-9a-fA-F]{64})\s+\*?(.+)$') { $attendu[$Matches[2].Trim()] = $Matches[1].ToLower() }
 }
-foreach ($nom in 'mgmp.dll', 'mgmp_loader.exe') {
+foreach ($nom in 'mgmp.dll', 'mgmp_loader.exe', 'Mewgenics-Multi.exe') {
     if (-not $attendu.ContainsKey($nom)) { throw "$nom n'est pas dans SHA256SUMS.txt" }
     $h = (Get-FileHash (Join-Path $src $nom) -Algorithm SHA256).Hash.ToLower()
     if ($h -ne $attendu[$nom]) { throw "$nom : empreinte $h, attendue $($attendu[$nom])" }
@@ -53,6 +56,7 @@ $contenu = Join-Path $tmp 'zip\mgmp'
 New-Item -ItemType Directory -Force $contenu | Out-Null
 Copy-Item (Join-Path $paquet '*') $contenu
 Copy-Item (Join-Path $src 'mgmp.dll'), (Join-Path $src 'mgmp_loader.exe') $contenu
+Copy-Item (Join-Path $src 'Mewgenics-Multi.exe') (Join-Path $contenu 'Mewgenics Multi.exe')
 $zip = Join-Path $Dossier 'mgmp-pour-ton-ami.zip'
 # Pas Compress-Archive : sous Windows PowerShell 5.1, il ecrit les chemins avec des \
 # (mgmp\mgmp.dll), que certains outils d'extraction prennent pour un nom de fichier.
@@ -72,5 +76,6 @@ if ($Installer) {
         throw 'Mewgenics est ouvert : le fermer, puis relancer avec -Installer'
     }
     Copy-Item (Join-Path $src 'mgmp.dll'), (Join-Path $src 'mgmp_loader.exe') $Dossier -Force
+    Copy-Item (Join-Path $src 'Mewgenics-Multi.exe') (Join-Path $Dossier 'Mewgenics Multi.exe') -Force
     Write-Host "build $Build installee dans $Dossier"
 }

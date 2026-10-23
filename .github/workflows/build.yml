@@ -28,7 +28,10 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
           Copy-Item build/Release/mgmp.dll, build/Release/mgmp_loader.exe dist/
-          Get-FileHash dist/mgmp.dll, dist/mgmp_loader.exe -Algorithm SHA256 |
+          # Le launcher : sans espace dans la release (GitHub en ferait un point),
+          # tools/paquet.ps1 lui redonne son nom « Mewgenics Multi.exe » dans le zip.
+          Copy-Item "build/Release/Mewgenics Multi.exe" dist/Mewgenics-Multi.exe
+          Get-FileHash dist/mgmp.dll, dist/mgmp_loader.exe, dist/Mewgenics-Multi.exe -Algorithm SHA256 |
             ForEach-Object { "{0}  {1}" -f $_.Hash.ToLower(), (Split-Path $_.Path -Leaf) } |
             Set-Content dist/SHA256SUMS.txt
 
@@ -38,6 +41,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "build-${{ github.run_number }}"
-          gh release create $tag dist/mgmp.dll dist/mgmp_loader.exe dist/SHA256SUMS.txt `
+          gh release create $tag dist/mgmp.dll dist/mgmp_loader.exe dist/Mewgenics-Multi.exe dist/SHA256SUMS.txt `
             --prerelease --target ${{ github.sha }} `
             --title "Build ${{ github.run_number }}" --notes "Commit ${{ github.sha }}"

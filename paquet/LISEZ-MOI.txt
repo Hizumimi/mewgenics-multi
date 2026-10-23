@@ -1,21 +1,27 @@
 ﻿Mewgenics Multi - mod coop pour Mewgenics (version du jeu 1.1.21239)
 
 1. Extrais le dossier mgmp de ce zip, par exemple sur ton Bureau.
-   Garde tous les fichiers ensemble, sauf steam_appid.txt (voir l'étape 2).
+   Garde tous les fichiers ensemble.
 
-2. Copie steam_appid.txt dans le dossier du jeu, à côté de Mewgenics.exe
-   (par défaut : C:\Program Files (x86)\Steam\steamapps\common\Mewgenics).
-   Sans ce fichier, Steam relance le jeu et le mod ne se charge pas.
-   Si Windows demande une autorisation pour le copier, accepte.
-
-3. Si ton jeu n'est pas dans le dossier par défaut ci-dessus, ouvre mgmp.json
-   avec le Bloc-notes et corrige la ligne "game" en doublant chaque \.
-
-4. Laisse Steam ouvert, puis double-clique sur « Lancer Mewgenics coop.bat ».
-   Si Steam est fermé, la fenêtre noire te le dit : ouvre Steam, attends
-   qu'il soit connecté, puis appuie sur une touche dans cette fenêtre.
+2. Double-clique sur « Mewgenics Multi.exe » : c'est le lanceur du mod, aux
+   couleurs du jeu. Il vérifie que tout est prêt :
+   - Steam ouvert (laisse-le ouvert et connecté) ;
+   - le jeu trouvé ;
+   - steam_appid.txt à côté de Mewgenics.exe : sans lui, Steam relance le jeu
+     et le mod ne se charge pas. S'il manque, clique sur « Réparer » (si
+     Windows demande une autorisation, accepte) ;
+   - les fichiers du mod.
    Si Windows affiche « Windows a protégé votre ordinateur », clique sur
    « Informations complémentaires » puis « Exécuter quand même ».
+
+3. Si ton jeu n'est pas dans le dossier par défaut
+   (C:\Program Files (x86)\Steam\steamapps\common\Mewgenics), clique sur
+   « Réglages » puis « Parcourir… » et choisis Mewgenics.exe.
+
+4. Clique sur « Jouer » : le lanceur démarre le jeu avec le mod, puis se
+   ferme tout seul. S'il n'y arrive pas, il te dit pourquoi.
+   Pour m'envoyer tes journaux après une partie : « Journaux », puis
+   « Copier le dernier journal », et colle-le dans Discord avec Ctrl+V.
 
 5. Le plus simple : par Steam. Quand l'hôte a cliqué sur « Multijoueur »
    puis « Héberger », ouvre ta liste d'amis Steam et choisis « Rejoindre la
@@ -31,8 +37,8 @@
    encore là, l'écran des sauvegardes s'ouvre tout seul dès qu'elle arrive) :
    prends ta save, ou un emplacement vide pour une nouvelle partie. Chacun joue
    dans sa maison, avec ses chats.
-   (Si Steam pose un problème, ouvre mgmp.json avec le Bloc-notes et ajoute
-   "steam": false dans la partie "net" : il ne reste que l'adresse.)
+   (Si Steam pose un problème, décoche « Jouer ensemble par Steam » dans les
+   Réglages du lanceur : il ne reste que l'adresse.)
 
 6. Le monde est celui de l'hôte : ses PNJ (faveur, quêtes, boutiques), son
    histoire et ses déblocages (pièces de la maison compris) sont repris dans

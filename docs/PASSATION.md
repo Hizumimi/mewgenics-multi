@@ -59,7 +59,7 @@ jeu à plusieurs, copie du document de conception en ligne) et `docs/NOTES_MGMP.
 | Les builds | releases `build-1` à `build-53` du dépôt |
 | Le graphe du projet | `graphify-out/` (ignoré par git, refait par `/graphify` dans Claude Code) : `graph.html`, `GRAPH_REPORT.md`, `graph.json` |
 | Le zip de l'ami | modèle dans `paquet/` ; `tools/paquet.ps1` (Windows) ou `tools/linux/paquet.sh` le refont |
-| Le mod chez Hizu | `C:\Users\Hizumi\Desktop\mgmp` : `mgmp.dll`, `mgmp_loader.exe`, `mgmp.json`, `Lancer Mewgenics coop.bat`, les journaux, `mgmp-pour-ton-ami.zip` ; `original-mgmp-v1\` (les binaires de mgmp v1, gardés à part) et `outils\` (des scripts des débuts, qui listent les fichiers du jeu) |
+| Le mod chez Hizu | `C:\Users\Hizumi\Desktop\mgmp` : `mgmp.dll`, `mgmp_loader.exe`, `Mewgenics Multi.exe` (le lanceur, depuis la build 55), `mgmp.json`, `Lancer Mewgenics coop.bat` (l'ancien lanceur, gardé), les journaux, `mgmp-pour-ton-ami.zip` ; `original-mgmp-v1\` (les binaires de mgmp v1, gardés à part) et `outils\` (des scripts des débuts, qui listent les fichiers du jeu) |
 | Le jeu | `C:\Program Files (x86)\Steam\steamapps\common\Mewgenics`, avec `steam_appid.txt` (686060) à côté de `Mewgenics.exe` : sans lui, Steam relance le jeu sans le mod |
 | Les saves | `%APPDATA%\Glaiel Games\Mewgenics\<id Steam>\saves` (des bases sqlite `.sav`). On n'y écrit jamais avec un outil : on analyse des copies (règle de Hizu : rien n'est modifié dans ce dossier) |
 
@@ -183,16 +183,18 @@ mises en scripts le 22 octobre (aucun des deux ne produit la DLL) :
    joueurs, « à tester ») ; `paquet/LISEZ-MOI.txt` si ce que voient les joueurs
    change (UTF-8 avec BOM, fins de ligne CRLF : `.gitattributes` les garde).
 
-Le zip contient un dossier `mgmp\` : `LISEZ-MOI.txt`, `Lancer Mewgenics coop.bat`,
-`mgmp.json`, `steam_appid.txt`, `mgmp.dll`, `mgmp_loader.exe`. Celui de la build 52,
-refait par les deux scripts, est identique à celui livré le 18 octobre, sauf le .bat,
-remplacé le 22 octobre dans le zip et chez Hizu (section 10).
+Le zip contient un dossier `mgmp\` : `LISEZ-MOI.txt`, `Mewgenics Multi.exe` (le
+lanceur, section 12), `mgmp.json`, `steam_appid.txt`, `mgmp.dll`, `mgmp_loader.exe`.
+Dans la release, le lanceur s'appelle `Mewgenics-Multi.exe` (GitHub remplace une
+espace par un point) ; les deux scripts lui redonnent son nom. Jusqu'à la build 54,
+le zip avait `Lancer Mewgenics coop.bat` à la place.
 
 ## 5. Comment marche le mod
 
 ### Le démarrage
 
-`Lancer Mewgenics coop.bat` lance `mgmp_loader.exe`, qui démarre `Mewgenics.exe`
+`Mewgenics Multi.exe` (le lanceur, section 12 ; avant la build 55, `Lancer Mewgenics
+coop.bat`) lance `mgmp_loader.exe`, qui démarre `Mewgenics.exe`
 (chemin : `game` dans `mgmp.json`) et y injecte `mgmp.dll` ; le jeu n'est pas modifié
 sur le disque. La DLL lit `mgmp.json` à côté d'elle, retrouve ses cibles par
 signature (126 dans la build 54 ; `mgmp_sigscan`, `mgmp_resolve`,
@@ -285,7 +287,7 @@ rôle : le `mgmp.json` livré a `role: off`.
 ### Les fichiers que le mod écrit
 
 - dans son dossier : `mgmp_trace_AAAAMMJJ-HHMMSS.log` (un par lancement du jeu),
-  `mgmp_boot.log`, `loader.txt` (écrit par le .bat), `dernier_hote.txt` (la dernière
+  `mgmp_boot.log`, `loader.txt` (écrit par le lanceur), `dernier_hote.txt` (la dernière
   adresse tapée) ;
 - dans le dossier des saves : `mgmp_coop.sav` (l'aventure de l'hôte, chez un
   invité), `<save>.mgmp-attente`, et `mgmp_backups\` (copies horodatées, dont
@@ -344,6 +346,7 @@ session) ; une case vide veut dire : pas de retour.
 | 50–52 | 18 | 64–66 | L'aperçu de visée ne tourne plus le chat ; un combat fini d'un seul côté ne fige plus personne ; 51–52 : relectures | 52 livrée le 18, pas encore jouée |
 | 53 | 22 | 67 | Relecture complète (section 11) : 49 défauts corrigés, intro du jeu passée chez l'invité, « Échanger » en fenêtres du jeu, .bat qui détecte Steam fermé | compilée sur le PC de Hizu, installée et jouée le 22 au soir : tout marche sauf l'intro |
 | 54 | 23 | 67 | L'intro passée depuis `SwfCutscene::update` (nouveau crochet `T_SwfCutUpdate`, diagnostic au journal) ; plus de fausse fenêtre « Ta save est en pleine aventure » au chargement de la maison | |
+| 55 | 24 | 67 | Le lanceur « Mewgenics Multi.exe » aux couleurs du jeu (section 12), à la place du .bat | |
 
 ## 7. Le dernier bug corrigé : le gel du 18 octobre (builds 50–52)
 
@@ -501,11 +504,11 @@ complète à deux.
 
 ## 10. Pièges connus
 
-- **Steam doit être ouvert avant le .bat.** Sinon le jeu se ferme pendant son
+- **Steam doit être ouvert avant de lancer.** Sinon le jeu se ferme pendant son
   démarrage, avant le mod (code 3221226505, `0xC0000409`) ; avant la build 53,
   `loader.txt` parlait à tort d'une relance par Steam et de `steam_appid.txt` : c'est
-  arrivé le 20 octobre, Steam était fermé. Depuis le 22 octobre, le .bat vérifie que
-  `steam.exe` tourne ; sinon il le dit et attend une touche avant de lancer. Depuis
+  arrivé le 20 octobre, Steam était fermé. Le lanceur (build 55) vérifie que
+  `steam.exe` tourne et le dit ; le .bat des builds 53 et 54 le disait aussi. Depuis
   la build 53, le loader distingue le code 0 (relance par Steam :
   `SteamAPI_RestartAppIfNecessary`, `glaiel::SteamAPI::init` @ `0x140A06630` →
   `exit(0)` ; seulement là il parle de relance puis de `steam_appid.txt`) d'un code
@@ -657,3 +660,60 @@ Sans conséquence : « !! cat 13 slot 4:5 is 'tk_WaterBottle_Empty' here and
 avant qu'il boive sa gourde, arrive après l'action chez l'hôte : la visée n'est pas
 dessinée, rien d'autre) ; « !! bouton 'yes' introuvable dans la fenetre » après un
 résultat de vote (déjà là en build 41 : la boîte se ferme pendant la relance).
+
+## 12. Le lanceur « Mewgenics Multi.exe » (build 55)
+
+Demandé par Hizu le 24 octobre : « un launcher de mod pour le multijoueur propre
+avec le design de Mewgenics ». Ses choix : le vrai style du jeu ; vérifier et
+réparer, réglages, journaux ; le lanceur remplace le .bat dans le zip.
+
+**Ce qu'il fait.** Une fenêtre sans bordure de 1152 x 648 points (Direct2D 1.1,
+DirectWrite en repli), qui montre :
+- l'écran principal : Steam ouvert, jeu trouvé, `steam_appid.txt` à côté du jeu
+  (bouton « Réparer » : il l'écrit, et se relance en administrateur avec
+  `--ml-ecrire-appid` si Program Files le refuse), fichiers du mod, build et
+  protocole ; le grand bouton « Jouer » (grisé tant qu'une croix rouge reste ;
+  Steam fermé est un avertissement) ;
+- Réglages : le chemin du jeu (« Parcourir… ») et Steam oui ou non, écrits dans
+  `mgmp.json` sans perdre les autres champs ni leur ordre (un fichier commenté
+  n'est pas réécrit) ;
+- Journaux : le nombre, le dernier, « Ouvrir le dossier », « Copier le dernier
+  journal » (dans le presse-papiers comme un fichier, à coller dans Discord) ;
+- le lancement : `mgmp_loader.exe` caché, sa sortie lue par un tuyau et écrite
+  dans `loader.txt`, l'avancement en phrases pour le joueur ; fermeture seule 2 s
+  après la réussite, la raison et « Réessayer » en cas d'échec.
+
+**Le style du jeu, sans rien du jeu dans le dépôt.** Tout est lu au démarrage
+dans `resources.gpak` sur la machine du joueur (en 0,15 s environ, sur un fil de
+fond, la fenêtre s'ouvre tout de suite) :
+- dans `swfs/ui.swf` (balises `DefineBitsLossless2`, format 5) : la maison sur la
+  colline (caractère 1816, 1984 x 1134), le soleil rayonnant (3805, 2000 x 2000,
+  doré et tournant lentement), la feuille de papier (1, 920 x 923, teintée crème) ;
+- dans `swfs/fonts.swf` (balises `DefineFont3`) : Peralta (titres), TikaFont
+  Adjusted (texte), EdmundMcMillen (écriture manuscrite), rendues glyphe par glyphe
+  en géométries Direct2D (remplissage pair-impair) ; un caractère absent passe par
+  Segoe UI.
+Une image absente ou de mauvaise taille, une police introuvable : le reste est
+chargé quand même, et la même mise en page s'affiche en couleurs et en Segoe UI
+avec « (illustrations du jeu introuvables) ». Une mise à jour du jeu qui changerait
+les numéros de caractères donnerait ce repli, sans plantage.
+
+**Le code.** `launcher/` :
+- `ml_gpak` (index de l'archive, offsets 64 bits, une entrée à la fois),
+  `ml_swf` (balises SWF bornées, images, polices), `ml_assets` (ce que la fenêtre
+  demande) : sans Windows, testés par `tests/test_swf.cpp` (un SWF synthétique)
+  et `tests/test_assets_live.cpp` (le jeu installé ; réussit sans rien si le jeu
+  est absent, comme sur GitHub) ;
+- `ml_config` (réglages de `mgmp.json`), `ml_loader` (lignes du loader -> phrases
+  pour le joueur ; `tests/test_launcher.cpp` vérifie que ses 22 textes sont bien
+  dans `loader/mgmp_loader.cpp`), `ml_text` : sans Windows, testés ;
+- `ml_env` (chemins, vérifications, réparation, journaux) et `ml_run` (le loader
+  dans un job, annulable) : Windows ;
+- `ml_main.cpp` : la fenêtre. Cible CMake `mgmp_launcher`, `OUTPUT_NAME`
+  « Mewgenics Multi », ressource `res/mgmp_launcher.rc` et manifeste (DPI par
+  écran, asInvoker).
+
+**Vérifié** : rendu de chaque écran par des captures (y compris le repli sans
+illustrations et un lancement simulé avec un faux loader), relecture du code et
+du design. **Pas vérifié** : un vrai lancement du jeu par le lanceur, un écran à
+plus de 96 DPI, la perte de la carte graphique, le chemin UAC de « Réparer ».

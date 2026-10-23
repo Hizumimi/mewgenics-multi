@@ -166,7 +166,7 @@ Le mod est une DLL injectée dans Mewgenics.exe et bâtie sur mgmp : en combat, 
 
 Les autres joueurs envoient leurs actions et leurs votes à l'hôte, qui renvoie à tous les résultats validés.
 
-- **Chargement** : un lanceur démarre Mewgenics et y injecte la DLL, comme le mgmp\_loader.exe de mgmp. Le jeu n'est pas modifié sur le disque.
+- **Chargement** : un lanceur démarre Mewgenics et y injecte la DLL, comme le mgmp\_loader.exe de mgmp. Le jeu n'est pas modifié sur le disque. Depuis la build 55, le joueur double-clique sur « Mewgenics Multi.exe », une fenêtre aux couleurs du jeu (ses illustrations et ses polices, lues dans resources.gpak sur sa machine) qui vérifie Steam, le jeu et steam\_appid.txt (bouton « Réparer »), garde les réglages (chemin du jeu, Steam) et les journaux, puis lance le jeu avec le mod.
 - **Hooks** : interceptions des fonctions du jeu avec MinHook ; mgmp couvre déjà le combat, la carte, les boutiques et les événements.
 - **Réseau** : connexion TCP directe vers l'hôte (port 27600 dans mgmp) ; ou, depuis la build 39, par Steam : « Rejoindre la partie » dans la liste d'amis, sans adresse ni port (à tester).
 - **Contrôle** : à chaque tour de combat et à chaque case de la carte, les PC comparent une empreinte de leur état. En cas d'écart, le jeu s'arrête et le journal indique la différence.
