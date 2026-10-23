@@ -1,0 +1,5 @@
+// Mewgenics Multi : le launcher (Mewgenics Multi.exe). Le bloc de version est le
+// meme que celui de la DLL et du loader ; le manifeste (DPI par ecran, asInvoker)
+// est res/mgmp_launcher.manifest, fusionne par l'editeur de liens (CMakeLists.txt).
+#define MGMP_RC_LAUNCHER
+#include "mgmp_version.rc"

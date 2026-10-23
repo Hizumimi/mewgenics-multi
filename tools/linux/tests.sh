@@ -74,6 +74,12 @@ t test_shop        -I$S -Isrc/core -Ithird_party/sqlite tests/test_shop.cpp $S/m
                    $S/mm_team_merge.cpp $SQL
 t test_gift        -I$S -Isrc/core -Isrc/net -Ithird_party/sqlite tests/test_gift.cpp $S/mm_gift_core.cpp \
                    $S/mm_purse_core.cpp $S/mm_team_merge.cpp $SQL
+L=launcher
+t test_swf         -I$L -Ithird_party tests/test_swf.cpp $L/ml_swf.cpp
+t test_assets_live -I$L -Ithird_party tests/test_assets_live.cpp $L/ml_assets.cpp $L/ml_swf.cpp \
+                   $L/ml_gpak.cpp -lpthread
+t test_launcher    -I$L -Ithird_party '-DMM_LOADER_SRC="loader/mgmp_loader.cpp"' tests/test_launcher.cpp \
+                   $L/ml_config.cpp $L/ml_loader.cpp $L/ml_text.cpp
 
 if [ $fail -eq 0 ]; then echo "tous les tests passent"; else echo "$fail test(s) en echec"; fi
 exit $fail

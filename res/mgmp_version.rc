@@ -10,6 +10,12 @@
 #  define MGMP_RC_ORIGINAL   "mgmp.dll"
 #  define MGMP_RC_DESC       "Mewgenics co-op multiplayer mod"
 #  define MGMP_RC_FILETYPE   VFT_DLL
+#elif defined(MGMP_RC_LAUNCHER)
+// Mewgenics Multi : la description est le nom montre par le Gestionnaire des taches.
+#  define MGMP_RC_INTERNAL   "mgmp_launcher"
+#  define MGMP_RC_ORIGINAL   "Mewgenics Multi.exe"
+#  define MGMP_RC_DESC       "Mewgenics Multi"
+#  define MGMP_RC_FILETYPE   VFT_APP
 #else
 #  define MGMP_RC_INTERNAL   "mgmp_loader"
 #  define MGMP_RC_ORIGINAL   "mgmp_loader.exe"
