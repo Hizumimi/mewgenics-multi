@@ -186,9 +186,9 @@ target_compile_options(test_assets_live PRIVATE /utf-8)
 add_test(NAME test_assets_live COMMAND test_assets_live)
 
 # Mewgenics Multi : la logique du launcher (launcher/) -- ses reglages dans mgmp.json,
-# steam_appid.txt et ce que disent les lignes du loader.
+# steam_appid.txt, ce que disent les lignes du loader et la coupe du texte en lignes.
 add_executable(test_launcher test_launcher.cpp ${CMAKE_SOURCE_DIR}/launcher/ml_config.cpp
-               ${CMAKE_SOURCE_DIR}/launcher/ml_loader.cpp)
+               ${CMAKE_SOURCE_DIR}/launcher/ml_loader.cpp ${CMAKE_SOURCE_DIR}/launcher/ml_text.cpp)
 target_include_directories(test_launcher PRIVATE ${CMAKE_SOURCE_DIR}/launcher ${CMAKE_SOURCE_DIR}/third_party)
 target_compile_options(test_launcher PRIVATE /utf-8)
 add_test(NAME test_launcher COMMAND test_launcher)

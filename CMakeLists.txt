@@ -170,6 +170,36 @@ add_custom_command(TARGET mgmp_loader POST_BUILD
             -P "${CMAKE_SOURCE_DIR}/cmake/copy_if_missing.cmake"
 )
 
+# Mewgenics Multi : le launcher, "Mewgenics Multi.exe" (launcher/), qui remplace
+# le .bat du zip de l'ami : il verifie, repare steam_appid.txt, regle mgmp.json,
+# montre les journaux et lance mgmp_loader.exe, dans une fenetre aux couleurs du
+# jeu. L'art (images de ui.swf, polices de fonts.swf) est lu dans resources.gpak
+# chez le joueur, jamais copie ici. Direct2D 1.1 sur une swap chain D3D11, texte
+# en geometries ; rien a installer en plus (CRT statique comme le reste).
+add_executable(mgmp_launcher WIN32
+    launcher/ml_main.cpp
+    launcher/ml_text.cpp
+    launcher/ml_assets.cpp
+    launcher/ml_gpak.cpp
+    launcher/ml_swf.cpp
+    launcher/ml_config.cpp
+    launcher/ml_loader.cpp
+    launcher/ml_env.cpp
+    launcher/ml_run.cpp
+    res/mgmp_launcher.rc
+    res/mgmp_launcher.manifest
+)
+set_target_properties(mgmp_launcher PROPERTIES OUTPUT_NAME "Mewgenics Multi")
+target_compile_definitions(mgmp_launcher PRIVATE
+    WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE
+    MM_BUILD_ID="${MM_BUILD_ID}"
+)
+target_compile_options(mgmp_launcher PRIVATE /W3 /utf-8)
+# src/net pour mgmp_proto.h (la version de protocole affichee), third_party pour
+# json.hpp et stb_image.h (le zlib des SWF).
+target_include_directories(mgmp_launcher PRIVATE launcher src/net third_party)
+target_link_libraries(mgmp_launcher PRIVATE d2d1 dwrite d3d11 dxgi dxguid dwmapi ole32 shell32 user32)
+
 if(MGMP_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)

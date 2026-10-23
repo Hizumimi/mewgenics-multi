@@ -1,11 +1,13 @@
 // test_launcher.cpp -- Mewgenics Multi : la logique du launcher (launcher/
-// ml_config.h, ml_loader.h). Les reglages dans mgmp.json (le reste du fichier
-// garde, dans l'ordre ; un chemin avec des accents ; "steam" absent = vrai), ce
-// que steam_appid.txt peut contenir, et ce que disent les lignes du loader.
+// ml_config.h, ml_loader.h, ml_text.h). Les reglages dans mgmp.json (le reste du
+// fichier garde, dans l'ordre ; un chemin avec des accents ; "steam" absent =
+// vrai), ce que steam_appid.txt peut contenir, ce que disent les lignes du
+// loader, et la coupe en lignes du texte du papier.
 // Les lignes sont des copies de loader/mgmp_loader.cpp : un message change
 // la-bas doit casser ce test.
 #include "ml_config.h"
 #include "ml_loader.h"
+#include "ml_text.h"
 
 #include <cstdio>
 #include <string>
@@ -180,12 +182,41 @@ void lines() {
     check(loader_bytes_to_utf8("a\xC3") == u8"aÃ", "UTF-8 coupe : lu en latin-1");
 }
 
+// Le texte du papier : UTF-8 -> UCS-2 pour les polices du jeu, et la coupe en
+// lignes (ici une unite par caractere).
+void text() {
+    printf("texte\n");
+    check(utf8_to_u16(u8"Réparer « ok » …") == u"Réparer « ok » …", "accents, guillemets, points de suspension");
+    check(utf8_to_u16("a\xC3") == u"a\uFFFD", "UTF-8 coupe : U+FFFD");
+    check(utf8_to_u16("\xC0\xAF") == u"\uFFFD", "forme trop longue refusee (pas de '/')");
+    check(utf8_to_u16(u8"chat \U0001F431") == u"chat \uFFFD", "hors plan de base : un seul U+FFFD");
+    check(u16_to_utf8(u"C:\\Jeux\\\u00C9t\u00E9\u2026") == u8"C:\\Jeux\\\u00C9t\u00E9\u2026", "UCS-2 -> UTF-8 (1, 2 et 3 octets)");
+
+    auto one = [](char16_t) { return 1.f; };
+    auto lines = wrap_lines(u"un deux trois", 7, one);
+    check(lines.size() == 2 && lines[0] == u"un deux" && lines[1] == u"trois", "coupe a l'espace, qui disparait");
+    lines = wrap_lines(u"abcdefghij", 4, one);
+    check(lines.size() == 3 && lines[0] == u"abcd" && lines[2] == u"ij", "mot trop long coupe ou il deborde");
+    lines = wrap_lines(u"le jeu : trouve", 7, one);
+    check(lines.size() == 3 && lines[0] == u"le" && lines[1] == u"jeu :" && lines[2] == u"trouve",
+          "pas de coupe devant les deux-points");
+    lines = wrap_lines(u"C:\\Jeux\\Mewgenics", 10, one);
+    check(lines.size() == 2 && lines[0] == u"C:\\Jeux\\" && lines[1] == u"Mewgenics", "chemin coupe apres \\");
+    lines = wrap_lines(u"a\n\nb", 10, one);
+    check(lines.size() == 3 && lines[1].empty() && lines[2] == u"b", "\\n force une ligne, la ligne vide reste");
+    lines = wrap_lines(u"", 10, one);
+    check(lines.size() == 1 && lines[0].empty(), "texte vide : une ligne vide");
+    lines = wrap_lines(u"tout tient", 100, one);
+    check(lines.size() == 1 && lines[0] == u"tout tient", "assez de place : une ligne");
+}
+
 } // namespace
 
 int main() {
     settings();
     appid();
     lines();
+    text();
     if (g_fail) printf("%d echec(s)\n", g_fail);
     else printf("tous les tests passent\n");
     return g_fail ? 1 : 0;
