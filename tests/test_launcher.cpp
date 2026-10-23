@@ -3,14 +3,21 @@
 // fichier garde, dans l'ordre ; un chemin avec des accents ; "steam" absent =
 // vrai), ce que steam_appid.txt peut contenir, ce que disent les lignes du
 // loader, et la coupe en lignes du texte du papier.
-// Les lignes sont des copies de loader/mgmp_loader.cpp : un message change
-// la-bas doit casser ce test.
+// Les lignes ci-dessous sont des copies de loader/mgmp_loader.cpp ; pour qu'un
+// message change la-bas casse quand meme ce test, il lit aussi cette source
+// (MM_LOADER_SRC) et y cherche chaque texte que ml_loader reconnait.
 #include "ml_config.h"
 #include "ml_loader.h"
 #include "ml_text.h"
 
 #include <cstdio>
+#include <fstream>
+#include <sstream>
 #include <string>
+
+#ifndef MM_LOADER_SRC
+#error "MM_LOADER_SRC : le chemin de loader/mgmp_loader.cpp (tests/CMakeLists.txt, tools/linux/tests.sh)"
+#endif
 
 using namespace ml;
 
@@ -87,6 +94,22 @@ void settings() {
           "BOM du Bloc-notes tolere");
     check(settings_write("{ \"net\": 5 }", t, &out) && settings_read(out, &back) && !back.steam,
           "net qui n'est pas un objet : remplace pour y mettre steam");
+
+    // Le vrai fichier livre est en CRLF (paquet/, .gitattributes).
+    std::string crlf;
+    for (const char* c = kShipped; *c; ++c) {
+        if (*c == '\n') crlf += '\r';
+        crlf += *c;
+    }
+    check(settings_write(crlf, s, &out) && out == crlf, "CRLF reecrit sans changement, octet pour octet");
+    check(settings_write(crlf, t, &out) && out.find("\"steam\": false\r\n") != std::string::npos &&
+          out.find('\n') == out.find("\r\n") + 1, "CRLF garde quand un reglage change");
+
+    // La DLL et le loader tolerent les commentaires ; dump() les effacerait.
+    const char* noted = "{\n  // le jeu chez moi\n  \"game\": \"C:\\\\a.exe\"\n}\n";
+    check(!settings_write(noted, s, &out), "commentaire // : jamais reecrit");
+    check(!settings_write("{ /* note */ \"game\": \"C:\\\\a.exe\" }", s, &out), "commentaire /* */ : jamais reecrit");
+    check(settings_read(noted, &back) && back.game == "C:\\a.exe", "mais toujours lu");
 }
 
 void appid() {
@@ -134,7 +157,7 @@ void lines() {
     LineInfo relaunch = classify_line("[!] aucun jeu relance n'est apparu : le jeu n'est PAS injecte.");
     check(relaunch.kind == LineKind::Failure && relaunch.phrase.find("steam_appid.txt") != std::string::npos,
           "pas de relance : echec, steam_appid.txt");
-    check(classify_line("[!] exe du jeu introuvable : C:\\x.exe").phrase.find(u8"réglages") !=
+    check(classify_line("[!] exe du jeu introuvable : C:\\x.exe").phrase.find(u8"Réglages") !=
           std::string::npos, "jeu introuvable : les reglages");
     check(classify_line("[!] mgmp.dll introuvable a cote du loader : C:\\m\\mgmp.dll").kind ==
           LineKind::Failure, "dll introuvable");
@@ -180,6 +203,16 @@ void lines() {
     check(loader_bytes_to_utf8("C:\\\xC9t\xE9") == u8"C:\\Été", "latin-1 (locale \"C\") en UTF-8");
     check(loader_bytes_to_utf8(u8"C:\\Été") == u8"C:\\Été", "UTF-8 valide garde");
     check(loader_bytes_to_utf8("a\xC3") == u8"aÃ", "UTF-8 coupe : lu en latin-1");
+
+    printf("source du loader (%s)\n", MM_LOADER_SRC);
+    std::ifstream in(MM_LOADER_SRC, std::ios::binary);
+    std::ostringstream src;
+    src << in.rdbuf();
+    check(in.good() && src.str().size() > 1000, "lue");
+    for (const std::string& t : loader_texts()) {
+        std::string what = "\"" + t + "\" y est";
+        check(src.str().find(t) != std::string::npos, what.c_str());
+    }
 }
 
 // Le texte du papier : UTF-8 -> UCS-2 pour les polices du jeu, et la coupe en

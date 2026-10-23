@@ -9,13 +9,14 @@ namespace {
 using Json = nlohmann::ordered_json;
 
 // Sans exceptions et commentaires toleres, comme le loader et la DLL : un
-// fichier qu'ils acceptent, le launcher l'accepte aussi.
-bool parse(const std::string& text, Json* out) {
+// fichier qu'ils acceptent, le launcher l'accepte aussi. Pour reecrire, sans
+// commentaires (dump() les effacerait).
+bool parse(const std::string& text, Json* out, bool comments = true) {
     if (text.find_first_not_of(" \t\r\n") == std::string::npos) {
         *out = Json::object();
         return true;
     }
-    *out = Json::parse(text, nullptr, false, true);
+    *out = Json::parse(text, nullptr, false, comments);
     return !out->is_discarded() && out->is_object();
 }
 
@@ -40,7 +41,7 @@ bool settings_read(const std::string& text, Settings* out) {
 
 bool settings_write(const std::string& text, const Settings& s, std::string* out) {
     Json j;
-    if (!parse(text, &j)) return false;
+    if (!parse(text, &j, false)) return false;
 
     j["game"] = s.game;
 
@@ -52,7 +53,15 @@ bool settings_write(const std::string& text, const Settings& s, std::string* out
     }
 
     // ensure_ascii faux : les accents restent lisibles dans le Bloc-notes.
-    *out = j.dump(2, ' ', false, Json::error_handler_t::replace) + "\n";
+    const std::string t = j.dump(2, ' ', false, Json::error_handler_t::replace) + "\n";
+    // Le fichier livre est en CRLF (paquet/) : on garde ses fins de ligne. dump()
+    // n'ecrit jamais de \r brut (echappe dans les chaines).
+    const bool crlf = text.find("\r\n") != std::string::npos;
+    out->clear();
+    for (char c : t) {
+        if (c == '\n' && crlf) *out += '\r';
+        *out += c;
+    }
     return true;
 }
 

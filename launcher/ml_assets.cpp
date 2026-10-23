@@ -13,7 +13,6 @@ const WantedImage kImages[] = {
     {1816, 1984, 1134, &Assets::house,      u8"la maison sur la colline"},
     {3805, 2000, 2000, &Assets::sun,        u8"le soleil"},
     {1,     920,  923, &Assets::paper,      u8"la feuille de papier"},
-    {3629, 1922, 1122, &Assets::paper_wide, u8"la feuille de papier large"},
 };
 
 struct WantedFont { const char* prefix; Font Assets::*dst; };
@@ -53,7 +52,7 @@ void load_images(Gpak& gpak, Assets& a) {
                 a.*w.dst = std::move(img);
         }
         for (bool s : seen) if (!s) return true;
-        return false;   // les quatre sont la : inutile de lire la suite
+        return false;   // toutes sont la : inutile de lire la suite
     });
     if (!whole) a.problems.push_back(u8"ui.swf : fichier tronqué");
     for (size_t i = 0; i < sizeof(kImages) / sizeof(kImages[0]); ++i)

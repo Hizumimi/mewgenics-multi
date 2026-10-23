@@ -191,6 +191,8 @@ add_executable(test_launcher test_launcher.cpp ${CMAKE_SOURCE_DIR}/launcher/ml_c
                ${CMAKE_SOURCE_DIR}/launcher/ml_loader.cpp ${CMAKE_SOURCE_DIR}/launcher/ml_text.cpp)
 target_include_directories(test_launcher PRIVATE ${CMAKE_SOURCE_DIR}/launcher ${CMAKE_SOURCE_DIR}/third_party)
 target_compile_options(test_launcher PRIVATE /utf-8)
+# Le test relit les messages du loader dans sa source.
+target_compile_definitions(test_launcher PRIVATE MM_LOADER_SRC="${CMAKE_SOURCE_DIR}/loader/mgmp_loader.cpp")
 add_test(NAME test_launcher COMMAND test_launcher)
 
 foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_members test_battleid test_config test_world_merge test_team_merge test_vote test_purse test_loot test_recruit test_npcgift test_seen test_shop test_ai test_slot test_gift test_orphan test_swf test_assets_live test_launcher)

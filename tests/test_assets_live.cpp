@@ -65,7 +65,6 @@ int main() {
     check(a.house.w == 1984 && a.house.h == 1134 && a.house.bgra.size() == 1984u * 1134 * 4, "maison 1984x1134");
     check(a.sun.w == 2000 && a.sun.h == 2000, "soleil 2000x2000");
     check(a.paper.w == 920 && a.paper.h == 923, "papier 920x923");
-    check(a.paper_wide.w == 1922 && a.paper_wide.h == 1122, "papier large 1922x1122");
 
     printf("polices\n");
     font("titres", a.title);

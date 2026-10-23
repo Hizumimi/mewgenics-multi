@@ -30,6 +30,7 @@ public:
     struct Snapshot {
         State                    state = State::Idle;
         std::string              phrase;   // UTF-8, pour le joueur
+        bool                     cancelled = false;   // Failed parce que cancel() l'a arrete
         std::vector<std::string> lines;    // les dernieres lignes du loader, en UTF-8
         unsigned                 seq = 0;  // change a chaque nouvelle ligne ou etat
     };

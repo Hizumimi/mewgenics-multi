@@ -33,7 +33,9 @@ bool settings_read(const std::string& text, Settings* out);
 // Le texte de mgmp.json avec les reglages de `s`, tout le reste garde. "steam"
 // n'est ajoute que s'il change quelque chose (faux, ou deja present). false si
 // `text` n'est pas un objet JSON : on ne reecrit pas un fichier qu'on ne
-// comprend pas. Les commentaires (que le loader tolere) ne sont pas gardes.
+// comprend pas. false aussi s'il a des commentaires (que le loader tolere, et
+// settings_read aussi) : les reecrire les effacerait. Les fins de ligne CRLF
+// sont gardees.
 bool settings_write(const std::string& text, const Settings& s, std::string* out);
 
 // steam_appid.txt dit-il 686060 ? Espaces et fins de ligne toleres autour.

@@ -29,6 +29,7 @@ bool Launch::start(const std::wstring& dir, const std::wstring& loader) {
         snap_.state  = State::Running;
         snap_.phrase = u8"Lancement du mod…";
         snap_.lines.clear();
+        snap_.cancelled = false;
         ++snap_.seq;
         report_     = LoaderReport();
         cancelled_  = false;
@@ -39,7 +40,7 @@ bool Launch::start(const std::wstring& dir, const std::wstring& loader) {
     SECURITY_ATTRIBUTES sa = { sizeof(sa), nullptr, TRUE };
     HANDLE rd = nullptr, wr = nullptr;
     if (!CreatePipe(&rd, &wr, &sa, 0)) {
-        set_failed(u8"Windows n'a pas pu préparer le lancement. Relance le launcher.");
+        set_failed(u8"Windows n'a pas pu préparer le lancement. Relance Mewgenics Multi.");
         return true;
     }
     SetHandleInformation(rd, HANDLE_FLAG_INHERIT, 0);
@@ -56,7 +57,7 @@ bool Launch::start(const std::wstring& dir, const std::wstring& loader) {
     CloseHandle(wr);   // sinon le tuyau ne se ferme jamais a la sortie du loader
     if (!ok) {
         CloseHandle(rd);
-        set_failed(u8"mgmp_loader.exe n'a pas pu démarrer : réextrais le dossier du mod depuis "
+        set_failed(u8"mgmp_loader.exe n'a pas pu démarrer : extrais de nouveau le dossier du mod depuis "
                    u8"le zip (ou ton antivirus l'a mis de côté).");
         return true;
     }
@@ -128,6 +129,7 @@ void Launch::read_loop(HANDLE rd, HANDLE txt) {
     if (cancelled_ && report_.state != LoaderReport::Loaded) {
         snap_.state  = State::Failed;
         snap_.phrase = u8"Lancement annulé.";
+        snap_.cancelled = true;
     } else {
         report_.finish((int)code);
         snap_.state  = report_.state == LoaderReport::Loaded ? State::Loaded : State::Failed;

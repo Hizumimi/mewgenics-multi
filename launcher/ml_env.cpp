@@ -118,8 +118,12 @@ bool config_save(const Paths& p, const Settings& s, std::string* why) {
         return false;
     }
     if (!settings_write(text, s, &next)) {
-        *why = u8"mgmp.json n'est pas du JSON valide : corrige-le (ou remets celui du zip) "
-               u8"avant de changer les réglages.";
+        Settings ignored;   // lisible quand meme : refuse pour ses commentaires
+        *why = settings_read(text, &ignored)
+                   ? u8"mgmp.json contient des commentaires (// ou /* */), que l'enregistrement "
+                     u8"effacerait : retire-les, ou change le réglage à la main dans le fichier."
+                   : u8"mgmp.json n'est pas du JSON valide : corrige-le (ou remets celui du zip) "
+                     u8"avant de changer les réglages.";
         return false;
     }
 
@@ -172,8 +176,8 @@ std::vector<Check> check_all() {
         out.push_back({"steam", Status::Ok, u8"Steam est ouvert.", false});
     else
         out.push_back({"steam", Status::Problem,
-                       u8"Steam est fermé : sans lui, le jeu se ferme avant que le mod se charge. "
-                       u8"Ouvre Steam et attends qu'il soit connecté.", false});
+                       u8"Sans lui, le jeu se ferme avant que le mod se charge. Ouvre Steam et attends "
+                       u8"qu'il soit connecté.", false});
 
     Settings s;
     std::string text;
@@ -181,8 +185,8 @@ std::vector<Check> check_all() {
     bool readable = read_file(p.config, &text, &exists);
     if (!exists)
         out.push_back({"config", Status::Problem,
-                       u8"mgmp.json manque à côté du launcher : enregistre les réglages pour le "
-                       u8"recréer.", false});
+                       u8"mgmp.json manque à côté de Mewgenics\u00A0Multi.exe : enregistre les réglages "
+                       u8"pour le recréer.", false});
     else if (!readable || !settings_read(text, &s))
         out.push_back({"config", Status::Problem,
                        u8"mgmp.json n'est pas du JSON valide : corrige-le, ou remets celui du zip.",
@@ -195,7 +199,7 @@ std::vector<Check> check_all() {
     if (!game_ok)
         out.push_back({"game", Status::Problem,
                        u8"Mewgenics.exe est introuvable (" + s.game +
-                       u8") : choisis le dossier du jeu dans les réglages.", false});
+                       u8") : dans Réglages, clique sur Parcourir… et choisis Mewgenics.exe.", false});
     else if (!is_file(dir + L"\\resources.gpak"))
         out.push_back({"game", Status::Problem,
                        u8"resources.gpak manque à côté de Mewgenics.exe : vérifie les fichiers du "
@@ -210,12 +214,12 @@ std::vector<Check> check_all() {
                        u8"steam_appid.txt : à vérifier une fois le jeu trouvé.", false});
     else if (!read_file(dir + L"\\steam_appid.txt", &appid, &appid_exists) || !appid_exists)
         out.push_back({"appid", Status::Problem,
-                       u8"steam_appid.txt manque à côté de Mewgenics.exe : sans lui, Steam relance "
-                       u8"le jeu sans le mod.", true});
+                       u8"Il manque à côté de Mewgenics.exe : sans lui, Steam relance le jeu sans le "
+                       u8"mod.", true});
     else if (!appid_ok(appid))
         out.push_back({"appid", Status::Problem,
-                       u8"steam_appid.txt, à côté de Mewgenics.exe, ne contient pas 686060 : Steam "
-                       u8"relancerait le jeu sans le mod.", true});
+                       u8"Celui à côté de Mewgenics.exe ne contient pas 686060 : Steam relancerait le "
+                       u8"jeu sans le mod.", true});
     else
         out.push_back({"appid", Status::Ok, u8"steam_appid.txt est en place à côté du jeu.", false});
 
@@ -226,8 +230,8 @@ std::vector<Check> check_all() {
         out.push_back({"files", Status::Ok, u8"Fichiers du mod présents.", false});
     else
         out.push_back({"files", Status::Problem,
-                       u8"Il manque " + missing + u8" à côté du launcher : réextrais tout le "
-                       u8"dossier du zip.", false});
+                       u8"Il manque " + missing + u8" à côté de Mewgenics\u00A0Multi.exe : extrais de "
+                       u8"nouveau tout le dossier du zip.", false});
 
     char ver[160];
     snprintf(ver, sizeof(ver),
@@ -242,7 +246,7 @@ Repair repair_appid(HWND owner, std::string* why) {
     config_load(mod_paths(), &s);
     std::wstring exe = game_exe(s);
     if (!is_file(exe)) {
-        *why = u8"Le jeu est introuvable : choisis d'abord son dossier dans les réglages.";
+        *why = u8"Le jeu est introuvable : choisis d'abord Mewgenics.exe dans Réglages.";
         return Repair::Failed;
     }
 
@@ -271,8 +275,8 @@ Repair repair_appid(HWND owner, std::string* why) {
                    u8"réessayer, ou le copier à la main (LISEZ-MOI, étape 2).";
             return Repair::Refused;
         }
-        *why = u8"Le launcher n'a pas pu se relancer en administrateur : copie steam_appid.txt "
-               u8"à la main (LISEZ-MOI, étape 2).";
+        *why = u8"Mewgenics Multi n'a pas pu se relancer en administrateur : copie "
+               u8"steam_appid.txt à la main (LISEZ-MOI, étape 2).";
         return Repair::Failed;
     }
     if (sei.hProcess) {

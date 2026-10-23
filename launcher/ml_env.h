@@ -50,7 +50,8 @@ enum class Status { Ok, Problem, Warning };
 struct Check {
     const char* id;            // "steam", "config", "game", "appid", "files", "version"
     Status      status;
-    std::string text;          // UTF-8, une phrase pour le joueur
+    std::string text;          // UTF-8, une phrase pour le joueur, sous le titre de la
+                               // ligne : sans repeter son sujet ("Steam ferme" -> "Sans lui...")
     bool        repairable;    // vrai : repair_appid() le corrige
 };
 

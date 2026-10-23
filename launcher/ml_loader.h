@@ -10,6 +10,7 @@
 // phrase avec accents ; les lignes brutes restent dans loader.txt et le detail.
 
 #include <string>
+#include <vector>
 
 namespace ml {
 
@@ -28,6 +29,10 @@ struct LineInfo {
 
 // Une ligne du loader, sans sa fin de ligne.
 LineInfo classify_line(const std::string& line);
+
+// Les bouts de lignes que classify_line reconnait (le texte cherche, ou le
+// marqueur seul). Le test verifie qu'ils sont tous dans loader/mgmp_loader.cpp.
+std::vector<std::string> loader_texts();
 
 // L'etat d'un lancement, ligne apres ligne, puis au code de sortie du loader.
 struct LoaderReport {

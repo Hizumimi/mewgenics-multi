@@ -135,6 +135,7 @@ private:
     // Direct2D
     bool create_device();
     void create_targets();
+    void recreate();
     ComPtr<ID2D1Bitmap1> bitmap(const ml::Image& im);
     ComPtr<IDWriteFontFace> system_face(const wchar_t* family, DWRITE_FONT_WEIGHT weight);
     void fit_window(UINT dpi, const RECT* suggested);
@@ -258,7 +259,7 @@ int App::run(HINSTANCE inst) {
                                  reinterpret_cast<void**>(d2d_.GetAddressOf()))) ||
         FAILED(DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory),
                                    reinterpret_cast<IUnknown**>(dw_.GetAddressOf())))) {
-        MessageBoxW(nullptr, L"Direct2D est indisponible sur ce PC : le launcher ne peut pas s'afficher.",
+        MessageBoxW(nullptr, L"Direct2D est indisponible sur ce PC : Mewgenics Multi ne peut pas s'afficher.",
                     L"Mewgenics Multi", MB_ICONERROR);
         return 1;
     }
@@ -295,7 +296,7 @@ int App::run(HINSTANCE inst) {
     }
 
     if (!create_device()) {
-        MessageBoxW(hwnd_, L"La carte graphique n'a pas pu être préparée : le launcher ne peut pas s'afficher.",
+        MessageBoxW(hwnd_, L"La carte graphique n'a pas pu être préparée : Mewgenics Multi ne peut pas s'afficher.",
                     L"Mewgenics Multi", MB_ICONERROR);
         return 1;
     }
@@ -407,8 +408,8 @@ LRESULT App::on_message(UINT m, WPARAM w, LPARAM l) {
             dc_->SetTarget(nullptr);
             target_.Reset();
             front_.Reset();
-            swap_->ResizeBuffers(0, px_w_, px_h_, DXGI_FORMAT_UNKNOWN, 0);
-            create_targets();
+            if (FAILED(swap_->ResizeBuffers(0, px_w_, px_h_, DXGI_FORMAT_UNKNOWN, 0))) recreate();
+            else create_targets();
         }
         // Reduite : plus de dessin, juste de quoi suivre le lancement.
         SetTimer(hwnd_, 1, w == SIZE_MINIMIZED ? 250 : 33, nullptr);
@@ -533,8 +534,29 @@ ComPtr<IDWriteFontFace> App::system_face(const wchar_t* family, DWRITE_FONT_WEIG
     return face;
 }
 
+// Carte graphique perdue (ou une reprise d'avant qui a echoue) : on refait tout
+// ce qui en depend, a partir des images gardees en memoire. Les geometries
+// (glyphes) ne dependent pas d'elle.
+void App::recreate() {
+    if (dc_) dc_->SetTarget(nullptr);
+    dc_.Reset();
+    target_.Reset();
+    front_.Reset();
+    swap_.Reset();
+    d3d_.Reset();
+    brush_.Reset();
+    glow_.Reset();
+    vignette_.Reset();
+    house_bm_.Reset();
+    sun_bm_.Reset();
+    paper_bm_.Reset();
+    create_device();
+}
+
 void App::render() {
-    if (closing_ || !dc_ || !target_ || !front_ || IsIconic(hwnd_)) return;
+    if (closing_ || IsIconic(hwnd_)) return;
+    if (!target_ || !front_) recreate();   // une reprise ratee : on retente a chaque image
+    if (!target_ || !front_) return;
     const M g = M::Scale(scale_, scale_);
     if (front_dirty_) {
         front_dirty_ = false;
@@ -552,22 +574,8 @@ void App::render() {
     dc_->DrawBitmap(front_.Get());   // pixel pour pixel
     HRESULT hr = dc_->EndDraw();
     if (SUCCEEDED(hr)) hr = swap_->Present(1, 0);
-    if (hr == D2DERR_RECREATE_TARGET || hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET) {
-        // Carte graphique perdue : on refait tout ce qui en depend, a partir des
-        // images gardees en memoire. Les geometries (glyphes) ne dependent pas d'elle.
-        dc_.Reset();
-        target_.Reset();
-        front_.Reset();
-        swap_.Reset();
-        d3d_.Reset();
-        brush_.Reset();
-        glow_.Reset();
-        vignette_.Reset();
-        house_bm_.Reset();
-        sun_bm_.Reset();
-        paper_bm_.Reset();
-        create_device();
-    }
+    if (hr == D2DERR_RECREATE_TARGET || hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
+        recreate();
 }
 
 void App::draw_back() {
@@ -593,8 +601,8 @@ void App::draw_front(const M& g) {
     }
     // Ce que le mod change, ecrit a la main au-dessus de la maison.
     base_ = M::Rotation(4, {915, 160}) * g;
-    text(kHand, 32, 915, 150, u8"Chacun sa maison et ses chats,", rgb(kLight, 0.9f), 1);
-    text(kHand, 32, 915, 190, u8"l'aventure ensemble !", rgb(kLight, 0.9f), 1);
+    text(kHand, 29, 915, 150, u8"Chacun sa maison et ses chats,", rgb(kLight, 0.9f), 1);
+    text(kHand, 29, 915, 190, u8"l'aventure ensemble !", rgb(kLight, 0.9f), 1);
 
     paper_m_ = M::Rotation(kPaperTilt, {kPaperW / 2, kPaperH / 2}) * M::Translation(kPaperX, kPaperY);
     base_ = paper_m_ * g;
@@ -975,9 +983,13 @@ void App::panel_main() {
 
     struct Row { Mark mark; std::string label, phrase; bool repair; };
     std::vector<Row> rows;
+    bool game_ok = false;   // "game" vient avant "appid"
     for (const ml::Check& c : checks_) {
         const bool ok = c.status == ml::Status::Ok;
-        if (!strcmp(c.id, "version") || (!strcmp(c.id, "config") && ok)) continue;
+        if (!strcmp(c.id, "game")) game_ok = ok;
+        // steam_appid.txt ne se verifie qu'une fois le jeu trouve : pas une croix de plus.
+        if (!strcmp(c.id, "version") || (!strcmp(c.id, "config") && ok) || (!strcmp(c.id, "appid") && !game_ok))
+            continue;
         Row r = {ok ? Mark::Ok : c.status == ml::Status::Warning ? Mark::Warn : Mark::Bad, c.text,
                  ok ? std::string() : c.text, c.repairable};
         if (!strcmp(c.id, "steam")) {
@@ -1034,7 +1046,7 @@ void App::panel_main() {
     const bool ok = !blocked();
     big_button(kPlay, {kMid - 140, py, kMid + 140, py + play_h}, u8"Jouer", ok);
     if (!ok)   // court : il tient entre les deux liens du bas
-        text(kText, 16, kMid, std::min(py + play_h + 32, 560.f), u8"Règle d'abord les croix rouges.", rgb(0x9b2f1f), 1);
+        text(kText, 13.5f, kMid, std::min(py + play_h + 32, 560.f), u8"Règle d'abord les croix rouges.", rgb(0x9b2f1f), 1);
     link(kToSettings, kLeft, 562, u8"Réglages", 0);
     link(kToLogs, kRight, 562, u8"Journaux", 2);
 }
@@ -1051,7 +1063,7 @@ void App::panel_settings() {
     auto path_lines = wrap(kText, 15, bw, edit_.game);
     for (float f = 2.8f; path_lines.size() > 3 && f > 1; f -= 0.2f)   // trop long : la fin reste visible
         path_lines = wrap(kText, 15, bw, elide(kText, 15, bw * f, edit_.game));
-    float ly = box.top + 22;
+    float ly = box.top + 22 + (3 - (float)std::min<size_t>(path_lines.size(), 3)) * 9;   // centre dans la boite
     for (size_t i = 0; i < path_lines.size() && i < 3; ++i, ly += 18) text16(kText, 15, box.left + 12, ly, path_lines[i], rgb(kInk));
 
     const bool exe_ok = is_file(ml::game_exe(edit_));
@@ -1081,9 +1093,10 @@ void App::panel_settings() {
 
 void App::panel_logs() {
     heading(u8"Journaux");
+    // Espace insecable (ici et dans ml_env, ml_loader) : le nom de l'exe ne se coupe pas.
     std::string count = logs_.count == 0 ? u8"Aucun journal pour l'instant : le mod en écrit un à chaque partie."
-                        : logs_.count == 1 ? u8"1 journal du mod dans ce dossier."
-                                           : std::to_string(logs_.count) + u8" journaux du mod dans ce dossier.";
+                        : logs_.count == 1 ? u8"1 journal du mod, à côté de Mewgenics\u00A0Multi.exe."
+                                           : std::to_string(logs_.count) + u8" journaux du mod, à côté de Mewgenics\u00A0Multi.exe.";
     float y = para(kText, 20, kLeft, 162, kRight - kLeft, count, rgb(kInk), 24);
     if (logs_.count) {
         size_t slash = logs_.latest.find_last_of(L'\\');
@@ -1114,19 +1127,24 @@ void App::panel_launch() {
         return;
     }
     const bool failed = snap_.state == State::Failed;
+    const bool cancelled = failed && snap_.cancelled;   // voulu par le joueur : pas une panne
     // Les etapes deja passees (cochees), puis celle en cours (la roue) ou l'echec.
     float y = 150;
     for (size_t i = steps_.size() > 5 ? steps_.size() - 5 : 0; i < steps_.size(); ++i) {
         const bool last = i + 1 == steps_.size();
+        std::string step = steps_[i];
+        const size_t dots = sizeof(u8"…") - 1;   // une etape finie perd ses points de suspension
+        if (!last && step.size() > dots && step.compare(step.size() - dots, dots, u8"…") == 0) step.resize(step.size() - dots);
         if (!last) mark(Mark::Ok, kLeft, y - 2, 24);
-        else if (failed) mark(Mark::Bad, kLeft, y - 3, 28);
+        else if (failed) mark(cancelled ? Mark::Warn : Mark::Bad, kLeft, y - 3, 28);
         else spinner(kLeft + 13, y + 11, 10);
-        y = para(kText, last ? 18.f : 16.f, kLeft + 42, y + 17, kRight - kLeft - 42, steps_[i],
-                 last ? (failed ? rgb(0x8e2a1c) : rgb(kInk)) : rgb(kInkSoft), last ? 22.f : 19.f) + 8;
+        y = para(kText, last ? 18.f : 16.f, kLeft + 42, y + 17, kRight - kLeft - 42, step,
+                 last ? (failed && !cancelled ? rgb(0x8e2a1c) : rgb(kInk)) : rgb(kInkSoft), last ? 22.f : 19.f) + 8;
     }
     if (failed) {
-        para(kText, 14.5f, kLeft + 42, y + 6, kRight - kLeft - 42, u8"Le détail est dans loader.txt, à côté du launcher.",
-             rgb(kInkSoft), 18);
+        if (!cancelled)
+            para(kText, 14.5f, kLeft + 42, y + 6, kRight - kLeft - 42,
+                 u8"Le détail est dans loader.txt, à côté de Mewgenics\u00A0Multi.exe.", rgb(kInkSoft), 18);
         big_button(kRetry, {kMid - 140, 440, kMid + 140, 506}, u8"Réessayer", true);
         link(kBack, kLeft, 562, u8"Retour", 0);
     } else {

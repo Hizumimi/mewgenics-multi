@@ -1,6 +1,6 @@
 // ml_loader.cpp -- voir ml_loader.h. Les textes cherches sont ceux de
-// loader/mgmp_loader.cpp : un message change la-bas se change ici aussi (le
-// test en garde une copie).
+// loader/mgmp_loader.cpp : un message change la-bas se change ici aussi
+// (tests/test_launcher.cpp lit cette source et casse sinon).
 #include "ml_loader.h"
 
 #include <cstdio>
@@ -26,7 +26,7 @@ struct Rule {
 // Dans l'ordre : la premiere regle qui va gagne. Les echecs de la relance Steam
 // passent avant "inject", qu'ils contiennent aussi ("n'est PAS injecte").
 const Rule kRules[] = {
-    {"[*] ", "jeu lance en pause", LineKind::Progress, u8"Le jeu démarre en pause…"},
+    {"[*] ", "jeu lance en pause", LineKind::Progress, u8"Ouverture du jeu…"},
     {"[*] ", "demarrage du jeu", LineKind::Progress, u8"Le jeu démarre…"},
     {"[*] ", "injection de", LineKind::Progress, u8"Injection du mod dans le jeu…"},
     {"[*] ", "crochets prets", LineKind::Progress, u8"Le mod est en place, le jeu reprend…"},
@@ -44,9 +44,11 @@ const Rule kRules[] = {
     {"[!] ", "injection quand meme", LineKind::Warning,
      u8"Le jeu relancé tarde à démarrer ; injection quand même."},
     {"[!] ", "mgmp.dll introuvable", LineKind::Failure,
-     u8"mgmp.dll est introuvable à côté du launcher : réextrais le dossier du mod depuis le zip."},
+     u8"mgmp.dll est introuvable à côté de Mewgenics\u00A0Multi.exe : extrais de nouveau le dossier "
+     u8"du mod depuis le zip."},
     {"[!] ", "exe du jeu introuvable", LineKind::Failure,
-     u8"Mewgenics.exe est introuvable : choisis le bon chemin du jeu dans les réglages."},
+     u8"Mewgenics.exe est introuvable : dans Réglages, clique sur Parcourir… et choisis "
+     u8"Mewgenics.exe."},
     {"[!] ", "mgmp.json n'est pas du JSON valide", LineKind::Failure,
      u8"mgmp.json est illisible : corrige-le, ou remets celui du zip."},
     {"[!] ", "le jeu s'est ferme pendant son demarrage", LineKind::Failure, kSteamClosed},
@@ -61,12 +63,13 @@ const Rule kRules[] = {
      u8"Le jeu a mis trop longtemps à démarrer : le mod n'est pas chargé. Relance."},
     {"[!] ", "LoadLibraryW", LineKind::Failure,
      u8"L'injection du mod a échoué et le jeu a été fermé. Relance ; si ça recommence, "
-     u8"envoie le journal."},
+     u8"envoie loader.txt."},
     {"[!] ", "inject", LineKind::Failure,
      u8"L'injection du mod a échoué et le jeu a été fermé. Relance ; si ça recommence, "
-     u8"envoie le journal."},
+     u8"envoie loader.txt."},
     {"usage : ", "", LineKind::Failure,
-     u8"mgmp.json ne dit pas où est le jeu : choisis-le dans les réglages."},
+     u8"mgmp.json ne dit pas où est le jeu : dans Réglages, clique sur Parcourir… et "
+     u8"choisis Mewgenics.exe."},
 };
 
 bool starts_with(const std::string& s, const char* p) {
@@ -87,6 +90,12 @@ bool valid_utf8(const std::string& s) {
 }
 
 } // namespace
+
+std::vector<std::string> loader_texts() {
+    std::vector<std::string> out;
+    for (const Rule& r : kRules) out.push_back(*r.text ? r.text : r.marker);
+    return out;
+}
 
 LineInfo classify_line(const std::string& line) {
     for (const Rule& r : kRules) {
@@ -114,7 +123,7 @@ void LoaderReport::finish(int exit_code) {
     if (state != Running) return;
     state = Failed;
     if (exit_code == 0) {
-        phrase = u8"Le loader s'est arrêté sans charger le mod. Relance ; si ça recommence, "
+        phrase = u8"mgmp_loader.exe s'est arrêté sans charger le mod. Relance ; si ça recommence, "
                  u8"envoie loader.txt.";
         return;
     }
@@ -123,7 +132,7 @@ void LoaderReport::finish(int exit_code) {
     char code[48];
     if (exit_code < 0 || exit_code > 255) snprintf(code, sizeof(code), "0x%08X", (unsigned)exit_code);
     else snprintf(code, sizeof(code), "%d", exit_code);
-    phrase = std::string(u8"Le loader s'est arrêté (code ") + code +
+    phrase = std::string(u8"mgmp_loader.exe s'est arrêté (code ") + code +
              u8") sans charger le mod. Cause la plus probable : Steam fermé ou "
              u8"déconnecté. Ouvre Steam, attends qu'il soit connecté, puis relance.";
 }
