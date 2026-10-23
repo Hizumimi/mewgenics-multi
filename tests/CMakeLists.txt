@@ -185,6 +185,14 @@ target_include_directories(test_assets_live PRIVATE ${CMAKE_SOURCE_DIR}/launcher
 target_compile_options(test_assets_live PRIVATE /utf-8)
 add_test(NAME test_assets_live COMMAND test_assets_live)
 
-foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_members test_battleid test_config test_world_merge test_team_merge test_vote test_purse test_loot test_recruit test_npcgift test_seen test_shop test_ai test_slot test_gift test_orphan test_swf test_assets_live)
+# Mewgenics Multi : la logique du launcher (launcher/) -- ses reglages dans mgmp.json,
+# steam_appid.txt et ce que disent les lignes du loader.
+add_executable(test_launcher test_launcher.cpp ${CMAKE_SOURCE_DIR}/launcher/ml_config.cpp
+               ${CMAKE_SOURCE_DIR}/launcher/ml_loader.cpp)
+target_include_directories(test_launcher PRIVATE ${CMAKE_SOURCE_DIR}/launcher ${CMAKE_SOURCE_DIR}/third_party)
+target_compile_options(test_launcher PRIVATE /utf-8)
+add_test(NAME test_launcher COMMAND test_launcher)
+
+foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_members test_battleid test_config test_world_merge test_team_merge test_vote test_purse test_loot test_recruit test_npcgift test_seen test_shop test_ai test_slot test_gift test_orphan test_swf test_assets_live test_launcher)
     target_compile_options(${t} PRIVATE /W3)
 endforeach()
