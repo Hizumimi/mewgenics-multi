@@ -47,7 +47,7 @@ const TrPair kTable_ja[] = {
     {u8"Il manque %s à côté de Mewgenics\u00A0Multi.exe : extrais de nouveau tout le dossier du zip.",
      u8"Mewgenics\u00A0Multi.exeと\u200B同じ\u200Bフォルダーに\u200B%sが\u200Bありません。\u200Bzipから\u200Bフォルダーを\u200Bまるごと\u200B展開し直してください。"},
     {u8"Mewgenics Multi, build %s, protocole %u : tout le monde doit avoir le même.",
-     u8"Mewgenics Multi、\u200Bビルド%s、\u200Bプロトコル%u：\u200B全員が\u200B同じ\u200Bバージョンを\u200B使う\u200B必要が\u200Bあります。"},
+     u8"Mewgenics\u00A0Multi、\u200Bビルド%s、\u200Bプロトコル%u：\u200B全員が\u200B同じ\u200Bバージョンを\u200B使う\u200B必要が\u200Bあります。"},
     {u8"Le jeu est introuvable : choisis d'abord Mewgenics.exe dans Réglages.",
      u8"ゲームが\u200B見つかりません。\u200B先に\u200B「設定」で\u200BMewgenics.exeを\u200B選んでください。"},
     {u8"steam_appid.txt n'a pas pu être écrit à côté du jeu : copie-le à la main (LISEZ-MOI, étape 2).",
@@ -55,13 +55,13 @@ const TrPair kTable_ja[] = {
     {u8"Windows n'a pas eu ton accord : steam_appid.txt n'est pas copié. Tu peux réessayer, ou le copier à la main (LISEZ-MOI, étape 2).",
      u8"Windowsで\u200B許可されなかったため、\u200Bsteam_appid.txtは\u200Bコピーされていません。\u200Bもう一度\u200B試すか、\u200B手動で\u200Bコピーしてください（LISEZ-MOIの\u200B手順2）。"},
     {u8"Mewgenics Multi n'a pas pu se relancer en administrateur : copie steam_appid.txt à la main (LISEZ-MOI, étape 2).",
-     u8"Mewgenics Multiを\u200B管理者として\u200B再起動できませんでした。\u200Bsteam_appid.txtを\u200B手動で\u200Bコピーしてください（LISEZ-MOIの\u200B手順2）。"},
+     u8"Mewgenics\u00A0Multiを\u200B管理者として\u200B再起動できませんでした。\u200Bsteam_appid.txtを\u200B手動で\u200Bコピーしてください（LISEZ-MOIの\u200B手順2）。"},
     {u8"La copie en administrateur n'a pas marché : copie steam_appid.txt à la main (LISEZ-MOI, étape 2).",
      u8"管理者としての\u200Bコピーに\u200B失敗しました。\u200Bsteam_appid.txtを\u200B手動で\u200Bコピーしてください（LISEZ-MOIの\u200B手順2）。"},
     {u8"%02u/%02u/%04u à %02u:%02u", u8"%02u/%02u/%04u %02u:%02u"},
     {u8"Le mod n'a pas pu être chargé : %s", u8"MODを\u200B読み込めませんでした：%s"},
     {u8"mgmp_loader.exe s'est arrêté sans charger le mod. Relance ; si ça recommence, envoie loader.txt.",
-     u8"mgmp_loader.exeが\u200BMODを\u200B読み込まずに\u200B終了しました。\u200Bもう一度\u200B起動してください。\u200Bまた\u200B起きる\u200B場合は、\u200Bloader.txtを\u200B送ってください。"},
+     u8"mgmp_loader.exeが\u200BMODを\u200B読み込まずに\u200B終了しました。\u200Bもう一度\u200B起動してください。\u200Bまた\u200B問題が\u200B起きたら、\u200Bloader.txtを\u200B送ってください。"},
     {u8"mgmp_loader.exe s'est arrêté (code %s) sans charger le mod. Cause la plus probable : Steam fermé ou déconnecté. Ouvre Steam, attends qu'il soit connecté, puis relance.",
      u8"mgmp_loader.exeが\u200BMODを\u200B読み込まずに\u200B終了しました（コード%s）。\u200B最も\u200B考えられる\u200B原因：\u200BSteamが\u200B起動していないか、\u200B接続されていません。\u200BSteamを\u200B起動し、\u200B接続されるまで\u200B待ってから、\u200Bもう一度\u200B起動してください。"},
     {u8"Le jeu s'est fermé pendant son démarrage, avant le mod. Cause la plus fréquente : Steam fermé ou déconnecté. Ouvre Steam, attends qu'il soit connecté, puis relance.",
@@ -73,7 +73,7 @@ const TrPair kTable_ja[] = {
     {u8"Injection du mod dans le jeu…", u8"ゲームに\u200BMODを\u200B注入しています…"},
     {u8"Le mod est en place, le jeu reprend…", u8"MODの\u200B準備が\u200Bできました。\u200Bゲームを\u200B再開します…"},
     {u8"Toujours en attente du jeu relancé par Steam… Si Steam vient de s'ouvrir, il te pose peut-être une question.",
-     u8"Steamが\u200B再起動した\u200Bゲームを\u200B待っています…\u200BSteamが\u200B起動した\u200Bばかりなら、\u200B何か\u200B確認を\u200B求めているかもしれません。"},
+     u8"Steamによる\u200Bゲームの\u200B再起動を\u200Bまだ\u200B待っています…\u200BSteamが\u200B起動した\u200Bばかりなら、\u200B何か\u200B確認を\u200B求めているかもしれません。"},
     {u8"Jeu relancé trouvé : injection du mod…", u8"再起動した\u200Bゲームを\u200B検出：\u200BMODを\u200B注入しています…"},
     {u8"Le jeu est lancé avec le mod.", u8"ゲームが\u200BMOD付きで\u200B起動しました。"},
     {u8"Le mod a tardé à se mettre en place ; le jeu reprend quand même.",
@@ -94,7 +94,7 @@ const TrPair kTable_ja[] = {
     {u8"Le jeu a mis trop longtemps à démarrer : le mod n'est pas chargé. Relance.",
      u8"ゲームの\u200B起動に\u200B時間が\u200Bかかりすぎたため、\u200BMODは\u200B読み込まれていません。\u200Bもう一度\u200B起動してください。"},
     {u8"L'injection du mod a échoué et le jeu a été fermé. Relance ; si ça recommence, envoie loader.txt.",
-     u8"MODの\u200B注入に\u200B失敗したため、\u200Bゲームを\u200B終了しました。\u200Bもう一度\u200B起動してください。\u200Bまた\u200B起きる\u200B場合は、\u200Bloader.txtを\u200B送ってください。"},
+     u8"MODの\u200B注入に\u200B失敗したため、\u200Bゲームを\u200B終了しました。\u200Bもう一度\u200B起動してください。\u200Bまた\u200B問題が\u200B起きたら、\u200Bloader.txtを\u200B送ってください。"},
     {u8"mgmp.json ne dit pas où est le jeu : dans Réglages, clique sur Parcourir… et choisis Mewgenics.exe.",
      u8"mgmp.jsonに\u200Bゲームの\u200B場所が\u200B書かれていません。\u200B「設定」で\u200B「参照…」を\u200Bクリックして、\u200BMewgenics.exeを\u200B選んでください。"},
     {u8"build %s · protocole %u", u8"ビルド%s · プロトコル%u"},
@@ -147,9 +147,9 @@ const TrPair kTable_ja[] = {
      u8"クリップボードに\u200Bコピーできませんでした。\u200Bもう一度\u200B試すか、\u200Bフォルダーを\u200B開いてください。"},
     {u8"Où est Mewgenics.exe ?", u8"Mewgenics.exeは\u200Bどこですか？"},
     {u8"Direct2D est indisponible sur ce PC : Mewgenics Multi ne peut pas s'afficher.",
-     u8"この\u200BPCでは\u200BDirect2Dが\u200B使えないため、\u200BMewgenics Multiを\u200B表示できません。"},
+     u8"この\u200BPCでは\u200BDirect2Dが\u200B使えないため、\u200BMewgenics\u00A0Multiを\u200B表示できません。"},
     {u8"La carte graphique n'a pas pu être préparée : Mewgenics Multi ne peut pas s'afficher.",
-     u8"グラフィックカードを\u200B準備できなかったため、\u200BMewgenics Multiを\u200B表示できません。"},
+     u8"グラフィックカードを\u200B準備できなかったため、\u200BMewgenics\u00A0Multiを\u200B表示できません。"},
     {u8"Chacun sa maison et ses chats,\n"
      u8"l'aventure ensemble !",
      u8"家も\u200Bネコも\u200Bそれぞれ、\n"
@@ -161,14 +161,14 @@ const TrPair kTable_ja[] = {
     {u8"Lancement annulé.", u8"起動を\u200Bキャンセルしました。"},
     {u8"Lancement du mod…", u8"MODを\u200B起動しています…"},
     {u8"Windows n'a pas pu préparer le lancement. Relance Mewgenics Multi.",
-     u8"Windowsが\u200B起動の\u200B準備に\u200B失敗しました。\u200BMewgenics Multiを\u200Bもう一度\u200B起動してください。"},
+     u8"Windowsが\u200B起動の\u200B準備に\u200B失敗しました。\u200BMewgenics\u00A0Multiを\u200Bもう一度\u200B起動してください。"},
     {u8"mgmp_loader.exe n'a pas pu démarrer : extrais de nouveau le dossier du mod depuis le zip (ou ton antivirus l'a mis de côté).",
      u8"mgmp_loader.exeを\u200B起動できませんでした。\u200Bzipから\u200BMODの\u200Bフォルダーを\u200B展開し直してください（アンチウイルスに\u200Bブロックされた\u200B可能性も\u200Bあります）。"},
     {u8"la connexion Steam avec l'hôte est coupée", u8"ホストとの\u200BSteam接続が\u200B切れました"},
     {u8"l'hôte ne répond pas par Steam (salon fermé, ou pas le mod ?)",
      u8"ホストから\u200BSteamで\u200B応答が\u200Bありません（ロビーが\u200B閉じているか、\u200BMODが\u200Bない？）"},
     {u8"Steam refuse la connexion", u8"Steamが\u200B接続を\u200B拒否しました"},
-    {u8"À %s de choisir", u8"%sが選んでいます"},
+    {u8"À %s de choisir", u8"%sが選ぶ番です"},
     {u8"À toi de choisir", u8"あなたが選ぶ番です"},
     {u8"À %s de choisir la capacité à remplacer.", u8"入れ替える\u200Bアビリティは\u200B%sが\u200B選びます。"},
     {u8"Ce chat est à %s", u8"このネコは\u200B%sの\u200Bネコです"},
@@ -207,7 +207,7 @@ const TrPair kTable_ja[] = {
      u8"\n"
      u8"%sが\u200Bまだ\u200Bネコの\u200Bタグを\u200B選んでいます。\n"
      u8"もう一度\u200B「やったる\u200Bニャ！」で\u200B決定すると、\n"
-     u8"そのまま出発！"},
+     u8"すぐ\u200B出発します。"},
     {u8"Choix des colliers\n"
      u8"\n"
      u8"%s choisit encore les colliers de ses chats.\n"
@@ -217,7 +217,7 @@ const TrPair kTable_ja[] = {
      u8"\n"
      u8"%sが\u200Bまだ\u200Bネコの\u200Bタグを\u200B選んでいます。\n"
      u8"もう一度\u200B「やったる\u200Bニャ！」で\u200B決定すると、\n"
-     u8"そのまま出発！"},
+     u8"すぐ\u200B出発します。"},
     {u8"Départ en aventure\n"
      u8"\n"
      u8"Le départ de %s ne s'affiche plus ici.\n"
@@ -256,7 +256,7 @@ const TrPair kTable_ja[] = {
      u8"\n"
      u8"%sが\u200Bまだ\u200Bネコの\u200B装備を\u200B選んでいます。\n"
      u8"もう一度\u200B「やったる\u200Bニャ！」で\u200B決定すると、\n"
-     u8"そのまま出発！"},
+     u8"すぐ\u200B出発します。"},
     {u8"Choix des objets\n"
      u8"\n"
      u8"%s équipe encore ses chats.\n"
@@ -266,7 +266,7 @@ const TrPair kTable_ja[] = {
      u8"\n"
      u8"%sが\u200Bまだ\u200Bネコの\u200B装備を\u200B選んでいます。\n"
      u8"もう一度\u200B「やったる\u200Bニャ！」で\u200B決定すると、\n"
-     u8"そのまま出発！"},
+     u8"すぐ\u200B出発します。"},
     {u8"Choix des objets\n"
      u8"\n"
      u8"Prêt ! Tes chats partent avec ces objets :\n"
@@ -568,7 +568,7 @@ const TrPair kTable_ja[] = {
     {u8"%s t'a donné %s : c'est dans ta bourse.", u8"%sから\u200B%sを\u200Bもらいました。\u200Bサイフに\u200B入っています。"},
     {u8"Tu as donné %s à %s : c'est dans sa bourse.", u8"%sを\u200B%sに\u200B渡しました。\u200B相手の\u200Bサイフに\u200B入っています。"},
     {u8"%s a donné %s à %s.", u8"%sが\u200B%sを\u200B%sに\u200B渡しました。"},
-    {u8"Un chat", u8"ネコ"},
+    {u8"Un chat", u8"あるネコ"},
     {u8"%s a trouvé %s et perdu %s : ça compte pour ta bourse.",
      u8"%sが\u200B%sを\u200B見つけ、\u200B%sを\u200B失いました：\u200Bあなたの\u200Bサイフに\u200B反映されます。"},
     {u8"%s a trouvé %s et perdu %s : ça compte pour la bourse de %s.",
@@ -724,7 +724,7 @@ const TrPair kTable_ja[] = {
      u8"l'achat ne s'est pas fait.",
      u8"この\u200Bアイテムは\u200B売れて\u200Bしまいました。\n"
      u8"購入は\u200Bできませんでした。"},
-    {u8"Il coûte %s ; ta bourse en a %lld.", u8"価格は%s、\u200Bサイフには\u200B%lldしか\u200Bありません。"},
+    {u8"Il coûte %s ; ta bourse en a %lld.", u8"価格は%s、\u200Bサイフには\u200B%lld枚しか\u200Bありません。"},
     {u8"Ta bourse ne suffit pas pour cet objet.", u8"この\u200Bアイテムを\u200B買うには\u200Bサイフの\u200B中身が\u200B足りません。"},
     {u8"(Chacun paie avec sa bourse, toi aussi.)", u8"（あなたも\u200Bみんなも\u200B自分の\u200Bサイフで\u200B払います）"},
     {u8"(Chacun paie avec sa bourse.)", u8"（それぞれ\u200B自分の\u200Bサイフで\u200B払います）"},
@@ -1228,7 +1228,7 @@ const TrPair kTable_ja[] = {
      u8"冒険中\n"
      u8"\n"
      u8"%sが\u200B冒険中です！\n"
-     u8"あなたの\u200Bネコは\u200B同行していないので、\n"
+     u8"あなたの\u200Bネコは\u200B参加していないので、\n"
      u8"ネコを\u200B操作せずに\u200B冒険に\u200B同行します。"},
     {u8"Aventure en cours\n"
      u8"\n"
@@ -1447,7 +1447,7 @@ const TrPair kTable_ja[] = {
     {u8"Les PNJ suivent la partie de %s :\n"
      u8"envoyer tes chats dans le tuyau n'est\n"
      u8"pas possible avec cette version du jeu.",
-     u8"NPCは\u200B%sの\u200Bゲームに\u200B従います。\n"
+     u8"NPCは\u200B%sの\u200Bゲームの\u200Bものです。\n"
      u8"この\u200Bバージョンの\u200Bゲームでは、\u200Bネコを\n"
      u8"パイプに\u200B送ることは\u200Bできません。"},
     {u8"\n"
@@ -1558,7 +1558,7 @@ const TrPair kTable_ja[] = {
     {u8"Le partage du butin n'est pas fini :\n"
      u8"attends la fin du défilé des objets.",
      u8"戦利品の\u200B分配が\u200B終わっていません。\n"
-     u8"アイテムの\u200B分配が\u200B終わるまで\u200B待ってください。"},
+     u8"最後の\u200Bアイテムまで\u200B待ってください。"},
     {u8"Tu pars rejoindre l'aventure de %s :\n"
      u8"tu défendras ta maison à ton retour.",
      u8"%sの\u200B冒険に\u200B参加します。\n"
