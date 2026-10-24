@@ -276,8 +276,8 @@
 17. Les échanges. Tu peux donner à un autre joueur, sans qu'il ait rien à
    accepter :
    - dans ta maison : Échap, puis « Échanger » dans le menu pause (sous
-     « Quitter vers le bureau »). Des fenêtres du jeu s'enchaînent : à qui
-     (si vous êtes plus de deux : Haut ou Bas, puis Entrée), combien de
+     « Sauvegarder et quitter le jeu »). Des fenêtres du jeu s'enchaînent :
+     à qui (si vous êtes plus de deux : Haut ou Bas, puis Entrée), combien de
      pièces, combien de nourriture (tape le nombre, T pour tout, Entrée pour
      valider, « Passer » pour aucun), puis les objets de ton rangement (16 au
      plus par don) : Haut et Bas pour aller d'une ligne à l'autre, Espace
