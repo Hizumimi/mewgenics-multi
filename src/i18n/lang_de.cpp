@@ -31,7 +31,7 @@ const TrPair kTable_de[] = {
      u8"mgmp.json ist kein gültiges JSON: Korrigiere die Datei oder nimm die aus dem Zip."},
     {u8"Réglages lus dans mgmp.json.", u8"Einstellungen aus mgmp.json gelesen."},
     {u8"Mewgenics.exe est introuvable (%s) : dans Réglages, clique sur Parcourir… et choisis Mewgenics.exe.",
-     u8"Mewgenics.exe nicht gefunden (%s): Klicke in den Einstellungen auf Durchsuchen… und wähle Mewgenics.exe."},
+     u8"Mewgenics.exe nicht gefunden (%s): Klicke in den Einstellungen auf Suchen… und wähle Mewgenics.exe."},
     {u8"resources.gpak manque à côté de Mewgenics.exe : vérifie les fichiers du jeu dans Steam.",
      u8"resources.gpak fehlt neben Mewgenics.exe: Überprüfe die Spieldateien in Steam."},
     {u8"Jeu trouvé : %s.", u8"Spiel gefunden: %s."},
@@ -59,7 +59,6 @@ const TrPair kTable_de[] = {
      u8"Mewgenics Multi konnte sich nicht als Administrator neu starten: Kopiere steam_appid.txt von Hand (LISEZ-MOI, Schritt 2)."},
     {u8"La copie en administrateur n'a pas marché : copie steam_appid.txt à la main (LISEZ-MOI, étape 2).",
      u8"Das Kopieren als Administrator hat nicht geklappt: Kopiere steam_appid.txt von Hand (LISEZ-MOI, Schritt 2)."},
-    {u8"%02u/%02u/%04u à %02u:%02u", u8"%02u.%02u.%04u um %02u:%02u"},
     {u8"Le mod n'a pas pu être chargé : %s", u8"Der Mod konnte nicht geladen werden: %s"},
     {u8"mgmp_loader.exe s'est arrêté sans charger le mod. Relance ; si ça recommence, envoie loader.txt.",
      u8"mgmp_loader.exe wurde beendet, ohne den Mod zu laden. Versuch es noch einmal; passiert es wieder, schick loader.txt."},
@@ -75,16 +74,16 @@ const TrPair kTable_de[] = {
     {u8"Le mod est en place, le jeu reprend…", u8"Der Mod ist geladen, das Spiel läuft weiter…"},
     {u8"Toujours en attente du jeu relancé par Steam… Si Steam vient de s'ouvrir, il te pose peut-être une question.",
      u8"Warte noch auf das von Steam neu gestartete Spiel… Wenn sich Steam gerade erst geöffnet hat, stellt es dir vielleicht eine Frage."},
-    {u8"Jeu relancé trouvé : injection du mod…", u8"Neu gestartetes Spiel gefunden: injiziere Mod…"},
+    {u8"Jeu relancé trouvé : injection du mod…", u8"Spiel neu gestartet: Mod wird injiziert…"},
     {u8"Le jeu est lancé avec le mod.", u8"Das Spiel läuft mit dem Mod."},
     {u8"Le mod a tardé à se mettre en place ; le jeu reprend quand même.",
      u8"Der Mod hat lange zum Laden gebraucht; das Spiel läuft trotzdem weiter."},
     {u8"Le jeu relancé tarde à démarrer ; injection quand même.",
-     u8"Das neu gestartete Spiel braucht lange; injiziere trotzdem."},
+     u8"Das neu gestartete Spiel braucht lange; der Mod wird trotzdem injiziert."},
     {u8"mgmp.dll est introuvable à côté de Mewgenics\u00A0Multi.exe : extrais de nouveau le dossier du mod depuis le zip.",
      u8"mgmp.dll fehlt neben Mewgenics\u00A0Multi.exe: Entpacke den Mod-Ordner erneut aus dem Zip."},
     {u8"Mewgenics.exe est introuvable : dans Réglages, clique sur Parcourir… et choisis Mewgenics.exe.",
-     u8"Mewgenics.exe nicht gefunden: Klicke in den Einstellungen auf Durchsuchen… und wähle Mewgenics.exe."},
+     u8"Mewgenics.exe nicht gefunden: Klicke in den Einstellungen auf Suchen… und wähle Mewgenics.exe."},
     {u8"mgmp.json est illisible : corrige-le, ou remets celui du zip.",
      u8"mgmp.json ist nicht lesbar: Korrigiere die Datei oder nimm die aus dem Zip."},
     {u8"Steam a relancé le jeu sans le mod : vérifie steam_appid.txt à côté de Mewgenics.exe (bouton Réparer), puis relance.",
@@ -98,7 +97,7 @@ const TrPair kTable_de[] = {
     {u8"L'injection du mod a échoué et le jeu a été fermé. Relance ; si ça recommence, envoie loader.txt.",
      u8"Injizieren fehlgeschlagen, das Spiel wurde geschlossen. Versuch es noch einmal; passiert es wieder, schick loader.txt."},
     {u8"mgmp.json ne dit pas où est le jeu : dans Réglages, clique sur Parcourir… et choisis Mewgenics.exe.",
-     u8"In mgmp.json steht nicht, wo das Spiel ist: Klicke in den Einstellungen auf Durchsuchen… und wähle Mewgenics.exe."},
+     u8"In mgmp.json steht nicht, wo das Spiel ist: Klicke in den Einstellungen auf Suchen… und wähle Mewgenics.exe."},
     {u8"build %s · protocole %u", u8"Build %s · Protokoll %u"},
     {u8"Steam ouvert", u8"Steam läuft"},
     {u8"Steam fermé", u8"Steam geschlossen"},
@@ -114,15 +113,15 @@ const TrPair kTable_de[] = {
     {u8"Journaux", u8"Logs"},
     {u8"Langue", u8"Sprache"},
     {u8"Le jeu (Mewgenics.exe)", u8"Spiel (Mewgenics.exe)"},
-    {u8"Parcourir…", u8"Durchsuchen…"},
+    {u8"Parcourir…", u8"Suchen…"},
     {u8"Mewgenics.exe et resources.gpak sont là.", u8"Mewgenics.exe und resources.gpak sind da."},
     {u8"resources.gpak manque à côté : ce n'est pas le bon dossier.",
      u8"resources.gpak fehlt daneben: Das ist nicht der richtige Ordner."},
     {u8"Aucun Mewgenics.exe ici : choisis-le avec Parcourir.",
-     u8"Hier ist keine Mewgenics.exe: Wähle sie mit Durchsuchen."},
-    {u8"Jouer ensemble par Steam (liste d'amis)", u8"Zusammen über Steam spielen (Freundesliste)"},
+     u8"Hier ist keine Mewgenics.exe: Wähle sie mit Suchen… aus."},
+    {u8"Jouer ensemble par Steam (liste d'amis)", u8"Über Steam spielen (Freundesliste)"},
     {u8"Décoche si Steam pose problème : il ne reste que l'adresse, dans le menu Multijoueur du jeu.",
-     u8"Nimm den Haken raus, wenn Steam Probleme macht: Dann bleibt nur die Adresse im Mehrspieler-Menü des Spiels."},
+     u8"Bei Problemen mit Steam Haken entfernen: Dann bleibt nur die Adresse im Mehrspieler-Menü."},
     {u8"Enregistrer", u8"Speichern"},
     {u8"Retour", u8"Zurück"},
     {u8"Aucun journal pour l'instant : le mod en écrit un à chaque partie.",
@@ -141,7 +140,7 @@ const TrPair kTable_de[] = {
      u8"Viel Spaß! Dieses Fenster schließt sich von selbst."},
     {u8"Le détail est dans loader.txt, à côté de Mewgenics\u00A0Multi.exe.",
      u8"Details stehen in loader.txt, neben Mewgenics\u00A0Multi.exe."},
-    {u8"Réessayer", u8"Wiederholen"},
+    {u8"Réessayer", u8"Nochmal"},
     {u8"Si Steam relance le jeu, ça peut prendre une minute ou deux.",
      u8"Wenn Steam das Spiel neu startet, kann das ein, zwei Minuten dauern."},
     {u8"Journal copié : colle-le dans Discord avec Ctrl+V.",
@@ -181,8 +180,8 @@ const TrPair kTable_de[] = {
      u8"choisis les colliers pour toute l'équipe.",
      u8"Halsbänder wählen\n"
      u8"\n"
-     u8"Die gemeinsame Auswahl wurde beendet (Spielfehler):\n"
-     u8"Wähle die Halsbänder für das ganze Team."},
+     u8"Die gemeinsame Wahl ist abgebrochen (Spielfehler):\n"
+     u8"Wähle die Halsbänder für das Team."},
     {u8"Choix des colliers\n"
      u8"\n"
      u8"Prêt ! %s sait que tu as fini :\n"
@@ -228,10 +227,10 @@ const TrPair kTable_de[] = {
      u8"sur la carte.",
      u8"Aufbruch ins Abenteuer\n"
      u8"\n"
-     u8"Der Aufbruch von %s ist hier nicht mehr zu sehen.\n"
-     u8"Geh diese Bildschirme selbst durch: Du stößt\n"
+     u8"Den Aufbruch von %s siehst du hier nicht mehr.\n"
+     u8"Klick dich selbst durch: Du stößt\n"
      u8"auf der Karte dazu."},
-    {u8"  %s : parti", u8"  %s: weg"},
+    {u8"  %s : parti", u8"  %s: nicht mehr da"},
     {u8"  %s : prêt !", u8"  %s: bereit!"},
     {u8"  %s : charge ta partie...", u8"  %s: lädt dein Spiel..."},
     {u8"Départ en aventure\n"
@@ -299,21 +298,21 @@ const TrPair kTable_de[] = {
      u8"\n"
      u8"%s hat den Aufbruch schon bestätigt: Deine Katzen\n"
      u8"nehmen die bisher gewählten Gegenstände mit;\n"
-     u8"der Rest zählt nicht."},
+     u8"Weiteres zählt nicht."},
     {u8"Ta bourse : %s.", u8"Dein Beutel: %s."},
     {u8"%s n'est plus dans la partie.", u8"%s ist nicht mehr im Spiel."},
     {u8"Tu n'as pas de bourse dans cette aventure (tu n'y as pas amené de chat).",
      u8"Du hast in diesem Abenteuer keinen Beutel (du hast keine Katze mitgebracht)."},
     {u8"Les échanges marchent dans ta maison, ou en aventure à plusieurs avec ta bourse. Pour l'instant : %s.",
      u8"Tauschen geht bei dir zu Hause oder mit deinem Beutel im gemeinsamen Abenteuer. Im Moment: %s."},
-    {u8"pas de partie à plusieurs en cours", u8"kein Mehrspieler-Spiel läuft"},
+    {u8"pas de partie à plusieurs en cours", u8"kein Mehrspieler-Spiel aktiv"},
     {u8"une fonction du jeu manque, les échanges à la maison sont coupés",
      u8"eine Spielfunktion fehlt, Tauschen zu Hause ist abgeschaltet"},
     {u8"tu es dans la partie de l'hôte", u8"du bist im Spiel des Hosts"},
     {u8"tu n'es pas dans ta maison", u8"du bist nicht zu Hause"},
     {u8"ta save n'est pas chargée", u8"dein Speicherstand ist nicht geladen"},
     {u8"un départ en aventure est en cours", u8"ein Aufbruch ins Abenteuer läuft"},
-    {u8"ta maison est attaquée", u8"dein Haus wird angegriffen"},
+    {u8"ta maison est attaquée", u8"Angriff auf dein Haus"},
     {u8"ta maison est illisible", u8"dein Haus ist nicht lesbar"},
     {u8"ton rangement attend ce que tes chats rapportent de l'aventure de l'hôte (s'ils sont rentrés, recharge ta save : Échap, « Sauvegarder et retourner au menu », puis « Jouer » et ta save)",
      u8"dein Lager wartet auf das, was deine Katzen aus dem Abenteuer des Hosts mitbringen (sind sie zurück, lade deinen Speicherstand neu: Esc, „Speichern und zurück zum Menü“, dann „Spielen“ und wähle ihn)"},
@@ -322,7 +321,7 @@ const TrPair kTable_de[] = {
     {u8"Pas d'échange maintenant : %s.", u8"Gerade kein Tausch: %s."},
     {u8"Ton don précédent attend encore sa réponse.", u8"Dein letztes Geschenk wartet noch auf Antwort."},
     {u8"Ta save n'est pas encore connue du mod : recharge-la depuis le menu.",
-     u8"Der Mod kennt deinen Speicherstand noch nicht: Lade ihn über das Menü neu."},
+     u8"Der Mod kennt deinen Speicherstand noch nicht: Lade ihn übers Menü neu."},
     {u8"Choisis un joueur de la partie.", u8"Wähle einen Mitspieler."},
     {u8"Pas d'échange maintenant : %s n'est pas dans sa maison.",
      u8"Gerade kein Tausch: %s ist nicht zu Hause."},
@@ -331,7 +330,7 @@ const TrPair kTable_de[] = {
      u8"Wähle Münzen, Futter oder Gegenstände zum Verschenken."},
     {u8"16 objets au plus par don.", u8"Max. 16 Gegenstände pro Geschenk."},
     {u8"Pas d'objets maintenant : %s.", u8"Gerade keine Gegenstände: %s."},
-    {u8"Ta maison est illisible : pas de don.", u8"Dein Haus ist nicht lesbar: kein Geschenk."},
+    {u8"Ta maison est illisible : pas de don.", u8"Dein Haus ist unlesbar: kein Geschenk."},
     {u8"Tu n'as pas autant de pièces.", u8"So viele Münzen hast du nicht."},
     {u8"Tu n'as pas autant de nourriture.", u8"So viel Futter hast du nicht."},
     {u8"Ton rangement est illisible : pas de don.", u8"Dein Lager ist nicht lesbar: kein Geschenk."},
@@ -339,23 +338,23 @@ const TrPair kTable_de[] = {
      u8"Ein gewählter Gegenstand steckt schon in einem offenen Geschenk."},
     {u8"Un objet choisi n'est plus dans ton rangement : choisis à nouveau.",
      u8"Ein gewählter Gegenstand ist nicht mehr in deinem Lager: Wähle neu."},
-    {u8"Un objet choisi ne peut pas se donner.", u8"Ein gewählter Gegenstand ist nicht verschenkbar."},
-    {u8"Le don n'a pas pu partir (connexion).", u8"Das Geschenk wurde nicht gesendet (Verbindung)."},
+    {u8"Un objet choisi ne peut pas se donner.", u8"Ein Gegenstand ist nicht verschenkbar."},
+    {u8"Le don n'a pas pu partir (connexion).", u8"Geschenk nicht gesendet (Verbindung)."},
     {u8"Don envoyé à %s (%s) : en attente de sa réponse…",
      u8"Geschenk an %s gesendet (%s): Warte auf Antwort…"},
     {u8"Don demandé à l'hôte : en attente de sa réponse…",
      u8"Geschenk beim Host angefragt: Warte auf Antwort…"},
     {u8"Pas de don : %s.", u8"Kein Geschenk: %s."},
     {u8"%s a bien reçu ton don : tes objets quitteront ton rangement dès que l'écran des objets sera fermé.",
-     u8"%s hat dein Geschenk erhalten: Deine Gegenstände verlassen dein Lager, sobald der Gegenstandsbildschirm geschlossen ist."},
+     u8"%s hat dein Geschenk erhalten: Es verlässt dein Lager, sobald der Gegenstandsbildschirm zu ist."},
     {u8"%s a bien reçu ton don : tes objets quitteront ton rangement dès que possible (après le départ, la défense de ta maison ou le retour de tes chats).",
      u8"%s hat dein Geschenk erhalten: Deine Gegenstände verlassen dein Lager so bald wie möglich (nach dem Aufbruch, der Verteidigung deines Hauses oder der Rückkehr deiner Katzen)."},
     {u8"%s a bien reçu ton don : ce que tu as donné quittera ta maison à ton retour dans cette save.",
      u8"%s hat dein Geschenk erhalten: Es verlässt dein Haus, wenn du in diesen Speicherstand zurückkehrst."},
     {u8"Pas de réponse d'%s pour ton don : rien n'a quitté ta maison.",
-     u8"Keine Antwort von %s auf dein Geschenk: Nichts hat dein Haus verlassen."},
+     u8"Keine Antwort von %s aufs Geschenk: Nichts hat dein Haus verlassen."},
     {u8"Pas de réponse de %s pour ton don : rien n'a quitté ta maison.",
-     u8"Keine Antwort von %s auf dein Geschenk: Nichts hat dein Haus verlassen."},
+     u8"Keine Antwort von %s aufs Geschenk: Nichts hat dein Haus verlassen."},
     {u8"Les échanges marchent pendant une partie à plusieurs.",
      u8"Tauschen geht nur in einem Mehrspieler-Spiel."},
     {u8"Dans ta maison : %s.", u8"Bei dir zu Hause: %s."},
@@ -368,8 +367,8 @@ const TrPair kTable_de[] = {
     {u8"%s n'est pas dans sa maison", u8"%s ist nicht zu Hause"},
     {u8"une fenêtre ou l'écran des objets est resté ouvert chez %s",
      u8"bei %s ist ein Fenster oder der Gegenstandsbildschirm offen"},
-    {u8"le jeu d'%s n'a pas pu les ranger", u8"das Spiel von %s konnte sie nicht einlagern"},
-    {u8"le jeu de %s n'a pas pu les ranger", u8"das Spiel von %s konnte sie nicht einlagern"},
+    {u8"le jeu d'%s n'a pas pu les ranger", u8"bei %s ließen sie sich nicht einlagern"},
+    {u8"le jeu de %s n'a pas pu les ranger", u8"bei %s ließen sie sich nicht einlagern"},
     {u8"les dons ne marchent pas chez %s", u8"Geschenke funktionieren bei %s nicht"},
     {u8"%s n'est plus dans la partie", u8"%s ist nicht mehr im Spiel"},
     {u8"%s a encore des chats dans l'aventure de l'hôte (son rangement attend leur retour)",
@@ -386,12 +385,12 @@ const TrPair kTable_de[] = {
     {u8"%s a bien reçu %s : c'est parti de ta maison.",
      u8"%s hat %s erhalten: Es hat dein Haus verlassen."},
     {u8"(1 objet n'a pas pu quitter ton rangement : il est aussi chez toi.)",
-     u8"(1 Gegenstand konnte dein Lager nicht verlassen: Er ist auch noch bei dir.)"},
+     u8"(1 Gegenstand blieb auch in deinem Lager.)"},
     {u8"(%u objets n'ont pas pu quitter ton rangement : ils sont aussi chez toi.)",
-     u8"(%u Gegenstände konnten dein Lager nicht verlassen: Sie sind auch noch bei dir.)"},
+     u8"(%u Gegenstände blieben auch in deinem Lager.)"},
     {u8"Le don à %s n'est pas passé : %s. Rien n'a quitté ta maison.",
      u8"Das Geschenk an %s ging nicht durch: %s. Nichts hat dein Haus verlassen."},
-    {u8"Rien à donner dans ton rangement.", u8"Nichts zu verschenken in deinem Lager."},
+    {u8"Rien à donner dans ton rangement.", u8"Im Lager ist nichts zu verschenken."},
     {u8"Tape des lettres pour chercher un objet.", u8"Tippe Buchstaben, um einen Gegenstand zu suchen."},
     {u8"Recherche : %s_", u8"Suche: %s_"},
     {u8"Aucun objet ne correspond.", u8"Kein Gegenstand passt."},
@@ -404,13 +403,13 @@ const TrPair kTable_de[] = {
     {u8"toi", u8"du"},
     {u8"Joueur %u", u8"Spieler %u"},
     {u8"Un objet", u8"Ein Gegenstand"},
-    {u8"Partage du butin : objet %u sur %u", u8"Beuteverteilung: Gegenstand %u von %u"},
+    {u8"Partage du butin : objet %u sur %u", u8"Beute: Gegenstand %u von %u"},
     {u8"Besoin : %s", u8"Bedarf: %s"},
     {u8"Cupidité : %s", u8"Gier: %s"},
     {u8"Passer : %s", u8"Passen: %s"},
     {u8"Partage du butin", u8"Beuteverteilung"},
-    {u8"%u objets du sac à partager entre %s.", u8"%u Gegenstände aus dem Rucksack. Mit dabei: %s."},
-    {u8"%u objet du sac à partager entre %s.", u8"%u Gegenstand aus dem Rucksack. Mit dabei: %s."},
+    {u8"%u objets du sac à partager entre %s.", u8"%u Gegenstände. Mit dabei: %s."},
+    {u8"%u objet du sac à partager entre %s.", u8"%u Gegenstand. Mit dabei: %s."},
     {u8"Pour chaque objet : Besoin (il te sert), Cupidité (si\n"
      u8"personne n'en a besoin) ou Passer. Un dé de 100 départage.",
      u8"Für jeden Gegenstand: Bedarf (du brauchst ihn), Gier (wenn\n"
@@ -438,7 +437,7 @@ const TrPair kTable_de[] = {
     {u8"Personne n'en veut : il reste chez %s.", u8"Niemand will ihn: Er bleibt bei %s."},
     {u8"Tu l'emportes (%s) !", u8"Du bekommst ihn (%s)!"},
     {u8"%s l'emporte (%s).", u8"%s bekommt ihn (%s)."},
-    {u8"Dés : %s (égalité départagée).", u8"Würfel: %s (Gleichstand neu gewürfelt)."},
+    {u8"Dés : %s (égalité départagée).", u8"Würfel: %s (Gleichstand aufgelöst)."},
     {u8"Dés : %s.", u8"Würfel: %s."},
     {u8"Partage du butin terminé", u8"Beuteverteilung beendet"},
     {u8"Tu remportes : %s.", u8"Du bekommst: %s."},
@@ -455,13 +454,13 @@ const TrPair kTable_de[] = {
      u8"Deine Beute wartet zu Hause in deinem Lager."},
     {u8"Ce que les autres remportent quitte ton rangement.",
      u8"Was die anderen bekommen, verlässt dein Lager."},
-    {u8"Beanies", u8"Beanies"},
+    {u8"Dr Beanies", u8"Dr. Beanies"},
     {u8"Butch", u8"Butch"},
     {u8"Tink", u8"Tink"},
     {u8"Frank", u8"Frank"},
-    {u8"Jack", u8"Jack"},
+    {u8"Bébé Jack", u8"Baby Jack"},
     {u8"Tracy", u8"Tracy"},
-    {u8"l'orgue de barbarie", u8"Leierkasten"},
+    {u8"Broyeur d'organe", u8"Leichensammler"},
     {u8"Steven", u8"Steven"},
     {u8"Récompense prête\n"
      u8"\n"
@@ -472,10 +471,10 @@ const TrPair kTable_de[] = {
      u8"ses déblocages à tout le monde.",
      u8"Belohnung bereit\n"
      u8"\n"
-     u8"Die Katze, die %s an %s gegeben hat, hat\n"
-     u8"die Leiste gefüllt. Die Belohnung wird für\n"
-     u8"ihn abgeholt, sobald du zu Hause bist: Münzen,\n"
-     u8"Futter und Gegenstände gehen an %s,\n"
+     u8"Die Katze, die %s an %s gab, hat\n"
+     u8"die Leiste gefüllt. Die Belohnung wird\n"
+     u8"für ihn abgeholt, sobald du zu Hause bist:\n"
+     u8"Münzen, Futter und Gegenstände an %s,\n"
      u8"Freischaltungen an alle."},
     {u8"Récompense de %s\n"
      u8"\n"
@@ -483,8 +482,8 @@ const TrPair kTable_de[] = {
      u8"lui être envoyée : elle reste chez toi.",
      u8"Belohnung von %s\n"
      u8"\n"
-     u8"Die Belohnung für das Geschenk von %s konnte\n"
-     u8"nicht an ihn gesendet werden: Sie bleibt bei dir."},
+     u8"Die Belohnung für %s ließ sich nicht\n"
+     u8"senden: Sie bleibt bei dir."},
     {u8"Récompense pour %s\n"
      u8"\n"
      u8"%s a récompensé le chat que %s\n"
@@ -532,9 +531,9 @@ const TrPair kTable_de[] = {
      u8"Belohnung von %s\n"
      u8"\n"
      u8"Deine Katze hat die Leiste von %s gefüllt:\n"
-     u8"Die Belohnung (Freischaltungen) ist für\n"
-     u8"alle. Sie kommt beim nächsten Laden in\n"
-     u8"deinen Speicherstand."},
+     u8"Die Belohnung sind Freischaltungen\n"
+     u8"für alle. Sie kommen beim nächsten\n"
+     u8"Laden in deinen Speicherstand."},
     {u8"Récompense de %s\n"
      u8"\n"
      u8"%s, qui avait rempli la jauge de %s,\n"
@@ -550,7 +549,7 @@ const TrPair kTable_de[] = {
      u8"dès qu'il sera dans sa maison.",
      u8"Belohnung bereit\n"
      u8"\n"
-     u8"Deine Katze hat die Leiste von %s gefüllt!\n"
+     u8"Deine Katze füllte die Leiste von %s!\n"
      u8"%s holt die Belohnung für dich ab,\n"
      u8"sobald er zu Hause ist."},
     {u8"les bourses ne marchent pas dans cette partie", u8"Beutel funktionieren in diesem Spiel nicht"},
@@ -582,7 +581,7 @@ const TrPair kTable_de[] = {
      u8"kein Beutel für diesen Spieler in diesem Abenteuer"},
     {u8"ta bourse n'en a pas autant", u8"so viel hat dein Beutel nicht"},
     {u8"l'aventure n'est plus suivie", u8"das Abenteuer ist nicht mehr aktiv"},
-    {u8"%s t'a donné %s : c'est dans ta bourse.", u8"%s hat dir %s gegeben: Es ist in deinem Beutel."},
+    {u8"%s t'a donné %s : c'est dans ta bourse.", u8"%s hat dir %s in den Beutel gelegt."},
     {u8"Tu as donné %s à %s : c'est dans sa bourse.",
      u8"Du hast %s an %s gegeben: Es ist in seinem Beutel."},
     {u8"%s a donné %s à %s.", u8"%s hat %s an %s gegeben."},
@@ -593,11 +592,9 @@ const TrPair kTable_de[] = {
      u8"%s hat %s gefunden und %s verloren: Das zählt für den Beutel von %s."},
     {u8"%s a trouvé %s et perdu %s : ça compte pour la bourse d'%s.",
      u8"%s hat %s gefunden und %s verloren: Das zählt für den Beutel von %s."},
-    {u8"%s a trouvé %s : c'est pour ta bourse.", u8"%s hat %s gefunden: Das kommt in deinen Beutel."},
-    {u8"%s a trouvé %s : c'est pour la bourse de %s.",
-     u8"%s hat %s gefunden: Das kommt in den Beutel von %s."},
-    {u8"%s a trouvé %s : c'est pour la bourse d'%s.",
-     u8"%s hat %s gefunden: Das kommt in den Beutel von %s."},
+    {u8"%s a trouvé %s : c'est pour ta bourse.", u8"%s hat %s für deinen Beutel gefunden."},
+    {u8"%s a trouvé %s : c'est pour la bourse de %s.", u8"%s hat %s für den Beutel von %s gefunden."},
+    {u8"%s a trouvé %s : c'est pour la bourse d'%s.", u8"%s hat %s für den Beutel von %s gefunden."},
     {u8"%s a dépensé %s : c'est pris sur ta bourse.", u8"%s hat %s ausgegeben: Das zahlt dein Beutel."},
     {u8"%s a dépensé %s : c'est pris sur la bourse de %s.",
      u8"%s hat %s ausgegeben: Das zahlt der Beutel von %s."},
@@ -619,28 +616,26 @@ const TrPair kTable_de[] = {
     {u8"Tu as acheté %s (gratuit).", u8"Du hast %s gekauft (gratis)."},
     {u8"%s a acheté %s (gratuit).", u8"%s hat %s gekauft (gratis)."},
     {u8"En combat, tes chats ont trouvé %s et perdu %s : ça compte pour ta bourse.",
-     u8"Im Kampf haben deine Katzen %s gefunden und %s verloren: Das zählt für deinen Beutel."},
+     u8"Im Kampf: %s gefunden, %s verloren. Das zählt für deinen Beutel."},
     {u8"En combat, tes chats ont trouvé %s : c'est pour ta bourse.",
-     u8"Im Kampf haben deine Katzen %s gefunden: Das kommt in deinen Beutel."},
+     u8"Im Kampf fanden deine Katzen %s: Das kommt in deinen Beutel."},
     {u8"En combat, tes chats ont perdu %s : c'est pris sur ta bourse.",
-     u8"Im Kampf haben deine Katzen %s verloren: Das fehlt in deinem Beutel."},
-    {u8"En combat, tes chats n'ont rien trouvé.", u8"Im Kampf haben deine Katzen nichts gefunden."},
+     u8"Im Kampf verloren deine Katzen %s: Das fehlt in deinem Beutel."},
+    {u8"En combat, tes chats n'ont rien trouvé.", u8"Im Kampf fanden deine Katzen nichts."},
     {u8"En combat, les chats d'%s ont trouvé %s et perdu %s : ça compte pour sa bourse.",
-     u8"Im Kampf haben die Katzen von %s %s gefunden und %s verloren: Das zählt für seinen Beutel."},
+     u8"Im Kampf fanden die Katzen von %s %s und verloren %s: Das zählt für seinen Beutel."},
     {u8"En combat, les chats de %s ont trouvé %s et perdu %s : ça compte pour sa bourse.",
-     u8"Im Kampf haben die Katzen von %s %s gefunden und %s verloren: Das zählt für seinen Beutel."},
+     u8"Im Kampf fanden die Katzen von %s %s und verloren %s: Das zählt für seinen Beutel."},
     {u8"En combat, les chats d'%s ont trouvé %s : c'est pour sa bourse.",
-     u8"Im Kampf haben die Katzen von %s %s gefunden: Das kommt in seinen Beutel."},
+     u8"Im Kampf fanden die Katzen von %s %s: Das kommt in seinen Beutel."},
     {u8"En combat, les chats de %s ont trouvé %s : c'est pour sa bourse.",
-     u8"Im Kampf haben die Katzen von %s %s gefunden: Das kommt in seinen Beutel."},
+     u8"Im Kampf fanden die Katzen von %s %s: Das kommt in seinen Beutel."},
     {u8"En combat, les chats d'%s ont perdu %s : c'est pris sur sa bourse.",
-     u8"Im Kampf haben die Katzen von %s %s verloren: Das fehlt in seinem Beutel."},
+     u8"Im Kampf verloren die Katzen von %s %s: Das fehlt in seinem Beutel."},
     {u8"En combat, les chats de %s ont perdu %s : c'est pris sur sa bourse.",
-     u8"Im Kampf haben die Katzen von %s %s verloren: Das fehlt in seinem Beutel."},
-    {u8"En combat, les chats d'%s n'ont rien trouvé.",
-     u8"Im Kampf haben die Katzen von %s nichts gefunden."},
-    {u8"En combat, les chats de %s n'ont rien trouvé.",
-     u8"Im Kampf haben die Katzen von %s nichts gefunden."},
+     u8"Im Kampf verloren die Katzen von %s %s: Das fehlt in seinem Beutel."},
+    {u8"En combat, les chats d'%s n'ont rien trouvé.", u8"Im Kampf fanden die Katzen von %s nichts."},
+    {u8"En combat, les chats de %s n'ont rien trouvé.", u8"Im Kampf fanden die Katzen von %s nichts."},
     {u8"Ton sac est ouvert\n"
      u8"\n"
      u8"L'hôte est entré dans une case :\n"
@@ -690,9 +685,9 @@ const TrPair kTable_de[] = {
      u8"comme chez l'hôte quand tu le fermes.",
      u8"Gegenstände\n"
      u8"\n"
-     u8"Ein anderer Spieler hat den Gegenstand kurz vor dir\n"
-     u8"genommen: Deine Änderung zählt nicht. Beim Schließen\n"
-     u8"wird dein Rucksack wieder wie der des Hosts."},
+     u8"Jemand hat den Gegenstand vor dir genommen:\n"
+     u8"Deine Änderung zählt nicht.\n"
+     u8"Beim Schließen wird dein Rucksack wie beim Host."},
     {u8"Objets\n"
      u8"\n"
      u8"L'hôte est entré dans une case avant que ton\n"
@@ -742,7 +737,7 @@ const TrPair kTable_de[] = {
      u8"Nichts wurde gekauft. Versuch es gleich noch einmal."},
     {u8"L'hôte n'est plus dans cette boutique :\n"
      u8"l'achat ne s'est pas fait.",
-     u8"Der Host ist nicht mehr in diesem Shop:\n"
+     u8"Der Host ist nicht mehr im Shop:\n"
      u8"Der Kauf hat nicht geklappt."},
     {u8"Cet objet n'est plus à vendre chez l'hôte :\n"
      u8"l'achat ne s'est pas fait.",
@@ -750,7 +745,7 @@ const TrPair kTable_de[] = {
      u8"Der Kauf hat nicht geklappt."},
     {u8"Cet objet vient d'être vendu :\n"
      u8"l'achat ne s'est pas fait.",
-     u8"Der Gegenstand wurde gerade verkauft:\n"
+     u8"Das wurde gerade verkauft:\n"
      u8"Der Kauf hat nicht geklappt."},
     {u8"Il coûte %s ; ta bourse en a %lld.", u8"Er kostet %s; dein Beutel hat %lld."},
     {u8"Ta bourse ne suffit pas pour cet objet.", u8"Dein Beutel reicht für diesen Gegenstand nicht."},
@@ -769,9 +764,9 @@ const TrPair kTable_de[] = {
     {u8"Tu n'as pas amené de chats dans cette\n"
      u8"aventure : tu n'as pas de bourse pour\n"
      u8"acheter.",
-     u8"Du hast keine Katzen in dieses Abenteuer\n"
-     u8"mitgebracht: Du hast keinen Beutel zum\n"
-     u8"Einkaufen."},
+     u8"Ohne eigene Katze in diesem\n"
+     u8"Abenteuer hast du keinen Beutel\n"
+     u8"zum Einkaufen."},
     {u8"Tu n'as pas de bourse dans cette aventure\n"
      u8"(tu n'y as pas amené de chats) : pas d'achat.",
      u8"Du hast in diesem Abenteuer keinen Beutel\n"
@@ -813,8 +808,8 @@ const TrPair kTable_de[] = {
      u8"de chat : pas d'aventure cette fois.",
      u8"Aufbruch ins Abenteuer\n"
      u8"\n"
-     u8"Deine Abenteuerbox ist leer und niemand bringt\n"
-     u8"eine Katze mit: diesmal kein Abenteuer."},
+     u8"Deine Abenteuerbox ist leer und niemand\n"
+     u8"bringt eine Katze mit: kein Abenteuer."},
     {u8"Équipe mixte\n"
      u8"\n"
      u8"Les chats des autres joueurs n'ont pas pu\n"
@@ -830,15 +825,15 @@ const TrPair kTable_de[] = {
     {u8"%s sont de retour à la maison.", u8"%s sind wieder zu Hause."},
     {u8"%s a péri pendant l'aventure.", u8"%s ist im Abenteuer gestorben."},
     {u8"%s ont péri pendant l'aventure.", u8"%s sind im Abenteuer gestorben."},
-    {u8"%s ne revient pas de l'aventure.", u8"%s kommt nicht aus dem Abenteuer zurück."},
-    {u8"%s ne reviennent pas de l'aventure.", u8"%s kommen nicht aus dem Abenteuer zurück."},
+    {u8"%s ne revient pas de l'aventure.", u8"%s kommt nicht zurück."},
+    {u8"%s ne reviennent pas de l'aventure.", u8"%s kommen nicht zurück."},
     {u8"%s a changé depuis le départ :\n"
      u8"son retour d'aventure n'a pas été recopié.",
-     u8"%s hat sich seit dem Aufbruch geändert:\n"
+     u8"%s ist seit dem Aufbruch verändert:\n"
      u8"Der Stand nach dem Abenteuer wurde nicht übernommen."},
     {u8"%s ont changé depuis le départ :\n"
      u8"leur retour d'aventure n'a pas été recopié.",
-     u8"%s haben sich seit dem Aufbruch geändert:\n"
+     u8"%s sind seit dem Aufbruch verändert:\n"
      u8"Ihr Stand nach dem Abenteuer wurde nicht übernommen."},
     {u8"Ton rangement a changé depuis le départ :\n"
      u8"les objets équipés au départ n'en ont pas été retirés.",
@@ -846,8 +841,8 @@ const TrPair kTable_de[] = {
      u8"Die beim Aufbruch ausgerüsteten Gegenstände wurden nicht entfernt."},
     {u8"Ton rangement n'a pas été modifié : les objets\n"
      u8"équipés au départ y sont encore.",
-     u8"Dein Lager wurde nicht geändert: Die beim Aufbruch\n"
-     u8"ausgerüsteten Gegenstände sind noch da."},
+     u8"Dein Lager wurde nicht geändert: Die Ausrüstung\n"
+     u8"vom Aufbruch ist noch darin."},
     {u8"Tu rapportes %s dans ta maison.", u8"Du bringst %s mit nach Hause."},
     {u8"Les PNJ te remercient de tes chats : %s dans ta maison.",
      u8"Die NPCs danken dir für deine Katzen: %s bei dir zu Hause."},
@@ -866,7 +861,7 @@ const TrPair kTable_de[] = {
      u8"des chats de l'équipe.",
      u8"Gemischtes Team\n"
      u8"\n"
-     u8"%s konnten dem Team nicht beitreten:\n"
+     u8"%s schafften es nicht ins Team:\n"
      u8"In diesem Abenteuer steuerst du einen Teil\n"
      u8"der Katzen im Team."},
     {u8"Équipe mixte\n"
@@ -876,7 +871,7 @@ const TrPair kTable_de[] = {
      u8"des chats de l'équipe.",
      u8"Gemischtes Team\n"
      u8"\n"
-     u8"%s konnte dem Team nicht beitreten:\n"
+     u8"%s schaffte es nicht ins Team:\n"
      u8"In diesem Abenteuer steuerst du einen Teil\n"
      u8"der Katzen im Team."},
     {u8"Équipe mixte\n"
@@ -885,16 +880,16 @@ const TrPair kTable_de[] = {
      u8"tu suis l'aventure sans diriger de chat.",
      u8"Gemischtes Team\n"
      u8"\n"
-     u8"%s konnten dem Team nicht beitreten:\n"
-     u8"Du begleitest das Abenteuer ohne eigene Katze."},
+     u8"%s schafften es nicht ins Team:\n"
+     u8"Du bist ohne eigene Katze dabei."},
     {u8"Équipe mixte\n"
      u8"\n"
      u8"%s n'a pas pu rejoindre l'équipe :\n"
      u8"tu suis l'aventure sans diriger de chat.",
      u8"Gemischtes Team\n"
      u8"\n"
-     u8"%s konnte dem Team nicht beitreten:\n"
-     u8"Du begleitest das Abenteuer ohne eigene Katze."},
+     u8"%s schaffte es nicht ins Team:\n"
+     u8"Du bist ohne eigene Katze dabei."},
     {u8"Équipe mixte\n"
      u8"\n"
      u8"%s n'ont pas pu partir et restent à la maison.",
@@ -907,7 +902,7 @@ const TrPair kTable_de[] = {
      u8"Gemischtes Team\n"
      u8"\n"
      u8"%s konnte nicht aufbrechen und bleibt zu Hause."},
-    {u8"Tes chats sont rentrés de l'aventure.", u8"Deine Katzen sind aus dem Abenteuer zurück."},
+    {u8"Tes chats sont rentrés de l'aventure.", u8"Deine Katzen sind wieder zu Hause."},
     {u8"Nouveau chat dans l'équipe\n"
      u8"\n"
      u8"%s rejoint l'équipe de %s : ce chat est\n"
@@ -916,10 +911,10 @@ const TrPair kTable_de[] = {
      u8"et il rentrera chez toi à la fin de l'aventure.",
      u8"Neue Katze im Team\n"
      u8"\n"
-     u8"%s tritt dem Team von %s bei: Diese Katze\n"
-     u8"gehört dir! Solange du nicht da bist, steuert\n"
-     u8"die Spiel-KI sie im Kampf und %s wählt für sie;\n"
-     u8"am Ende des Abenteuers kommt sie zu dir nach Hause."},
+     u8"%s ist neu im Team von %s: Die Katze\n"
+     u8"gehört dir! Bis du da bist, steuert die\n"
+     u8"Spiel-KI sie im Kampf und %s wählt für sie;\n"
+     u8"nach dem Abenteuer zieht sie bei dir ein."},
     {u8"Nouveaux chats : %s arrivent chez toi.", u8"Neue Katzen: %s ziehen bei dir ein."},
     {u8"Nouveaux chats : %s arrive chez toi.", u8"Neue Katze: %s zieht bei dir ein."},
     {u8"La 4e place\n"
@@ -928,7 +923,7 @@ const TrPair kTable_de[] = {
      u8"elle est à toi, tu emmènes 2 chats.",
      u8"Der 4. Platz\n"
      u8"\n"
-     u8"Bei 3 Spielern hat das Team einen freien Platz:\n"
+     u8"Bei 3 Spielern ist ein Platz frei:\n"
      u8"Er gehört dir, du nimmst 2 Katzen mit."},
     {u8"La 4e place\n"
      u8"\n"
@@ -939,7 +934,7 @@ const TrPair kTable_de[] = {
      u8"\n"
      u8"Der freie Platz gehört schon %s:\n"
      u8"Bei 3 Spielern nimmst du 1 Katze mit.\n"
-     u8"Nimm eine Katze aus deiner Abenteuerbox."},
+     u8"Nimm eine aus deiner Box heraus."},
     {u8"La 4e place\n"
      u8"\n"
      u8"Un quatrième joueur est là : chacun emmène\n"
@@ -947,7 +942,7 @@ const TrPair kTable_de[] = {
      u8"Der 4. Platz\n"
      u8"\n"
      u8"Ein vierter Spieler ist da: Jeder nimmt 1 Katze\n"
-     u8"mit. Nimm eine Katze aus deiner Abenteuerbox."},
+     u8"mit. Nimm eine Katze aus deiner Abenteuerbox heraus."},
     {u8"La 4e place va au premier qui met un 2e chat dans sa boîte.",
      u8"Der 4. Platz geht an den Ersten, der eine 2. Katze in seine Box setzt."},
     {u8"La 4e place est à %s.", u8"Der 4. Platz gehört %s."},
@@ -959,8 +954,8 @@ const TrPair kTable_de[] = {
      u8"Gemischtes Team\n"
      u8"\n"
      u8"Bei %d Spielern nimmst du höchstens %d Katzen mit:\n"
-     u8"Nimm %d Katzen aus deiner Abenteuerbox.%s\n"
-     u8"Die anderen Spieler füllen das Team mit ihren auf."},
+     u8"Nimm %d Katzen aus deiner Abenteuerbox heraus.%s\n"
+     u8"Die anderen füllen das Team auf."},
     {u8"Équipe mixte\n"
      u8"\n"
      u8"À %d joueurs, tu emmènes %d chats au maximum :\n"
@@ -969,8 +964,8 @@ const TrPair kTable_de[] = {
      u8"Gemischtes Team\n"
      u8"\n"
      u8"Bei %d Spielern nimmst du höchstens %d Katzen mit:\n"
-     u8"Nimm %d Katze aus deiner Abenteuerbox.%s\n"
-     u8"Die anderen Spieler füllen das Team mit ihren auf."},
+     u8"Nimm %d Katze aus deiner Abenteuerbox heraus.%s\n"
+     u8"Die anderen füllen das Team auf."},
     {u8"Équipe mixte\n"
      u8"\n"
      u8"À %d joueurs, tu emmènes %d chat au maximum :\n"
@@ -979,8 +974,8 @@ const TrPair kTable_de[] = {
      u8"Gemischtes Team\n"
      u8"\n"
      u8"Bei %d Spielern nimmst du höchstens %d Katze mit:\n"
-     u8"Nimm %d Katzen aus deiner Abenteuerbox.%s\n"
-     u8"Die anderen Spieler füllen das Team mit ihren auf."},
+     u8"Nimm %d Katzen aus deiner Abenteuerbox heraus.%s\n"
+     u8"Die anderen füllen das Team auf."},
     {u8"Équipe mixte\n"
      u8"\n"
      u8"À %d joueurs, tu emmènes %d chat au maximum :\n"
@@ -989,27 +984,27 @@ const TrPair kTable_de[] = {
      u8"Gemischtes Team\n"
      u8"\n"
      u8"Bei %d Spielern nimmst du höchstens %d Katze mit:\n"
-     u8"Nimm %d Katze aus deiner Abenteuerbox.%s\n"
-     u8"Die anderen Spieler füllen das Team mit ihren auf."},
+     u8"Nimm %d Katze aus deiner Abenteuerbox heraus.%s\n"
+     u8"Die anderen füllen das Team auf."},
     {u8"Tu n'es pas dans ta maison :\n"
      u8"tu joueras avec les chats des autres.",
      u8"Du bist nicht zu Hause:\n"
-     u8"Du spielst mit den Katzen der anderen."},
+     u8"Du spielst mit Katzen der anderen."},
     {u8"Ta boîte de départ n'est pas encore débloquée :\n"
      u8"tu joueras avec les chats des autres.",
-     u8"Deine Abenteuerbox ist noch nicht freigeschaltet:\n"
-     u8"Du spielst mit den Katzen der anderen."},
+     u8"Deine Abenteuerbox ist noch gesperrt:\n"
+     u8"Du spielst mit Katzen der anderen."},
     {u8"Ta boîte de départ est vide : tu joueras avec les chats des autres.\n"
      u8"Pour emmener les tiens : « Pas encore », mets-en 1 ou 2 dans ta boîte\n"
      u8"(chez Butch), puis clique sur ton panneau « À l'aventure ! ».",
      u8"Deine Abenteuerbox ist leer: Du spielst mit den Katzen der anderen.\n"
-     u8"Um deine mitzunehmen: „Noch nicht“, setz 1 oder 2 in deine Box\n"
+     u8"Um deine mitzunehmen: Wähle „Noch nicht“, setz 1 oder 2 in deine Box\n"
      u8"(bei Butch), dann klick auf dein Schild „Aufbrechen!“."},
     {u8"Ta boîte de départ est vide : tu joueras avec les chats des autres.\n"
      u8"Pour emmener les tiens : « Pas encore », mets-en un dans ta boîte\n"
      u8"(chez Butch), puis clique sur ton panneau « À l'aventure ! ».",
      u8"Deine Abenteuerbox ist leer: Du spielst mit den Katzen der anderen.\n"
-     u8"Um deine mitzunehmen: „Noch nicht“, setz eine in deine Box\n"
+     u8"Um deine mitzunehmen: Wähle „Noch nicht“, setz eine in deine Box\n"
      u8"(bei Butch), dann klick auf dein Schild „Aufbrechen!“."},
     {u8"Ta boîte de départ contient %d chats, %d au maximum :\n"
      u8"réponds « Pas encore », retires-en %d,\n"
@@ -1029,7 +1024,7 @@ const TrPair kTable_de[] = {
      u8"Die Frage kommt gleich wieder."},
     {u8"Tes chats n'ont pas pu être préparés\n"
      u8"pour l'aventure (voir mgmp.log).",
-     u8"Deine Katzen konnten nicht fürs Abenteuer\n"
+     u8"Deine Katzen konnten nicht\n"
      u8"vorbereitet werden (siehe mgmp.log)."},
     {u8"%s reviennent d'une aventure, mais leur retour\n"
      u8"n'est pas encore recopié dans ta save : recharge-la\n"
@@ -1051,7 +1046,7 @@ const TrPair kTable_de[] = {
      u8"Lade ihn neu, bevor er wieder aufbricht („Neu laden“\n"
      u8"wird dir danach angeboten; sonst Esc, „Speichern und\n"
      u8"zurück zum Menü“, dann „Spielen“ und wähle ihn)."},
-    {u8"Le retour de %s attend d'être recopié.", u8"Die Rückkehr von %s wartet auf Übernahme."},
+    {u8"Le retour de %s attend d'être recopié.", u8"%s: Rückkehr noch nicht übernommen."},
     {u8"L'envoi de ta réponse à l'hôte a échoué :\n"
      u8"réessaie.",
      u8"Deine Antwort an den Host kam nicht an:\n"
@@ -1068,21 +1063,21 @@ const TrPair kTable_de[] = {
      u8"à la fin de l'aventure.",
      u8"Neue Katze im Team\n"
      u8"\n"
-     u8"%s tritt dem Team bei: Diese Katze gehört dir!\n"
-     u8"Du steuerst sie, und sie kommt am Ende\n"
-     u8"des Abenteuers zu dir nach Hause."},
+     u8"%s ist neu im Team: Sie gehört dir!\n"
+     u8"Du steuerst sie, und nach dem\n"
+     u8"Abenteuer zieht sie bei dir ein."},
     {u8"Nouveau chat dans l'équipe\n"
      u8"\n"
      u8"%s rejoint l'équipe : ce chat est à toi.",
      u8"Neue Katze im Team\n"
      u8"\n"
-     u8"%s tritt dem Team bei: Diese Katze gehört dir."},
+     u8"%s ist neu im Team: Sie gehört dir."},
     {u8"Nouveau chat dans l'équipe\n"
      u8"\n"
      u8"%s rejoint l'équipe : ce chat est à %s.",
      u8"Neue Katze im Team\n"
      u8"\n"
-     u8"%s tritt dem Team bei: Diese Katze gehört %s."},
+     u8"%s ist neu im Team: Sie gehört %s."},
     {u8"Un nouveau chat", u8"Eine neue Katze"},
     {u8"en bas", u8"unten"},
     {u8"en haut", u8"oben"},
@@ -1157,7 +1152,7 @@ const TrPair kTable_de[] = {
      u8"Ton panneau sert au départ en aventure :\n"
      u8"retire tes chats de l'équipe pour finir la journée.",
      u8"\n"
-     u8"Dein Schild dient dem Aufbruch ins Abenteuer:\n"
+     u8"Dein Schild steht auf Aufbruch ins Abenteuer:\n"
      u8"Nimm deine Katzen aus dem Team, um den Tag zu beenden."},
     {u8"Fin de journée\n"
      u8"\n"
@@ -1181,7 +1176,7 @@ const TrPair kTable_de[] = {
      u8"%s%s"},
     {u8"1 joueur attend", u8"1 Spieler wartet"},
     {u8"%d joueurs attendent", u8"%d Spieler warten"},
-    {u8"Passer la nuit", u8"Schlafen gehen"},
+    {u8"Passer la nuit", u8"Tag beenden"},
     {u8"Plus tard", u8"Später"},
     {u8"Pour continuer, appuie sur Échap\n"
      u8"puis sur « Sauvegarder et retourner au menu ».",
@@ -1198,9 +1193,9 @@ const TrPair kTable_de[] = {
      u8"\n"
      u8"%s\n"
      u8"\n"
-     u8"Dein Speicherstand ist schon offen: All das ist erst\n"
-     u8"nach dem nächsten Laden drin. „Neu laden“:\n"
-     u8"Der Mod geht übers Menü und öffnet ihn neu."},
+     u8"Dein Speicherstand ist schon offen:\n"
+     u8"Das alles kommt erst beim nächsten Laden.\n"
+     u8"„Neu laden“: Der Mod öffnet ihn übers Menü neu."},
     {u8"Ce qui t'attend\n"
      u8"\n"
      u8"%s\n"
@@ -1213,8 +1208,8 @@ const TrPair kTable_de[] = {
      u8"\n"
      u8"%s\n"
      u8"\n"
-     u8"Dein Speicherstand ist schon offen: All das ist erst\n"
-     u8"nach dem nächsten Laden drin. Lade ihn neu:\n"
+     u8"Dein Speicherstand ist schon offen: Das alles\n"
+     u8"kommt erst beim nächsten Laden. Lade ihn neu:\n"
      u8"Esc, „Speichern und zurück zum Menü“,\n"
      u8"dann „Spielen“ und wähle ihn."},
     {u8"%s : j'arrive !", u8"%s: Ich komme!"},
@@ -1274,9 +1269,9 @@ const TrPair kTable_de[] = {
      u8"Rejoins son équipe ?",
      u8"Laufendes Abenteuer\n"
      u8"\n"
-     u8"%s ist mit deinen Katzen im Abenteuer!\n"
-     u8"Solange du nicht da bist, steuert die Spiel-KI\n"
-     u8"sie im Kampf und %s wählt für sie.\n"
+     u8"%s ist mit deinen Katzen unterwegs!\n"
+     u8"Bis du da bist, steuert die Spiel-KI sie\n"
+     u8"im Kampf und %s wählt für sie.\n"
      u8"Seinem Team beitreten?"},
     {u8"Aventure en cours\n"
      u8"\n"
@@ -1303,10 +1298,10 @@ const TrPair kTable_de[] = {
      u8"clique sur un panneau de ta maison.",
      u8"Abenteuer verlassen\n"
      u8"\n"
-     u8"Es ist das Abenteuer von %s: Nur er kann\n"
-     u8"es abbrechen. Es geht ohne dich weiter.\n"
+     u8"Nur %s kann dieses Abenteuer\n"
+     u8"abbrechen. Es geht ohne dich weiter.\n"
      u8"\n"
-     u8"Nach Hause zurückkehren? Um wiederzukommen,\n"
+     u8"Nach Hause gehen? Um zurückzukommen,\n"
      u8"klick auf ein Schild in deinem Haus."},
     {u8"Quitter l'aventure\n"
      u8"\n"
@@ -1320,13 +1315,13 @@ const TrPair kTable_de[] = {
      u8"clique sur un panneau de ta maison.",
      u8"Abenteuer verlassen\n"
      u8"\n"
-     u8"Es ist das Abenteuer von %s: Nur er kann\n"
-     u8"es abbrechen. Es geht ohne dich weiter, und\n"
-     u8"deine Katzen bleiben in seinem Team: Die Spiel-KI\n"
-     u8"steuert sie im Kampf, am Ende kommen sie\n"
-     u8"zu dir nach Hause.\n"
+     u8"Nur %s kann dieses Abenteuer\n"
+     u8"abbrechen. Es geht ohne dich weiter,\n"
+     u8"deine Katzen bleiben in seinem Team:\n"
+     u8"Die Spiel-KI steuert sie im Kampf, am Ende\n"
+     u8"kommen sie zu dir.\n"
      u8"\n"
-     u8"Nach Hause zurückkehren? Um wiederzukommen,\n"
+     u8"Nach Hause gehen? Um zurückzukommen,\n"
      u8"klick auf ein Schild in deinem Haus."},
     {u8"Rejoindre l'aventure\n"
      u8"\n"
@@ -1354,7 +1349,7 @@ const TrPair kTable_de[] = {
      u8"Tu rentres dans ta maison.",
      u8"Rückkehr nach Hause\n"
      u8"\n"
-     u8"Die Verbindung zu %s ist unterbrochen.\n"
+     u8"Verbindung zu %s unterbrochen.\n"
      u8"Du kehrst nach Hause zurück."},
     {u8"Retour à la maison\n"
      u8"\n"
@@ -1362,7 +1357,7 @@ const TrPair kTable_de[] = {
      u8"Tu rentres dans ta maison.",
      u8"Rückkehr nach Hause\n"
      u8"\n"
-     u8"Der Aufbruch mit %s hat nicht stattgefunden.\n"
+     u8"Der Aufbruch mit %s fand nicht statt.\n"
      u8"Du kehrst nach Hause zurück."},
     {u8"Retour à la maison\n"
      u8"\n"
@@ -1383,13 +1378,13 @@ const TrPair kTable_de[] = {
      u8"un panneau de ta maison.",
      u8"Rückkehr nach Hause\n"
      u8"\n"
-     u8"Der Kampf von %s war vorbei, aber deine Kopie\n"
-     u8"lief weiter: Sie war nicht mehr synchron,\n"
-     u8"niemand spielte diesen Kampf mehr. Du bist\n"
-     u8"zurück; deine Katzen bleiben in seinem Team.\n"
+     u8"Der Kampf von %s war vorbei, deine\n"
+     u8"Kopie lief aber weiter: Sie war\n"
+     u8"desynchronisiert, niemand spielte mehr.\n"
+     u8"Du bist zurück; deine Katzen bleiben in seinem Team.\n"
      u8"\n"
-     u8"Um zurück ins Abenteuer zu kommen, klick\n"
-     u8"auf ein Schild in deinem Haus."},
+     u8"Um wieder ins Abenteuer zu kommen,\n"
+     u8"klick auf ein Schild in deinem Haus."},
     {u8"Retour à la maison\n"
      u8"\n"
      u8"Ton combat s'est fini, mais celui de %s\n"
@@ -1402,14 +1397,14 @@ const TrPair kTable_de[] = {
      u8"un panneau de ta maison.",
      u8"Rückkehr nach Hause\n"
      u8"\n"
-     u8"Dein Kampf war vorbei, aber der von %s\n"
-     u8"lief weiter: Deine Kopie war nicht\n"
-     u8"mehr synchron. Du bist zurück; deine Katzen\n"
-     u8"bleiben in seinem Team, die Spiel-KI steuert\n"
-     u8"sie bis zum Ende des Kampfes.\n"
+     u8"Dein Kampf war vorbei, der von %s\n"
+     u8"lief aber weiter: Deine Kopie war\n"
+     u8"desynchronisiert. Du bist zurück;\n"
+     u8"deine Katzen bleiben in seinem Team,\n"
+     u8"die Spiel-KI steuert sie bis Kampfende.\n"
      u8"\n"
-     u8"Um zurück ins Abenteuer zu kommen, klick\n"
-     u8"auf ein Schild in deinem Haus."},
+     u8"Um wieder ins Abenteuer zu kommen,\n"
+     u8"klick auf ein Schild in deinem Haus."},
     {u8"Retour à la maison\n"
      u8"\n"
      u8"%s est entré dans une case que ton jeu\n"
@@ -1422,14 +1417,14 @@ const TrPair kTable_de[] = {
      u8"un panneau de ta maison.",
      u8"Rückkehr nach Hause\n"
      u8"\n"
-     u8"%s hat ein Feld betreten, dem dein Spiel\n"
-     u8"nicht folgen konnte: Deine Kopie des Abenteuers\n"
-     u8"war nicht mehr gleich. Du bist zurück; deine\n"
-     u8"Katzen bleiben in seinem Team, die Spiel-KI\n"
+     u8"%s hat ein Feld betreten, dem dein\n"
+     u8"Spiel nicht folgen konnte: Deine Kopie\n"
+     u8"des Abenteuers wich ab. Du bist zurück;\n"
+     u8"deine Katzen bleiben in seinem Team, die Spiel-KI\n"
      u8"steuert sie.\n"
      u8"\n"
-     u8"Um zurück ins Abenteuer zu kommen, klick\n"
-     u8"auf ein Schild in deinem Haus."},
+     u8"Um wieder ins Abenteuer zu kommen,\n"
+     u8"klick auf ein Schild in deinem Haus."},
     {u8"Retour à la maison\n"
      u8"\n"
      u8"Ta copie du combat s'est désynchronisée de\n"
@@ -1441,20 +1436,20 @@ const TrPair kTable_de[] = {
      u8"un panneau de ta maison.",
      u8"Rückkehr nach Hause\n"
      u8"\n"
-     u8"Deine Kopie des Kampfes lief nicht mehr synchron\n"
-     u8"mit der von %s: Der Kampf ging ohne dich weiter,\n"
-     u8"also bist du zurück. Deine Katzen bleiben in\n"
-     u8"seinem Team, die Spiel-KI steuert sie.\n"
+     u8"Deine Kopie des Kampfes war\n"
+     u8"nicht mehr synchron mit der von %s:\n"
+     u8"Der Kampf ging ohne dich weiter. Deine Katzen\n"
+     u8"bleiben im Team, die Spiel-KI steuert sie.\n"
      u8"\n"
-     u8"Um zurück ins Abenteuer zu kommen, klick\n"
-     u8"auf ein Schild in deinem Haus."},
+     u8"Um wieder ins Abenteuer zu kommen,\n"
+     u8"klick auf ein Schild in deinem Haus."},
     {u8"Ta save est en pleine aventure.\n"
      u8"En multijoueur, les aventures se jouent avec l'hôte :\n"
      u8"retourne au menu et choisis une autre save,\n"
      u8"ou finis celle-ci en solo.",
-     u8"Dein Speicherstand steckt im Abenteuer.\n"
+     u8"Dein Speicherstand ist im Abenteuer.\n"
      u8"Im Mehrspielermodus spielt man Abenteuer mit dem Host:\n"
-     u8"Geh zurück zum Menü und wähle einen anderen,\n"
+     u8"Wähle im Menü einen anderen\n"
      u8"oder spiel diesen allein zu Ende."},
     {u8"Départ en aventure\n"
      u8"\n"
@@ -1484,15 +1479,15 @@ const TrPair kTable_de[] = {
      u8"envoyer tes chats dans le tuyau n'est\n"
      u8"pas possible avec cette version du jeu.",
      u8"Die NPCs folgen dem Spiel von %s:\n"
-     u8"Deine Katzen ins Rohr zu schicken, geht\n"
-     u8"mit dieser Spielversion nicht."},
+     u8"Katzen ins Rohr schicken geht mit\n"
+     u8"dieser Spielversion nicht."},
     {u8"\n"
      u8"\n"
      u8"C'est une défaite pour toute l'équipe :\n"
      u8"les chats de %s ne rentreront pas non plus.",
      u8"\n"
      u8"\n"
-     u8"Das ist eine Niederlage für das ganze Team:\n"
+     u8"Eine Niederlage fürs ganze Team:\n"
      u8"Auch die Katzen von %s kommen nicht zurück."},
     {u8"Rejoindre %s\n"
      u8"\n"
@@ -1501,9 +1496,9 @@ const TrPair kTable_de[] = {
      u8"puis clique à nouveau sur « Rejoindre la partie ».",
      u8"%s beitreten\n"
      u8"\n"
-     u8"Du bist schon in einer Mehrspieler-Lobby:\n"
-     u8"Verlass sie zuerst (Mehrspieler, dann „Verlassen“),\n"
-     u8"dann klick noch einmal auf „Spiel beitreten“."},
+     u8"Du bist schon in einer Lobby:\n"
+     u8"Verlass sie zuerst (Mehrspieler, „Verlassen“),\n"
+     u8"dann klick erneut auf „Spiel beitreten“."},
     {u8"Rejoindre %s\n"
      u8"\n"
      u8"Ton jeu va revenir au menu principal (ta partie\n"
@@ -1552,18 +1547,18 @@ const TrPair kTable_de[] = {
      u8"Aufbruch ins Abenteuer\n"
      u8"\n"
      u8"Deine Katzen sind schon mit dem Team von %s los:\n"
-     u8"Solange du nicht da bist, steuert die Spiel-KI\n"
-     u8"sie im Kampf und %s wählt für sie; am Ende des\n"
-     u8"Abenteuers kommen sie zu dir nach Hause."},
+     u8"Bis du da bist, steuert die Spiel-KI sie\n"
+     u8"im Kampf und %s wählt für sie; nach dem\n"
+     u8"Abenteuer kommen sie zu dir nach Hause."},
     {u8"Internet", u8"Internet"},
     {u8"%s défend sa maison : un combat qu'il joue\n"
      u8"seul, avec ses chats. Il revient ensuite.",
-     u8"%s verteidigt sein Haus: ein Kampf, den er\n"
-     u8"allein mit seinen Katzen spielt. Dann ist er zurück."},
+     u8"%s verteidigt sein Haus – allein,\n"
+     u8"mit seinen Katzen. Danach ist er zurück."},
     {u8"%s défendent leur maison : chacun joue\n"
      u8"son combat seul, avec ses chats. Ils reviennent ensuite.",
-     u8"%s verteidigen ihre Häuser: Jeder spielt\n"
-     u8"seinen Kampf allein mit seinen Katzen. Danach kommen sie zurück."},
+     u8"%s verteidigen ihre Häuser – jeder\n"
+     u8"allein mit seinen Katzen. Danach sind sie zurück."},
     {u8"%s a fini de défendre sa maison.", u8"%s hat sein Haus verteidigt."},
     {u8"%s a fini de défendre sa maison.\n"
      u8"%s défend la sienne encore.",
@@ -1580,9 +1575,9 @@ const TrPair kTable_de[] = {
      u8"son aventure une fois qu'il sera sur la carte.",
      u8"Aufbruch ins Abenteuer\n"
      u8"\n"
-     u8"Du hast nach der Abstimmung abgesagt: %s bricht\n"
-     u8"ohne dich und deine Katzen auf. Du kannst seinem\n"
-     u8"Abenteuer beitreten, sobald er auf der Karte ist."},
+     u8"Du hast nach der Wahl abgesagt: %s\n"
+     u8"bricht ohne dich und deine Katzen auf.\n"
+     u8"Du kannst beitreten, sobald er auf der Karte ist."},
     {u8"Départ en aventure\n"
      u8"\n"
      u8"Aucun chat ne peut partir cette fois :\n"
@@ -1593,12 +1588,12 @@ const TrPair kTable_de[] = {
      u8"%s bricht nicht ins Abenteuer auf."},
     {u8"Le partage du butin n'est pas fini :\n"
      u8"attends la fin du défilé des objets.",
-     u8"Die Beuteverteilung ist noch nicht fertig:\n"
-     u8"Warte, bis alle Gegenstände durch sind."},
+     u8"Die Beuteverteilung läuft noch:\n"
+     u8"Warte, bis alles verteilt ist."},
     {u8"Tu pars rejoindre l'aventure de %s :\n"
      u8"tu défendras ta maison à ton retour.",
-     u8"Du trittst dem Abenteuer von %s bei:\n"
-     u8"Dein Haus verteidigst du nach der Rückkehr."},
+     u8"Du gehst ins Abenteuer von %s:\n"
+     u8"Dein Haus verteidigst du danach."},
     {u8"C'est %s qui lance l'aventure :\n"
      u8"demande-lui de cliquer sur « À l'aventure ! ».",
      u8"%s startet das Abenteuer:\n"
@@ -1619,7 +1614,7 @@ const TrPair kTable_de[] = {
      u8"Mehrspieler-Lobby\n"
      u8"\n"
      u8"[c:red]Port %u lässt sich nicht öffnen.[/c]\n"
-     u8"Vielleicht nutzt ihn ein anderes Programm.\n"
+     u8"Vielleicht belegt ihn ein Programm.\n"
      u8"Beende die Lobby und versuch es erneut."},
     {u8"Salon multijoueur\n"
      u8"\n"
@@ -1752,7 +1747,7 @@ const TrPair kTable_de[] = {
      u8"Mehrspieler-Lobby\n"
      u8"\n"
      u8"[c:red]%s ist nicht erreichbar.[/c]\n"
-     u8"Prüf die Adresse und ob dein Freund wirklich\n"
+     u8"Prüf die Adresse und ob dein Freund\n"
      u8"auf „Hosten“ geklickt hat."},
     {u8"Salon multijoueur\n"
      u8"\n"
@@ -1778,8 +1773,8 @@ const TrPair kTable_de[] = {
      u8"Quitte le salon, puis rejoins-le à nouveau.",
      u8"Mehrspieler-Lobby\n"
      u8"\n"
-     u8"[c:red]Die Verbindung zum Host ist unterbrochen.[/c]\n"
-     u8"Verlass die Lobby und tritt ihr erneut bei."},
+     u8"[c:red]Verbindung zum Host unterbrochen.[/c]\n"
+     u8"Verlass die Lobby und tritt erneut bei."},
     {u8"Salon multijoueur\n"
      u8"\n"
      u8"Connexion à %s par Steam...\n"
@@ -1806,13 +1801,13 @@ const TrPair kTable_de[] = {
      u8"l'écran des sauvegardes s'ouvrira tout seul.",
      u8"Mehrspieler-Lobby\n"
      u8"\n"
-     u8"Du bist dem Spiel von %s beigetreten!\n"
+     u8"Du bist im Spiel von %s!\n"
      u8"\n"
      u8"Spieler (%d/4):\n"
      u8"%s\n"
      u8"Warte auf das Spiel von %s:\n"
-     u8"Sobald er seinen Speicherstand gewählt hat,\n"
-     u8"öffnet sich die Speicherstand-Auswahl von selbst."},
+     u8"Sobald er seinen Speicherstand wählt,\n"
+     u8"öffnet sich die Auswahl von selbst."},
     {u8"Salon multijoueur\n"
      u8"\n"
      u8"Tu as rejoint la partie de %s !\n"
@@ -1824,12 +1819,12 @@ const TrPair kTable_de[] = {
      u8"tu pourras choisir la tienne.",
      u8"Mehrspieler-Lobby\n"
      u8"\n"
-     u8"Du bist dem Spiel von %s beigetreten!\n"
+     u8"Du bist im Spiel von %s!\n"
      u8"\n"
      u8"Spieler (%d/4):\n"
      u8"%s\n"
      u8"Warte auf das Spiel von %s:\n"
-     u8"Sobald er seinen Speicherstand gewählt hat,\n"
+     u8"Sobald er seinen Speicherstand wählt,\n"
      u8"kannst du deinen wählen."},
     {u8"Salon multijoueur\n"
      u8"\n"
@@ -1842,7 +1837,7 @@ const TrPair kTable_de[] = {
      u8"et pour partir à l'aventure, tu rejoindras son équipe.",
      u8"Mehrspieler-Lobby\n"
      u8"\n"
-     u8"Du bist dem Spiel von %s beigetreten!\n"
+     u8"Du bist im Spiel von %s!\n"
      u8"\n"
      u8"Spieler (%d/4):\n"
      u8"%s\n"
@@ -1858,7 +1853,7 @@ const TrPair kTable_de[] = {
     {u8"Annuler", u8"Abbrechen"},
     {u8"Échanger avec %s", u8"Tauschen mit %s"},
     {u8"Donner à qui ?", u8"Wem schenken?"},
-    {u8"Haut ou Bas pour choisir, puis Entrée.", u8"Hoch oder Runter zum Wählen, dann Enter."},
+    {u8"Haut ou Bas pour choisir, puis Entrée.", u8"Wähle mit Hoch/Runter, dann Enter."},
     {u8"Pièces à donner : %lld_", u8"Münzen zum Verschenken: %lld_"},
     {u8"Nourriture à donner : %lld_", u8"Futter zum Verschenken: %lld_"},
     {u8"Tape un nombre (T : tout), puis Entrée.", u8"Tippe eine Zahl (T: alles), dann Enter."},
@@ -1884,7 +1879,7 @@ const TrPair kTable_de[] = {
     {u8"Envoi du don...", u8"Sende Geschenk..."},
     {u8"Personne ne peut recevoir maintenant.", u8"Gerade kann niemand etwas empfangen."},
     {u8"Personne d'autre n'est dans la partie.", u8"Sonst ist niemand im Spiel."},
-    {u8"Valider", u8"Fertig"},
+    {u8"Confirmer", u8"Bestätigen"},
     {u8"Donner", u8"Schenken"},
     {u8"Recommencer", u8"Neu anfangen"},
     {u8"Fermer", u8"Schließen"},
