@@ -22,7 +22,9 @@ panneau technique F1 (ImGui).
   celle de Windows, sinon le français) ; le choix « Langue » de ses Réglages l'écrit.
 - Les outils : `tools/i18n_cles.py` écrit toutes les clés dans un CSV (où, contexte,
   largeur permise, traductions déjà faites, noms officiels des boutons du jeu cités) ;
-  `tests/test_i18n.cpp` vérifie les tables (section 5).
+  `tools/i18n_table.py` écrit une table depuis des fichiers JSON (`--extraire` : l'inverse) ;
+  `tools/i18n_lignes.py` simule la mise en page du jeu (section 3) ; `tests/test_i18n.cpp`
+  vérifie les tables (section 5).
 
 ## 2. Écrire une traduction
 
@@ -39,8 +41,20 @@ const TrPair kTable_de[] = {
 ```
 
 - La clé se recopie **à l'octet près** : mêmes `\n`, mêmes espaces, mêmes `%s`, mêmes
-  balises `[c:red]…[/c]`, même ponctuation. Le plus sûr : la copier depuis le CSV de
-  `tools/i18n_cles.py` (les `\n` y sont écrits `\n`) ou depuis le code.
+  balises `[c:red]…[/c]`, même ponctuation. Le plus sûr : ne pas écrire la table à la main,
+  mais passer par `tools/i18n_table.py` :
+
+  ```
+  python tools/i18n_table.py de travail_de --extraire   # la table -> travail_de/00_table.json
+  (corriger, ou ajouter un travail_de/50_ajouts.json : { "clé française": "traduction" })
+  python tools/i18n_table.py de travail_de              # réécrit src/i18n/lang_de.cpp
+  ```
+
+  Dans le JSON, un retour à la ligne s'écrit comme dans le CSV de `tools/i18n_cles.py`
+  (les deux caractères `\n`). L'outil refuse une clé qui n'est plus dans le code, écrit les
+  caractères invisibles en `\u…` (U+200B et U+00A0 se perdent dans la plupart des éditeurs)
+  et range la table dans l'ordre du code. Une clé dont le texte français a changé disparaît
+  de l'extraction : la retraduire.
 - Plusieurs `u8"…"` à la suite se collent (comme dans le code) : pratique pour les textes
   longs.
 - Échappements : `\n` (retour à la ligne), `\"`, `\\`, `\u00A0` (espace insécable),
@@ -90,7 +104,11 @@ polices du jeu, à 24 px : une lettre de TikaFont fait en moyenne 0,58 em, soit 
 
 Hauteur : 234 px, soit 6 lignes de TikaFont si l'interligne suit la police (1,41 em +
 2 px), davantage s'il est plus serré — non mesuré en jeu. Des textes français ont déjà
-8 lignes (le salon) : une traduction ne doit pas en ajouter.
+8 lignes (le salon) : une traduction ne doit pas en ajouter. `tools/i18n_lignes.py` compte
+les lignes affichées de chaque texte dans chaque langue (avances des glyphes des polices du
+jeu, ordre de `data/font_remap.gon`, coupure du jeu) et liste ceux qui en prennent plus
+qu'en français : `python tools/i18n_lignes.py cles.csv de` (une estimation : les `%s` ne
+sont pas remplacés).
 
 ### Dans le lanceur (textes de `launcher/`)
 
@@ -167,14 +185,16 @@ sa langue** (colonne de `combined.csv` dans `resources.gpak`, à lire sur sa mac
 | `MAIN_MENU_MEOW` | Miauler | le bouton que le mod renomme « Multijoueur » |
 | `MAIN_MENU_SETTINGS` | Réglages | |
 | `MAIN_MENU_QUIT` | Quitter | |
-| `PAUSE_MENU_BUTTON_QUITTOMENU` | Sauvegarder et retourner au menu | le mod écrit « Quitter vers le menu » : prendre le texte officiel |
+| `PAUSE_MENU_BUTTON_QUITTOMENU` | Sauvegarder et retourner au menu | |
 | `PAUSE_MENU_BUTTON_ABANDONRUN` | Abandonner l'aventure | le bouton qui devient « Échanger » |
 | `PAUSE_MENU_BUTTON_ABANDONFIGHT` | Déclarer forfait | |
 | `HOUSE_BUTTON_DEPART` | À l'aventure ! | « À l'aventure ! » |
 | `HOUSE_BUTTON_DEFEND` | Défendre ! | « Défendre ! » |
 | `HOUSE_BUTTON_ENDDAY` | Fin de journée | |
-| `INVENTORY_LOCKIN_BUTTON` | Valider | « Valider » (colliers, objets) |
+| `INVENTORY_LOCKIN_BUTTON` | Valider | « Valider » (colliers, objets) ; le bouton de l'échange est « Confirmer », pour ne pas le confondre |
 | `POPUP_MODAL_YES`, `_NO`, `_OK`, `_CANCEL` | Oui, Non, OK, Annuler | |
+| `NPC_NAME_BEANIES`, `NPC_NAME_JACK`, `NPC_NAME_BUTCH`… | Dr Beanies, Bébé Jack, Butch… | les PNJ à qui l'on donne un chat |
+| `EVENT_ORGANGRINDER_NAME` | Broyeur d'organe | ce PNJ-là, que le joueur nomme lui-même |
 
 ### Les mots du mod
 
