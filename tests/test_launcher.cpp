@@ -271,6 +271,11 @@ void text() {
     check(lines.size() == 1 && lines[0] == u"冒険を\u200Bやめ", "U+200B sans coupe : garde (sans largeur)");
     lines = wrap_lines(u"冒険をやめますか", 3, zw);
     check(lines.size() == 3 && lines[0] == u"冒険を" && lines[2] == u"すか", "sans U+200B : coupe ou ca deborde");
+
+    // fmt : une phrase traduite et ses valeurs, sans limite de longueur.
+    const std::string longue(5000, 'x');
+    check(fmt("%s (%d)", longue.c_str(), 7) == longue + " (7)", "fmt : longue chaine entiere");
+    check(fmt("rien").size() == 4, "fmt : sans valeur");
 }
 
 } // namespace

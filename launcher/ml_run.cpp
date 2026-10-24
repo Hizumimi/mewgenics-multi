@@ -1,6 +1,8 @@
 // ml_run.cpp -- voir ml_run.h.
 #include "ml_run.h"
 
+#include "mm_lang.h"
+
 namespace ml {
 namespace {
 
@@ -27,7 +29,7 @@ bool Launch::start(const std::wstring& dir, const std::wstring& loader) {
     {
         std::lock_guard<std::mutex> lk(m_);
         snap_.state  = State::Running;
-        snap_.phrase = u8"Lancement du mod…";
+        snap_.phrase = tr(u8"Lancement du mod…");
         snap_.lines.clear();
         snap_.cancelled = false;
         ++snap_.seq;
@@ -40,7 +42,7 @@ bool Launch::start(const std::wstring& dir, const std::wstring& loader) {
     SECURITY_ATTRIBUTES sa = { sizeof(sa), nullptr, TRUE };
     HANDLE rd = nullptr, wr = nullptr;
     if (!CreatePipe(&rd, &wr, &sa, 0)) {
-        set_failed(u8"Windows n'a pas pu préparer le lancement. Relance Mewgenics Multi.");
+        set_failed(tr(u8"Windows n'a pas pu préparer le lancement. Relance Mewgenics Multi."));
         return true;
     }
     SetHandleInformation(rd, HANDLE_FLAG_INHERIT, 0);
@@ -57,8 +59,8 @@ bool Launch::start(const std::wstring& dir, const std::wstring& loader) {
     CloseHandle(wr);   // sinon le tuyau ne se ferme jamais a la sortie du loader
     if (!ok) {
         CloseHandle(rd);
-        set_failed(u8"mgmp_loader.exe n'a pas pu démarrer : extrais de nouveau le dossier du mod depuis "
-                   u8"le zip (ou ton antivirus l'a mis de côté).");
+        set_failed(tr(u8"mgmp_loader.exe n'a pas pu démarrer : extrais de nouveau le dossier du mod depuis "
+                      u8"le zip (ou ton antivirus l'a mis de côté)."));
         return true;
     }
 
@@ -128,7 +130,7 @@ void Launch::read_loop(HANDLE rd, HANDLE txt) {
     std::lock_guard<std::mutex> lk(m_);
     if (cancelled_ && report_.state != LoaderReport::Loaded) {
         snap_.state  = State::Failed;
-        snap_.phrase = u8"Lancement annulé.";
+        snap_.phrase = tr(u8"Lancement annulé.");
         snap_.cancelled = true;
     } else {
         report_.finish((int)code);
