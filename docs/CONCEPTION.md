@@ -1,8 +1,8 @@
 # Mewgenics Multi — Document de conception
 
 > Copie du document de conception en ligne
-> (https://claude.ai/code/artifact/5e9195c8-3a1e-446a-a5a6-a43fea7459f7, révision 119,
-> prise le 24 octobre 2026, après la build 55), pour qu'il se lise sans claude.ai. Ses trois schémas
+> (https://claude.ai/code/artifact/5e9195c8-3a1e-446a-a5a6-a43fea7459f7, révision 120,
+> prise le 24 octobre 2026, après la build 56), pour qu'il se lise sans claude.ai. Ses trois schémas
 > n'y sont pas. Le document en ligne est celui que Hizu lit : une règle qui change
 > se note dans les deux. Ce qui a été fait build par build : `docs/PASSATION.md`.
 
@@ -172,6 +172,7 @@ Les autres joueurs envoient leurs actions et leurs votes à l'hôte, qui renvoie
 - **Contrôle** : à chaque tour de combat et à chaque case de la carte, les PC comparent une empreinte de leur état. En cas d'écart, le jeu s'arrête et le journal indique la différence.
 - **Transfert de chat** : un chat est converti en paquet de données (gènes, stats, mutations, capacités, objets), envoyé, puis recréé chez les autres.
 - **Interface** : les fenêtres du jeu lui-même (sa boîte de confirmation, avec sa police et notre texte en Unicode) pour le salon, les votes, la boîte de départ et le défilé du butin ; leur texte se met à jour en direct. Le panneau technique de mgmp reste sur F1 pour le débogage.
+- **Langues** : depuis la build 56, le mod et le lanceur parlent les dix langues du jeu (anglais, espagnol, français, allemand, italien, portugais du Brésil, russe, coréen, japonais, chinois simplifié). La DLL suit la langue réglée dans le jeu, le lanceur son propre choix « Langue » (par défaut celle du jeu). Chacun voit sa langue : ce qu'un joueur envoie à un autre est écrit par celui qui le lit. Les journaux, le panneau F1 et le LISEZ-MOI restent en français.
 
 Messages réseau à ajouter à ceux de mgmp :
 
@@ -276,6 +277,10 @@ Build 23, les événements au propriétaire du chat et les objets sac ouvert, à
 - Combat : un invité arrêté dans le dernier combat d'une aventure redevient membre des combats de la suivante ; un invité dont la connexion tombe en plein combat ne joue plus ses chats seul.
 - Lancement : le .bat dit quand Steam est fermé, les messages du lanceur sont en français et justes, un chemin du jeu avec des accents marche. « Rejoindre la partie » par Steam depuis sa maison propose « Y aller ».
 Protocole 67 : les deux joueurs mettent à jour.
+
+**Build 56, le mod dans les dix langues du jeu, à tester.** Les fenêtres du mod et le lanceur sont traduits en anglais, espagnol, allemand, italien, portugais du Brésil, russe, coréen, japonais et chinois simplifié, avec les mots du jeu (noms des boutons, des PNJ, des lieux). Chaque langue a été traduite, relue, revue une seconde fois, puis vérifiée par une traduction en retour vers le français ; le lanceur a été vérifié sur des captures dans les dix langues. Le mod suit la langue du jeu, le lanceur la sienne. Ce qui change en français : le bouton de l'échange s'appelle « Confirmer » (« Valider » reste le bouton du jeu, aux colliers et aux objets), les PNJ portent leur nom du jeu (Dr Beanies, Bébé Jack, Broyeur d'organe), la date du dernier journal suit l'ordre de la langue.
+
+Protocole 68 : les deux joueurs mettent à jour.
 
 ## Questions ouvertes et sources
 

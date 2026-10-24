@@ -52,7 +52,7 @@ jeu à plusieurs, copie du document de conception en ligne) et `docs/NOTES_MGMP.
 | Quoi | Où |
 |---|---|
 | Le code | ce dépôt : `src/`, `loader/`, `tests/`, `tools/` |
-| Les règles du jeu à plusieurs | document en ligne https://claude.ai/code/artifact/5e9195c8-3a1e-446a-a5a6-a43fea7459f7 ; copie du 22 octobre : `docs/CONCEPTION.md`. Dans « Plan de développement », les builds 1–18 sont dans les étapes numérotées, puis un paragraphe par build ou groupe de builds, les décisions de Hizu datées dans « Questions ouvertes » |
+| Les règles du jeu à plusieurs | document en ligne https://claude.ai/code/artifact/5e9195c8-3a1e-446a-a5a6-a43fea7459f7 ; copie du 24 octobre (révision 120) : `docs/CONCEPTION.md`. Dans « Plan de développement », les builds 1–18 sont dans les étapes numérotées, puis un paragraphe par build ou groupe de builds, les décisions de Hizu datées dans « Questions ouvertes » |
 | Le binaire du jeu | `docs/NOTES_MGMP.md` (écrit par l'auteur de mgmp ; tenues à jour depuis la build 40 : sections « Protocol 59 » à « Protocol 68 », « Steam transport », et le paragraphe « protocol 58 » de « Reconnect and mid-fight join » ; avant, les trouvailles sur le binaire sont dans les messages de commit et les commentaires du code) |
 | L'historique du protocole | le commentaire de `kProtoVersion`, `src/net/mgmp_proto.h` ligne 54 : une phrase par version, de 68 (en tête) à 28 (avec deux entrées « 48 »), puis l'historique de mgmp, 2 à 27, en anglais. **Une seule ligne de 24 Ko** : la lire par morceaux (`grep -n -a … \| cut -c1-200`) |
 | Le pourquoi de chaque changement | les messages de commit (en français depuis le 11 octobre : la règle, le cas, le protocole, les tests) |
