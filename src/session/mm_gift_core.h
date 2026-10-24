@@ -94,6 +94,12 @@ bool gift_storage_append(std::vector<uint8_t>& blob, const std::vector<ItemField
 // Les objets d'un bloc de rangement (pour verifier un ajout) ; faux s'il est illisible.
 bool gift_storage_items(const std::vector<uint8_t>& blob, std::vector<ItemFields>& out);
 
+// Les textes ci-dessous passent par tr() (mm_lang) : la langue courante.
+
+// Le francais elide « de » devant ce nom (purse_of : « d'Ami ») : pour choisir entre
+// deux cles, tr(u8"Cadeau d'%s") ou tr(u8"Cadeau de %s").
+bool gift_elide(const std::string& name);
+
 // « 20 pièces, 5 nourritures et Casse-croûte » (UTF-8) ; « rien » si vide.
 std::string gift_list_text(int64_t coins, int64_t food, const std::vector<std::string>& labels);
 

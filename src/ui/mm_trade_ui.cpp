@@ -4,6 +4,7 @@
 #include "mm_gift.h"
 #include "mm_gift_core.h"
 #include "mm_menu.h"
+#include "mm_lang.h"
 #include "mm_purse_core.h"   // purse_safe
 
 #include "mgmp_follow.h"     // follow_pending_count, follow_node_live
@@ -12,7 +13,9 @@
 #include "mgmp_savefile.h"
 
 #include <algorithm>
+#include <cstdarg>
 #include <cstdint>
+#include <cstdio>
 #include <string>
 #include <utility>
 #include <vector>
@@ -25,7 +28,17 @@ constexpr size_t kMaxKeys   = 32;
 constexpr size_t kMaxNotes  = 8;
 constexpr size_t kMaxFilter = 24;   // la recherche, en octets UTF-8
 
-const char* const kTitle = u8"Échanger";
+// Le titre des boites, aussi le libelle du bouton du menu pause (mm_menu).
+const char* title() { return tr(u8"Échanger"); }
+
+std::string fmt(const char* f, ...) {
+    char buf[1024];
+    va_list ap;
+    va_start(ap, f);
+    vsnprintf(buf, sizeof(buf), f, ap);
+    va_end(ap);
+    return buf;
+}
 
 // Les etapes, dans l'ordre de la suite.
 enum class Step { Off, Who, Coins, Food, Items, Confirm, Wait, Nobody };
@@ -137,49 +150,55 @@ std::string items_why_text() {
 }
 
 std::string step_text() {
-    const TradeView&  v    = t.v;
-    const std::string with = std::string(kTitle) + u8" avec " + target_name();
+    const TradeView&  v     = t.v;
+    const std::string head  = std::string(title()) + "\n\n";
+    const std::string with  = fmt(tr(u8"Échanger avec %s"), target_name().c_str());
     switch (t.step) {
     case Step::Who: {
-        std::string s = std::string(kTitle) + u8"\n\nDonner à qui ?\n\n";
+        std::string s = head + tr(u8"Donner à qui ?") + "\n\n";
         for (size_t i = 0; i < t.who.size(); ++i) s += (i == t.who_at ? "> " : "    ") + purse_safe(t.who[i].name) + "\n";
-        return s + u8"\nHaut ou Bas pour choisir, puis Entrée.";
+        return s + "\n" + tr(u8"Haut ou Bas pour choisir, puis Entrée.");
     }
     case Step::Coins:
     case Step::Food: {
         const bool coins = t.step == Step::Coins;
-        return with + "\n\n" + v.have_text + items_why_text() + "\n\n" + (coins ? u8"Pièces à donner : " : u8"Nourriture à donner : ") +
-               std::to_string(coins ? t.coins : t.food) + u8"_\n\nTape un nombre (T : tout), puis Entrée.";
+        const long long n = (long long)(coins ? t.coins : t.food);
+        return with + "\n\n" + v.have_text + items_why_text() + "\n\n" +
+               fmt(coins ? tr(u8"Pièces à donner : %lld_") : tr(u8"Nourriture à donner : %lld_"), n) + "\n\n" +
+               tr(u8"Tape un nombre (T : tout), puis Entrée.");
     }
     case Step::Items: {
-        const size_t n = trade_picked(t.list);
-        return with + u8" : les objets de ton rangement\n16 au plus par don : " + std::to_string(n) +
-               (n > 1 ? u8" choisis." : u8" choisi.") + "\n\n" +
-               (v.items_ready ? trade_list_text(t.list, kPage) : std::string(u8"Lecture du rangement...")) +
-               u8"\n\nHaut/Bas : choisir, Espace : cocher, Gauche/Droite : combien.\nDes lettres pour chercher, "
-               u8"puis Entrée.";
+        const unsigned n = (unsigned)trade_picked(t.list);
+        return fmt(tr(u8"Échanger avec %s : les objets de ton rangement"), target_name().c_str()) + "\n" +
+               fmt(n > 1 ? tr(u8"16 au plus par don : %u choisis.") : tr(u8"16 au plus par don : %u choisi."), n) +
+               "\n\n" + (v.items_ready ? trade_list_text(t.list, kPage) : std::string(tr(u8"Lecture du rangement..."))) +
+               "\n\n" +
+               tr(u8"Haut/Bas : choisir, Espace : cocher, Gauche/Droite : combien.\nDes lettres pour chercher, "
+                  u8"puis Entrée.");
     }
     case Step::Confirm: {
         const std::string what = what_text();
         if (what.empty())
-            return std::string(kTitle) + (first_step() != Step::Confirm ? u8"\n\nTu n'as rien choisi à donner."
-                                                                        : u8"\n\nTu n'as rien à donner pour l'instant.") +
+            return head + (first_step() != Step::Confirm ? tr(u8"Tu n'as rien choisi à donner.")
+                                                         : tr(u8"Tu n'as rien à donner pour l'instant.")) +
                    items_why_text();
-        return std::string(kTitle) + u8"\n\nDonner " + what + (t.mode == TradeMode::Run ? u8" de ta bourse" : "") +
-               u8"\nà " + target_name() + u8" ?" + items_why_text();
+        return head +
+               fmt(t.mode == TradeMode::Run ? tr(u8"Donner %s de ta bourse\nà %s ?") : tr(u8"Donner %s\nà %s ?"),
+                   what.c_str(), target_name().c_str()) +
+               items_why_text();
     }
     case Step::Wait:
-        if (v.status_id == t.sent_sid) return std::string(kTitle) + u8"\n\nEnvoi du don...";
-        return std::string(kTitle) + "\n\n" + v.status;
+        if (v.status_id == t.sent_sid) return head + tr(u8"Envoi du don...");
+        return head + v.status;
     case Step::Nobody: {
-        std::string s = std::string(kTitle) + u8"\n\nPersonne ne peut recevoir maintenant.";
+        std::string s = head + tr(u8"Personne ne peut recevoir maintenant.");
         for (const TradePeer& p : v.peers)
             if (!p.why.empty()) s += "\n" + p.why;
-        if (v.peers.empty()) s += u8"\nPersonne d'autre n'est dans la partie.";
+        if (v.peers.empty()) s += std::string("\n") + tr(u8"Personne d'autre n'est dans la partie.");
         return s;
     }
     default:
-        return kTitle;
+        return title();
     }
 }
 
@@ -188,30 +207,30 @@ void open_box() {
     // Des montants gardes d'une autre fois : pas plus que ce qu'il a maintenant.
     t.coins = std::min(t.coins, max_coins());
     t.food  = std::min(t.food, max_food());
-    const char* yes = u8"Valider";
-    const char* no  = u8"Passer";
+    const char* yes = tr(u8"Valider");
+    const char* no  = tr(u8"Passer");
     switch (t.step) {
     case Step::Who:
-        yes = u8"Choisir";
-        no  = u8"Annuler";
+        yes = tr(u8"Choisir");
+        no  = tr(u8"Annuler");
         break;
     case Step::Confirm:
-        no = u8"Annuler";
+        no = tr(u8"Annuler");
         if (something()) {
-            yes = u8"Donner";
+            yes = tr(u8"Donner");
         } else if (first_step() != Step::Confirm) {
-            yes = u8"Recommencer";
+            yes = tr(u8"Recommencer");
         } else {                 // rien a donner du tout
-            yes = u8"D'accord";
+            yes = tr(u8"D'accord");
             no  = nullptr;
         }
         break;
     case Step::Wait:
-        yes = u8"Fermer";
+        yes = tr(u8"Fermer");
         no  = nullptr;
         break;
     case Step::Nobody:
-        yes = u8"D'accord";
+        yes = tr(u8"D'accord");
         no  = nullptr;
         break;
     default:
@@ -239,8 +258,8 @@ void start(TradeMode want) {
     const TradeView& v = t.v;
     if (!t.have || v.mode != want) {
         const std::string why = t.have && v.mode == TradeMode::None ? v.why_none
-                                                                    : std::string(u8"Pas d'échange possible ici.");
-        t.notes.push_back({std::string(kTitle) + "\n\n" + why, false});
+                                                                    : std::string(tr(u8"Pas d'échange possible ici."));
+        t.notes.push_back({std::string(title()) + "\n\n" + why, false});
         log_line("DON", "Echanger : pas maintenant (%s)", want == TradeMode::House ? "maison" : "bourse");
         return;
     }
@@ -347,7 +366,7 @@ void take_toasts() {
         t.toast_seen = n.id;
         if (n.result && t.step == Step::Wait) continue;    // la boite d'attente la montre
         if (t.notes.size() >= kMaxNotes) t.notes.erase(t.notes.begin());
-        t.notes.push_back({std::string(kTitle) + "\n\n" + n.text, !n.result});
+        t.notes.push_back({std::string(title()) + "\n\n" + n.text, !n.result});
     }
 }
 
@@ -398,8 +417,9 @@ void trade_ui_pump() {
             stop(false);
         } else if (t.mode == TradeMode::Run && follow) {
             log_line("DON", "Echanger ferme : l'hote entre dans une case");
-            t.notes.push_back({std::string(kTitle) + u8"\n\nLa fenêtre s'est fermée : l'hôte est entré dans une "
-                                                     u8"case.\nCe que tu avais choisi est gardé (E pour reprendre).",
+            t.notes.push_back({std::string(title()) + "\n\n" +
+                                   tr(u8"La fenêtre s'est fermée : l'hôte est entré dans une case.\nCe que tu avais "
+                                      u8"choisi est gardé (E pour reprendre)."),
                                false});
             stop(false);
         } else if (t.box && !mm_trade_box_alive()) {
@@ -434,8 +454,8 @@ void trade_ui_pump() {
              !mm_other_popup_open() && !mm_loot_popup_open();
     if (!t.run_said && v.mode == TradeMode::Run && v.show && !v.peers.empty()) {
         t.run_said = true;
-        t.notes.push_back({std::string(kTitle) + u8" en aventure\n\nSur la carte, appuie sur E pour donner des "
-                                                 u8"pièces\nou de la nourriture de ta bourse à un autre joueur.",
+        t.notes.push_back({tr(u8"Échanger en aventure\n\nSur la carte, appuie sur E pour donner des pièces\nou de "
+                              u8"la nourriture de ta bourse à un autre joueur."),
                            false});
     }
     notes_pump();

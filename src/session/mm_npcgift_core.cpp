@@ -2,6 +2,7 @@
 // portable. Voir mm_npcgift_core.h.
 
 #include "mm_npcgift_core.h"
+#include "mm_lang.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -200,20 +201,23 @@ std::vector<size_t> npcgift_new_items(const std::vector<NpcStored>& before, cons
 
 std::string npcgift_list_text(int64_t coins, int64_t food, const std::vector<std::string>& labels) {
     std::vector<std::string> parts;
-    char b[64] = {};
+    char b[1024] = {};
     if (coins > 0) {
-        snprintf(b, sizeof(b), coins > 1 ? u8"%lld pièces" : u8"%lld pièce", (long long)coins);
+        snprintf(b, sizeof(b), coins > 1 ? tr(u8"%lld pièces") : tr(u8"%lld pièce"), (long long)coins);
         parts.push_back(b);
     }
     if (food > 0) {
-        snprintf(b, sizeof(b), food > 1 ? u8"%lld nourritures" : u8"%lld nourriture", (long long)food);
+        snprintf(b, sizeof(b), food > 1 ? tr(u8"%lld nourritures") : tr(u8"%lld nourriture"), (long long)food);
         parts.push_back(b);
     }
     for (const std::string& l : labels)
         if (!l.empty()) parts.push_back(l);
-    if (parts.empty()) return "rien";
+    if (parts.empty()) return tr(u8"rien");
     std::string s = parts[0];
-    for (size_t i = 1; i < parts.size(); ++i) s += (i + 1 == parts.size() ? " et " : ", ") + parts[i];
+    for (size_t i = 1; i < parts.size(); ++i) {
+        snprintf(b, sizeof(b), i + 1 == parts.size() ? tr(u8"%s et %s") : tr(u8"%s, %s"), s.c_str(), parts[i].c_str());
+        s = b;
+    }
     return s;
 }
 
