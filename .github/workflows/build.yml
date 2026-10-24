@@ -3,6 +3,7 @@ name: Compilation
 on:
   push:
     branches: [main]
+    paths-ignore: ['site/**', '.github/workflows/pages.yml']   # la page a son workflow (pages.yml)
   workflow_dispatch:
 
 permissions:
@@ -34,6 +35,14 @@ jobs:
           Get-FileHash dist/mgmp.dll, dist/mgmp_loader.exe, dist/Mewgenics-Multi.exe -Algorithm SHA256 |
             ForEach-Object { "{0}  {1}" -f $_.Hash.ToLower(), (Split-Path $_.Path -Leaf) } |
             Set-Content dist/SHA256SUMS.txt
+          # Les zips des joueurs, ceux que la page propose (releases/latest/download/...) :
+          # le meme dossier mgmp\ (le LISEZ-MOI a sa partie Linux), sous deux noms.
+          ./tools/paquet.ps1 -Build ${{ github.run_number }} -Depuis dist -Dossier (Join-Path $PWD zip)
+          Copy-Item zip/mgmp-pour-ton-ami.zip dist/Mewgenics-Multi-Windows.zip
+          Copy-Item zip/mgmp-pour-ton-ami.zip dist/Mewgenics-Multi-Linux.zip
+          Get-FileHash dist/Mewgenics-Multi-Windows.zip, dist/Mewgenics-Multi-Linux.zip -Algorithm SHA256 |
+            ForEach-Object { "{0}  {1}" -f $_.Hash.ToLower(), (Split-Path $_.Path -Leaf) } |
+            Add-Content dist/SHA256SUMS.txt
 
       - name: Publier la build
         shell: pwsh
@@ -41,6 +50,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "build-${{ github.run_number }}"
-          gh release create $tag dist/mgmp.dll dist/mgmp_loader.exe dist/Mewgenics-Multi.exe dist/SHA256SUMS.txt `
+          $notes = "Windows : Mewgenics-Multi-Windows.zip`nLinux / Steam Deck : Mewgenics-Multi-Linux.zip`n" +
+                   "https://hizumimi.github.io/mewgenics-multi/`n`nCommit ${{ github.sha }}"
+          gh release create $tag dist/Mewgenics-Multi-Windows.zip dist/Mewgenics-Multi-Linux.zip `
+            dist/mgmp.dll dist/mgmp_loader.exe dist/Mewgenics-Multi.exe dist/SHA256SUMS.txt `
             --prerelease --target ${{ github.sha }} `
-            --title "Build ${{ github.run_number }}" --notes "Commit ${{ github.sha }}"
+            --title "Build ${{ github.run_number }}" --notes $notes

@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="fr" class="lang-fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title data-i18n="meta.title">Mewgenics Multi : jouer à Mewgenics entre amis</title>
+<meta name="description" content="Mod coop non officiel pour Mewgenics, de 2 à 4 joueurs. Chacun sa maison et ses chats, l’aventure ensemble ! Pour Windows, Linux et Steam Deck." data-i18n-attr="content:meta.description">
+<meta property="og:title" content="Mewgenics Multi">
+<meta property="og:description" content="Chacun sa maison et ses chats, l’aventure ensemble ! Mod coop de 2 à 4 joueurs pour Mewgenics." data-i18n-attr="content:meta.og">
+<meta property="og:image" content="https://cdn.akamai.steamstatic.com/steam/apps/686060/header.jpg">
+<meta name="theme-color" content="#33241a">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Grandstander:wght@700;900&family=Shantell+Sans:wght@400;600;800&display=swap">
+<link rel="stylesheet" href="style.css">
+<script src="app.js"></script>
+</head>
+<body>
+<svg class="defs" aria-hidden="true" focusable="false">
+  <filter id="tremble" x="-2%" y="-2%" width="104%" height="104%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="4"/>
+    <feDisplacementMap in="SourceGraphic" scale="9" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</svg>
+
+<a class="saut" href="#contenu" data-i18n="nav.skip">Aller au contenu</a>
+
+<header class="barre">
+  <a class="marque" href="#haut"><img src="favicon.svg" alt="" width="34" height="34"><span>Mewgenics Multi</span></a>
+  <nav class="nav" aria-label="Sommaire" data-i18n-attr="aria-label:nav.label">
+    <a href="#apports" data-i18n="nav.features">Le mod</a>
+    <a href="#installer" data-i18n="nav.install">Installer</a>
+    <a href="#jouer" data-i18n="nav.play">Jouer</a>
+    <a href="#credits" data-i18n="nav.credits">Crédits</a>
+  </nav>
+  <div class="langue">
+    <label for="langue"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg><span data-i18n="nav.language">Langue</span></label>
+    <select id="langue">
+      <option value="fr" lang="fr">Français</option>
+      <option value="en" lang="en">English</option>
+      <option value="es" lang="es">Español</option>
+      <option value="de" lang="de">Deutsch</option>
+      <option value="it" lang="it">Italiano</option>
+      <option value="pt-BR" lang="pt-BR">Português (Brasil)</option>
+      <option value="ru" lang="ru">Русский</option>
+      <option value="ko" lang="ko">한국어</option>
+      <option value="ja" lang="ja">日本語</option>
+      <option value="zh-CN" lang="zh-CN">简体中文</option>
+    </select>
+  </div>
+</header>
+
+<div class="banniere" aria-hidden="true">
+  <img src="https://cdn.akamai.steamstatic.com/steam/apps/686060/library_hero.jpg" alt="" width="1920" height="620" onerror="this.remove()">
+</div>
+
+<main id="contenu">
+
+  <!-- Départ : la maison -->
+  <section class="etape accueil" id="haut">
+    <div class="feuille feuille-accueil">
+      <div class="accueil-texte">
+        <p class="panneau" data-i18n="hero.stop">Départ · Ta maison</p>
+        <h1 class="titre">
+          <img class="logo" src="https://cdn.akamai.steamstatic.com/steam/apps/686060/logo.png" alt="" width="640" height="360" onerror="this.parentNode.classList.add('sans-logo')">
+          <span class="logo-texte">Mewgenics</span>
+          <span class="multi">Multi</span>
+        </h1>
+        <p class="slogan" data-i18n="hero.tagline">Chacun sa maison et ses chats, l’aventure ensemble !</p>
+        <p class="intro" data-i18n="hero.intro">Un mod coop non officiel pour jouer à Mewgenics de 2 à 4 joueurs.</p>
+        <div class="boutons" id="telecharger">
+          <a class="bouton" href="https://github.com/Hizumimi/mewgenics-multi/releases/latest/download/Mewgenics-Multi-Windows.zip">
+            <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M7 8 L33 6 L34 33 L6 34 Z M20 7 V33 M6.5 20.5 H33.5" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linejoin="round" stroke-linecap="round"/></svg>
+            <span><span class="b-petit" data-i18n="hero.download">Télécharger</span><span class="b-gros">Windows</span></span>
+          </a>
+          <a class="bouton" href="https://github.com/Hizumimi/mewgenics-multi/releases/latest/download/Mewgenics-Multi-Linux.zip">
+            <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 4 C12 4 11 12 12 18 C8 24 6 30 9 34 C14 37 26 37 31 34 C34 30 32 24 28 18 C29 12 28 4 20 4 Z" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round"/><path d="M15 22 C14 28 16 33 20 33 C24 33 26 28 25 22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><circle cx="17" cy="11.5" r="1.8" fill="currentColor"/><circle cx="23" cy="11.5" r="1.8" fill="currentColor"/><path d="M17 15.5 L20 18 L23 15.5 Z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+            <span><span class="b-petit" data-i18n="hero.download">Télécharger</span><span class="b-gros">Linux / Steam Deck</span></span>
+          </a>
+        </div>
+        <p class="infos" data-i18n-html="hero.meta">Pour Mewgenics 1.1.21239 (Steam) · gratuit · <a href="https://github.com/Hizumimi/mewgenics-multi/releases">toutes les versions</a></p>
+        <p class="infos" data-i18n-html="hero.buy">Pas encore le jeu ? <a href="https://store.steampowered.com/app/686060/Mewgenics/">Il est sur Steam</a>.</p>
+        <p class="version" id="version" hidden><span data-i18n="hero.latest">Dernière version :</span> <b id="version-nom"></b></p>
+      </div>
+      <div class="accueil-dessin">
+        <img src="img/maisons.svg" width="600" height="540" alt="Quatre maisons de chats, et leurs chemins qui se rejoignent pour partir à l’aventure" data-i18n-attr="alt:hero.illus.alt">
+      </div>
+    </div>
+  </section>
+
+  <div class="sentier sentier-1" aria-hidden="true"><picture><source media="(min-width: 1101px)" srcset="img/sentier-depart.svg"><img src="img/sentier.svg" alt="" width="160" height="160"></picture></div>
+
+  <!-- Le village : ce que le mod apporte -->
+  <section class="etape village" id="apports" aria-labelledby="t-apports">
+    <p class="panneau" data-i18n="stop.village">Le village</p>
+    <div class="tableau">
+      <div class="tableau-tete">
+        <h2 id="t-apports" data-i18n="features.title">Ce que le mod apporte</h2>
+        <p data-i18n="features.lead">Tout le jeu, mais avec tes amis.</p>
+      </div>
+      <figure class="polaroid polaroid-village">
+        <img src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/686060/4277d9253ea2360418937a3250c8954e2378a510/ss_4277d9253ea2360418937a3250c8954e2378a510.1920x1080.jpg" width="1920" height="1080" loading="lazy" alt="Un habitant de Mewgenics qui raconte les potins du village" data-i18n-attr="alt:features.photo.alt" onerror="this.classList.add('rate')">
+      </figure>
+      <ul class="notes">
+        <li class="note"><img src="img/f-maisons.svg" alt="" width="120" height="100"><h3 data-i18n="features.f1.title">À 2, 3 ou 4</h3><p data-i18n="features.f1.text">Chacun garde sa maison, ses chats et sa sauvegarde, copiée par sécurité avant toute modification.</p></li>
+        <li class="note"><img src="img/f-village.svg" alt="" width="120" height="100"><h3 data-i18n="features.f2.title">Un village partagé</h3><p data-i18n="features.f2.text">Le monde de l’hôte est à tout le monde : PNJ, quêtes, boutiques, histoire et déblocages.</p></li>
+        <li class="note"><img src="img/f-carte.svg" alt="" width="120" height="100"><h3 data-i18n="features.f3.title">L’aventure ensemble</h3><p data-i18n="features.f3.text">Chacun emmène ses chats. Combats synchronisés, chemin voté sur la carte, sac commun, butin partagé.</p></li>
+        <li class="note"><img src="img/f-echange.svg" alt="" width="120" height="100"><h3 data-i18n="features.f4.title">Des échanges</h3><p data-i18n="features.f4.text">Passe objets, pièces et nourriture à tes amis. Chacun garde sa propre bourse.</p></li>
+        <li class="note"><img src="img/f-clic.svg" alt="" width="120" height="100"><h3 data-i18n="features.f5.title">Un clic pour rejoindre</h3><p data-i18n="features.f5.text">Depuis la liste d’amis Steam. Pas de port à ouvrir, pas de VPN.</p></li>
+        <li class="note"><img src="img/f-partout.svg" alt="" width="120" height="100"><h3 data-i18n="features.f6.title">Partout, en dix langues</h3><p data-i18n="features.f6.text">Windows, Linux et Steam Deck jouent ensemble, dans les dix langues du jeu.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="sentier sentier-2" aria-hidden="true"><img src="img/sentier.svg" alt="" width="160" height="160"></div>
+
+  <!-- La carte : installer -->
+  <section class="etape carte" id="installer" aria-labelledby="t-installer">
+    <p class="panneau" data-i18n="stop.map">La carte</p>
+    <div class="feuille feuille-carte">
+      <img class="boussole" src="img/boussole.svg" alt="" width="90" height="90">
+      <h2 id="t-installer" data-i18n="install.title">Installer le mod</h2>
+      <p class="chapeau" data-i18n="install.lead">Choisis ta route : trois étapes, deux minutes.</p>
+      <div class="routes">
+        <div class="route" id="windows">
+          <h3 class="route-titre"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M7 8 L33 6 L34 33 L6 34 Z M20 7 V33 M6.5 20.5 H33.5" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linejoin="round" stroke-linecap="round"/></svg>Windows</h3>
+          <ol class="jalons">
+            <li><p data-i18n-html="install.win.step1"><a href="https://github.com/Hizumimi/mewgenics-multi/releases/latest/download/Mewgenics-Multi-Windows.zip">Télécharge le zip Windows</a> et extrais le dossier <code>mgmp</code>, sur ton Bureau par exemple.</p></li>
+            <li>
+              <p data-i18n-html="install.win.step2">Double-clique sur <strong>Mewgenics Multi.exe</strong>, le lanceur du mod. Il vérifie que tout est prêt ; s’il propose <strong>Réparer</strong>, clique dessus et accepte si Windows demande une autorisation.</p>
+              <div class="lanceur-cadre" role="img" aria-label="Le lanceur du mod : quatre coches vertes et le bouton Jouer" data-i18n-attr="aria-label:launcher.alt">
+                <div class="lanceur">
+                  <p class="l-titre">Mewgenics Multi</p>
+                  <ul>
+                    <li><img src="img/coche.svg" alt="" width="26" height="26"><span data-i18n="launcher.steam">Steam ouvert</span></li>
+                    <li><img src="img/coche.svg" alt="" width="26" height="26"><span data-i18n="launcher.game">Jeu trouvé</span></li>
+                    <li><img src="img/coche.svg" alt="" width="26" height="26"><span>steam_appid.txt</span></li>
+                    <li><img src="img/coche.svg" alt="" width="26" height="26"><span data-i18n="launcher.files">Fichiers du mod</span></li>
+                  </ul>
+                  <span class="l-jouer" data-i18n="launcher.play">Jouer</span>
+                  <p class="l-pied"><span data-i18n="launcher.settings">Réglages</span><span data-i18n="launcher.logs">Journaux</span></p>
+                </div>
+                <img class="l-fleche" src="img/fleche.svg" alt="" width="80" height="60">
+              </div>
+              <p class="astuce" data-i18n-html="install.win.smartscreen">« Windows a protégé votre ordinateur » ? Clique sur <strong>Informations complémentaires</strong>, puis <strong>Exécuter quand même</strong>.</p>
+            </li>
+            <li>
+              <p data-i18n-html="install.win.step3">Clique sur <strong>Jouer</strong>. C’est parti !</p>
+              <p class="astuce" data-i18n-html="install.win.folder">Ton jeu n’est pas dans le dossier Steam habituel ? <strong>Réglages</strong>, <strong>Parcourir…</strong>, choisis <code>Mewgenics.exe</code>, puis <strong>Enregistrer</strong>.</p>
+            </li>
+          </ol>
+        </div>
+        <div class="route" id="linux">
+          <h3 class="route-titre"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 4 C12 4 11 12 12 18 C8 24 6 30 9 34 C14 37 26 37 31 34 C34 30 32 24 28 18 C29 12 28 4 20 4 Z" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round"/><path d="M15 22 C14 28 16 33 20 33 C24 33 26 28 25 22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><circle cx="17" cy="11.5" r="1.8" fill="currentColor"/><circle cx="23" cy="11.5" r="1.8" fill="currentColor"/></svg>Linux / Steam Deck</h3>
+          <p class="route-note" data-i18n="install.linux.intro">Le jeu tourne avec Proton, comme d’habitude. Sur Steam Deck, passe en mode Bureau.</p>
+          <ol class="jalons">
+            <li><p data-i18n-html="install.linux.step1"><a href="https://github.com/Hizumimi/mewgenics-multi/releases/latest/download/Mewgenics-Multi-Linux.zip">Télécharge le zip Linux</a>. Dans Steam, clic droit sur Mewgenics › <strong>Gérer</strong> › <strong>Parcourir les fichiers locaux</strong>, et extrais le dossier <code>mgmp</code> dans ce dossier, à côté de <code>Mewgenics.exe</code>.</p></li>
+            <li>
+              <p data-i18n-html="install.linux.step2">Clic droit sur Mewgenics › <strong>Propriétés</strong> › <strong>Options de lancement</strong> : efface ce qu’il y a et colle cette ligne.</p>
+              <div class="steam">
+                <p class="steam-titre" data-i18n="steam.launchOptions">Options de lancement</p>
+                <code class="steam-champ" id="cmd-lanceur" translate="no">bash -c 'exec "${@/Mewgenics.exe/mgmp/<wbr>Mewgenics Multi.exe}"' -- %command%</code>
+                <button class="copier" type="button" data-copie="cmd-lanceur" data-ok="Copié !" data-i18n-attr="data-ok:install.copied"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M5 16V5a2 2 0 0 1 2-2h9"/></svg><span aria-live="polite" data-i18n="install.copy">Copier</span></button>
+              </div>
+            </li>
+            <li><p data-i18n-html="install.linux.step3">Lance Mewgenics depuis Steam : le lanceur du mod s’ouvre à sa place. Clique sur <strong>Réparer</strong> s’il le propose, puis sur <strong>Jouer</strong>.</p>
+              <p class="astuce" data-i18n="install.fallback.off">Pour rejouer sans le mod, vide les options de lancement.</p>
+            </li>
+          </ol>
+          <details class="repli">
+            <summary data-i18n="install.fallback.summary">Le lanceur ne s’affiche pas ?</summary>
+            <p data-i18n="install.fallback.text">Mets plutôt cette ligne : le jeu démarre directement avec le mod.</p>
+            <div class="steam steam-petit">
+              <code class="steam-champ" id="cmd-loader" translate="no">bash -c 'exec "${@/Mewgenics.exe/mgmp/<wbr>mgmp_loader.exe}"' -- %command%</code>
+              <button class="copier" type="button" data-copie="cmd-loader" data-ok="Copié !" data-i18n-attr="data-ok:install.copied"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M5 16V5a2 2 0 0 1 2-2h9"/></svg><span aria-live="polite" data-i18n="install.copy">Copier</span></button>
+            </div>
+          </details>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="sentier sentier-3" aria-hidden="true"><img src="img/sentier.svg" alt="" width="160" height="160"></div>
+
+  <!-- Le combat : jouer ensemble -->
+  <section class="etape combat" id="jouer" aria-labelledby="t-jouer">
+    <p class="panneau" data-i18n="stop.fight">Le combat</p>
+    <div class="feuille feuille-combat">
+      <div class="combat-tete">
+        <div>
+          <h2 id="t-jouer" data-i18n="play.title">Jouer ensemble</h2>
+          <p class="chapeau" data-i18n="play.lead">Un hôte, jusqu’à trois amis, et c’est parti.</p>
+        </div>
+        <img class="combat-dessin" src="img/combat.svg" width="360" height="200" alt="Deux chats, l’un armé d’une épée en bois, l’autre coiffé d’une casserole, face à un monstre gluant" data-i18n-attr="alt:play.illus.alt">
+      </div>
+      <div class="combat-corps">
+        <ol class="jalons">
+          <li><p data-i18n-html="play.step1">L’hôte clique sur <strong>Multijoueur</strong>, puis <strong>Héberger</strong>, dans le menu du jeu.</p></li>
+          <li><p data-i18n-html="play.step2">Ses amis, le jeu déjà lancé avec le mod, font un clic droit sur son nom dans la liste d’amis Steam : <strong>Rejoindre la partie</strong>.</p></li>
+          <li><p data-i18n-html="play.step3">Chacun choisit sa sauvegarde, et en route pour l’aventure !</p></li>
+        </ol>
+        <div class="amis" role="img" aria-label="La liste d’amis Steam : clic droit sur le nom de l’hôte, puis Rejoindre la partie" data-i18n-attr="aria-label:play.friends.alt">
+          <p class="amis-titre" data-i18n="steam.friends">Amis</p>
+          <div class="ami actif"><span class="avatar a1"></span><span><span class="ami-nom">Hizu</span><span class="ami-statut jeu"><span data-i18n="steam.ingame">En jeu</span> · Mewgenics</span></span></div>
+          <div class="menu">
+            <span class="choix" data-i18n="steam.join">Rejoindre la partie</span>
+            <span data-i18n="steam.message">Envoyer un message</span>
+            <span data-i18n="steam.profile">Voir le profil</span>
+            <img class="m-fleche" src="img/fleche.svg" alt="" width="80" height="60">
+          </div>
+          <div class="ami"><span class="avatar a2"></span><span><span class="ami-nom">Minou</span><span class="ami-statut" data-i18n="steam.online">En ligne</span></span></div>
+          <div class="ami"><span class="avatar a3"></span><span><span class="ami-nom">Patapouf</span><span class="ami-statut absent" data-i18n="steam.away">Absent</span></span></div>
+        </div>
+        <p class="pied" data-i18n-html="play.nosteam">Sans Steam : <strong>Multijoueur</strong> › <strong>Rejoindre</strong>, puis l’adresse de l’hôte, qui doit ouvrir le port TCP 27600 ou passer par un VPN. Tout le monde doit avoir la même version du jeu et du mod.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="sentier sentier-4" aria-hidden="true"><img src="img/sentier.svg" alt="" width="160" height="160"></div>
+
+  <!-- Retour à la maison : crédits -->
+  <section class="etape retour" id="credits" aria-labelledby="t-credits">
+    <p class="panneau" data-i18n="stop.home">Retour à la maison</p>
+    <div class="feuille feuille-retour">
+      <img class="retour-dessin" src="img/retour.svg" width="360" height="240" alt="La maison la nuit, et les chats qui dorment en tas devant la porte" data-i18n-attr="alt:credits.illus.alt">
+      <h2 id="t-credits" data-i18n="credits.title">Crédits</h2>
+      <ul class="portraits">
+        <li>
+          <img src="img/portrait-hizu.svg" alt="" width="120" height="148">
+          <p class="p-nom">Hizu <a href="https://github.com/Hizumimi">(Hizumimi)</a></p>
+          <p data-i18n="credits.hizu">Créateur de Mewgenics Multi.</p>
+        </li>
+        <li>
+          <img src="img/portrait-san.svg" alt="" width="120" height="148">
+          <p class="p-nom"><a class="p-lien" href="https://github.com/SanTertrust">SanTertrust</a></p>
+          <p data-i18n-html="credits.san">Auteur de <a href="https://github.com/SanTertrust/mgmp">mgmp</a>, la base du mod : les combats et les aventures synchronisés à deux (licence MIT). Merci !</p>
+        </li>
+      </ul>
+      <p class="mention" data-i18n-html="credits.game"><strong>Mewgenics</strong> est un jeu d’Edmund McMillen et de Tyler Glaiel. Ce mod non officiel n’a aucun lien avec ses auteurs ; il ne contient aucun fichier du jeu et utilise le jeu installé sur ta machine. Images du jeu affichées depuis Steam, © leurs auteurs.</p>
+      <p class="source" data-i18n-html="credits.source">Le code source est sur <a href="https://github.com/Hizumimi/mewgenics-multi">GitHub</a>, sous licence MIT.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer class="bas">
+  <a href="#haut" data-i18n="footer.top">Retour en haut</a>
+</footer>
+</body>
+</html>

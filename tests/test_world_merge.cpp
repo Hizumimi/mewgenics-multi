@@ -337,8 +337,8 @@ void test_owner() {
     std::printf("owner\n");
     sqlite3* db = new_save();
     CHECK(mgmp::world_owner(db).empty());
-    put_int(db, "owner_steamid", 76561198172840805LL);
-    CHECK(mgmp::world_owner(db) == "76561198172840805");
+    put_int(db, "owner_steamid", 76561198000000042LL);
+    CHECK(mgmp::world_owner(db) == "76561198000000042");
     sqlite3_close(db);
 }
 

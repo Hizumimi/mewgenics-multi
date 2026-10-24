@@ -19,7 +19,8 @@ l'étape 4.
 
 3. Si ton jeu n'est pas dans le dossier par défaut
    (C:\Program Files (x86)\Steam\steamapps\common\Mewgenics), clique sur
-   « Réglages » puis « Parcourir… » et choisis Mewgenics.exe.
+   « Réglages » puis « Parcourir… », choisis Mewgenics.exe et clique sur
+   « Enregistrer ».
 
 4. Clique sur « Jouer » : le lanceur démarre le jeu avec le mod, puis se
    ferme tout seul. S'il n'y arrive pas, il te dit pourquoi.

@@ -18,7 +18,8 @@ jeu à plusieurs, copie du document de conception en ligne) et `docs/NOTES_MGMP.
   déjà les combats et l'aventure à deux. Chaque joueur garde sa save, sa maison et
   ses chats ; le monde (PNJ, histoire, déblocages) est celui de l'hôte ; les
   aventures se jouent ensemble et chacun dirige ses chats.
-- **Le dépôt** : `Hizumimi/mewgenics-multi` (privé), une seule branche, `main`. Les
+- **Le dépôt** : `Hizumimi/mewgenics-multi` (privé jusqu'ici ; à rendre public pour la
+  page, section 15), une seule branche, `main`. Les
   commits 1 à 10 sont mgmp d'origine (27 août – 12 septembre 2026) ; Mewgenics
   Multi commence le 11 octobre 2026 (commit `7e18b7d`). Pour y travailler :
   `git clone https://github.com/Hizumimi/mewgenics-multi.git`, connecté au compte
@@ -59,6 +60,7 @@ jeu à plusieurs, copie du document de conception en ligne) et `docs/NOTES_MGMP.
 | Les builds | releases `build-1` à `build-55` du dépôt |
 | Les traductions | `src/i18n/` (une table par langue), règles et outils : `docs/TRADUCTION.md` (section 13) |
 | Le graphe du projet | `graphify-out/` (ignoré par git, refait par `/graphify` dans Claude Code) : `graph.html`, `GRAPH_REPORT.md`, `graph.json` |
+| La page du mod | `site/` (https://hizumimi.github.io/mewgenics-multi/, section 15), publiée par `.github/workflows/pages.yml` ; textes dans `site/i18n/`, contrôlés par `tools/site_i18n.py` |
 | Le zip de l'ami | modèle dans `paquet/` ; `tools/paquet.ps1` (Windows) ou `tools/linux/paquet.sh` le refont |
 | Le mod chez Hizu | `C:\Users\Hizumi\Desktop\mgmp` : `mgmp.dll`, `mgmp_loader.exe`, `Mewgenics Multi.exe` (le lanceur, depuis la build 55), `mgmp.json`, `Lancer Mewgenics coop.bat` (l'ancien lanceur, gardé), les journaux, `mgmp-pour-ton-ami.zip` ; `original-mgmp-v1\` (les binaires de mgmp v1, gardés à part) et `outils\` (des scripts des débuts, qui listent les fichiers du jeu) |
 | Le jeu | `C:\Program Files (x86)\Steam\steamapps\common\Mewgenics`, avec `steam_appid.txt` (686060) à côté de `Mewgenics.exe` : sans lui, Steam relance le jeu sans le mod |
@@ -183,6 +185,11 @@ mises en scripts le 22 octobre (aucun des deux ne produit la DLL) :
 5. Le document de conception : un paragraphe « Build N » (ce qui change pour les
    joueurs, « à tester ») ; `paquet/LISEZ-MOI.txt` si ce que voient les joueurs
    change (UTF-8 avec BOM, fins de ligne CRLF : `.gitattributes` les garde).
+
+Depuis la page du mod (section 15), la CI met aussi le zip dans la release, sous deux noms :
+`Mewgenics-Multi-Windows.zip` et `Mewgenics-Multi-Linux.zip` (le même contenu). Les
+boutons de la page pointent sur la release marquée « Latest » : une pré-release ne l'est
+jamais, il faut décocher « pre-release » sur la build qu'on veut proposer.
 
 Le zip contient un dossier `mgmp\` : `LISEZ-MOI.txt`, `Mewgenics Multi.exe` (le
 lanceur, section 12), `mgmp.json`, `steam_appid.txt`, `mgmp.dll`, `mgmp_loader.exe`.
@@ -862,3 +869,64 @@ DXVK), l'option de lancement dans le client Steam, la session Steam qui reste «
 jeu » quand le lanceur et le loader se ferment, et le mode Jeu de la Steam Deck. Le
 lancement avec le vrai jeu sous Windows n'a pas été refait après le changement de
 création du processus : c'est le premier essai.
+
+## 15. La page du mod (24 octobre)
+
+Demandée par Hizu le 24 octobre : une page aux couleurs de Mewgenics qui donne envie
+d'installer le mod, avec le téléchargement Windows ou Linux, l'installation en
+images, ce que le mod apporte, les crédits (Hizu, et SanTertrust pour mgmp), dans les
+dix langues du jeu. Adresse : https://hizumimi.github.io/mewgenics-multi/
+
+**Où.** `site/` : `index.html` (le texte français y est écrit), `style.css`, `app.js`,
+`favicon.svg`, `img/` (des dessins SVG faits pour la page). L'art du jeu (logo, image
+de la boutique) est affiché depuis le CDN de Steam
+(`cdn.akamai.steamstatic.com/steam/apps/686060/…`), jamais copié dans le dépôt. Polices
+Google Fonts (Grandstander, Shantell Sans ; Jua, Mochiy Pop One, ZCOOL KuaiLe pour le
+coréen, le japonais et le chinois). Le numéro de la dernière version vient de l'API
+GitHub ; si l'appel échoue, la page reste entière.
+
+**Les langues.** Les éléments traduits portent `data-i18n` (texte), `data-i18n-html`
+(texte avec balises) ou `data-i18n-attr="alt:cle"`. `site/i18n/fr.js` est généré depuis
+`index.html` par `tools/site_i18n.py`, qui vérifie aussi que chaque autre table
+(`en`, `es`, `de`, `it`, `pt-BR`, `ru`, `ko`, `ja`, `zh-CN`) a les mêmes clés et des
+balises identiques, adresses des liens comprises. Après un changement de texte dans
+`index.html` : lancer `python tools/site_i18n.py`, puis traduire les clés changées dans
+les neuf tables (les libellés des boutons du mod reprennent ceux de `src/i18n/`). La
+langue : `?lang=`, puis le choix mémorisé, puis la langue du navigateur, sinon
+l'anglais ; une table absente remet la page en français.
+
+**Publication.** `.github/workflows/pages.yml` publie `site/` à chaque push qui le
+touche ; `build.yml` ignore ces pushs (pas de build du mod pour un changement de la
+page). Les deux zips viennent de la release « Latest » (section 4, « Livrer une build »).
+
+**Ce que Hizu doit faire une fois** (rien de cela ne se fait depuis le dépôt) :
+1. rendre le dépôt public (Settings › General › Danger Zone) : GitHub Pages et les
+   téléchargements sans compte en ont besoin. Les commits ne portent que les adresses
+   de Claude (noreply) et de SanTertrust ; un ancien identifiant Steam reste dans
+   l'historique de `tests/test_world_merge.cpp` (remplacé par un faux le 24 octobre) ;
+2. Settings › Pages › Source : **GitHub Actions** (puis relancer le workflow « Page »
+   s'il a échoué avant) ;
+3. après la prochaine build, éditer sa release : décocher « Set as a pre-release » et
+   cocher « Set as the latest release ». Tant qu'aucune release n'est « Latest », les
+   boutons de téléchargement mènent à une erreur 404.
+
+**Comment ça a été vérifié.** La page a été dessinée puis traduite par des workflows
+(un traducteur par langue, puis une relecture croisée), puis contre-vérifiée par un
+relecteur neuf par langue, français compris, sur des captures Edge headless (1280 px,
+et 390 et 360 px dans des iframes, le bloc repliable ouvert). Le relecteur du français
+a trouvé des consignes fausses, vérifiées dans le code puis corrigées dans les dix
+langues : « Parcourir… » demande ensuite « Enregistrer » (`App::browse` ne change que la
+copie en cours, `launcher/ml_main.cpp`), et le LISEZ-MOI l'oubliait aussi ;
+« Réparer » n'existe que pour `steam_appid.txt` ; le bouton de l'hôte s'appelle
+« Choisir la sauvegarde », celui des invités « Choisir ta sauvegarde » ; « sans Steam »
+passe par Multijoueur, et l'hôte doit ouvrir le port TCP 27600 ou passer par un VPN.
+Les libellés des boutons du mod sont repris des tables de `src/i18n/` (vérifié par
+grep) ; les libellés de Steam et de Windows SmartScreen sont de mémoire, pas comparés à
+un vrai client. `tools/site_i18n.py` passe pour les neuf tables. L'étape des zips de
+`build.yml` a été rejouée en local (Windows PowerShell 5.1) avec les fichiers de la
+build 57 : empreintes vérifiées, deux zips identiques avec le dossier `mgmp/` complet.
+
+**Pas vérifié** : la page en ligne (Pages pas encore activé), Safari, Firefox et un vrai
+téléphone, le badge de version (dépôt privé : l'API répond 404), et cette étape sous
+`pwsh` 7 dans la CI. Coupe par groupes de mots du japonais (`word-break: auto-phrase`) :
+Edge et Chrome seulement, les autres navigateurs coupent comme avant.

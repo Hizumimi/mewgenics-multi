@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><defs><clipPath id="ct"><ellipse cx="50" cy="42" rx="27" ry="21"/></clipPath><g id="tete" stroke="#2b1d14" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+<path d="M26 38 L27 11 L46 27 Z"/><path d="M74 38 L73 11 L54 27 Z"/>
+<path d="M30.5 31 L31 18.5 L40 26.5 Z" fill="#e8a09a" stroke="none"/><path d="M69.5 31 L69 18.5 L60 26.5 Z" fill="#e8a09a" stroke="none"/>
+<ellipse cx="50" cy="42" rx="27" ry="21"/>
+<path clip-path="url(#ct)" fill="currentColor" stroke="none" d="M18 18 C40 20 47 34 42 50 C37 60 24 60 16 52 Z"/>
+<ellipse cx="50" cy="42" rx="27" ry="21" fill="none"/>
+<ellipse cx="32" cy="50.5" rx="4.5" ry="2.6" fill="#e8a09a" opacity=".7" stroke="none"/><ellipse cx="68" cy="50.5" rx="4.5" ry="2.6" fill="#e8a09a" opacity=".7" stroke="none"/>
+<circle cx="39" cy="40" r="7.5" fill="#fffaf0" stroke-width="2.5"/><circle cx="61" cy="40" r="7.5" fill="#fffaf0" stroke-width="2.5"/>
+<path d="M47.3 48.5 L52.7 48.5 L50 51.8 Z" fill="#d9776f" stroke-width="1.6"/>
+<path d="M44 53.5 Q47 57 50 53.5 Q53 57 56 53.5" fill="none" stroke-width="2"/>
+<path d="M24 46.5 L12 44.5 M24 50.5 L13 52.5 M76 46.5 L88 44.5 M76 50.5 L87 52.5" fill="none" stroke-width="1.6"/>
+</g><g id="ray" stroke="#2b1d14" stroke-width="2.2" fill="none" stroke-linecap="round"><path d="M44 23.5 L45.5 29 M50 21.5 V28.5 M56 23.5 L54.5 29"/></g></defs><g transform="translate(-1 6) scale(1)"><g transform="translate(-7.5 2.8) scale(0.79)"><use href="#tete" fill="#e58b1f" color="#fbf4e6"/><use href="#ray"/><circle cx="39" cy="41" r="3.3" fill="#2b1d14"/><circle cx="61" cy="41" r="3.3" fill="#2b1d14"/><circle cx="40" cy="39.8" r="1" fill="#fff"/><circle cx="62" cy="39.8" r="1" fill="#fff"/></g></g></svg>
