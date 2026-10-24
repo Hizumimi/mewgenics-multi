@@ -109,7 +109,7 @@ const TrPair kTable_sp[] = {
     {u8"Fichiers du mod", u8"Archivos del mod"},
     {u8"Réparer", u8"Reparar"},
     {u8"Jouer", u8"Jugar"},
-    {u8"Règle d'abord les croix rouges.", u8"Resuelve primero las cruces rojas."},
+    {u8"Règle d'abord les croix rouges.", u8"Corrige primero las X rojas."},
     {u8"Réglages", u8"Ajustes"},
     {u8"Journaux", u8"Registros"},
     {u8"Langue", u8"Idioma"},
@@ -122,7 +122,7 @@ const TrPair kTable_sp[] = {
      u8"No hay ningún Mewgenics.exe aquí: elígelo con Examinar."},
     {u8"Jouer ensemble par Steam (liste d'amis)", u8"Jugar juntos por Steam (lista de amigos)"},
     {u8"Décoche si Steam pose problème : il ne reste que l'adresse, dans le menu Multijoueur du jeu.",
-     u8"Desmárcalo si Steam da problemas: solo quedará la dirección, en el menú Multijugador del juego."},
+     u8"Desmárcalo si Steam da problemas: en el menú Multijugador del juego solo quedará la conexión por dirección."},
     {u8"Enregistrer", u8"Guardar"},
     {u8"Retour", u8"Atrás"},
     {u8"Aucun journal pour l'instant : le mod en écrit un à chaque partie.",
@@ -158,7 +158,7 @@ const TrPair kTable_sp[] = {
     {u8"Chacun sa maison et ses chats,\n"
      u8"l'aventure ensemble !",
      u8"Cada uno con su casa y sus gatos,\n"
-     u8"¡la aventura, juntos!"},
+     u8"¡pero la aventura, juntos!"},
     {u8"(illustrations du jeu introuvables)", u8"(ilustraciones del juego no encontradas)"},
     {u8"Comme le jeu (%s)", u8"Como el juego (%s)"},
     {u8"Comme Windows (%s)", u8"Como Windows (%s)"},
