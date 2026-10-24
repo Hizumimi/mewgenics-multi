@@ -26,4 +26,8 @@ std::string    u16_to_utf8(const std::u16string& s);   // l'inverse (plan de bas
 std::vector<std::u16string> wrap_lines(const std::u16string& text, float width,
                                        const std::function<float(char16_t)>& advance);
 
+// printf vers une std::string, sans limite de longueur : une phrase traduite
+// (tr(), mm_lang.h) et ses valeurs, fmt(tr(u8"Jeu trouvé : %s."), dir.c_str()).
+std::string fmt(const char* f, ...);
+
 } // namespace ml

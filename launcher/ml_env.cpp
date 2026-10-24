@@ -3,6 +3,7 @@
 
 #include "mgmp_proto.h"   // kProtoVersion : la version que le launcher annonce
 #include "mm_lang_win.h"  // la langue du jeu (ui_lang)
+#include "ml_text.h"     // fmt
 
 #include <shellapi.h>
 #include <shlobj.h>
@@ -115,16 +116,16 @@ bool config_save(const Paths& p, const Settings& s, std::string* why) {
     std::string text, next;
     bool exists = false;
     if (!read_file(p.config, &text, &exists)) {
-        *why = u8"mgmp.json n'a pas pu être lu : réglages non enregistrés.";
+        *why = tr(u8"mgmp.json n'a pas pu être lu : réglages non enregistrés.");
         return false;
     }
     if (!settings_write(text, s, &next)) {
         Settings ignored;   // lisible quand meme : refuse pour ses commentaires
         *why = settings_read(text, &ignored)
-                   ? u8"mgmp.json contient des commentaires (// ou /* */), que l'enregistrement "
-                     u8"effacerait : retire-les, ou change le réglage à la main dans le fichier."
-                   : u8"mgmp.json n'est pas du JSON valide : corrige-le (ou remets celui du zip) "
-                     u8"avant de changer les réglages.";
+                   ? tr(u8"mgmp.json contient des commentaires (// ou /* */), que l'enregistrement "
+                        u8"effacerait : retire-les, ou change le réglage à la main dans le fichier.")
+                   : tr(u8"mgmp.json n'est pas du JSON valide : corrige-le (ou remets celui du zip) "
+                        u8"avant de changer les réglages.");
         return false;
     }
 
@@ -137,13 +138,13 @@ bool config_save(const Paths& p, const Settings& s, std::string* why) {
         o.close();
         if (!o) {
             DeleteFileW(tmp.c_str());
-            *why = u8"Impossible d'écrire dans le dossier du mod : réglages non enregistrés.";
+            *why = tr(u8"Impossible d'écrire dans le dossier du mod : réglages non enregistrés.");
             return false;
         }
     }
     if (!MoveFileExW(tmp.c_str(), p.config.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
         DeleteFileW(tmp.c_str());
-        *why = u8"mgmp.json n'a pas pu être remplacé (ouvert ailleurs ?) : réglages non enregistrés.";
+        *why = tr(u8"mgmp.json n'a pas pu être remplacé (ouvert ailleurs ?) : réglages non enregistrés.");
         return false;
     }
     return true;
@@ -187,11 +188,11 @@ std::vector<Check> check_all() {
     Paths p = mod_paths();
 
     if (steam_running())
-        out.push_back({"steam", Status::Ok, u8"Steam est ouvert.", false});
+        out.push_back({"steam", Status::Ok, tr(u8"Steam est ouvert."), false});
     else
         out.push_back({"steam", Status::Problem,
-                       u8"Sans lui, le jeu se ferme avant que le mod se charge. Ouvre Steam et attends "
-                       u8"qu'il soit connecté.", false});
+                       tr(u8"Sans lui, le jeu se ferme avant que le mod se charge. Ouvre Steam et attends "
+                          u8"qu'il soit connecté."), false});
 
     Settings s;
     std::string text;
@@ -199,59 +200,64 @@ std::vector<Check> check_all() {
     bool readable = read_file(p.config, &text, &exists);
     if (!exists)
         out.push_back({"config", Status::Problem,
-                       u8"mgmp.json manque à côté de Mewgenics\u00A0Multi.exe : enregistre les réglages "
-                       u8"pour le recréer.", false});
+                       tr(u8"mgmp.json manque à côté de Mewgenics\u00A0Multi.exe : enregistre les réglages "
+                          u8"pour le recréer."), false});
     else if (!readable || !settings_read(text, &s))
         out.push_back({"config", Status::Problem,
-                       u8"mgmp.json n'est pas du JSON valide : corrige-le, ou remets celui du zip.",
+                       tr(u8"mgmp.json n'est pas du JSON valide : corrige-le, ou remets celui du zip."),
                        false});
     else
-        out.push_back({"config", Status::Ok, u8"Réglages lus dans mgmp.json.", false});
+        out.push_back({"config", Status::Ok, tr(u8"Réglages lus dans mgmp.json."), false});
 
     std::wstring exe = game_exe(s), dir = game_dir(s);
     bool game_ok = is_file(exe);
     if (!game_ok)
         out.push_back({"game", Status::Problem,
-                       u8"Mewgenics.exe est introuvable (" + s.game +
-                       u8") : dans Réglages, clique sur Parcourir… et choisis Mewgenics.exe.", false});
+                       fmt(tr(u8"Mewgenics.exe est introuvable (%s) : dans Réglages, clique sur "
+                              u8"Parcourir… et choisis Mewgenics.exe."),
+                           s.game.c_str()),
+                       false});
     else if (!is_file(dir + L"\\resources.gpak"))
         out.push_back({"game", Status::Problem,
-                       u8"resources.gpak manque à côté de Mewgenics.exe : vérifie les fichiers du "
-                       u8"jeu dans Steam.", false});
+                       tr(u8"resources.gpak manque à côté de Mewgenics.exe : vérifie les fichiers du "
+                          u8"jeu dans Steam."), false});
     else
-        out.push_back({"game", Status::Ok, u8"Jeu trouvé : " + wide_to_utf8(dir) + ".", false});
+        out.push_back({"game", Status::Ok, fmt(tr(u8"Jeu trouvé : %s."), wide_to_utf8(dir).c_str()), false});
 
     std::string appid;
     bool appid_exists = false;
     if (!game_ok)
         out.push_back({"appid", Status::Problem,
-                       u8"steam_appid.txt : à vérifier une fois le jeu trouvé.", false});
+                       tr(u8"steam_appid.txt : à vérifier une fois le jeu trouvé."), false});
     else if (!read_file(dir + L"\\steam_appid.txt", &appid, &appid_exists) || !appid_exists)
         out.push_back({"appid", Status::Problem,
-                       u8"Il manque à côté de Mewgenics.exe : sans lui, Steam relance le jeu sans le "
-                       u8"mod.", true});
+                       tr(u8"Il manque à côté de Mewgenics.exe : sans lui, Steam relance le jeu sans le "
+                          u8"mod."), true});
     else if (!appid_ok(appid))
         out.push_back({"appid", Status::Problem,
-                       u8"Celui à côté de Mewgenics.exe ne contient pas 686060 : Steam relancerait le "
-                       u8"jeu sans le mod.", true});
+                       tr(u8"Celui à côté de Mewgenics.exe ne contient pas 686060 : Steam relancerait le "
+                          u8"jeu sans le mod."), true});
     else
-        out.push_back({"appid", Status::Ok, u8"steam_appid.txt est en place à côté du jeu.", false});
+        out.push_back({"appid", Status::Ok, tr(u8"steam_appid.txt est en place à côté du jeu."), false});
 
-    std::string missing;
-    if (!is_file(p.dll)) missing = "mgmp.dll";
-    if (!is_file(p.loader)) missing += missing.empty() ? "mgmp_loader.exe" : " et mgmp_loader.exe";
-    if (missing.empty())
-        out.push_back({"files", Status::Ok, u8"Fichiers du mod présents.", false});
+    const bool dll = is_file(p.dll), loader = is_file(p.loader);
+    if (dll && loader)
+        out.push_back({"files", Status::Ok, tr(u8"Fichiers du mod présents."), false});
+    else if (!dll && !loader)
+        out.push_back({"files", Status::Problem,
+                       tr(u8"Il manque mgmp.dll et mgmp_loader.exe à côté de Mewgenics\u00A0Multi.exe : "
+                          u8"extrais de nouveau tout le dossier du zip."), false});
     else
         out.push_back({"files", Status::Problem,
-                       u8"Il manque " + missing + u8" à côté de Mewgenics\u00A0Multi.exe : extrais de "
-                       u8"nouveau tout le dossier du zip.", false});
+                       fmt(tr(u8"Il manque %s à côté de Mewgenics\u00A0Multi.exe : extrais de nouveau "
+                              u8"tout le dossier du zip."),
+                           dll ? "mgmp_loader.exe" : "mgmp.dll"),
+                       false});
 
-    char ver[160];
-    snprintf(ver, sizeof(ver),
-             u8"Mewgenics Multi, build %s, protocole %u : tout le monde doit avoir le même.",
-             build_id(), (unsigned)proto_version());
-    out.push_back({"version", Status::Ok, ver, false});
+    out.push_back({"version", Status::Ok,
+                   fmt(tr(u8"Mewgenics Multi, build %s, protocole %u : tout le monde doit avoir le même."),
+                       build_id(), (unsigned)proto_version()),
+                   false});
     return out;
 }
 
@@ -260,15 +266,15 @@ Repair repair_appid(HWND owner, std::string* why) {
     config_load(mod_paths(), &s);
     std::wstring exe = game_exe(s);
     if (!is_file(exe)) {
-        *why = u8"Le jeu est introuvable : choisis d'abord Mewgenics.exe dans Réglages.";
+        *why = tr(u8"Le jeu est introuvable : choisis d'abord Mewgenics.exe dans Réglages.");
         return Repair::Failed;
     }
 
     DWORD e = write_appid(exe);
     if (e == 0 && appid_in_place(exe)) return Repair::Done;
     if (e != ERROR_ACCESS_DENIED) {
-        *why = u8"steam_appid.txt n'a pas pu être écrit à côté du jeu : copie-le à la main "
-               u8"(LISEZ-MOI, étape 2).";
+        *why = tr(u8"steam_appid.txt n'a pas pu être écrit à côté du jeu : copie-le à la main "
+                  u8"(LISEZ-MOI, étape 2).");
         return Repair::Failed;
     }
 
@@ -285,12 +291,12 @@ Repair repair_appid(HWND owner, std::string* why) {
     sei.nShow        = SW_HIDE;
     if (!ShellExecuteExW(&sei)) {
         if (GetLastError() == ERROR_CANCELLED) {
-            *why = u8"Windows n'a pas eu ton accord : steam_appid.txt n'est pas copié. Tu peux "
-                   u8"réessayer, ou le copier à la main (LISEZ-MOI, étape 2).";
+            *why = tr(u8"Windows n'a pas eu ton accord : steam_appid.txt n'est pas copié. Tu peux "
+                      u8"réessayer, ou le copier à la main (LISEZ-MOI, étape 2).");
             return Repair::Refused;
         }
-        *why = u8"Mewgenics Multi n'a pas pu se relancer en administrateur : copie "
-               u8"steam_appid.txt à la main (LISEZ-MOI, étape 2).";
+        *why = tr(u8"Mewgenics Multi n'a pas pu se relancer en administrateur : copie "
+                  u8"steam_appid.txt à la main (LISEZ-MOI, étape 2).");
         return Repair::Failed;
     }
     if (sei.hProcess) {
@@ -298,8 +304,8 @@ Repair repair_appid(HWND owner, std::string* why) {
         CloseHandle(sei.hProcess);
     }
     if (appid_in_place(exe)) return Repair::Done;
-    *why = u8"La copie en administrateur n'a pas marché : copie steam_appid.txt à la main "
-           u8"(LISEZ-MOI, étape 2).";
+    *why = tr(u8"La copie en administrateur n'a pas marché : copie steam_appid.txt à la main "
+              u8"(LISEZ-MOI, étape 2).");
     return Repair::Failed;
 }
 
@@ -339,10 +345,8 @@ Logs logs_find(const Paths& p) {
     SYSTEMTIME utc, loc;
     if (!l.latest.empty() && FileTimeToSystemTime(&best, &utc) &&
         SystemTimeToTzSpecificLocalTime(nullptr, &utc, &loc)) {
-        char buf[64];
-        snprintf(buf, sizeof(buf), u8"%02u/%02u/%04u à %02u:%02u", loc.wDay, loc.wMonth, loc.wYear,
-                 loc.wHour, loc.wMinute);
-        l.when = buf;
+        l.when = fmt(tr(u8"%02u/%02u/%04u à %02u:%02u"), loc.wDay, loc.wMonth, loc.wYear, loc.wHour,
+                     loc.wMinute);
     }
     return l;
 }

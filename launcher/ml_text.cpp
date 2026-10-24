@@ -1,7 +1,9 @@
 // ml_text.cpp -- voir ml_text.h.
 #include "ml_text.h"
 
+#include <cstdarg>
 #include <cstdint>
+#include <cstdio>
 
 namespace ml {
 namespace {
@@ -99,6 +101,18 @@ std::vector<std::u16string> wrap_lines(const std::u16string& text, float width,
         if (e == std::u16string::npos) break;
         p = e + 1;
     }
+    return out;
+}
+
+std::string fmt(const char* f, ...) {
+    va_list a, b;
+    va_start(a, f);
+    va_copy(b, a);
+    const int n = vsnprintf(nullptr, 0, f, a);
+    va_end(a);
+    std::string out(n > 0 ? n : 0, '\0');
+    if (n > 0) vsnprintf(&out[0], out.size() + 1, f, b);
+    va_end(b);
     return out;
 }
 

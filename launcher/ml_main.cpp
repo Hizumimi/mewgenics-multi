@@ -288,7 +288,9 @@ int App::run(HINSTANCE inst) {
                                  reinterpret_cast<void**>(d2d_.GetAddressOf()))) ||
         FAILED(DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory),
                                    reinterpret_cast<IUnknown**>(dw_.GetAddressOf())))) {
-        MessageBoxW(nullptr, L"Direct2D est indisponible sur ce PC : Mewgenics Multi ne peut pas s'afficher.",
+        MessageBoxW(nullptr,
+                    ml::utf8_to_wide(tr(u8"Direct2D est indisponible sur ce PC : Mewgenics Multi ne peut pas "
+                                        u8"s'afficher.")).c_str(),
                     L"Mewgenics Multi", MB_ICONERROR);
         return 1;
     }
@@ -325,7 +327,9 @@ int App::run(HINSTANCE inst) {
     }
 
     if (!create_device()) {
-        MessageBoxW(hwnd_, L"La carte graphique n'a pas pu être préparée : Mewgenics Multi ne peut pas s'afficher.",
+        MessageBoxW(hwnd_,
+                    ml::utf8_to_wide(tr(u8"La carte graphique n'a pas pu être préparée : Mewgenics Multi ne "
+                                        u8"peut pas s'afficher.")).c_str(),
                     L"Mewgenics Multi", MB_ICONERROR);
         return 1;
     }
@@ -630,8 +634,12 @@ void App::draw_front(const M& g) {
     }
     // Ce que le mod change, ecrit a la main au-dessus de la maison.
     base_ = M::Rotation(4, {915, 160}) * g;
-    text(kHand, 29, 915, 150, u8"Chacun sa maison et ses chats,", rgb(kLight, 0.9f), 1);
-    text(kHand, 29, 915, 190, u8"l'aventure ensemble !", rgb(kLight, 0.9f), 1);
+    {   // deux lignes, une seule phrase a traduire
+        const std::string motto = tr(u8"Chacun sa maison et ses chats,\nl'aventure ensemble !");
+        const size_t nl = motto.find('\n');
+        text(kHand, 29, 915, 150, motto.substr(0, nl), rgb(kLight, 0.9f), 1);
+        if (nl != std::string::npos) text(kHand, 29, 915, 190, motto.substr(nl + 1), rgb(kLight, 0.9f), 1);
+    }
 
     paper_m_ = M::Rotation(kPaperTilt, {kPaperW / 2, kPaperH / 2}) * M::Translation(kPaperX, kPaperY);
     base_ = paper_m_ * g;
@@ -648,7 +656,7 @@ void App::draw_front(const M& g) {
     on_paper_ = false;
     window_buttons();
     if (art_missing_)
-        text(kText, 14, kW - 22, kH - 16, u8"(illustrations du jeu introuvables)", rgb(kLight, 0.55f), 2);
+        text(kText, 14, kW - 22, kH - 16, tr(u8"(illustrations du jeu introuvables)"), rgb(kLight, 0.55f), 2);
 }
 
 void App::draw_paper() {
@@ -755,6 +763,7 @@ void App::cycle_lang(int step) {
     std::string why;
     settings_note_ = ml::config_save(paths_, s, &why) ? std::string() : why;
     settings_.lang = edit_.lang = s.lang;
+    repair_note_.clear();   // ecrite dans l'ancienne langue ; la ligne reprend la phrase de check_all
     apply_lang();
     refresh_checks();
 }
@@ -1094,9 +1103,8 @@ void App::heading(const std::string& title) {
 
 void App::panel_main() {
     text(kTitle, 48, kLeft, 98, u8"Mewgenics Multi", rgb(kInk));
-    char sub[96];
-    snprintf(sub, sizeof(sub), u8"build %s · protocole %u", ml::build_id(), (unsigned)ml::proto_version());
-    text(kText, 17, kLeft + 2, 128, sub, rgb(kInkSoft));
+    text(kText, 17, kLeft + 2, 128,
+         ml::fmt(tr(u8"build %s · protocole %u"), ml::build_id(), (unsigned)ml::proto_version()), rgb(kInkSoft));
     squiggle(kLeft, kRight, 146, rgb(kInkSoft, 0.7f), 2);
 
     struct Row { Mark mark; std::string label, phrase; bool repair; };
@@ -1112,13 +1120,14 @@ void App::panel_main() {
                  ok ? std::string() : c.text, c.repairable};
         if (!strcmp(c.id, "steam")) {
             // Steam ferme n'empeche pas de lancer : on le dit, sans bloquer.
-            r.label = ok ? u8"Steam ouvert" : u8"Steam fermé";
+            r.label = ok ? tr(u8"Steam ouvert") : tr(u8"Steam fermé");
             if (!ok) r.mark = Mark::Warn;
         } else if (!strcmp(c.id, "config")) {
-            r.label = u8"Réglages (mgmp.json)";
+            r.label = tr(u8"Réglages (mgmp.json)");
         } else if (!strcmp(c.id, "game")) {
-            r.label = ok ? u8"Jeu trouvé"
-                         : c.text.find("resources.gpak") != std::string::npos ? u8"Jeu incomplet" : u8"Jeu introuvable";
+            // l'exe est la sans resources.gpak (comme check_all), pas d'apres le texte traduit
+            r.label = ok ? tr(u8"Jeu trouvé")
+                         : is_file(ml::game_exe(settings_)) ? tr(u8"Jeu incomplet") : tr(u8"Jeu introuvable");
             if (ok) {   // le chemin sur deux lignes au plus
                 const float w = kRight - kLeft - 42;
                 r.phrase = ml::wide_to_utf8(ml::game_dir(settings_));
@@ -1128,7 +1137,7 @@ void App::panel_main() {
             r.label = "steam_appid.txt";
             if (!repair_note_.empty()) r.phrase = repair_note_;
         } else if (!strcmp(c.id, "files")) {
-            r.label = u8"Fichiers du mod";
+            r.label = tr(u8"Fichiers du mod");
         }
         rows.push_back(r);
     }
@@ -1156,21 +1165,21 @@ void App::panel_main() {
             text16(kText, ps, x_text, py, line, rgb(kInkSoft));
             py += ps * 1.2f;
         }
-        if (rows[i].repair) button(kRepair, {kRight - 112, y - 2, kRight, y + 32}, u8"Réparer", false);
+        if (rows[i].repair) button(kRepair, {kRight - 112, y - 2, kRight, y + 32}, tr(u8"Réparer"), false);
         y += 30 + lines[i].size() * ps * 1.2f + 12;
     }
 
     const float py = std::clamp(y + 6, play_min, 452.f);
     const bool ok = !blocked();
-    big_button(kPlay, {kMid - 140, py, kMid + 140, py + play_h}, u8"Jouer", ok);
+    big_button(kPlay, {kMid - 140, py, kMid + 140, py + play_h}, tr(u8"Jouer"), ok);
     if (!ok)   // court : il tient entre les deux liens du bas
-        text(kText, 13.5f, kMid, std::min(py + play_h + 32, 560.f), u8"Règle d'abord les croix rouges.", rgb(0x9b2f1f), 1);
-    link(kToSettings, kLeft, 562, u8"Réglages", 0);
-    link(kToLogs, kRight, 562, u8"Journaux", 2);
+        text(kText, 13.5f, kMid, std::min(py + play_h + 32, 560.f), tr(u8"Règle d'abord les croix rouges."), rgb(0x9b2f1f), 1);
+    link(kToSettings, kLeft, 562, tr(u8"Réglages"), 0);
+    link(kToLogs, kRight, 562, tr(u8"Journaux"), 2);
 }
 
 void App::panel_settings() {
-    heading(u8"Réglages");
+    heading(tr(u8"Réglages"));
 
     // La langue : < choix >, un clic sur le nom passe au suivant. Enregistree et
     // appliquee tout de suite (cycle_lang), sans attendre « Enregistrer ».
@@ -1188,8 +1197,8 @@ void App::panel_settings() {
              rgb(hover_ == kLangNext ? 0x9a3d1f : kInk), 1);
     }
 
-    text(kText, 21, kLeft, 212, u8"Le jeu (Mewgenics.exe)", rgb(kInk));
-    button(kBrowse, {kRight - 150, 184, kRight, 220}, u8"Parcourir…", false);
+    text(kText, 21, kLeft, 212, tr(u8"Le jeu (Mewgenics.exe)"), rgb(kInk));
+    button(kBrowse, {kRight - 150, 184, kRight, 220}, tr(u8"Parcourir…"), false);
     const D2D1_RECT_F box = {kLeft, 228, kRight, 298};   // trois lignes de chemin
     auto g = blob(box, 8, 1.2f, 99);
     fill(g.Get(), rgb(0xfffaf0, 0.55f));
@@ -1205,9 +1214,9 @@ void App::panel_settings() {
     const bool gpak_ok = exe_ok && is_file(ml::game_dir(edit_) + L"\\resources.gpak");
     mark(gpak_ok ? Mark::Ok : Mark::Bad, kLeft, 308, 24);
     para(kText, 15.5f, kLeft + 34, 326, kRight - kLeft - 34,
-         gpak_ok  ? u8"Mewgenics.exe et resources.gpak sont là."
-         : exe_ok ? u8"resources.gpak manque à côté : ce n'est pas le bon dossier."
-                  : u8"Aucun Mewgenics.exe ici : choisis-le avec Parcourir.",
+         gpak_ok  ? tr(u8"Mewgenics.exe et resources.gpak sont là.")
+         : exe_ok ? tr(u8"resources.gpak manque à côté : ce n'est pas le bon dossier.")
+                  : tr(u8"Aucun Mewgenics.exe ici : choisis-le avec Parcourir."),
          rgb(kInkSoft), 19);
 
     const float cy = 366;
@@ -1216,49 +1225,49 @@ void App::panel_settings() {
     fill(cb.Get(), rgb(0xfffaf0, hover_ == kSteam ? 0.95f : 0.6f));
     stroke(cb.Get(), rgb(kInk), 2.5f);
     if (edit_.steam) mark(Mark::Ok, kLeft + 3, cy - 4, 28);
-    text(kText, 20, kLeft + 42, cy + 21, u8"Jouer ensemble par Steam (liste d'amis)", rgb(kInk));
+    text(kText, 20, kLeft + 42, cy + 21, tr(u8"Jouer ensemble par Steam (liste d'amis)"), rgb(kInk));
     para(kText, 15, kLeft + 42, cy + 46, kRight - kLeft - 42,
-         u8"Décoche si Steam pose problème : il ne reste que l'adresse, dans le menu Multijoueur du jeu.",
+         tr(u8"Décoche si Steam pose problème : il ne reste que l'adresse, dans le menu Multijoueur du jeu."),
          rgb(kInkSoft), 18);
 
     if (!settings_note_.empty()) para(kText, 15.5f, kLeft, 456, kRight - kLeft, settings_note_, rgb(0x9b2f1f), 19);
-    button(kSave, {kMid - 115, 484, kMid + 115, 532}, u8"Enregistrer", true);
-    link(kBack, kLeft, 562, u8"Retour", 0);
+    button(kSave, {kMid - 115, 484, kMid + 115, 532}, tr(u8"Enregistrer"), true);
+    link(kBack, kLeft, 562, tr(u8"Retour"), 0);
 }
 
 void App::panel_logs() {
-    heading(u8"Journaux");
+    heading(tr(u8"Journaux"));
     // Espace insecable (ici et dans ml_env, ml_loader) : le nom de l'exe ne se coupe pas.
-    std::string count = logs_.count == 0 ? u8"Aucun journal pour l'instant : le mod en écrit un à chaque partie."
-                        : logs_.count == 1 ? u8"1 journal du mod, à côté de Mewgenics\u00A0Multi.exe."
-                                           : std::to_string(logs_.count) + u8" journaux du mod, à côté de Mewgenics\u00A0Multi.exe.";
+    std::string count = logs_.count == 0 ? tr(u8"Aucun journal pour l'instant : le mod en écrit un à chaque partie.")
+                        : logs_.count == 1 ? tr(u8"1 journal du mod, à côté de Mewgenics\u00A0Multi.exe.")
+                                           : ml::fmt(tr(u8"%d journaux du mod, à côté de Mewgenics\u00A0Multi.exe."), logs_.count);
     float y = para(kText, 20, kLeft, 162, kRight - kLeft, count, rgb(kInk), 24);
     if (logs_.count) {
         size_t slash = logs_.latest.find_last_of(L'\\');
         std::string name = ml::wide_to_utf8(slash == std::wstring::npos ? logs_.latest : logs_.latest.substr(slash + 1));
-        y = para(kText, 16.5f, kLeft, y + 6, kRight - kLeft, u8"Le dernier : " + name, rgb(kInkSoft), 21);
-        para(kText, 16.5f, kLeft, y, kRight - kLeft, u8"écrit le " + logs_.when, rgb(kInkSoft), 21);
+        y = para(kText, 16.5f, kLeft, y + 6, kRight - kLeft, ml::fmt(tr(u8"Le dernier : %s"), name.c_str()), rgb(kInkSoft), 21);
+        para(kText, 16.5f, kLeft, y, kRight - kLeft, ml::fmt(tr(u8"écrit le %s"), logs_.when.c_str()), rgb(kInkSoft), 21);
     }
-    button(kOpenDir, {kLeft, 270, kLeft + 230, 314}, u8"Ouvrir le dossier", false);
-    button(kCopyLog, {kLeft, 332, kLeft + 290, 376}, u8"Copier le dernier journal", false, logs_.count > 0);
+    button(kOpenDir, {kLeft, 270, kLeft + 230, 314}, tr(u8"Ouvrir le dossier"), false);
+    button(kCopyLog, {kLeft, 332, kLeft + 290, 376}, tr(u8"Copier le dernier journal"), false, logs_.count > 0);
     if (!logs_note_.empty()) {
         mark(logs_ok_ ? Mark::Ok : Mark::Bad, kLeft, 404, 24);
         para(kText, 16.5f, kLeft + 34, 422, kRight - kLeft - 34, logs_note_, rgb(kInk), 21);
     } else {
         para(kText, 16, kLeft, 422, kRight - kLeft,
-             u8"Pour demander de l'aide : copie le dernier journal, puis colle-le dans Discord avec Ctrl+V.",
+             tr(u8"Pour demander de l'aide : copie le dernier journal, puis colle-le dans Discord avec Ctrl+V."),
              rgb(kInkSoft), 20);
     }
-    link(kBack, kLeft, 562, u8"Retour", 0);
+    link(kBack, kLeft, 562, tr(u8"Retour"), 0);
 }
 
 void App::panel_launch() {
     using State = ml::Launch::State;
-    heading(u8"Lancement");
+    heading(tr(u8"Lancement"));
     if (snap_.state == State::Loaded) {
         mark(Mark::Ok, kMid - 36, 180, 72);
-        text(kTitle, 28, kMid, 310, u8"Le jeu se lance avec le mod…", rgb(kInk), 1);
-        text(kText, 17, kMid, 346, u8"Bonne partie ! Cette fenêtre se ferme toute seule.", rgb(kInkSoft), 1);
+        text(kTitle, 28, kMid, 310, tr(u8"Le jeu se lance avec le mod…"), rgb(kInk), 1);
+        text(kText, 17, kMid, 346, tr(u8"Bonne partie ! Cette fenêtre se ferme toute seule."), rgb(kInkSoft), 1);
         return;
     }
     const bool failed = snap_.state == State::Failed;
@@ -1279,13 +1288,13 @@ void App::panel_launch() {
     if (failed) {
         if (!cancelled)
             para(kText, 14.5f, kLeft + 42, y + 6, kRight - kLeft - 42,
-                 u8"Le détail est dans loader.txt, à côté de Mewgenics\u00A0Multi.exe.", rgb(kInkSoft), 18);
-        big_button(kRetry, {kMid - 140, 440, kMid + 140, 506}, u8"Réessayer", true);
-        link(kBack, kLeft, 562, u8"Retour", 0);
+                 tr(u8"Le détail est dans loader.txt, à côté de Mewgenics\u00A0Multi.exe."), rgb(kInkSoft), 18);
+        big_button(kRetry, {kMid - 140, 440, kMid + 140, 506}, tr(u8"Réessayer"), true);
+        link(kBack, kLeft, 562, tr(u8"Retour"), 0);
     } else {
         para(kText, 14.5f, kLeft, 510, kRight - kLeft,
-             u8"Si Steam relance le jeu, ça peut prendre une minute ou deux.", rgb(kInkSoft), 19);
-        link(kCancel, kLeft, 562, u8"Annuler", 0);
+             tr(u8"Si Steam relance le jeu, ça peut prendre une minute ou deux."), rgb(kInkSoft), 19);
+        link(kCancel, kLeft, 562, tr(u8"Annuler"), 0);
     }
 }
 
@@ -1381,8 +1390,8 @@ void App::activate(int id) {
     case kOpenDir: ml::logs_open_folder(paths_); break;
     case kCopyLog:
         logs_ok_ = ml::logs_copy_latest(hwnd_, paths_);
-        logs_note_ = logs_ok_ ? u8"Journal copié : colle-le dans Discord avec Ctrl+V."
-                              : u8"Le presse-papiers n'a pas pu être rempli : réessaie, ou ouvre le dossier.";
+        logs_note_ = logs_ok_ ? tr(u8"Journal copié : colle-le dans Discord avec Ctrl+V.")
+                              : tr(u8"Le presse-papiers n'a pas pu être rempli : réessaie, ou ouvre le dossier.");
         break;
     case kCancel: launch_.cancel(); break;
     case kLangPrev: cycle_lang(-1); break;
@@ -1431,7 +1440,7 @@ void App::browse() {
     if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dlg)))) return;
     COMDLG_FILTERSPEC spec = {L"Mewgenics.exe", L"Mewgenics.exe"};
     dlg->SetFileTypes(1, &spec);
-    dlg->SetTitle(L"Où est Mewgenics.exe ?");
+    dlg->SetTitle(ml::utf8_to_wide(tr(u8"Où est Mewgenics.exe ?")).c_str());
     FILEOPENDIALOGOPTIONS opts = 0;
     dlg->GetOptions(&opts);
     dlg->SetOptions(opts | FOS_FORCEFILESYSTEM | FOS_FILEMUSTEXIST);
