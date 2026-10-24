@@ -1022,7 +1022,7 @@ const TrPair kTable_it[] = {
      u8"La sessione non è pronta: riprova tra un istante."},
     {u8"La 4e place est en train de t'être attribuée :\n"
      u8"la question revient dans un instant.",
-     u8"Assegnazione del quarto posto in corso:\n"
+     u8"Il quarto posto ti viene assegnato:\n"
      u8"la domanda tornerà tra un istante."},
     {u8"Tes chats n'ont pas pu être préparés\n"
      u8"pour l'aventure (voir mgmp.log).",
@@ -1404,7 +1404,7 @@ const TrPair kTable_it[] = {
      u8"di %s: la tua copia si era\n"
      u8"desincronizzata. Sei tornato; i tuoi\n"
      u8"gatti restano nella sua squadra e l'IA\n"
-     u8"del gioco li controlla fino alla fine.\n"
+     u8"li controlla fino a fine battaglia.\n"
      u8"\n"
      u8"Per tornare nell'avventura, clicca su\n"
      u8"un cartello della tua casa."},
