@@ -258,7 +258,7 @@ const TrPair kTable_pt_br[] = {
      u8"quand même.",
      u8"Escolha dos itens\n"
      u8"\n"
-     u8"%s ainda estão equipando os gatos.\n"
+     u8"%s ainda equipam os próprios gatos.\n"
      u8"Clique de novo em \"Travar!\" para partir\n"
      u8"mesmo assim."},
     {u8"Choix des objets\n"
@@ -268,7 +268,7 @@ const TrPair kTable_pt_br[] = {
      u8"quand même.",
      u8"Escolha dos itens\n"
      u8"\n"
-     u8"%s ainda está equipando os gatos.\n"
+     u8"%s ainda equipa os próprios gatos.\n"
      u8"Clique de novo em \"Travar!\" para partir\n"
      u8"mesmo assim."},
     {u8"Choix des objets\n"
@@ -374,7 +374,7 @@ const TrPair kTable_pt_br[] = {
     {u8"les dons ne marchent pas chez %s", u8"os presentes não funcionam para %s"},
     {u8"%s n'est plus dans la partie", u8"%s não está mais na partida"},
     {u8"%s a encore des chats dans l'aventure de l'hôte (son rangement attend leur retour)",
-     u8"%s ainda tem gatos na aventura do anfitrião (o armazenamento aguarda a volta deles)"},
+     u8"%s ainda tem gatos na aventura do anfitrião (o armazenamento dele aguarda a volta deles)"},
     {u8"raison inconnue", u8"motivo desconhecido"},
     {u8"Cadeau d'%s", u8"Presente de %s"},
     {u8"Cadeau de %s", u8"Presente de %s"},
@@ -386,9 +386,9 @@ const TrPair kTable_pt_br[] = {
      u8"No fim, %s recebeu %s: saiu da sua casa."},
     {u8"%s a bien reçu %s : c'est parti de ta maison.", u8"%s recebeu %s: saiu da sua casa."},
     {u8"(1 objet n'a pas pu quitter ton rangement : il est aussi chez toi.)",
-     u8"(1 item não saiu do armazenamento: você ainda o tem.)"},
+     u8"(1 item não saiu do armazenamento: vocês dois o têm.)"},
     {u8"(%u objets n'ont pas pu quitter ton rangement : ils sont aussi chez toi.)",
-     u8"(%u itens não saíram do armazenamento: você ainda os tem.)"},
+     u8"(%u itens não saíram do armazenamento: vocês dois os têm.)"},
     {u8"Le don à %s n'est pas passé : %s. Rien n'a quitté ta maison.",
      u8"O presente para %s não foi entregue: %s. Nada saiu da sua casa."},
     {u8"Rien à donner dans ton rangement.", u8"Nada para dar no armazenamento."},
@@ -472,7 +472,7 @@ const TrPair kTable_pt_br[] = {
      u8"ses déblocages à tout le monde.",
      u8"Recompensa pronta\n"
      u8"\n"
-     u8"Com o gato que %s deu, %s encheu\n"
+     u8"O gato que %s deu a %s encheu\n"
      u8"a barra. A recompensa será coletada\n"
      u8"assim que você estiver em casa: as moedas,\n"
      u8"a comida e os itens irão para %s,\n"
@@ -481,7 +481,7 @@ const TrPair kTable_pt_br[] = {
      u8"\n"
      u8"La récompense du don de %s n'a pas pu\n"
      u8"lui être envoyée : elle reste chez toi.",
-     u8"Recompensa: %s\n"
+     u8"Recompensa de %s\n"
      u8"\n"
      u8"A recompensa pela doação de %s não pôde\n"
      u8"ser enviada a ele: ela fica com você."},
@@ -516,7 +516,7 @@ const TrPair kTable_pt_br[] = {
      u8"chargement de ta save (au retour de\n"
      u8"l'aventure). Ses déblocages sont pour\n"
      u8"tout le monde.",
-     u8"Recompensa: %s\n"
+     u8"Recompensa de %s\n"
      u8"\n"
      u8"%s agradece pelo seu gato: %s.\n"
      u8"Isso chega à sua casa no próximo\n"
@@ -529,7 +529,7 @@ const TrPair kTable_pt_br[] = {
      u8"sa récompense, des déblocages, est pour\n"
      u8"tout le monde. Elle arrive dans ta save\n"
      u8"à son prochain chargement.",
-     u8"Recompensa: %s\n"
+     u8"Recompensa de %s\n"
      u8"\n"
      u8"Seu gato encheu a barra, e %s deu\n"
      u8"uma recompensa para todos: desbloqueios.\n"
@@ -539,7 +539,7 @@ const TrPair kTable_pt_br[] = {
      u8"\n"
      u8"%s, qui avait rempli la jauge de %s,\n"
      u8"n'est plus là : la récompense reste chez toi.",
-     u8"Recompensa: %s\n"
+     u8"Recompensa de %s\n"
      u8"\n"
      u8"%s, que tinha enchido a barra de %s,\n"
      u8"não está mais aqui: a recompensa fica com você."},
@@ -1636,7 +1636,7 @@ const TrPair kTable_pt_br[] = {
      u8"%s   (%s, porta %u)\n"
      u8"%s"},
     {u8"Elle est déjà copiée : colle-la-lui avec Ctrl+V.\n",
-     u8"Já está copiado: é só colar com Ctrl+V.\n"},
+     u8"Já está copiado: cole para seu amigo com Ctrl+V.\n"},
     {u8"Adresse introuvable sur ce PC (port %u).\n",
      u8"Endereço não encontrado neste PC (porta %u).\n"},
     {u8"Salon multijoueur\n"
