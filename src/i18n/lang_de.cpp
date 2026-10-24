@@ -133,7 +133,7 @@ const TrPair kTable_de[] = {
     {u8"Ouvrir le dossier", u8"Ordner öffnen"},
     {u8"Copier le dernier journal", u8"Neuestes Log kopieren"},
     {u8"Pour demander de l'aide : copie le dernier journal, puis colle-le dans Discord avec Ctrl+V.",
-     u8"Um Hilfe zu bitten: Kopiere das neueste Log und füge es mit Ctrl+V in Discord ein."},
+     u8"Um Hilfe zu bitten: Kopiere das neueste Log und füge es mit Strg+V in Discord ein."},
     {u8"Lancement", u8"Start"},
     {u8"Le jeu se lance avec le mod…", u8"Das Spiel startet mit dem Mod…"},
     {u8"Bonne partie ! Cette fenêtre se ferme toute seule.",
@@ -144,7 +144,7 @@ const TrPair kTable_de[] = {
     {u8"Si Steam relance le jeu, ça peut prendre une minute ou deux.",
      u8"Wenn Steam das Spiel neu startet, kann das ein, zwei Minuten dauern."},
     {u8"Journal copié : colle-le dans Discord avec Ctrl+V.",
-     u8"Log kopiert: Füge es mit Ctrl+V in Discord ein."},
+     u8"Log kopiert: Füge es mit Strg+V in Discord ein."},
     {u8"Le presse-papiers n'a pas pu être rempli : réessaie, ou ouvre le dossier.",
      u8"Die Zwischenablage konnte nicht befüllt werden: Versuch es erneut oder öffne den Ordner."},
     {u8"Où est Mewgenics.exe ?", u8"Wo ist Mewgenics.exe?"},
@@ -916,7 +916,7 @@ const TrPair kTable_de[] = {
      u8"Spiel-KI sie im Kampf und %s wählt für sie;\n"
      u8"nach dem Abenteuer zieht sie bei dir ein."},
     {u8"Nouveaux chats : %s arrivent chez toi.", u8"Neue Katzen: %s ziehen bei dir ein."},
-    {u8"Nouveaux chats : %s arrive chez toi.", u8"Neue Katze: %s zieht bei dir ein."},
+    {u8"Nouveau chat : %s arrive chez toi.", u8"Neue Katze: %s zieht bei dir ein."},
     {u8"La 4e place\n"
      u8"\n"
      u8"À 3 joueurs, l'équipe a une place libre :\n"
@@ -1643,7 +1643,7 @@ const TrPair kTable_de[] = {
      u8"%s   (%s, Port %u)\n"
      u8"%s"},
     {u8"Elle est déjà copiée : colle-la-lui avec Ctrl+V.\n",
-     u8"Schon kopiert: Mit Ctrl+V kannst du sie ihm schicken.\n"},
+     u8"Schon kopiert: Mit Strg+V kannst du sie ihm schicken.\n"},
     {u8"Adresse introuvable sur ce PC (port %u).\n",
      u8"Keine Adresse auf diesem PC gefunden (Port %u).\n"},
     {u8"Salon multijoueur\n"
@@ -1671,7 +1671,7 @@ const TrPair kTable_de[] = {
      u8"%s_\n"
      u8"\n"
      u8"Tippe die Adresse deines Freundes ein\n"
-     u8"oder füg sie mit Ctrl+V ein. Enter zum Bestätigen.%s"},
+     u8"oder füg sie mit Strg+V ein. Enter zum Bestätigen.%s"},
     {u8"\n"
      u8"\n"
      u8"Par Steam, c'est plus simple : dans ta liste\n"

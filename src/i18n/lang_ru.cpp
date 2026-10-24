@@ -908,7 +908,7 @@ const TrPair kTable_ru[] = {
      u8"ИИ игры, а %s выбирает за него,\n"
      u8"и он вернётся к тебе домой в конце похода."},
     {u8"Nouveaux chats : %s arrivent chez toi.", u8"Новые котейки: %s прибывают к тебе."},
-    {u8"Nouveaux chats : %s arrive chez toi.", u8"Новый котейка: %s прибывает к тебе."},
+    {u8"Nouveau chat : %s arrive chez toi.", u8"Новый котейка: %s прибывает к тебе."},
     {u8"La 4e place\n"
      u8"\n"
      u8"À 3 joueurs, l'équipe a une place libre :\n"

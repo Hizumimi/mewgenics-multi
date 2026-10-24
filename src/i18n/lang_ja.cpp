@@ -887,7 +887,7 @@ const TrPair kTable_ja[] = {
      u8"ゲームの\u200BAIが\u200Bバトルを\u200B行い、\u200B%sが\u200B代わりに\u200B選びます。\n"
      u8"冒険が\u200B終わると、\u200Bあなたの\u200B家に\u200B帰ってきます。"},
     {u8"Nouveaux chats : %s arrivent chez toi.", u8"新しい\u200Bネコ：\u200B%sが\u200Bあなたの\u200B家に\u200B来ます。"},
-    {u8"Nouveaux chats : %s arrive chez toi.", u8"新しい\u200Bネコ：\u200B%sが\u200Bあなたの\u200B家に\u200B来ます。"},
+    {u8"Nouveau chat : %s arrive chez toi.", u8"新しい\u200Bネコ：\u200B%sが\u200Bあなたの\u200B家に\u200B来ます。"},
     {u8"La 4e place\n"
      u8"\n"
      u8"À 3 joueurs, l'équipe a une place libre :\n"

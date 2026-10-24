@@ -209,7 +209,7 @@ Mewgenics Multi, Mewgenics, Steam, Discord, les noms de fichiers et de réglages
 (`mgmp.json`, `mgmp.dll`, `mgmp_loader.exe`, `Mewgenics.exe`, `resources.gpak`,
 `steam_appid.txt`, `loader.txt`, `net.control`, `"auto"`), les adresses (127.0.0.1), les
 noms des joueurs (`%s`). Les touches se traduisent comme sur un clavier du pays (« Échap »
-→ Esc, Escape…) ; Ctrl+V reste Ctrl+V.
+→ Esc, Escape…), Ctrl+V aussi (Strg+V sur un clavier allemand, Ctrl+V ailleurs).
 
 ## 8. Pour les développeurs
 

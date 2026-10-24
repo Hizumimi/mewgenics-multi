@@ -874,7 +874,7 @@ const TrPair kTable_zh_cn[] = {
      u8"操控\u200B它，\u200B%s\u200B替\u200B它\u200B做\u200B选择，\n"
      u8"冒险\u200B结束\u200B后\u200B它\u200B会\u200B回到\u200B你\u200B家。"},
     {u8"Nouveaux chats : %s arrivent chez toi.", u8"新猫：\u200B%s\u200B来\u200B到\u200B你\u200B家。"},
-    {u8"Nouveaux chats : %s arrive chez toi.", u8"新猫：\u200B%s\u200B来\u200B到\u200B你\u200B家。"},
+    {u8"Nouveau chat : %s arrive chez toi.", u8"新猫：\u200B%s\u200B来\u200B到\u200B你\u200B家。"},
     {u8"La 4e place\n"
      u8"\n"
      u8"À 3 joueurs, l'équipe a une place libre :\n"

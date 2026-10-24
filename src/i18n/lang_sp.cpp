@@ -916,7 +916,7 @@ const TrPair kTable_sp[] = {
      u8"controla en combate y %s elige por él;\n"
      u8"al final de la aventura, volverá a tu casa."},
     {u8"Nouveaux chats : %s arrivent chez toi.", u8"Nuevos gatos: %s llegan a tu casa."},
-    {u8"Nouveaux chats : %s arrive chez toi.", u8"Nuevos gatos: %s llega a tu casa."},
+    {u8"Nouveau chat : %s arrive chez toi.", u8"Nuevo gato: %s llega a tu casa."},
     {u8"La 4e place\n"
      u8"\n"
      u8"À 3 joueurs, l'équipe a une place libre :\n"

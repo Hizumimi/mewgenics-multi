@@ -909,7 +909,7 @@ const TrPair kTable_en[] = {
      u8"plays it in battle and %s chooses for\n"
      u8"it. It goes home to you at the end."},
     {u8"Nouveaux chats : %s arrivent chez toi.", u8"New cats: %s arrive at your house."},
-    {u8"Nouveaux chats : %s arrive chez toi.", u8"New cat: %s arrives at your house."},
+    {u8"Nouveau chat : %s arrive chez toi.", u8"New cat: %s arrives at your house."},
     {u8"La 4e place\n"
      u8"\n"
      u8"À 3 joueurs, l'équipe a une place libre :\n"

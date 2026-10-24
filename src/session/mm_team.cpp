@@ -2320,7 +2320,7 @@ void on_newcats(uint8_t from, const SaveFileMsg& m) {
     // Deja chez lui : sa save est ouverte par le jeu, on ne peut rien y ecrire --
     // la fenetre « Recharger » (mm_menu).
     mm_offer_reload(fmt(names.size() > 1 ? tr(u8"Nouveaux chats : %s arrivent chez toi.")
-                                         : tr(u8"Nouveaux chats : %s arrive chez toi."),
+                                         : tr(u8"Nouveau chat : %s arrive chez toi."),
                         say_names(names).c_str()));
 }
 

@@ -883,7 +883,7 @@ const TrPair kTable_ko[] = {
      u8"선택은 %s이(가) 대신하며,\n"
      u8"모험이 끝나면 내 집으로 돌아옵니다."},
     {u8"Nouveaux chats : %s arrivent chez toi.", u8"새 고양이: %s이(가) 내 집으로 옵니다."},
-    {u8"Nouveaux chats : %s arrive chez toi.", u8"새 고양이: %s이(가) 내 집으로 옵니다."},
+    {u8"Nouveau chat : %s arrive chez toi.", u8"새 고양이: %s이(가) 내 집으로 옵니다."},
     {u8"La 4e place\n"
      u8"\n"
      u8"À 3 joueurs, l'équipe a une place libre :\n"
