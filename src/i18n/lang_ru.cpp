@@ -231,7 +231,7 @@ const TrPair kTable_ru[] = {
      u8"Сборы игрока %s здесь больше не видны.\n"
      u8"Пройди эти экраны самостоятельно: вы\n"
      u8"встретитесь на карте."},
-    {u8"  %s : parti", u8"  %s: в пути"},
+    {u8"  %s : parti", u8"  %s: отсутствует"},
     {u8"  %s : prêt !", u8"  %s: всё готово!"},
     {u8"  %s : charge ta partie...", u8"  %s: загружает твою игру..."},
     {u8"Départ en aventure\n"
@@ -298,12 +298,12 @@ const TrPair kTable_ru[] = {
      u8"Выбор предметов\n"
      u8"\n"
      u8"Игрок %s уже подтвердил отправку:\n"
-     u8"котейки уйдут с тем, что выбрано,\n"
-     u8"остальное не в счёт."},
+     u8"котейки уйдут с уже выбранным,\n"
+     u8"дальнейшее не в счёт."},
     {u8"Ta bourse : %s.", u8"Твой кошелёк: %s."},
     {u8"%s n'est plus dans la partie.", u8"Игрока %s больше нет в игре."},
     {u8"Tu n'as pas de bourse dans cette aventure (tu n'y as pas amené de chat).",
-     u8"В этом походе у тебя нет кошелька (в нём нет твоих котеек)."},
+     u8"У тебя нет кошелька: в этом походе нет твоих котеек."},
     {u8"Les échanges marchent dans ta maison, ou en aventure à plusieurs avec ta bourse. Pour l'instant : %s.",
      u8"Обмен работает у тебя дома или в совместном походе через кошелёк. Сейчас: %s."},
     {u8"pas de partie à plusieurs en cours", u8"сейчас нет совместной игры"},
@@ -762,8 +762,8 @@ const TrPair kTable_ru[] = {
      u8"покупок."},
     {u8"Tu n'as pas de bourse dans cette aventure\n"
      u8"(tu n'y as pas amené de chats) : pas d'achat.",
-     u8"В этом походе у тебя нет кошелька\n"
-     u8"(в нём нет твоих котеек): покупки не будет."},
+     u8"У тебя нет кошелька: в этом походе\n"
+     u8"нет твоих котеек. Покупки не будет."},
     {u8"L'hôte ne peut pas acheter pour toi en ce\n"
      u8"moment (une fenêtre est ouverte chez lui) :\n"
      u8"rien n'a été acheté. Réessaie dans un instant.",
@@ -1566,9 +1566,9 @@ const TrPair kTable_ru[] = {
      u8"son aventure une fois qu'il sera sur la carte.",
      u8"Отправка в поход\n"
      u8"\n"
-     u8"Отмена после голосования: %s уходит\n"
-     u8"без тебя и твоих котеек. Присоединиться\n"
-     u8"к походу можно, когда хост будет на карте."},
+     u8"Твоя отмена после голосования:\n"
+     u8"%s уходит без тебя и твоих котеек.\n"
+     u8"Присоединиться к походу можно, когда хост будет на карте."},
     {u8"Départ en aventure\n"
      u8"\n"
      u8"Aucun chat ne peut partir cette fois :\n"
@@ -1721,7 +1721,7 @@ const TrPair kTable_ru[] = {
      u8"Quitte le salon, puis réessaie (ou par adresse).",
      u8"Лобби мультиплеера\n"
      u8"\n"
-     u8"[c:red]Ошибка подключения (%s):[/c]\n"
+     u8"[c:red]Не удалось подключиться к %s:[/c]\n"
      u8"%s.\n"
      u8"Выйди из лобби и попробуй снова (или по адресу)."},
     {u8"Salon multijoueur\n"
