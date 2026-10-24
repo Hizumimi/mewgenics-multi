@@ -1539,7 +1539,7 @@ const TrPair kTable_en[] = {
      u8"chez toi à la fin de l'aventure.",
      u8"Departure\n"
      u8"\n"
-     u8"Your cats left with %s's team:\n"
+     u8"Your cats already left with %s's team:\n"
      u8"until you join, the game's AI plays them\n"
      u8"in battle and %s chooses for them;\n"
      u8"they'll come home to you at the end."},
@@ -1552,14 +1552,14 @@ const TrPair kTable_en[] = {
      u8"son combat seul, avec ses chats. Ils reviennent ensuite.",
      u8"%s are defending their houses, each in\n"
      u8"a solo fight. They'll be back after."},
-    {u8"%s a fini de défendre sa maison.", u8"%s defended their house."},
+    {u8"%s a fini de défendre sa maison.", u8"%s is done defending their house."},
     {u8"%s a fini de défendre sa maison.\n"
      u8"%s défend la sienne encore.",
-     u8"%s defended their house.\n"
+     u8"%s is done defending their house.\n"
      u8"%s is still defending theirs."},
     {u8"%s a fini de défendre sa maison.\n"
      u8"%s défendent la leur encore.",
-     u8"%s defended their house.\n"
+     u8"%s is done defending their house.\n"
      u8"%s are still defending theirs."},
     {u8"Départ en aventure\n"
      u8"\n"
