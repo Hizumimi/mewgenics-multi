@@ -53,6 +53,7 @@
 #include "mgmp_steam.h"        // jouer ensemble par Steam (protocole 59)
 #include "mgmp_rtti.h"         // la cinematique d'ouverture : glaiel::SwfCutscene
 #include "mgmp_sigscan.h"      // ... et le test du jeu qu'on reproduit
+#include "mm_lang.h"           // tr() : les textes montres au joueur, dans la langue du jeu
 #include "mm_lang_win.h"       // la langue du jeu (settings.txt), pour tr()
 
 #include <winsock2.h>   // avant windows.h : types reseau d'iphlpapi
@@ -352,11 +353,11 @@ LocalIp best_local_ip() {
                 if (b[0] == 26)                              { rank = 0; kind = "Radmin VPN"; }
                 else if (b[0] == 100 && (b[1] & 0xC0) == 64) { rank = 1; kind = "Tailscale"; }
                 else if (b[0] == 25)                         { rank = 2; kind = "Hamachi"; }
-                else if (b[0] == 192 && b[1] == 168)         { rank = 3; kind = u8"réseau local"; }
-                else if (b[0] == 10)                         { rank = 3; kind = u8"réseau local"; }
-                else if (b[0] == 172 && (b[1] & 0xF0) == 16) { rank = 3; kind = u8"réseau local"; }
+                else if (b[0] == 192 && b[1] == 168)         { rank = 3; kind = trk(u8"réseau local"); }
+                else if (b[0] == 10)                         { rank = 3; kind = trk(u8"réseau local"); }
+                else if (b[0] == 172 && (b[1] & 0xF0) == 16) { rank = 3; kind = trk(u8"réseau local"); }
                 else if (b[0] == 127 || (b[0] == 169 && b[1] == 254)) continue;
-                else                                         { rank = 4; kind = "Internet"; }
+                else                                         { rank = 4; kind = trk(u8"Internet"); }
                 if (rank < best_rank) {
                     best_rank = rank;
                     snprintf(best.ip, sizeof(best.ip), "%u.%u.%u.%u", b[0], b[1], b[2], b[3]);
@@ -739,7 +740,7 @@ bool popup_press(const char* name) {
 // --- textes des ecrans ----------------------------------------------------------
 
 std::string fmt(const char* f, ...) {
-    char buf[1600];
+    char buf[4096];                 // une traduction (cyrillique, CJK) prend plus d'octets
     va_list ap;
     va_start(ap, f);
     vsnprintf(buf, sizeof(buf), f, ap);
@@ -752,13 +753,13 @@ std::string peer_name(uint8_t id) {
     // Ce joueur lui-meme (l'hote n'a pas de HELLO de lui-meme) : son nom Steam,
     // pas « Joueur 1 » (journaux, et noms montres aux autres par l'hote).
     if (id == net_self() && mm_local_name()[0]) return display_name(mm_local_name());
-    return fmt("Joueur %u", (unsigned)id + 1);
+    return fmt(tr(u8"Joueur %u"), (unsigned)id + 1);
 }
 
 std::string choice_text() {
-    return u8"Multijoueur\n\n"
-           u8"Héberge une partie pour que tes amis te rejoignent,\n"
-           u8"ou rejoins la partie d'un ami.";
+    return tr(u8"Multijoueur\n\n"
+              u8"Héberge une partie pour que tes amis te rejoignent,\n"
+              u8"ou rejoins la partie d'un ami.");
 }
 
 std::string host_lobby_text() {
@@ -766,14 +767,14 @@ std::string host_lobby_text() {
     const NetState st = net_state();
     if (net_role() != NetRole::Host) {
         if (st == NetState::Failed)
-            return fmt(u8"Salon multijoueur\n\n"
-                       u8"[c:red]Impossible d'ouvrir le port %u.[/c]\n"
-                       u8"Un autre programme l'utilise peut-être.\n"
-                       u8"Arrête le salon, puis réessaie.", (unsigned)g_host_port);
-        return u8"Salon multijoueur\n\nOuverture du salon...";
+            return fmt(tr(u8"Salon multijoueur\n\n"
+                          u8"[c:red]Impossible d'ouvrir le port %u.[/c]\n"
+                          u8"Un autre programme l'utilise peut-être.\n"
+                          u8"Arrête le salon, puis réessaie."), (unsigned)g_host_port);
+        return tr(u8"Salon multijoueur\n\nOuverture du salon...");
     }
 
-    std::string players = fmt(u8"  %s (hôte)\n", me.c_str());
+    std::string players = "  " + fmt(tr(u8"%s (hôte)"), me.c_str()) + "\n";
     uint8_t ids[8] = {};
     const uint8_t n = net_peer_count();
     int others = 0;
@@ -784,43 +785,43 @@ std::string host_lobby_text() {
             ++others;
         }
     }
-    if (!others) players += u8"  En attente d'un ami...\n";
+    if (!others) players += std::string("  ") + tr(u8"En attente d'un ami...") + "\n";
 
     std::string where;
     // Mewgenics Multi (protocole 59) : par Steam d'abord -- rien a taper.
     if (steam_available())
-        where = u8"Tes amis Steam te rejoignent en un clic : dans leur\n"
-                u8"liste d'amis Steam, « Rejoindre la partie » sur ton nom.\n\n";
+        where = tr(u8"Tes amis Steam te rejoignent en un clic : dans leur\n"
+                   u8"liste d'amis Steam, « Rejoindre la partie » sur ton nom.\n\n");
     if (g_host_ip.ip[0])
-        where += fmt(u8"%s :\n%s   (%s, port %u)\n%s",
-                     steam_available() ? u8"Ou par adresse" : u8"Donne cette adresse à ton ami",
-                     g_host_ip.ip, g_host_ip.kind, (unsigned)g_host_port,
-                     g_host_copied ? u8"Elle est déjà copiée : colle-la-lui avec Ctrl+V.\n" : "");
+        where += fmt(steam_available() ? tr(u8"Ou par adresse :\n%s   (%s, port %u)\n%s")
+                                       : tr(u8"Donne cette adresse à ton ami :\n%s   (%s, port %u)\n%s"),
+                     g_host_ip.ip, tr(g_host_ip.kind), (unsigned)g_host_port,
+                     g_host_copied ? tr(u8"Elle est déjà copiée : colle-la-lui avec Ctrl+V.\n") : "");
     else
-        where += fmt(u8"Adresse introuvable sur ce PC (port %u).\n", (unsigned)g_host_port);
+        where += fmt(tr(u8"Adresse introuvable sur ce PC (port %u).\n"), (unsigned)g_host_port);
 
-    return fmt(u8"Salon multijoueur\n\n%s\nJoueurs (%d/4) :\n%s\n"
-               u8"Quand tout le monde est là, choisis ta sauvegarde.",
+    return fmt(tr(u8"Salon multijoueur\n\n%s\nJoueurs (%d/4) :\n%s\n"
+                  u8"Quand tout le monde est là, choisis ta sauvegarde."),
                where.c_str(), others + 1, players.c_str());
 }
 
 std::string join_text() {
-    return fmt(u8"Rejoindre une partie\n\n"
-               u8"Adresse de l'hôte :\n%s_\n\n"
-               u8"Tape l'adresse que ton ami t'a donnée,\n"
-               u8"ou colle-la avec Ctrl+V. Entrée pour valider.%s",
+    return fmt(tr(u8"Rejoindre une partie\n\n"
+                  u8"Adresse de l'hôte :\n%s_\n\n"
+                  u8"Tape l'adresse que ton ami t'a donnée,\n"
+                  u8"ou colle-la avec Ctrl+V. Entrée pour valider.%s"),
                g_addr_buf.c_str(),
-               steam_available() ? u8"\n\nPar Steam, c'est plus simple : dans ta liste\n"
-                                   u8"d'amis, « Rejoindre la partie » sur ton ami."
+               steam_available() ? tr(u8"\n\nPar Steam, c'est plus simple : dans ta liste\n"
+                                      u8"d'amis, « Rejoindre la partie » sur ton ami.")
                                  : "");
 }
 
 std::string bad_address_text() {
-    return fmt(u8"Rejoindre une partie\n\n"
-               u8"[c:red]Adresse invalide : %s[/c]\n\n"
-               u8"Exemple : 26.123.45.67\n"
-               u8"ou, avec un autre port : 26.123.45.67:27600",
-               g_addr_buf.empty() ? u8"(vide)" : g_addr_buf.c_str());
+    return fmt(tr(u8"Rejoindre une partie\n\n"
+                  u8"[c:red]Adresse invalide : %s[/c]\n\n"
+                  u8"Exemple : 26.123.45.67\n"
+                  u8"ou, avec un autre port : 26.123.45.67:27600"),
+               g_addr_buf.empty() ? tr(u8"(vide)") : g_addr_buf.c_str());
 }
 
 // Un invite attend le monde de l'hote avant de choisir sa save (mm_world). Pas
@@ -869,58 +870,59 @@ std::string client_lobby_text() {
             const char* reason = strchr(status, ':');
             reason = reason ? reason + 1 : status;
             while (*reason == ' ') ++reason;
-            const char* what = u8"Vérifiez que vous avez la même version du jeu et du mod.";
+            const char* what = tr(u8"Vérifiez que vous avez la même version du jeu et du mod.");
             if (strstr(reason, "complète") || strstr(reason, "full"))
-                what = u8"La partie de l'hôte est complète (4 joueurs au plus).";
+                what = tr(u8"La partie de l'hôte est complète (4 joueurs au plus).");
             else if (strstr(reason, "version du mod") || strstr(reason, "protocol"))
-                what = u8"Vous n'avez pas la même version du mod :\nprenez tous les deux la dernière.";
+                what = tr(u8"Vous n'avez pas la même version du mod :\nprenez tous les deux la dernière.");
             else if (strstr(reason, "version du jeu") || strstr(reason, "Mewgenics build"))
-                what = u8"Vous n'avez pas la même version du jeu :\nmettez Mewgenics à jour tous les deux (Steam).";
+                what = tr(u8"Vous n'avez pas la même version du jeu :\nmettez Mewgenics à jour tous les deux (Steam).");
             else if (strstr(reason, "gpak"))
-                what = u8"Les fichiers du jeu ne sont pas les mêmes :\nvérifiez-les dans Steam (Propriétés, Fichiers installés).";
+                what = tr(u8"Les fichiers du jeu ne sont pas les mêmes :\nvérifiez-les dans Steam (Propriétés, Fichiers installés).");
             else if (strstr(reason, "net.control") || strstr(reason, "net_control"))
-                what = u8"Le réglage net.control de mgmp.json donne le même chat\naux deux joueurs : remettez-le sur \"auto\".";
-            return fmt(u8"Salon multijoueur\n\n"
-                       u8"[c:red]La connexion a été refusée.[/c]\n"
-                       u8"%s\n(%s)", what, reason);
+                what = tr(u8"Le réglage net.control de mgmp.json donne le même chat\naux deux joueurs : remettez-le sur \"auto\".");
+            // La raison entre parentheses est celle de l'hote, dans sa langue (session_status).
+            return fmt(tr(u8"Salon multijoueur\n\n"
+                          u8"[c:red]La connexion a été refusée.[/c]\n"
+                          u8"%s\n(%s)"), what, reason);
         }
     }
     if (steam == 3)
-        return fmt(u8"Salon multijoueur\n\n"
-                   u8"[c:red]Impossible de rejoindre %s :[/c]\n%s.\n"
-                   u8"Quitte le salon, puis réessaie (ou par adresse).",
+        return fmt(tr(u8"Salon multijoueur\n\n"
+                      u8"[c:red]Impossible de rejoindre %s :[/c]\n%s.\n"
+                      u8"Quitte le salon, puis réessaie (ou par adresse)."),
                    target.c_str(), steam_why.c_str());
 
     if (r == NetRole::None) {
         if (session_request_pending())
-            return fmt(u8"Salon multijoueur\n\nConnexion à %s...", target.c_str());
+            return fmt(tr(u8"Salon multijoueur\n\nConnexion à %s..."), target.c_str());
         if (st == NetState::Failed)
-            return fmt(u8"Salon multijoueur\n\n"
-                       u8"[c:red]Impossible de joindre %s.[/c]\n"
-                       u8"Vérifie l'adresse, et que ton ami a bien\n"
-                       u8"cliqué sur « Héberger ».", target.c_str());
-        return u8"Salon multijoueur\n\nDéconnecté.";
+            return fmt(tr(u8"Salon multijoueur\n\n"
+                          u8"[c:red]Impossible de joindre %s.[/c]\n"
+                          u8"Vérifie l'adresse, et que ton ami a bien\n"
+                          u8"cliqué sur « Héberger »."), target.c_str());
+        return tr(u8"Salon multijoueur\n\nDéconnecté.");
     }
     // Mewgenics Multi : « Choisir ta sauvegarde » deja clique pendant la connexion.
-    const char* later = g_play_when_world ? u8"\n\nL'écran des sauvegardes s'ouvrira tout seul." : "";
+    const char* later = g_play_when_world ? tr(u8"\n\nL'écran des sauvegardes s'ouvrira tout seul.") : "";
     if (st == NetState::Connecting)
-        return fmt(u8"Salon multijoueur\n\nConnexion à %s...%s", target.c_str(), later);
+        return fmt(tr(u8"Salon multijoueur\n\nConnexion à %s...%s"), target.c_str(), later);
     if (st == NetState::Closed || st == NetState::Failed)
-        return u8"Salon multijoueur\n\n[c:red]La connexion avec l'hôte est coupée.[/c]\n"
-               u8"Quitte le salon, puis rejoins-le à nouveau.";
+        return tr(u8"Salon multijoueur\n\n[c:red]La connexion avec l'hôte est coupée.[/c]\n"
+                  u8"Quitte le salon, puis rejoins-le à nouveau.");
     if (!session_ready()) {
         if (steam == 1)
-            return fmt(u8"Salon multijoueur\n\nConnexion à %s par Steam...\n"
-                       u8"(quelques secondes)%s", target.c_str(), later);
-        return fmt(u8"Salon multijoueur\n\nConnecté, présentation à l'hôte...%s", later);
+            return fmt(tr(u8"Salon multijoueur\n\nConnexion à %s par Steam...\n"
+                          u8"(quelques secondes)%s"), target.c_str(), later);
+        return fmt(tr(u8"Salon multijoueur\n\nConnecté, présentation à l'hôte...%s"), later);
     }
 
     const std::string host = peer_name(0);
     // Mewgenics Multi : tous les joueurs du salon (le PEERS de l'hote), comme
     // host_lobby_text. Les noms des autres invites ne viennent pas jusqu'ici (leur
     // HELLO n'est pas relaye) : ils s'affichent « Joueur N ».
-    std::string players = fmt(u8"  %s (hôte)\n  %s (toi)\n", host.c_str(),
-                              display_name(mm_local_name()).c_str());
+    std::string players = "  " + fmt(tr(u8"%s (hôte)"), host.c_str()) + "\n  " +
+                          fmt(tr(u8"%s (toi)"), display_name(mm_local_name()).c_str()) + "\n";
     int count = 2;
     uint8_t ids[8] = {};
     const uint8_t n = net_peer_count();
@@ -931,28 +933,32 @@ std::string client_lobby_text() {
             ++count;
         }
     if (!world_have_host() && !client_world_wait_over())
-        return fmt(u8"Salon multijoueur\n\n"
-                   u8"Tu as rejoint la partie de %s !\n\n"
-                   u8"Joueurs (%d/4) :\n%s\n"
-                   u8"En attente de la partie de %s :\n"
-                   u8"dès qu'il aura choisi sa sauvegarde,\n"
-                   u8"%s",
-                   host.c_str(), count, players.c_str(), host.c_str(),
-                   g_play_when_world ? u8"l'écran des sauvegardes s'ouvrira tout seul."
-                                     : u8"tu pourras choisir la tienne.");
-    return fmt(u8"Salon multijoueur\n\n"
-               u8"Tu as rejoint la partie de %s !\n\n"
-               u8"Joueurs (%d/4) :\n%s\n"
-               u8"Choisis ta sauvegarde : ta maison, tes chats.\n"
-               u8"Les PNJ et l'histoire seront ceux de %s,\n"
-               u8"et pour partir à l'aventure, tu rejoindras son équipe.",
+        return fmt(g_play_when_world ? tr(u8"Salon multijoueur\n\n"
+                                          u8"Tu as rejoint la partie de %s !\n\n"
+                                          u8"Joueurs (%d/4) :\n%s\n"
+                                          u8"En attente de la partie de %s :\n"
+                                          u8"dès qu'il aura choisi sa sauvegarde,\n"
+                                          u8"l'écran des sauvegardes s'ouvrira tout seul.")
+                                     : tr(u8"Salon multijoueur\n\n"
+                                          u8"Tu as rejoint la partie de %s !\n\n"
+                                          u8"Joueurs (%d/4) :\n%s\n"
+                                          u8"En attente de la partie de %s :\n"
+                                          u8"dès qu'il aura choisi sa sauvegarde,\n"
+                                          u8"tu pourras choisir la tienne."),
+                   host.c_str(), count, players.c_str(), host.c_str());
+    return fmt(tr(u8"Salon multijoueur\n\n"
+                  u8"Tu as rejoint la partie de %s !\n\n"
+                  u8"Joueurs (%d/4) :\n%s\n"
+                  u8"Choisis ta sauvegarde : ta maison, tes chats.\n"
+                  u8"Les PNJ et l'histoire seront ceux de %s,\n"
+                  u8"et pour partir à l'aventure, tu rejoindras son équipe."),
                host.c_str(), count, players.c_str(), host.c_str());
 }
 
 // --- ouverture des ecrans --------------------------------------------------------
 
 void open_choice() {
-    open_popup(Screen::Choice, choice_text(), u8"Héberger", u8"Rejoindre", false,
+    open_popup(Screen::Choice, choice_text(), tr(u8"Héberger"), tr(u8"Rejoindre"), false,
                Action::StartHost, Action::OpenJoin);
 }
 
@@ -961,19 +967,19 @@ void open_host_lobby() {
     // n'a pas encore ete cherchee.
     if (!g_host_port) g_host_port = config().net_port;
     if (!g_host_ip.ip[0]) g_host_ip = best_local_ip();
-    open_popup(Screen::HostLobby, host_lobby_text(), u8"Choisir la sauvegarde", u8"Arrêter",
+    open_popup(Screen::HostLobby, host_lobby_text(), tr(u8"Choisir la sauvegarde"), tr(u8"Arrêter"),
                false, Action::ClickPlay, Action::StopSession);
 }
 
 void open_client_lobby() {
     // Connexion lancee par mgmp.json (role "client") plutot que par le menu.
     if (g_join_ip.empty()) g_join_ip = config().net_addr;
-    open_popup(Screen::ClientLobby, client_lobby_text(), u8"Choisir ta sauvegarde", u8"Quitter",
+    open_popup(Screen::ClientLobby, client_lobby_text(), tr(u8"Choisir ta sauvegarde"), tr(u8"Quitter"),
                false, Action::ClickPlay, Action::StopSession);
 }
 
 void open_join() {
-    open_popup(Screen::JoinEntry, join_text(), u8"Rejoindre", u8"Annuler", false,
+    open_popup(Screen::JoinEntry, join_text(), tr(u8"Rejoindre"), tr(u8"Annuler"), false,
                Action::DoJoin, Action::None);
 }
 
@@ -1004,7 +1010,7 @@ void do_join() {
     uint16_t port = 0;
     if (!parse_address(g_addr_buf, ip, port)) {
         log_line("MULTI", "adresse invalide : '%s'", g_addr_buf.c_str());
-        open_popup(Screen::BadAddress, bad_address_text(), u8"D'accord", nullptr, true,
+        open_popup(Screen::BadAddress, bad_address_text(), tr(u8"D'accord"), nullptr, true,
                    Action::OpenJoin, Action::OpenJoin);
         return;
     }
@@ -1179,10 +1185,10 @@ std::string night_lines(int* not_ready) {
             const uint8_t id = ids[i];
             const bool me = id == net_self();
             const bool ready = me ? g_night_ready : (g_night_ready_mask & (1u << id)) != 0;
-            const std::string who = me ? display_name(mm_local_name()) + u8" (toi)" : peer_name(id);
-            lines += "  " + who + (ready                       ? u8" : prêt\n"
-                                   : !me && peer_defending(id) ? u8" : défend sa maison\n"
-                                                               : u8" : pas encore\n");
+            const std::string who = me ? fmt(tr(u8"%s (toi)"), display_name(mm_local_name()).c_str()) : peer_name(id);
+            lines += "  " + fmt(ready                       ? tr(u8"%s : prêt")
+                                : !me && peer_defending(id) ? tr(u8"%s : défend sa maison")
+                                                            : tr(u8"%s : pas encore"), who.c_str()) + "\n";
             if (!ready) ++waiting;
         }
     }
@@ -1195,11 +1201,11 @@ std::string night_text() {
     int waiting = 0;
     const std::string lines = night_lines(&waiting);
     std::string count;
-    if (waiting <= 0)      count = u8"Tout le monde est prêt !";
-    else if (waiting == 1) count = u8"En attente d'un joueur.";
-    else                   count = fmt(u8"En attente de %d joueurs.", waiting);
-    return fmt(u8"Fin de journée\n\n"
-               u8"Tu es prêt à passer la nuit.\n%s\n\n%s",
+    if (waiting <= 0)      count = tr(u8"Tout le monde est prêt !");
+    else if (waiting == 1) count = tr(u8"En attente d'un joueur.");
+    else                   count = fmt(tr(u8"En attente de %d joueurs."), waiting);
+    return fmt(tr(u8"Fin de journée\n\n"
+                  u8"Tu es prêt à passer la nuit.\n%s\n\n%s"),
                count.c_str(), lines.c_str());
 }
 
@@ -1207,15 +1213,15 @@ std::string night_text() {
 std::string notice_text(bool depart) {
     const int n = bit_count(others_ready_mask());
     const std::string lines = night_lines(nullptr);
-    const std::string who = n <= 1 ? std::string(u8"1 joueur attend")
-                                   : fmt(u8"%d joueurs attendent", n);
     const char* tail = depart
-        ? u8"\nTon panneau sert au départ en aventure :\n"
-          u8"retire tes chats de l'équipe pour finir la journée."
+        ? tr(u8"\nTon panneau sert au départ en aventure :\n"
+             u8"retire tes chats de l'équipe pour finir la journée.")
         : "";
-    return fmt(u8"Fin de journée\n\n"
-               u8"%s pour passer la nuit.\n\n%s%s",
-               who.c_str(), lines.c_str(), tail);
+    if (n <= 1)
+        return fmt(tr(u8"Fin de journée\n\n"
+                      u8"1 joueur attend pour passer la nuit.\n\n%s%s"), lines.c_str(), tail);
+    return fmt(tr(u8"Fin de journée\n\n"
+                  u8"%d joueurs attendent pour passer la nuit.\n\n%s%s"), n, lines.c_str(), tail);
 }
 
 // Le libelle du panneau tant que d'autres attendent ce joueur.
@@ -1223,12 +1229,12 @@ std::wstring sign_label_wanted() {
     if (g_night_ready || savefile_in_coop()) return {};
     const int n = bit_count(others_ready_mask());
     if (n <= 0) return {};
-    if (n == 1) return utf8_to_wide(u8"1 joueur attend");
-    return utf8_to_wide(fmt(u8"%d joueurs attendent", n).c_str());
+    if (n == 1) return utf8_to_wide(tr(u8"1 joueur attend"));
+    return utf8_to_wide(fmt(tr(u8"%d joueurs attendent"), n).c_str());
 }
 
 void open_night_wait() {
-    open_popup(Screen::NightWait, night_text(), u8"Annuler", nullptr, true,
+    open_popup(Screen::NightWait, night_text(), tr(u8"Annuler"), nullptr, true,
                Action::CancelNight, Action::CancelNight);
 }
 
@@ -1319,9 +1325,9 @@ bool open_night_notice() {
     const bool can = sign_can_end_day();
     g_notice_tail = !can && g_house_depart;
     const bool ok = can
-        ? open_popup(Screen::NightNotice, notice_text(false), u8"Passer la nuit", u8"Plus tard",
+        ? open_popup(Screen::NightNotice, notice_text(false), tr(u8"Passer la nuit"), tr(u8"Plus tard"),
                      false, Action::NightReadyNow, Action::None)
-        : open_popup(Screen::NightNotice, notice_text(g_notice_tail), u8"D'accord", nullptr,
+        : open_popup(Screen::NightNotice, notice_text(g_notice_tail), tr(u8"D'accord"), nullptr,
                      true, Action::None, Action::None);
     if (ok)
         log_line("MULTI", "nuit : annonce affichee (%d joueur(s) pret(s))",
@@ -1538,8 +1544,13 @@ HWND     g_hwnd = nullptr;            // la fenetre du jeu (vue dans mm_menu_wnd
 // Apres l'appui sur « Quitter vers le menu », le temps d'attendre le menu avant
 // de demander au joueur de le faire lui-meme (30 s a 60 images par seconde).
 constexpr uint32_t kTripPatience = 30 * 60;
-const std::string kTripHelp = u8"Pour continuer, appuie sur Échap\n"
-                              u8"puis sur « Quitter vers le menu ».";
+// Composee a l'appel (la langue peut changer) ; le texte confie a show_info est garde
+// tel quel pour la reconnaitre en attente.
+std::string trip_help() {
+    return tr(u8"Pour continuer, appuie sur Échap\n"
+              u8"puis sur « Sauvegarder et retourner au menu ».");
+}
+std::string g_trip_help_shown;
 
 bool trip_active() { return g_trip.active; }
 
@@ -1569,6 +1580,11 @@ void show_info(const std::string& text, int flags = 0) {
     g_info_text   = text;
     g_info_wanted = true;
     g_info_yield  = (flags & kInfoYieldToFollow) != 0;
+}
+
+void show_trip_help() {
+    g_trip_help_shown = trip_help();
+    show_info(g_trip_help_shown);
 }
 
 // Un invite que l'hote emmene dans une case, ou qui n'est pas sur la carte de
@@ -1603,7 +1619,6 @@ void start_menu_trip(const char* why) {
 // avis, avec « Recharger » : le trajet de « Rentrer » (GoHome).
 std::vector<std::string> g_reload_lines;      // un avis par ligne, sans doublon
 bool                     g_reload_wanted = false;
-const std::string kReloadHowto = u8"Échap, « Quitter vers le menu »,\npuis « Jouer » et ta save";
 
 // Sa propre save est a l'ecran (pas la copie de l'hote).
 bool reload_in_own_house() {
@@ -1612,18 +1627,26 @@ bool reload_in_own_house() {
 
 // La fenetre peut s'ouvrir : ni trajet, ni depart, ni nuit, ni defense, ni
 // defile du butin en cours. Son emplacement connu, le mod l'y ramene ; sinon
-// elle lui donne les etapes (kReloadHowto).
+// elle lui donne les etapes (reload_text).
 bool reload_can_go() {
     return reload_in_own_house() && !g_trip.active && !mm_departure_busy() &&
            !g_night_ready && !team_house_defense_running() && !loot_holds_home();
 }
 
 std::string reload_text() {
-    std::string t = u8"Ce qui t'attend\n";
-    for (const std::string& l : g_reload_lines) t += "\n" + l;
-    t += u8"\n\nTa save est déjà ouverte : tout cela n'y sera\nqu'à son prochain chargement. ";
-    return t + (savefile_has_own_slot() ? std::string(u8"« Recharger » :\nle mod passe par le menu et la rouvre.")
-                                        : u8"Recharge-la :\n" + kReloadHowto + ".");
+    std::string lines;
+    for (const std::string& l : g_reload_lines) lines += (lines.empty() ? "" : "\n") + l;
+    return fmt(savefile_has_own_slot()
+                   ? tr(u8"Ce qui t'attend\n\n%s\n\n"
+                        u8"Ta save est déjà ouverte : tout cela n'y sera\n"
+                        u8"qu'à son prochain chargement. « Recharger » :\n"
+                        u8"le mod passe par le menu et la rouvre.")
+                   : tr(u8"Ce qui t'attend\n\n%s\n\n"
+                        u8"Ta save est déjà ouverte : tout cela n'y sera\n"
+                        u8"qu'à son prochain chargement. Recharge-la :\n"
+                        u8"Échap, « Sauvegarder et retourner au menu »,\n"
+                        u8"puis « Jouer » et ta save."),
+               lines.c_str());
 }
 
 void trip_pump() {
@@ -1636,7 +1659,7 @@ void trip_pump() {
         if (g_trip.key_down) { post_escape(false); g_trip.key_down = false; }
         g_trip.active = false;
         // L'aide « appuie sur Échap » n'a plus d'objet : il y est.
-        if (g_trip.told && g_info_wanted && g_info_text == kTripHelp) g_info_wanted = false;
+        if (g_trip.told && g_info_wanted && g_info_text == g_trip_help_shown) g_info_wanted = false;
         log_line("MULTI", "arrive au menu principal");
         return;
     }
@@ -1649,7 +1672,7 @@ void trip_pump() {
         if (g_frame > g_trip.press_ok + kTripPatience && !g_trip.told) {
             g_trip.told = true;
             log_line("MULTI", "!! « Quitter vers le menu » appuye, mais toujours pas au menu");
-            show_info(kTripHelp);
+            show_trip_help();
         }
         return;
     }
@@ -1668,7 +1691,7 @@ void trip_pump() {
         if (!g_trip.told) {
             g_trip.told = true;
             log_line("MULTI", "!! le menu pause ne s'ouvre pas tout seul : le joueur doit le faire");
-            show_info(kTripHelp);
+            show_trip_help();
         }
         return;
     }
@@ -1803,11 +1826,12 @@ namespace {
 
 std::string host_display() { return peer_name(0); }
 
+// La ligne d'un joueur dans l'attente du vote de depart (« %s » : son nom).
 const char* dep_answer_text(uint8_t a) {
     switch (a) {
-        case 1:  return u8"j'arrive !";
-        case 2:  return u8"pas encore";
-        default: return u8"réfléchit...";
+        case 1:  return tr(u8"%s : j'arrive !");
+        case 2:  return tr(u8"%s : pas encore");
+        default: return tr(u8"%s : réfléchit...");
     }
 }
 
@@ -1819,50 +1843,50 @@ std::string depart_wait_text() {
         for (uint8_t i = 0; i < n && i < 8; ++i) {
             if (ids[i] == net_self() || ids[i] >= 8) continue;
             const uint8_t a = g_dep_answer[ids[i]];
-            lines += "  " + peer_name(ids[i]) + " : " +
-                     (a != 1 && peer_defending(ids[i]) ? u8"défend sa maison" : dep_answer_text(a)) + "\n";
+            lines += "  " + fmt(a != 1 && peer_defending(ids[i]) ? tr(u8"%s : défend sa maison") : dep_answer_text(a),
+                                peer_name(ids[i]).c_str()) + "\n";
         }
-    return fmt(u8"Départ en aventure\n\n"
-               u8"Tu veux partir à l'aventure.\n"
-               u8"Ton équipe répond :\n\n%s", lines.c_str());
+    return fmt(tr(u8"Départ en aventure\n\n"
+                  u8"Tu veux partir à l'aventure.\n"
+                  u8"Ton équipe répond :\n\n%s"), lines.c_str());
 }
 
 std::string arrival_text() {
     std::string lines;
     for (uint8_t id = 0; id < 8; ++id)
         if (g_arrival_mask & (1u << id))
-            lines += "  " + peer_name(id) + (peer_defending(id) ? u8" : défend sa maison\n"
-                                                                : u8" : pas encore là\n");
-    return fmt(u8"En attente de ton équipe\n\n%s\n"
-               u8"Si tu avances sans l'attendre, l'IA du jeu\n"
-               u8"joue ses chats dans les combats jusqu'à\n"
-               u8"son arrivée.", lines.c_str());
+            lines += "  " + fmt(peer_defending(id) ? tr(u8"%s : défend sa maison") : tr(u8"%s : pas encore là"),
+                                peer_name(id).c_str()) + "\n";
+    return fmt(tr(u8"En attente de ton équipe\n\n%s\n"
+                  u8"Si tu avances sans l'attendre, l'IA du jeu\n"
+                  u8"joue ses chats dans les combats jusqu'à\n"
+                  u8"son arrivée."), lines.c_str());
 }
 
 std::string depart_offer_text() {
     const std::string h = host_display();
-    return fmt(u8"Départ en aventure\n\n"
-               u8"%s part à l'aventure !\n"
-               u8"Chacun emmène ses chats et dirige les siens.\n\n"
-               u8"%s", h.c_str(), team_guest_offer_line().c_str());
+    return fmt(tr(u8"Départ en aventure\n\n"
+                  u8"%s part à l'aventure !\n"
+                  u8"Chacun emmène ses chats et dirige les siens.\n\n"
+                  u8"%s"), h.c_str(), team_guest_offer_line().c_str());
 }
 
 std::string run_offer_text() {
     const std::string h = host_display();
     if (team_owners_active() && !team_guest_has_cats_in_run())
-        return fmt(u8"Aventure en cours\n\n"
-                   u8"%s est en aventure !\n"
-                   u8"Tes chats ne sont pas du voyage : tu suivras\n"
-                   u8"l'aventure sans diriger de chat.", h.c_str());
+        return fmt(tr(u8"Aventure en cours\n\n"
+                      u8"%s est en aventure !\n"
+                      u8"Tes chats ne sont pas du voyage : tu suivras\n"
+                      u8"l'aventure sans diriger de chat."), h.c_str());
     if (team_guest_has_cats_in_run())
-        return fmt(u8"Aventure en cours\n\n"
-                   u8"%s est en aventure avec tes chats !\n"
-                   u8"Tant que tu n'es pas là, l'IA du jeu les joue\n"
-                   u8"en combat et %s choisit pour eux.\n"
-                   u8"Rejoins son équipe ?", h.c_str(), h.c_str());
-    return fmt(u8"Aventure en cours\n\n"
-               u8"%s est en aventure !\n"
-               u8"Rejoins son équipe ?", h.c_str());
+        return fmt(tr(u8"Aventure en cours\n\n"
+                      u8"%s est en aventure avec tes chats !\n"
+                      u8"Tant que tu n'es pas là, l'IA du jeu les joue\n"
+                      u8"en combat et %s choisit pour eux.\n"
+                      u8"Rejoins son équipe ?"), h.c_str(), h.c_str());
+    return fmt(tr(u8"Aventure en cours\n\n"
+                  u8"%s est en aventure !\n"
+                  u8"Rejoins son équipe ?"), h.c_str());
 }
 
 // « Abandonner l'aventure » dans la copie de l'hote : ce n'est pas la sienne,
@@ -1870,23 +1894,23 @@ std::string run_offer_text() {
 std::string quit_run_text() {
     const std::string h = host_display();
     if (!session_has_others() || !g_host_in_run)
-        return fmt(u8"Quitter l'aventure\n\n"
-                   u8"L'aventure de %s est terminée :\n"
-                   u8"tu rentres dans ta maison.", h.c_str());
+        return fmt(tr(u8"Quitter l'aventure\n\n"
+                      u8"L'aventure de %s est terminée :\n"
+                      u8"tu rentres dans ta maison."), h.c_str());
     if (!team_guest_has_cats_in_run())
-        return fmt(u8"Quitter l'aventure\n\n"
-                   u8"C'est l'aventure de %s : seul lui peut\n"
-                   u8"l'abandonner. Elle continue sans toi.\n\n"
-                   u8"Tu rentres dans ta maison ? Pour revenir,\n"
-                   u8"clique sur un panneau de ta maison.", h.c_str());
-    return fmt(u8"Quitter l'aventure\n\n"
-               u8"C'est l'aventure de %s : seul lui peut\n"
-               u8"l'abandonner. Elle continue sans toi, et tes\n"
-               u8"chats restent dans son équipe : l'IA du jeu\n"
-               u8"les joue en combat, puis ils rentrent chez\n"
-               u8"toi à la fin.\n\n"
-               u8"Tu rentres dans ta maison ? Pour revenir,\n"
-               u8"clique sur un panneau de ta maison.", h.c_str());
+        return fmt(tr(u8"Quitter l'aventure\n\n"
+                      u8"C'est l'aventure de %s : seul lui peut\n"
+                      u8"l'abandonner. Elle continue sans toi.\n\n"
+                      u8"Tu rentres dans ta maison ? Pour revenir,\n"
+                      u8"clique sur un panneau de ta maison."), h.c_str());
+    return fmt(tr(u8"Quitter l'aventure\n\n"
+                  u8"C'est l'aventure de %s : seul lui peut\n"
+                  u8"l'abandonner. Elle continue sans toi, et tes\n"
+                  u8"chats restent dans son équipe : l'IA du jeu\n"
+                  u8"les joue en combat, puis ils rentrent chez\n"
+                  u8"toi à la fin.\n\n"
+                  u8"Tu rentres dans ta maison ? Pour revenir,\n"
+                  u8"clique sur un panneau de ta maison."), h.c_str());
 }
 
 std::string join_wait_text() {
@@ -1894,30 +1918,30 @@ std::string join_wait_text() {
     // L'hote garde une demande faite pendant une case ou il a deja choisi
     // (MM_RUN_REQ) : l'invite ne le sait pas, d'ou le conditionnel.
     if (g_join_running)
-        return fmt(u8"Rejoindre l'aventure\n\n"
-                   u8"Le jeu de %s t'envoie l'aventure en cours.\n"
-                   u8"S'il vient de faire un choix dans une case\n"
-                   u8"(événement, montée de niveau), tu arriveras\n"
-                   u8"à son retour sur la carte.", h.c_str());
-    return fmt(u8"En route pour l'aventure\n\n"
-               u8"La partie de %s va se charger :\n"
-               u8"tu partiras avec lui.", h.c_str());
+        return fmt(tr(u8"Rejoindre l'aventure\n\n"
+                      u8"Le jeu de %s t'envoie l'aventure en cours.\n"
+                      u8"S'il vient de faire un choix dans une case\n"
+                      u8"(événement, montée de niveau), tu arriveras\n"
+                      u8"à son retour sur la carte."), h.c_str());
+    return fmt(tr(u8"En route pour l'aventure\n\n"
+                  u8"La partie de %s va se charger :\n"
+                  u8"tu partiras avec lui."), h.c_str());
 }
 
 std::string home_offer_text() {
     if (!session_has_others())
-        return fmt(u8"Retour à la maison\n\n"
-                   u8"La connexion avec %s est coupée.\n"
-                   u8"Tu rentres dans ta maison.", host_display().c_str());
+        return fmt(tr(u8"Retour à la maison\n\n"
+                      u8"La connexion avec %s est coupée.\n"
+                      u8"Tu rentres dans ta maison."), host_display().c_str());
     // Mewgenics Multi : dans la maison de l'hote apres un depart annule, pas
     // d'aventure terminee.
     if (g_home_no_trip && savefile_in_coop() && !savefile_adventure_is_loaded())
-        return fmt(u8"Retour à la maison\n\n"
-                   u8"Le départ avec %s n'a pas eu lieu.\n"
-                   u8"Tu rentres dans ta maison.", host_display().c_str());
-    return fmt(u8"Retour à la maison\n\n"
-               u8"L'aventure de %s est terminée.\n"
-               u8"Tu rentres dans ta maison.", host_display().c_str());
+        return fmt(tr(u8"Retour à la maison\n\n"
+                      u8"Le départ avec %s n'a pas eu lieu.\n"
+                      u8"Tu rentres dans ta maison."), host_display().c_str());
+    return fmt(tr(u8"Retour à la maison\n\n"
+                  u8"L'aventure de %s est terminée.\n"
+                  u8"Tu rentres dans ta maison."), host_display().c_str());
 }
 
 // --- hote ---
@@ -2270,39 +2294,39 @@ void client_adventure_pump() {
         if (g_halt_note_due && !savefile_in_coop() && !g_trip.active && mm_house()) {
             g_halt_note_due = false;
             if (g_halt_note_kind == kOrphanHostDone)
-                show_info(fmt(u8"Retour à la maison\n\n"
-                              u8"Le combat de %s était fini, mais ta copie\n"
-                              u8"continuait : elle s'était désynchronisée,\n"
-                              u8"plus personne ne jouait ce combat. Tu es\n"
-                              u8"rentré ; tes chats restent dans son équipe.\n\n"
-                              u8"Pour revenir dans l'aventure, clique sur\n"
-                              u8"un panneau de ta maison.", host_display().c_str()));
+                show_info(fmt(tr(u8"Retour à la maison\n\n"
+                                 u8"Le combat de %s était fini, mais ta copie\n"
+                                 u8"continuait : elle s'était désynchronisée,\n"
+                                 u8"plus personne ne jouait ce combat. Tu es\n"
+                                 u8"rentré ; tes chats restent dans son équipe.\n\n"
+                                 u8"Pour revenir dans l'aventure, clique sur\n"
+                                 u8"un panneau de ta maison."), host_display().c_str()));
             else if (g_halt_note_kind == kOrphanMineDone)
-                show_info(fmt(u8"Retour à la maison\n\n"
-                              u8"Ton combat s'est fini, mais celui de %s\n"
-                              u8"continuait : ta copie s'était\n"
-                              u8"désynchronisée. Tu es rentré ; tes chats\n"
-                              u8"restent dans son équipe, l'IA du jeu les\n"
-                              u8"joue jusqu'à la fin du combat.\n\n"
-                              u8"Pour revenir dans l'aventure, clique sur\n"
-                              u8"un panneau de ta maison.", host_display().c_str()));
+                show_info(fmt(tr(u8"Retour à la maison\n\n"
+                                 u8"Ton combat s'est fini, mais celui de %s\n"
+                                 u8"continuait : ta copie s'était\n"
+                                 u8"désynchronisée. Tu es rentré ; tes chats\n"
+                                 u8"restent dans son équipe, l'IA du jeu les\n"
+                                 u8"joue jusqu'à la fin du combat.\n\n"
+                                 u8"Pour revenir dans l'aventure, clique sur\n"
+                                 u8"un panneau de ta maison."), host_display().c_str()));
             else if (g_halt_note_kind == kHaltNoteRefused)
-                show_info(fmt(u8"Retour à la maison\n\n"
-                              u8"%s est entré dans une case que ton jeu\n"
-                              u8"n'a pas pu suivre : ta copie de l'aventure\n"
-                              u8"n'était plus la même. Tu es rentré ; tes\n"
-                              u8"chats restent dans son équipe, l'IA du jeu\n"
-                              u8"les joue.\n\n"
-                              u8"Pour revenir dans l'aventure, clique sur\n"
-                              u8"un panneau de ta maison.", host_display().c_str()));
+                show_info(fmt(tr(u8"Retour à la maison\n\n"
+                                 u8"%s est entré dans une case que ton jeu\n"
+                                 u8"n'a pas pu suivre : ta copie de l'aventure\n"
+                                 u8"n'était plus la même. Tu es rentré ; tes\n"
+                                 u8"chats restent dans son équipe, l'IA du jeu\n"
+                                 u8"les joue.\n\n"
+                                 u8"Pour revenir dans l'aventure, clique sur\n"
+                                 u8"un panneau de ta maison."), host_display().c_str()));
             else
-                show_info(fmt(u8"Retour à la maison\n\n"
-                              u8"Ta copie du combat s'est désynchronisée de\n"
-                              u8"celle de %s : le combat continuait sans toi,\n"
-                              u8"alors tu es rentré. Tes chats restent dans\n"
-                              u8"son équipe, l'IA du jeu les joue.\n\n"
-                              u8"Pour revenir dans l'aventure, clique sur\n"
-                              u8"un panneau de ta maison.", host_display().c_str()));
+                show_info(fmt(tr(u8"Retour à la maison\n\n"
+                                 u8"Ta copie du combat s'est désynchronisée de\n"
+                                 u8"celle de %s : le combat continuait sans toi,\n"
+                                 u8"alors tu es rentré. Tes chats restent dans\n"
+                                 u8"son équipe, l'IA du jeu les joue.\n\n"
+                                 u8"Pour revenir dans l'aventure, clique sur\n"
+                                 u8"un panneau de ta maison."), host_display().c_str()));
             g_halt_note_kind = 0;
         }
     } else {
@@ -2341,10 +2365,10 @@ void client_adventure_pump() {
             said_own_run = true;
             log_line("MULTI", "!! la save de ce joueur est en pleine aventure : elle ne peut "
                               "pas se jouer pendant une session");
-            show_info(u8"Ta save est en pleine aventure.\n"
-                      u8"En multijoueur, les aventures se jouent avec l'hôte :\n"
-                      u8"retourne au menu et choisis une autre save,\n"
-                      u8"ou finis celle-ci en solo.");
+            show_info(tr(u8"Ta save est en pleine aventure.\n"
+                         u8"En multijoueur, les aventures se jouent avec l'hôte :\n"
+                         u8"retourne au menu et choisis une autre save,\n"
+                         u8"ou finis celle-ci en solo."));
         }
     } else if (!savefile_adventure_is_loaded()) {
         said_own_run = false;
@@ -2363,11 +2387,11 @@ void client_adventure_pump() {
         // qui a recharge -- sa copie du depart remplace le miroir de ce joueur.
         if (embark_mirror_recent()) {
             log_line("MULTI", "aventure : la copie du depart de l'hote, ce joueur va la charger");
-            show_info(fmt(u8"Départ en aventure\n\nTon jeu charge l'aventure de %s.",
+            show_info(fmt(tr(u8"Départ en aventure\n\nTon jeu charge l'aventure de %s."),
                           host_display().c_str()));
         } else {
             log_line("MULTI", "aventure : nouvelle copie de l'hote, ce joueur va la charger");
-            show_info(fmt(u8"%s a rechargé l'aventure :\ntu la recharges aussi.",
+            show_info(fmt(tr(u8"%s a rechargé l'aventure :\ntu la recharges aussi."),
                           host_display().c_str()));
         }
         start_menu_trip("recharger l'aventure de l'hote");
@@ -2420,7 +2444,7 @@ void client_adventure_pump() {
 // --- les fenetres de l'aventure, par ordre de priorite ---
 
 bool open_depart_wait() {
-    return open_popup(Screen::DepartWait, depart_wait_text(), u8"Annuler", nullptr, true,
+    return open_popup(Screen::DepartWait, depart_wait_text(), tr(u8"Annuler"), nullptr, true,
                       Action::DepartCancel, Action::DepartCancel);
 }
 
@@ -2435,7 +2459,7 @@ void adventure_popups() {
             g_quit_wanted = false;
         } else if (popup_parent_scene()) {
             g_opening_quit = true;
-            const bool open = open_popup(Screen::QuitRun, quit_run_text(), u8"Rentrer", u8"Rester", false,
+            const bool open = open_popup(Screen::QuitRun, quit_run_text(), tr(u8"Rentrer"), tr(u8"Rester"), false,
                                          Action::QuitRun, Action::None);
             g_opening_quit = false;
             if (open) {
@@ -2455,7 +2479,7 @@ void adventure_popups() {
     const bool host = net_role() == NetRole::Host;
 
     if (g_info_wanted && !(g_info_yield && guest_follow_busy())) {
-        if (open_popup(Screen::Info, g_info_text, u8"D'accord", nullptr, true,
+        if (open_popup(Screen::Info, g_info_text, tr(u8"D'accord"), nullptr, true,
                        Action::None, Action::None)) {
             g_info_wanted     = false;
             g_info_live_yield = g_info_yield;
@@ -2488,14 +2512,14 @@ void adventure_popups() {
         return;
     }
     if (host && g_embark_wait_wanted && g_dep_embark && !g_dep_go) {
-        if (open_popup(Screen::EmbarkWait, embark_wait_text(), u8"Ne pas attendre", nullptr, true,
+        if (open_popup(Screen::EmbarkWait, embark_wait_text(), tr(u8"Ne pas attendre"), nullptr, true,
                        Action::EmbarkNoWait, Action::EmbarkNoWait))
             g_embark_wait_wanted = false;
         return;
     }
     if (host && g_arrival_wanted) {
         if (!find_scene("Map")) return;              // sur la carte seulement
-        open_popup(Screen::ArrivalWait, arrival_text(), u8"Ne pas attendre", nullptr, true,
+        open_popup(Screen::ArrivalWait, arrival_text(), tr(u8"Ne pas attendre"), nullptr, true,
                    Action::ArrivalDismiss, Action::ArrivalDismiss);
         return;
     }
@@ -2504,7 +2528,7 @@ void adventure_popups() {
     // Le defile du butin d'abord : rentrer pendant qu'il passe ferait manquer
     // les objets (le chargement de sa save), et il ne dure que quelques minutes.
     if (g_home_offer && g_home_due && !loot_holds_home()) {
-        if (open_popup(Screen::HomeOffer, home_offer_text(), u8"Rentrer", nullptr, true,
+        if (open_popup(Screen::HomeOffer, home_offer_text(), tr(u8"Rentrer"), nullptr, true,
                        Action::GoHome, Action::GoHome))
             log_line("MULTI", "aventure : fenetre « Retour a la maison » ouverte%s",
                      find_scene("Battle") ? " (par-dessus le combat)" : "");
@@ -2512,27 +2536,27 @@ void adventure_popups() {
     }
     if (g_reload_wanted && reload_can_go()) {
         const bool slot = savefile_has_own_slot();     // inconnu : les etapes seulement
-        if (open_popup(Screen::ReloadOffer, reload_text(), slot ? u8"Recharger" : u8"D'accord",
-                       slot ? u8"Plus tard" : nullptr, !slot, slot ? Action::ReloadNow : Action::ReloadLater,
+        if (open_popup(Screen::ReloadOffer, reload_text(), slot ? tr(u8"Recharger") : tr(u8"D'accord"),
+                       slot ? tr(u8"Plus tard") : nullptr, !slot, slot ? Action::ReloadNow : Action::ReloadLater,
                        Action::ReloadLater))
             log_line("MULTI", "fenetre « Recharger » ouverte (%zu avis)", g_reload_lines.size());
         return;
     }
     if (g_dep_offer && g_dep_req_live && g_frame >= g_dep_offer_at && !savefile_in_coop() &&
         !savefile_join_armed()) {
-        open_popup(Screen::DepartOffer, depart_offer_text(), u8"J'arrive", u8"Pas encore", false,
+        open_popup(Screen::DepartOffer, depart_offer_text(), tr(u8"J'arrive"), tr(u8"Pas encore"), false,
                    Action::DepartYes, Action::DepartNo);
         return;
     }
     if (g_run_offer && g_host_in_run && g_frame >= g_run_offer_at && !savefile_in_coop() &&
         !savefile_join_armed() && !g_dep_offer) {
-        open_popup(Screen::RunOffer, run_offer_text(), u8"Rejoindre", u8"Plus tard", false,
+        open_popup(Screen::RunOffer, run_offer_text(), tr(u8"Rejoindre"), tr(u8"Plus tard"), false,
                    Action::RunJoin, Action::RunLater);
         return;
     }
     if (savefile_join_armed() && !savefile_in_coop() && !savefile_client_waiting_to_load() &&
         at_main_menu() && !g_trip.active) {
-        open_popup(Screen::JoinWait, join_wait_text(), u8"Annuler", nullptr, true,
+        open_popup(Screen::JoinWait, join_wait_text(), tr(u8"Annuler"), nullptr, true,
                    Action::JoinCancel, Action::JoinCancel);
         return;
     }
@@ -2656,6 +2680,10 @@ constexpr char      kBtnName_PauseGiveUp[] = "Button_PauseMenu_GiveUp";
 void*    g_trade_btn     = nullptr;   // le bouton remontre (ce menu pause)
 uint32_t g_trade_btn_at  = 0;         // son dernier passage dans Button::update
 bool     g_trade_ok_only = false;     // notre boite « Échanger » n'a qu'un bouton
+// Le libelle exact pose sur ce bouton (traduit au moment de le poser) : c'est a lui
+// qu'on le reconnait, pas a un nouveau tr() -- la langue peut changer entre deux
+// images, et un clic sur le bouton non reconnu serait l'abandon du jeu.
+std::wstring g_trade_label;
 
 // Le jeu le cache aussi pendant l'ecran des objets, le choix des colliers, une
 // cinematique ou le choix de l'acte (0x14028BF25 a 0x14028C00A) : nous aussi.
@@ -2683,7 +2711,7 @@ void trade_on_button(void* b) {
     if (b == g_trade_btn) {
         std::wstring label;
         if (!(flags & kClip_Visible) || !read_game_wstring((const GameWString*)((char*)b + kButton_Label), label) ||
-            label != utf8_to_wide(u8"Échanger"))
+            label.empty() || label != g_trade_label)
             g_trade_btn = nullptr;
     }
     if (b == g_trade_btn) {
@@ -2711,7 +2739,8 @@ void trade_on_button(void* b) {
         return;
     }
     // Sans son libelle, il ne serait plus reconnu (plus haut) : un clic serait l'abandon du jeu.
-    if (!set_button_label(b, u8"Échanger")) {
+    const std::wstring lab = utf8_to_wide(tr(u8"Échanger"));
+    if (lab.empty() || !set_button_label_w(b, lab)) {
         mem_write((char*)b + kBtn_State, &state, sizeof(state));
         mem_write((char*)clip + kClip_Flags, &flags, 1);
         log_line("MULTI", "!! menu pause : libelle « Echanger » impossible -- le bouton reste cache");
@@ -2719,6 +2748,7 @@ void trade_on_button(void* b) {
     }
     g_trade_btn    = b;
     g_trade_btn_at = g_frame;
+    g_trade_label  = lab;
     log_line("MULTI", "menu pause de la maison : le bouton « Abandonner » cache devient « Echanger » "
                       "(drapeaux du clip 0x%02X -> 0x%02X)", (unsigned)flags, (unsigned)shown_flags);
 }
@@ -2801,7 +2831,7 @@ void __fastcall h_MainMenuInit(void* self) {
         log_line("MULTI", "!! menu principal : bouton btn_feedback introuvable");
         return;
     }
-    if (set_button_label(meow, u8"Multijoueur"))
+    if (set_button_label(meow, tr(u8"Multijoueur")))
         log_line("MULTI", "menu principal : « Miauler » devient « Multijoueur »");
     else
         log_line("MULTI", "!! menu principal : impossible de changer le texte du bouton");
@@ -2891,12 +2921,12 @@ bool __fastcall h_PipePlace(void* pipe, void* cat) {
                      savefile_in_coop() ? "maison de la copie de l'hote" : "dons aux PNJ indisponibles",
                      g_pipe_refusals);
             show_info(savefile_in_coop()
-                          ? fmt(u8"Ce tuyau est celui de la maison de %s :\n"
-                                u8"envoie tes chats aux PNJ depuis\n"
-                                u8"ta propre maison.", host_display().c_str())
-                          : fmt(u8"Les PNJ suivent la partie de %s :\n"
-                                u8"envoyer tes chats dans le tuyau n'est\n"
-                                u8"pas possible avec cette version du jeu.",
+                          ? fmt(tr(u8"Ce tuyau est celui de la maison de %s :\n"
+                                   u8"envoie tes chats aux PNJ depuis\n"
+                                   u8"ta propre maison."), host_display().c_str())
+                          : fmt(tr(u8"Les PNJ suivent la partie de %s :\n"
+                                   u8"envoyer tes chats dans le tuyau n'est\n"
+                                   u8"pas possible avec cette version du jeu."),
                                 host_display().c_str()));
         }
         return false;
@@ -2953,8 +2983,8 @@ void add_abandon_note(GameWString* text) {
         log_line("MULTI", "!! abandon de l'aventure : texte de la confirmation illisible, laisse tel quel");
         return;
     }
-    w += utf8_to_wide(fmt(u8"\n\nC'est une défaite pour toute l'équipe :\n"
-                          u8"les chats de %s ne rentreront pas non plus.", names.c_str()).c_str());
+    w += utf8_to_wide(fmt(tr(u8"\n\nC'est une défaite pour toute l'équipe :\n"
+                             u8"les chats de %s ne rentreront pas non plus."), names.c_str()).c_str());
     GameWString tmp;
     if (!make_game_wstring(tmp, w)) return;
     move(text, &tmp);
@@ -3298,10 +3328,10 @@ static void steam_menu_pump() {
     if (net_role() != NetRole::None || session_request_pending()) {
         g_steam_join = false;
         log_line("MULTI", "Steam : « Rejoindre la partie » de %s ignore -- deja dans un salon", who.c_str());
-        show_info(fmt(u8"Rejoindre %s\n\n"
-                      u8"Tu es déjà dans un salon multijoueur :\n"
-                      u8"quitte-le d'abord (Multijoueur, puis « Quitter »),\n"
-                      u8"puis clique à nouveau sur « Rejoindre la partie ».", who.c_str()));
+        show_info(fmt(tr(u8"Rejoindre %s\n\n"
+                         u8"Tu es déjà dans un salon multijoueur :\n"
+                         u8"quitte-le d'abord (Multijoueur, puis « Quitter »),\n"
+                         u8"puis clique à nouveau sur « Rejoindre la partie »."), who.c_str()));
         return;
     }
     if (!at_main_menu()) {
@@ -3313,13 +3343,13 @@ static void steam_menu_pump() {
             !find_scene("Event")) {
             if (g_live.alive) return;                // la fenetre ouverte d'abord
             if (open_popup(Screen::SteamJoinGo,
-                           fmt(u8"Rejoindre %s\n\n"
-                               u8"Ton jeu va revenir au menu principal (ta partie\n"
-                               u8"est sauvegardée, comme avec « Quitter vers le\n"
-                               u8"menu »), puis rejoindre le salon de %s.\n\n"
-                               u8"Plus tard : il le rejoindra quand tu iras\n"
-                               u8"au menu principal.", who.c_str(), who.c_str()),
-                           u8"Y aller", u8"Plus tard", false, Action::SteamJoinGo, Action::None)) {
+                           fmt(tr(u8"Rejoindre %s\n\n"
+                                  u8"Ton jeu va revenir au menu principal (ta partie\n"
+                                  u8"est sauvegardée, comme avec « Sauvegarder et retourner au menu »),\n"
+                                  u8"puis rejoindre le salon de %s.\n\n"
+                                  u8"Plus tard : il le rejoindra quand tu iras\n"
+                                  u8"au menu principal."), who.c_str(), who.c_str()),
+                           tr(u8"Y aller"), tr(u8"Plus tard"), false, Action::SteamJoinGo, Action::None)) {
                 g_steam_join_said = true;
                 log_line("MULTI", "Steam : « Rejoindre la partie » de %s -- aller au menu principal ?",
                          who.c_str());
@@ -3329,10 +3359,10 @@ static void steam_menu_pump() {
         if (!g_steam_join_said) {
             g_steam_join_said = true;
             log_line("MULTI", "Steam : salon de %s rejoint au retour au menu principal", who.c_str());
-            show_info(fmt(u8"Rejoindre %s\n\n"
-                          u8"Ton jeu rejoindra le salon de %s\n"
-                          u8"dès que tu seras au menu principal\n"
-                          u8"(Échap, puis « Quitter vers le menu »).", who.c_str(), who.c_str()));
+            show_info(fmt(tr(u8"Rejoindre %s\n\n"
+                             u8"Ton jeu rejoindra le salon de %s\n"
+                             u8"dès que tu seras au menu principal\n"
+                             u8"(Échap, puis « Sauvegarder et retourner au menu »)."), who.c_str(), who.c_str()));
         }
         return;
     }
@@ -3351,10 +3381,10 @@ static void steam_menu_pump() {
     const uint16_t port = steam_client_begin(g_steam_join_id);
     if (!port) {
         log_line("MULTI", "!! Steam : connexion au salon de %s impossible", who.c_str());
-        show_info(fmt(u8"Rejoindre %s\n\n"
-                      u8"La connexion par Steam est impossible pour l'instant.\n"
-                      u8"Réessaie dans un moment, ou rejoins par adresse\n"
-                      u8"(Multijoueur, puis « Rejoindre »).", who.c_str()));
+        show_info(fmt(tr(u8"Rejoindre %s\n\n"
+                         u8"La connexion par Steam est impossible pour l'instant.\n"
+                         u8"Réessaie dans un moment, ou rejoins par adresse\n"
+                         u8"(Multijoueur, puis « Rejoindre »)."), who.c_str()));
         return;
     }
     g_join_ip   = who + u8" (Steam)";
@@ -3456,7 +3486,7 @@ void mm_menu_pump() {
             break;
         case Action::DepartYes: {
             if (!g_dep_req_live) {                   // annule pendant qu'il cliquait
-                show_info(fmt(u8"%s a annulé le départ.", host_display().c_str()));
+                show_info(fmt(tr(u8"%s a annulé le départ."), host_display().c_str()));
                 break;
             }
             // Equipe mixte : ses chats partent chez l'hote AVANT sa reponse (le
@@ -3554,11 +3584,11 @@ void mm_menu_pump() {
                 g_dep_req_live = false;              // ce vote est fini pour lui : plus propose (panneau compris)
                 g_dep_offer    = false;
                 g_dep_late_seq = g_dep_req_seq;      // ni quand l'hote redit sa demande (changement de joueurs)
-                show_info(fmt(u8"Départ en aventure\n\n"
-                              u8"Tes chats sont déjà partis avec l'équipe de %s :\n"
-                              u8"tant que tu n'es pas là, l'IA du jeu les joue\n"
-                              u8"en combat et %s choisit pour eux ; ils rentreront\n"
-                              u8"chez toi à la fin de l'aventure.",
+                show_info(fmt(tr(u8"Départ en aventure\n\n"
+                                 u8"Tes chats sont déjà partis avec l'équipe de %s :\n"
+                                 u8"tant que tu n'es pas là, l'IA du jeu les joue\n"
+                                 u8"en combat et %s choisit pour eux ; ils rentreront\n"
+                                 u8"chez toi à la fin de l'aventure."),
                               host_display().c_str(), host_display().c_str()));
             } else if (g_dep_req_live) {             // le vote tient : « pas encore »
                 send_depart_answer(false);
@@ -3879,7 +3909,7 @@ static std::string defender_names(uint32_t mask) {
         if (mask & (1u << id)) n.push_back(peer_name(id));
     std::string s;
     for (size_t i = 0; i < n.size(); ++i)
-        s += (i == 0 ? "" : i + 1 == n.size() ? " et " : ", ") + n[i];
+        s = i == 0 ? n[i] : fmt(i + 1 == n.size() ? tr(u8"%s et %s") : tr(u8"%s, %s"), s.c_str(), n[i].c_str());
     return s;
 }
 
@@ -3889,16 +3919,17 @@ static std::string defense_text(uint8_t who, bool on) {
     const uint32_t others = g_defend_mask & ~(1u << who);
     if (on) {
         if (!others)
-            return fmt(u8"%s défend sa maison : un combat qu'il joue\n"
-                       u8"seul, avec ses chats. Il revient ensuite.", peer_name(who).c_str());
-        return fmt(u8"%s défendent leur maison : chacun joue\n"
-                   u8"son combat seul, avec ses chats. Ils reviennent ensuite.",
+            return fmt(tr(u8"%s défend sa maison : un combat qu'il joue\n"
+                          u8"seul, avec ses chats. Il revient ensuite."), peer_name(who).c_str());
+        return fmt(tr(u8"%s défendent leur maison : chacun joue\n"
+                      u8"son combat seul, avec ses chats. Ils reviennent ensuite."),
                    defender_names(g_defend_mask).c_str());
     }
-    if (!others) return fmt(u8"%s a fini de défendre sa maison.", peer_name(who).c_str());
+    if (!others) return fmt(tr(u8"%s a fini de défendre sa maison."), peer_name(who).c_str());
     const bool one = (others & (others - 1)) == 0;
-    return fmt(u8"%s a fini de défendre sa maison.\n%s %s encore.", peer_name(who).c_str(),
-               defender_names(others).c_str(), one ? u8"défend la sienne" : u8"défendent la leur");
+    return fmt(one ? tr(u8"%s a fini de défendre sa maison.\n%s défend la sienne encore.")
+                   : tr(u8"%s a fini de défendre sa maison.\n%s défendent la leur encore."),
+               peer_name(who).c_str(), defender_names(others).c_str());
 }
 
 // Une liste d'attente est a l'ecran : elle dit qui defend sa maison, a jour.
@@ -4062,28 +4093,28 @@ void mm_on_message(uint8_t from, const MmMsg& m) {
                     }
                     if (savefile_join_armed() && !savefile_in_coop()) cancel_join("annule apres le vote");
                     log_line("MULTI", "depart : annule apres le vote, il part sans ce joueur (vote %u)", (unsigned)m.b);
-                    show_info(fmt(u8"Départ en aventure\n\n"
-                                  u8"Tu as annulé après le vote : %s part\n"
-                                  u8"sans toi ni tes chats. Tu pourras rejoindre\n"
-                                  u8"son aventure une fois qu'il sera sur la carte.", host_display().c_str()));
+                    show_info(fmt(tr(u8"Départ en aventure\n\n"
+                                     u8"Tu as annulé après le vote : %s part\n"
+                                     u8"sans toi ni tes chats. Tu pourras rejoindre\n"
+                                     u8"son aventure une fois qu'il sera sur la carte."), host_display().c_str()));
                     break;
                 }
                 if (in_copy) {
                     g_home_due     = true;
                     g_home_no_trip = true;
                     if (nobody)
-                        show_info(fmt(u8"Départ en aventure\n\n"
-                                      u8"Aucun chat ne peut partir cette fois :\n"
-                                      u8"%s ne part pas à l'aventure.", host_display().c_str()));
+                        show_info(fmt(tr(u8"Départ en aventure\n\n"
+                                         u8"Aucun chat ne peut partir cette fois :\n"
+                                         u8"%s ne part pas à l'aventure."), host_display().c_str()));
                 }
                 log_line("MULTI", "depart : %s", nobody ? "aucun chat ne peut partir, pas d'aventure"
                                                         : (host_display() + " a annule").c_str());
                 if (savefile_join_armed() && !savefile_in_coop()) {
                     cancel_join(nobody ? "aucun chat ne peut partir" : "depart annule par l'hote");
-                    show_info(nobody ? fmt(u8"Départ en aventure\n\n"
-                                           u8"Aucun chat ne peut partir cette fois :\n"
-                                           u8"%s ne part pas à l'aventure.", host_display().c_str())
-                                     : fmt(u8"%s a annulé le départ.", host_display().c_str()));
+                    show_info(nobody ? fmt(tr(u8"Départ en aventure\n\n"
+                                              u8"Aucun chat ne peut partir cette fois :\n"
+                                              u8"%s ne part pas à l'aventure."), host_display().c_str())
+                                     : fmt(tr(u8"%s a annulé le départ."), host_display().c_str()));
                 }
             }
             break;
@@ -4250,8 +4281,8 @@ bool mm_on_button_click(void* button) {
     // objets partis chez les invites quittent encore son rangement).
     if (net_role() == NetRole::Host && loot_host_busy()) {
         log_line("MULTI", "panneau : le partage du butin n'est pas fini, clic retenu");
-        show_info(u8"Le partage du butin n'est pas fini :\n"
-                  u8"attends la fin du défilé des objets.");
+        show_info(tr(u8"Le partage du butin n'est pas fini :\n"
+                     u8"attends la fin du défilé des objets."));
         return true;
     }
     if (kind == 2) {
@@ -4268,8 +4299,8 @@ bool mm_on_button_click(void* button) {
             if (savefile_join_armed() || g_trip.active) {
                 log_line("MULTI", "panneau « Defendre » : ce joueur part rejoindre l'aventure de l'hote -- "
                                   "clic retenu, la defense attendra son retour");
-                show_info(fmt(u8"Tu pars rejoindre l'aventure de %s :\n"
-                              u8"tu défendras ta maison à ton retour.", host_display().c_str()));
+                show_info(fmt(tr(u8"Tu pars rejoindre l'aventure de %s :\n"
+                                 u8"tu défendras ta maison à ton retour."), host_display().c_str()));
                 return true;
             }
             // Pret pour la nuit : il ne l'est plus, il part se battre (les autres
@@ -4297,8 +4328,8 @@ bool mm_on_button_click(void* button) {
             return true;
         }
         log_line("MULTI", "depart demande par un invite : c'est l'hote qui lance l'aventure");
-        show_info(fmt(u8"C'est %s qui lance l'aventure :\n"
-                      u8"demande-lui de cliquer sur « À l'aventure ! ».",
+        show_info(fmt(tr(u8"C'est %s qui lance l'aventure :\n"
+                         u8"demande-lui de cliquer sur « À l'aventure ! »."),
                       host_display().c_str()));
         return true;
     }
