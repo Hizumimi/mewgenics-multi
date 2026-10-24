@@ -58,7 +58,6 @@ const TrPair kTable_ko[] = {
      u8"Mewgenics Multi를 관리자 권한으로 다시 실행하지 못했습니다. steam_appid.txt를 직접 복사하세요(LISEZ-MOI 2단계)."},
     {u8"La copie en administrateur n'a pas marché : copie steam_appid.txt à la main (LISEZ-MOI, étape 2).",
      u8"관리자 권한으로 복사하지 못했습니다. steam_appid.txt를 직접 복사하세요(LISEZ-MOI 2단계)."},
-    {u8"%02u/%02u/%04u à %02u:%02u", u8"%02u/%02u/%04u %02u:%02u"},
     {u8"Le mod n'a pas pu être chargé : %s", u8"모드를 로드하지 못했습니다: %s"},
     {u8"mgmp_loader.exe s'est arrêté sans charger le mod. Relance ; si ça recommence, envoie loader.txt.",
      u8"mgmp_loader.exe가 모드를 로드하지 못하고 종료되었습니다. 다시 실행해 보고, 문제가 반복되면 loader.txt를 보내 주세요."},
@@ -102,7 +101,7 @@ const TrPair kTable_ko[] = {
     {u8"Réglages (mgmp.json)", u8"설정 (mgmp.json)"},
     {u8"Jeu trouvé", u8"게임 찾음"},
     {u8"Jeu incomplet", u8"게임 파일 누락"},
-    {u8"Jeu introuvable", u8"게임 없음"},
+    {u8"Jeu introuvable", u8"게임을 찾을 수 없음"},
     {u8"Fichiers du mod", u8"모드 파일"},
     {u8"Réparer", u8"복구"},
     {u8"Jouer", u8"플레이"},
@@ -126,7 +125,7 @@ const TrPair kTable_ko[] = {
     {u8"1 journal du mod, à côté de Mewgenics\u00A0Multi.exe.", u8"모드 로그 1개가 Mewgenics\u00A0Multi.exe 옆에 있습니다."},
     {u8"%d journaux du mod, à côté de Mewgenics\u00A0Multi.exe.", u8"모드 로그 %d개가 Mewgenics\u00A0Multi.exe 옆에 있습니다."},
     {u8"Le dernier : %s", u8"최근 로그: %s"},
-    {u8"écrit le %s", u8"작성: %s"},
+    {u8"écrit le %s", u8"작성 시각: %s"},
     {u8"Ouvrir le dossier", u8"폴더 열기"},
     {u8"Copier le dernier journal", u8"최근 로그 복사"},
     {u8"Pour demander de l'aide : copie le dernier journal, puis colle-le dans Discord avec Ctrl+V.",
@@ -319,12 +318,12 @@ const TrPair kTable_ko[] = {
     {u8"Choisis un joueur de la partie.", u8"게임에 있는 플레이어를 고르세요."},
     {u8"Pas d'échange maintenant : %s n'est pas dans sa maison.", u8"지금은 교환할 수 없습니다: %s이(가) 집에 없습니다."},
     {u8"Ce montant n'est pas possible.", u8"줄 수 없는 수량입니다."},
-    {u8"Choisis des pièces, de la nourriture ou des objets à donner.", u8"줄 코인, 음식 또는 아이템을 고르세요."},
+    {u8"Choisis des pièces, de la nourriture ou des objets à donner.", u8"줄 코인, 먹이 또는 아이템을 고르세요."},
     {u8"16 objets au plus par don.", u8"선물당 아이템 최대 16개."},
     {u8"Pas d'objets maintenant : %s.", u8"지금은 아이템을 줄 수 없습니다: %s."},
     {u8"Ta maison est illisible : pas de don.", u8"집 정보를 읽을 수 없어 선물할 수 없습니다."},
     {u8"Tu n'as pas autant de pièces.", u8"코인이 부족합니다."},
-    {u8"Tu n'as pas autant de nourriture.", u8"음식이 부족합니다."},
+    {u8"Tu n'as pas autant de nourriture.", u8"먹이가 부족합니다."},
     {u8"Ton rangement est illisible : pas de don.", u8"보관함을 읽을 수 없어 선물할 수 없습니다."},
     {u8"Un objet choisi est déjà promis à un don pas encore fini.",
      u8"고른 아이템 중 하나가 아직 끝나지 않은 다른 선물에 들어 있습니다."},
@@ -333,7 +332,7 @@ const TrPair kTable_ko[] = {
     {u8"Un objet choisi ne peut pas se donner.", u8"고른 아이템 중 줄 수 없는 것이 있습니다."},
     {u8"Le don n'a pas pu partir (connexion).", u8"선물을 보내지 못했습니다(연결 문제)."},
     {u8"Don envoyé à %s (%s) : en attente de sa réponse…", u8"%s에게 선물을 보냈습니다(%s). 응답을 기다리는 중…"},
-    {u8"Don demandé à l'hôte : en attente de sa réponse…", u8"호스트에게 선물을 요청했습니다. 응답을 기다리는 중…"},
+    {u8"Don demandé à l'hôte : en attente de sa réponse…", u8"호스트에게 선물 처리를 요청했습니다. 응답을 기다리는 중…"},
     {u8"Pas de don : %s.", u8"선물 불가: %s."},
     {u8"%s a bien reçu ton don : tes objets quitteront ton rangement dès que l'écran des objets sera fermé.",
      u8"%s이(가) 선물을 받았습니다. 아이템 화면을 닫으면 선물한 아이템이 보관함에서 빠집니다."},
@@ -350,8 +349,8 @@ const TrPair kTable_ko[] = {
     {u8"%s n'est pas dans sa maison.", u8"%s이(가) 집에 없습니다."},
     {u8"%lld pièces", u8"%lld 코인"},
     {u8"%lld pièce", u8"%lld 코인"},
-    {u8"%lld nourritures", u8"음식 %lld개"},
-    {u8"%lld nourriture", u8"음식 %lld개"},
+    {u8"%lld nourritures", u8"먹이 %lld개"},
+    {u8"%lld nourriture", u8"먹이 %lld개"},
     {u8"rien", u8"없음"},
     {u8"%s n'est pas dans sa maison", u8"%s이(가) 집에 없음"},
     {u8"une fenêtre ou l'écran des objets est resté ouvert chez %s", u8"%s의 게임에 창이나 아이템 화면이 열려 있음"},
@@ -384,7 +383,7 @@ const TrPair kTable_ko[] = {
     {u8"Butin : %s.", u8"전리품: %s."},
     {u8"Besoin", u8"필요"},
     {u8"Cupidité", u8"욕심"},
-    {u8"Passer", u8"포기"},
+    {u8"Passer", u8"패스"},
     {u8"%u s", u8"%u초"},
     {u8"toi", u8"나"},
     {u8"Joueur %u", u8"플레이어 %u"},
@@ -392,21 +391,21 @@ const TrPair kTable_ko[] = {
     {u8"Partage du butin : objet %u sur %u", u8"전리품 분배: 아이템 %u / %u"},
     {u8"Besoin : %s", u8"필요: %s"},
     {u8"Cupidité : %s", u8"욕심: %s"},
-    {u8"Passer : %s", u8"포기: %s"},
+    {u8"Passer : %s", u8"패스: %s"},
     {u8"Partage du butin", u8"전리품 분배"},
-    {u8"%u objets du sac à partager entre %s.", u8"배낭 아이템 %u개를 나눌 사람: %s."},
-    {u8"%u objet du sac à partager entre %s.", u8"배낭 아이템 %u개를 나눌 사람: %s."},
+    {u8"%u objets du sac à partager entre %s.", u8"배낭 아이템 %u개를 %s이(가) 나눠 가집니다."},
+    {u8"%u objet du sac à partager entre %s.", u8"배낭 아이템 %u개를 %s이(가) 나눠 가집니다."},
     {u8"Pour chaque objet : Besoin (il te sert), Cupidité (si\n"
      u8"personne n'en a besoin) ou Passer. Un dé de 100 départage.",
      u8"아이템마다 필요(쓸 데가 있음), 욕심(아무도\n"
-     u8"필요 없을 때) 또는 포기를 고르세요. 100면 주사위로 정합니다."},
+     u8"필요 없을 때) 또는 패스를 고르세요. 동점은 100면 주사위로 가립니다."},
     {u8"En attente de %s...", u8"%s을(를) 기다리는 중..."},
     {u8"En attente de %s... (%s)", u8"%s을(를) 기다리는 중... (%s)"},
     {u8"Tout le monde est là : ça commence !", u8"모두 모였습니다. 시작합니다!"},
     {u8"Commencer", u8"시작"},
     {u8"D'accord", u8"확인"},
-    {u8"Le veux-tu ? (%s)", u8"가지시겠습니까? (%s)"},
-    {u8"Je le veux", u8"가질래요"},
+    {u8"Le veux-tu ? (%s)", u8"가져가시겠습니까? (%s)"},
+    {u8"Je le veux", u8"가져가기"},
     {u8"Besoin : il te sert, tu passes avant les autres.\n"
      u8"Cupidité : tu le prends si personne n'en a besoin.\n"
      u8"(%s)",
@@ -421,13 +420,13 @@ const TrPair kTable_ko[] = {
     {u8"%s n'est pas là : son tour passe.", u8"%s이(가) 자리에 없어 차례를 넘깁니다."},
     {u8"Personne n'en veut : il reste chez toi.", u8"아무도 원하지 않아 나에게 남습니다."},
     {u8"Personne n'en veut : il reste chez %s.", u8"아무도 원하지 않아 %s에게 남습니다."},
-    {u8"Tu l'emportes (%s) !", u8"내가 획득했습니다 (%s)!"},
+    {u8"Tu l'emportes (%s) !", u8"획득했습니다! (%s)"},
     {u8"%s l'emporte (%s).", u8"%s이(가) 획득했습니다 (%s)."},
-    {u8"Dés : %s (égalité départagée).", u8"주사위: %s (동점자 재굴림)."},
+    {u8"Dés : %s (égalité départagée).", u8"주사위: %s (동점이라 다시 굴림)."},
     {u8"Dés : %s.", u8"주사위: %s."},
     {u8"Partage du butin terminé", u8"전리품 분배 완료"},
-    {u8"Tu remportes : %s.", u8"내 획득: %s."},
-    {u8"%s remporte : %s.", u8"%s 획득: %s."},
+    {u8"Tu remportes : %s.", u8"내가 획득한 아이템: %s."},
+    {u8"%s remporte : %s.", u8"%s이(가) 획득한 아이템: %s."},
     {u8"Remporté, mais resté chez %s : %s.", u8"획득했지만 %s에게 남음: %s."},
     {u8"Personne n'en a voulu (restent chez toi) : %s.", u8"아무도 원하지 않음(내가 보관): %s."},
     {u8"Personne n'en a voulu (restent chez %s) : %s.", u8"아무도 원하지 않음(%s이(가) 보관): %s."},
@@ -438,13 +437,13 @@ const TrPair kTable_ko[] = {
      u8"함께 다시 불러오는 방법을 알려 드립니다."},
     {u8"Ton butin t'attend dans ton rangement, chez toi.", u8"전리품은 내 집 보관함에서 기다리고 있습니다."},
     {u8"Ce que les autres remportent quitte ton rangement.", u8"다른 플레이어가 획득한 아이템은 내 보관함에서 빠집니다."},
-    {u8"Beanies", u8"비니스"},
+    {u8"Dr Beanies", u8"닥터 비니스"},
     {u8"Butch", u8"부치"},
     {u8"Tink", u8"팅크"},
     {u8"Frank", u8"프랭크"},
-    {u8"Jack", u8"잭"},
+    {u8"Bébé Jack", u8"베이비 잭"},
     {u8"Tracy", u8"트레이시"},
-    {u8"l'orgue de barbarie", u8"내장 분쇄자"},
+    {u8"Broyeur d'organe", u8"내장 분쇄자"},
     {u8"Steven", u8"스티븐"},
     {u8"Récompense prête\n"
      u8"\n"
@@ -457,7 +456,7 @@ const TrPair kTable_ko[] = {
      u8"\n"
      u8"%s이(가) %s에게 준 고양이가\n"
      u8"게이지를 채웠습니다. 내가 집에 들어가면\n"
-     u8"대신 보상을 받습니다. 코인, 음식, 아이템은\n"
+     u8"대신 보상을 받습니다. 코인, 먹이, 아이템은\n"
      u8"%s에게, 해금 요소는\n"
      u8"모두에게 돌아갑니다."},
     {u8"Récompense de %s\n"
@@ -692,16 +691,16 @@ const TrPair kTable_ko[] = {
      u8"pourrais plus acheter pour eux).\n"
      u8"Clique encore pour sortir quand même.",
      u8"%s이(가) 아직 이 상점에서\n"
-     u8"쇼핑 중입니다. 기다려 주세요(나가면 더 이상\n"
-     u8"대신 구매할 수 없습니다).\n"
+     u8"쇼핑 중입니다. 기다려 주세요(나가면 더는\n"
+     u8"그 플레이어들 대신 구매할 수 없습니다).\n"
      u8"그래도 나가려면 한 번 더 누르세요."},
     {u8"%s n'a pas fini dans cette\n"
      u8"boutique : attends-le (une fois sorti, tu ne\n"
      u8"pourrais plus acheter pour lui).\n"
      u8"Clique encore pour sortir quand même.",
      u8"%s이(가) 아직 이 상점에서\n"
-     u8"쇼핑 중입니다. 기다려 주세요(나가면 더 이상\n"
-     u8"대신 구매할 수 없습니다).\n"
+     u8"쇼핑 중입니다. 기다려 주세요(나가면 더는\n"
+     u8"그 플레이어 대신 구매할 수 없습니다).\n"
      u8"그래도 나가려면 한 번 더 누르세요."},
     {u8"Ton achat n'a pas pu être demandé à l'hôte :\n"
      u8"rien n'a été acheté. Réessaie dans un instant.",
@@ -1016,7 +1015,7 @@ const TrPair kTable_ko[] = {
     {u8"L'envoi de ta réponse à l'hôte a échoué :\n"
      u8"réessaie.",
      u8"호스트에게 응답을 보내지 못했습니다.\n"
-     u8"재시도하세요."},
+     u8"다시 해 주세요."},
     {u8"Ta bourse de l'aventure : %s.", u8"이번 모험의 내 지갑: %s."},
     {u8"Ta boîte de départ contient %d chats, %d au maximum :\n"
      u8"retires-en %d, puis clique sur ton panneau « À l'aventure ! ».",
@@ -1070,7 +1069,7 @@ const TrPair kTable_ko[] = {
     {u8"Événement spécial", u8"특별 이벤트"},
     {u8"Trésor", u8"보물"},
     {u8"Meuble", u8"가구"},
-    {u8"Nourriture", u8"음식"},
+    {u8"Nourriture", u8"먹이"},
     {u8"Bonus", u8"보너스"},
     {u8"Case vide", u8"빈 칸"},
     {u8"Case", u8"칸"},
@@ -1079,7 +1078,7 @@ const TrPair kTable_ko[] = {
     {u8"l'hôte ne peut pas aller sur cette case", u8"호스트가 그 칸으로 갈 수 없음"},
     {u8"le chemin est déjà choisi", u8"경로가 이미 정해짐"},
     {u8"ce tour est fini", u8"이번 투표가 끝남"},
-    {u8"l'hôte ne l'a pas pris", u8"호스트가 받지 않음"},
+    {u8"l'hôte ne l'a pas pris", u8"호스트가 받아들이지 않음"},
     {u8"pas de vote", u8"투표 안 함"},
     {u8"absent, ne vote pas", u8"자리 비움, 투표 안 함"},
     {u8"pas encore sur la carte", u8"아직 지도에 없음"},
@@ -1297,8 +1296,8 @@ const TrPair kTable_ko[] = {
      u8"모험 합류\n"
      u8"\n"
      u8"%s의 게임이 진행 중인 모험을 보내는 중입니다.\n"
-     u8"방금 칸에서 선택을 했다면(이벤트, 레벨 업)\n"
-     u8"그 플레이어가 지도로 돌아올 때\n"
+     u8"그 플레이어가 방금 칸에서 선택을 했다면\n"
+     u8"(이벤트, 레벨 업) 지도로 돌아온 뒤에\n"
      u8"합류하게 됩니다."},
     {u8"En route pour l'aventure\n"
      u8"\n"
@@ -1818,7 +1817,7 @@ const TrPair kTable_ko[] = {
     {u8"Donner à qui ?", u8"누구에게 줄까요?"},
     {u8"Haut ou Bas pour choisir, puis Entrée.", u8"위/아래로 고른 뒤 Enter를 누르세요."},
     {u8"Pièces à donner : %lld_", u8"줄 코인: %lld_"},
-    {u8"Nourriture à donner : %lld_", u8"줄 음식: %lld_"},
+    {u8"Nourriture à donner : %lld_", u8"줄 먹이: %lld_"},
     {u8"Tape un nombre (T : tout), puis Entrée.", u8"숫자를 입력하고(T: 전부) Enter를 누르세요."},
     {u8"Échanger avec %s : les objets de ton rangement", u8"%s와(과) 교환: 내 보관함의 아이템"},
     {u8"16 au plus par don : %u choisis.", u8"선물당 최대 16개: %u개 선택됨."},
@@ -1841,7 +1840,7 @@ const TrPair kTable_ko[] = {
     {u8"Envoi du don...", u8"선물 보내는 중..."},
     {u8"Personne ne peut recevoir maintenant.", u8"지금은 받을 수 있는 사람이 없습니다."},
     {u8"Personne d'autre n'est dans la partie.", u8"게임에 다른 플레이어가 없습니다."},
-    {u8"Valider", u8"확정"},
+    {u8"Confirmer", u8"결정"},
     {u8"Donner", u8"주기"},
     {u8"Recommencer", u8"다시 하기"},
     {u8"Fermer", u8"닫기"},
@@ -1857,7 +1856,7 @@ const TrPair kTable_ko[] = {
      u8"모험 중 교환\n"
      u8"\n"
      u8"지도에서 E를 누르면 지갑의 코인이나\n"
-     u8"음식을 다른 플레이어에게 줄 수 있습니다."},
+     u8"먹이를 다른 플레이어에게 줄 수 있습니다."},
     {nullptr, nullptr}   // fin de la table
 };
 
