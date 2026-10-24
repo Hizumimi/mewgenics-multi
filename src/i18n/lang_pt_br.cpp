@@ -74,7 +74,7 @@ const TrPair kTable_pt_br[] = {
     {u8"Injection du mod dans le jeu…", u8"Injetando o mod no jogo…"},
     {u8"Le mod est en place, le jeu reprend…", u8"O mod está pronto, o jogo continua…"},
     {u8"Toujours en attente du jeu relancé par Steam… Si Steam vient de s'ouvrir, il te pose peut-être une question.",
-     u8"Ainda aguardando o jogo reiniciado pela Steam… Se a Steam acabou de abrir, talvez ela esteja fazendo uma pergunta."},
+     u8"Ainda aguardando o jogo reiniciado pela Steam… Se a Steam acabou de abrir, talvez esteja fazendo uma pergunta a você."},
     {u8"Jeu relancé trouvé : injection du mod…", u8"Jogo reiniciado encontrado: injetando o mod…"},
     {u8"Le jeu est lancé avec le mod.", u8"O jogo foi iniciado com o mod."},
     {u8"Le mod a tardé à se mettre en place ; le jeu reprend quand même.",
@@ -109,7 +109,7 @@ const TrPair kTable_pt_br[] = {
     {u8"Fichiers du mod", u8"Arquivos do mod"},
     {u8"Réparer", u8"Reparar"},
     {u8"Jouer", u8"Jogar"},
-    {u8"Règle d'abord les croix rouges.", u8"Resolva antes os X vermelhos."},
+    {u8"Règle d'abord les croix rouges.", u8"Resolva primeiro os X vermelhos."},
     {u8"Réglages", u8"Configurações"},
     {u8"Journaux", u8"Registros"},
     {u8"Langue", u8"Idioma"},
@@ -122,7 +122,7 @@ const TrPair kTable_pt_br[] = {
      u8"Nenhum Mewgenics.exe aqui: escolha-o com Procurar."},
     {u8"Jouer ensemble par Steam (liste d'amis)", u8"Jogar junto pela Steam (lista de amigos)"},
     {u8"Décoche si Steam pose problème : il ne reste que l'adresse, dans le menu Multijoueur du jeu.",
-     u8"Desmarque se a Steam der problema: só resta o endereço, no menu Multijogador do jogo."},
+     u8"Desmarque se a Steam der problema: só restará a conexão por endereço, no menu Multijogador do jogo."},
     {u8"Enregistrer", u8"Salvar"},
     {u8"Retour", u8"Voltar"},
     {u8"Aucun journal pour l'instant : le mod en écrit un à chaque partie.",
@@ -143,7 +143,7 @@ const TrPair kTable_pt_br[] = {
      u8"Bom jogo! Esta janela vai fechar sozinha."},
     {u8"Le détail est dans loader.txt, à côté de Mewgenics\u00A0Multi.exe.",
      u8"Os detalhes estão no loader.txt, ao lado do Mewgenics\u00A0Multi.exe."},
-    {u8"Réessayer", u8"Repetir"},
+    {u8"Réessayer", u8"Tentar de novo"},
     {u8"Si Steam relance le jeu, ça peut prendre une minute ou deux.",
      u8"Se a Steam reiniciar o jogo, pode levar um ou dois minutos."},
     {u8"Journal copié : colle-le dans Discord avec Ctrl+V.",
@@ -158,7 +158,7 @@ const TrPair kTable_pt_br[] = {
     {u8"Chacun sa maison et ses chats,\n"
      u8"l'aventure ensemble !",
      u8"Cada um com sua casa e seus gatos,\n"
-     u8"a aventura juntos!"},
+     u8"na aventura, todos juntos!"},
     {u8"(illustrations du jeu introuvables)", u8"(ilustrações do jogo não encontradas)"},
     {u8"Comme le jeu (%s)", u8"Igual ao jogo (%s)"},
     {u8"Comme Windows (%s)", u8"Igual ao Windows (%s)"},
@@ -200,7 +200,7 @@ const TrPair kTable_pt_br[] = {
      u8"Escolha das coleiras\n"
      u8"\n"
      u8"Quem confirma a saída é %s:\n"
-     u8"avise quando seus gatos tiverem coleiras."},
+     u8"avise quando seus gatos estiverem com as coleiras."},
     {u8"%s et %s", u8"%s e %s"},
     {u8"%s, %s", u8"%s, %s"},
     {u8"Choix des colliers\n"
@@ -211,7 +211,7 @@ const TrPair kTable_pt_br[] = {
      u8"Escolha das coleiras\n"
      u8"\n"
      u8"%s ainda estão escolhendo as coleiras dos próprios gatos.\n"
-     u8"Clique de novo em “Travar!” para partir\n"
+     u8"Clique de novo em \"Travar!\" para partir\n"
      u8"mesmo assim."},
     {u8"Choix des colliers\n"
      u8"\n"
@@ -221,7 +221,7 @@ const TrPair kTable_pt_br[] = {
      u8"Escolha das coleiras\n"
      u8"\n"
      u8"%s ainda está escolhendo as coleiras dos próprios gatos.\n"
-     u8"Clique de novo em “Travar!” para partir\n"
+     u8"Clique de novo em \"Travar!\" para partir\n"
      u8"mesmo assim."},
     {u8"Départ en aventure\n"
      u8"\n"
@@ -242,7 +242,7 @@ const TrPair kTable_pt_br[] = {
      u8"\n",
      u8"Rumo à aventura\n"
      u8"\n"
-     u8"Sua equipe carrega sua partida para ir com você:\n"
+     u8"Sua equipe está carregando sua partida para ir com você:\n"
      u8"\n"},
     {u8"Choix des objets\n"
      u8"\n"
@@ -260,7 +260,7 @@ const TrPair kTable_pt_br[] = {
      u8"Escolha dos itens\n"
      u8"\n"
      u8"%s ainda estão equipando os gatos.\n"
-     u8"Clique de novo em “Travar!” para partir\n"
+     u8"Clique de novo em \"Travar!\" para partir\n"
      u8"mesmo assim."},
     {u8"Choix des objets\n"
      u8"\n"
@@ -270,7 +270,7 @@ const TrPair kTable_pt_br[] = {
      u8"Escolha dos itens\n"
      u8"\n"
      u8"%s ainda está equipando os gatos.\n"
-     u8"Clique de novo em “Travar!” para partir\n"
+     u8"Clique de novo em \"Travar!\" para partir\n"
      u8"mesmo assim."},
     {u8"Choix des objets\n"
      u8"\n"
@@ -318,7 +318,7 @@ const TrPair kTable_pt_br[] = {
     {u8"ta maison est attaquée", u8"sua casa está sob ataque"},
     {u8"ta maison est illisible", u8"não foi possível ler sua casa"},
     {u8"ton rangement attend ce que tes chats rapportent de l'aventure de l'hôte (s'ils sont rentrés, recharge ta save : Échap, « Sauvegarder et retourner au menu », puis « Jouer » et ta save)",
-     u8"seu armazenamento aguarda o que seus gatos trazem da aventura do anfitrião (se já voltaram, recarregue seu save: Esc, “Salvar e sair para o menu”, depois “Jogar” e seu save)"},
+     u8"seu armazenamento aguarda o que seus gatos trazem da aventura do anfitrião (se já voltaram, recarregue seu save: Esc, \"Salvar e sair para o menu\", depois \"Jogar\" e seu save)"},
     {u8"des objets de ton rangement attendent encore leur nouveau propriétaire (butin, achats, PNJ)",
      u8"itens do seu armazenamento ainda aguardam o novo dono (saque, compras, NPCs)"},
     {u8"Pas d'échange maintenant : %s.", u8"Sem trocas agora: %s."},
@@ -416,19 +416,19 @@ const TrPair kTable_pt_br[] = {
     {u8"Pour chaque objet : Besoin (il te sert), Cupidité (si\n"
      u8"personne n'en a besoin) ou Passer. Un dé de 100 départage.",
      u8"Para cada item: Necessidade (serve para você), Ganância\n"
-     u8"(se ninguém precisar) ou Passar. Um dado de 100 desempata."},
+     u8"(se ninguém precisar) ou Passar. Um dado de 100 lados desempata."},
     {u8"En attente de %s...", u8"Aguardando %s..."},
     {u8"En attente de %s... (%s)", u8"Aguardando %s... (%s)"},
     {u8"Tout le monde est là : ça commence !", u8"Todos estão aqui: vai começar!"},
     {u8"Commencer", u8"Começar"},
     {u8"D'accord", u8"Ok"},
-    {u8"Le veux-tu ? (%s)", u8"Você quer? (%s)"},
+    {u8"Le veux-tu ? (%s)", u8"Você quer este item? (%s)"},
     {u8"Je le veux", u8"Eu quero"},
     {u8"Besoin : il te sert, tu passes avant les autres.\n"
      u8"Cupidité : tu le prends si personne n'en a besoin.\n"
      u8"(%s)",
      u8"Necessidade: serve para você, você tem prioridade.\n"
-     u8"Ganância: fica com ele se ninguém precisar.\n"
+     u8"Ganância: você fica com ele se ninguém precisar.\n"
      u8"(%s)"},
     {u8"Ton choix : %s.", u8"Sua escolha: %s."},
     {u8"Ton choix est fait.", u8"Sua escolha foi feita."},
@@ -445,7 +445,7 @@ const TrPair kTable_pt_br[] = {
     {u8"Partage du butin terminé", u8"Divisão do saque concluída"},
     {u8"Tu remportes : %s.", u8"Você ganhou: %s."},
     {u8"%s remporte : %s.", u8"%s ganhou: %s."},
-    {u8"Remporté, mais resté chez %s : %s.", u8"Ganhos por você, mas ficaram com %s: %s."},
+    {u8"Remporté, mais resté chez %s : %s.", u8"Você ganhou, mas ficaram com %s: %s."},
     {u8"Personne n'en a voulu (restent chez toi) : %s.", u8"Ninguém quis (ficam com você): %s."},
     {u8"Personne n'en a voulu (restent chez %s) : %s.", u8"Ninguém quis (ficam com %s): %s."},
     {u8"Aucun objet n'a été partagé.", u8"Nenhum item foi dividido."},
@@ -655,7 +655,7 @@ const TrPair kTable_pt_br[] = {
      u8"Équipe tes chats sur la carte.",
      u8"Itens\n"
      u8"\n"
-     u8"Durante uma sala (uma loja, uma subida de\n"
+     u8"Dentro de uma sala (uma loja, uma subida de\n"
      u8"nível...), só o anfitrião mexe nos itens.\n"
      u8"Equipe seus gatos no mapa."},
     {u8"Objets\n"
@@ -744,7 +744,7 @@ const TrPair kTable_pt_br[] = {
      u8"Este item acabou de ser vendido:\n"
      u8"a compra não foi feita."},
     {u8"Il coûte %s ; ta bourse en a %lld.", u8"Ele custa %s; sua bolsa tem %lld."},
-    {u8"Ta bourse ne suffit pas pour cet objet.", u8"Sua bolsa não basta para este item."},
+    {u8"Ta bourse ne suffit pas pour cet objet.", u8"Sua bolsa não tem o suficiente para este item."},
     {u8"(Chacun paie avec sa bourse, toi aussi.)", u8"(Cada um paga com a própria bolsa, você também.)"},
     {u8"(Chacun paie avec sa bourse.)", u8"(Cada um paga com a própria bolsa.)"},
     {u8"Pour l'instant, seul l'hôte achète les\n"
@@ -826,11 +826,11 @@ const TrPair kTable_pt_br[] = {
     {u8"%s a changé depuis le départ :\n"
      u8"son retour d'aventure n'a pas été recopié.",
      u8"%s mudou desde a saída:\n"
-     u8"a volta da aventura não foi copiada."},
+     u8"o retorno da aventura não foi copiado."},
     {u8"%s ont changé depuis le départ :\n"
      u8"leur retour d'aventure n'a pas été recopié.",
      u8"%s mudaram desde a saída:\n"
-     u8"a volta da aventura não foi copiada."},
+     u8"o retorno da aventura não foi copiado."},
     {u8"Ton rangement a changé depuis le départ :\n"
      u8"les objets équipés au départ n'en ont pas été retirés.",
      u8"Seu armazenamento mudou desde a saída:\n"
@@ -994,20 +994,20 @@ const TrPair kTable_pt_br[] = {
      u8"Pour emmener les tiens : « Pas encore », mets-en 1 ou 2 dans ta boîte\n"
      u8"(chez Butch), puis clique sur ton panneau « À l'aventure ! ».",
      u8"Sua caixa de aventuras está vazia: você vai jogar com os gatos dos outros.\n"
-     u8"Para levar os seus: “Ainda não”, coloque 1 ou 2 na sua caixa\n"
-     u8"(do Butch) e clique na sua placa “Partir!”."},
+     u8"Para levar os seus: responda \"Ainda não\", coloque 1 ou 2 na sua caixa\n"
+     u8"(do Butch) e clique na sua placa \"Partir!\"."},
     {u8"Ta boîte de départ est vide : tu joueras avec les chats des autres.\n"
      u8"Pour emmener les tiens : « Pas encore », mets-en un dans ta boîte\n"
      u8"(chez Butch), puis clique sur ton panneau « À l'aventure ! ».",
      u8"Sua caixa de aventuras está vazia: você vai jogar com os gatos dos outros.\n"
-     u8"Para levar os seus: “Ainda não”, coloque um na sua caixa\n"
-     u8"(do Butch) e clique na sua placa “Partir!”."},
+     u8"Para levar os seus: responda \"Ainda não\", coloque um na sua caixa\n"
+     u8"(do Butch) e clique na sua placa \"Partir!\"."},
     {u8"Ta boîte de départ contient %d chats, %d au maximum :\n"
      u8"réponds « Pas encore », retires-en %d,\n"
      u8"puis clique sur ton panneau « À l'aventure ! ».%s",
      u8"Sua caixa de aventuras tem %d gatos (máximo %d):\n"
-     u8"responda “Ainda não”, tire %d\n"
-     u8"e clique na sua placa “Partir!”.%s"},
+     u8"responda \"Ainda não\", tire %d\n"
+     u8"e clique na sua placa \"Partir!\".%s"},
     {u8"Tes chats partent de ta boîte de départ (chez Butch).",
      u8"Seus gatos partem da sua caixa de aventuras (do Butch)."},
     {u8"Tu emmènes %s.", u8"Você leva %s."},
@@ -1027,22 +1027,22 @@ const TrPair kTable_pt_br[] = {
      u8"avant de les faire repartir (« Recharger » te sera\n"
      u8"proposé après ce départ ; sinon Échap, « Sauvegarder\n"
      u8"et retourner au menu », puis « Jouer » et ta save).",
-     u8"%s voltaram de uma aventura, mas a volta deles\n"
-     u8"ainda não foi copiada no seu save: recarregue-o\n"
-     u8"antes de mandá-los de novo (“Recarregar” será\n"
-     u8"oferecido após esta saída; senão Esc, “Salvar e\n"
-     u8"sair para o menu”, depois “Jogar” e seu save)."},
+     u8"%s voltaram de uma aventura, mas o retorno\n"
+     u8"ainda não foi copiado para o seu save: recarregue-o\n"
+     u8"antes de mandá-los de novo (\"Recarregar\" vai\n"
+     u8"aparecer após esta saída; senão Esc, \"Salvar e\n"
+     u8"sair para o menu\", depois \"Jogar\" e seu save)."},
     {u8"%s revient d'une aventure, mais son retour\n"
      u8"n'est pas encore recopié dans ta save : recharge-la\n"
      u8"avant de le faire repartir (« Recharger » te sera\n"
      u8"proposé après ce départ ; sinon Échap, « Sauvegarder\n"
      u8"et retourner au menu », puis « Jouer » et ta save).",
-     u8"%s voltou de uma aventura, mas a volta dele\n"
-     u8"ainda não foi copiada no seu save: recarregue-o\n"
-     u8"antes de mandá-lo de novo (“Recarregar” será\n"
-     u8"oferecido após esta saída; senão Esc, “Salvar e\n"
-     u8"sair para o menu”, depois “Jogar” e seu save)."},
-    {u8"Le retour de %s attend d'être recopié.", u8"A volta de %s aguarda ser copiada."},
+     u8"%s voltou de uma aventura, mas o retorno\n"
+     u8"ainda não foi copiado para o seu save: recarregue-o\n"
+     u8"antes de mandá-lo de novo (\"Recarregar\" vai\n"
+     u8"aparecer após esta saída; senão Esc, \"Salvar e\n"
+     u8"sair para o menu\", depois \"Jogar\" e seu save)."},
+    {u8"Le retour de %s attend d'être recopié.", u8"O retorno de %s ainda não foi copiado."},
     {u8"L'envoi de ta réponse à l'hôte a échoué :\n"
      u8"réessaie.",
      u8"O envio da sua resposta ao anfitrião falhou:\n"
@@ -1051,7 +1051,7 @@ const TrPair kTable_pt_br[] = {
     {u8"Ta boîte de départ contient %d chats, %d au maximum :\n"
      u8"retires-en %d, puis clique sur ton panneau « À l'aventure ! ».",
      u8"Sua caixa de aventuras tem %d gatos (máximo %d):\n"
-     u8"tire %d e clique na sua placa “Partir!”."},
+     u8"tire %d e clique na sua placa \"Partir!\"."},
     {u8"Nouveau chat dans l'équipe\n"
      u8"\n"
      u8"%s rejoint l'équipe : ce chat est à toi !\n"
@@ -1117,8 +1117,8 @@ const TrPair kTable_pt_br[] = {
     {u8"%s (toi) : %s", u8"%s (você): %s"},
     {u8"%s : %s", u8"%s: %s"},
     {u8"En pause : on attend tout le monde sur la carte.", u8"Em pausa: esperando todos no mapa."},
-    {u8"À toi de choisir : encore %u s.", u8"Sua vez de escolher: mais %u s."},
-    {u8"En attente des autres : encore %u s.", u8"Aguardando os outros: mais %u s."},
+    {u8"À toi de choisir : encore %u s.", u8"Sua vez de escolher: faltam %u s."},
+    {u8"En attente des autres : encore %u s.", u8"Aguardando os outros: faltam %u s."},
     {u8"Égalité entre %s :\n"
      u8"le sort choisit %s.",
      u8"Empate entre %s:\n"
@@ -1139,7 +1139,7 @@ const TrPair kTable_pt_br[] = {
      u8"%s",
      u8"Fim do dia\n"
      u8"\n"
-     u8"Você está pronto para a noite.\n"
+     u8"Você está pronto para passar a noite.\n"
      u8"%s\n"
      u8"\n"
      u8"%s"},
@@ -1147,7 +1147,7 @@ const TrPair kTable_pt_br[] = {
      u8"Ton panneau sert au départ en aventure :\n"
      u8"retire tes chats de l'équipe pour finir la journée.",
      u8"\n"
-     u8"Sua placa serve para sair em aventura:\n"
+     u8"Sua placa serve para partir em aventura:\n"
      u8"tire seus gatos da equipe para finalizar o dia."},
     {u8"Fin de journée\n"
      u8"\n"
@@ -1176,7 +1176,7 @@ const TrPair kTable_pt_br[] = {
     {u8"Pour continuer, appuie sur Échap\n"
      u8"puis sur « Sauvegarder et retourner au menu ».",
      u8"Para continuar, aperte Esc\n"
-     u8"e depois “Salvar e sair para o menu”."},
+     u8"e depois \"Salvar e sair para o menu\"."},
     {u8"Ce qui t'attend\n"
      u8"\n"
      u8"%s\n"
@@ -1189,7 +1189,7 @@ const TrPair kTable_pt_br[] = {
      u8"%s\n"
      u8"\n"
      u8"Seu save já está aberto: tudo isso só estará\n"
-     u8"nele no próximo carregamento. “Recarregar”:\n"
+     u8"nele no próximo carregamento. \"Recarregar\":\n"
      u8"o mod passa pelo menu e o reabre."},
     {u8"Ce qui t'attend\n"
      u8"\n"
@@ -1205,8 +1205,8 @@ const TrPair kTable_pt_br[] = {
      u8"\n"
      u8"Seu save já está aberto: tudo isso só estará\n"
      u8"nele no próximo carregamento. Recarregue-o:\n"
-     u8"Esc, “Salvar e sair para o menu”,\n"
-     u8"depois “Jogar” e seu save."},
+     u8"Esc, \"Salvar e sair para o menu\",\n"
+     u8"depois \"Jogar\" e seu save."},
     {u8"%s : j'arrive !", u8"%s: já vou!"},
     {u8"%s : réfléchit...", u8"%s: pensando..."},
     {u8"Départ en aventure\n"
@@ -1254,7 +1254,7 @@ const TrPair kTable_pt_br[] = {
      u8"Aventura em andamento\n"
      u8"\n"
      u8"%s está em aventura!\n"
-     u8"Seus gatos não estão na viagem: você vai\n"
+     u8"Seus gatos não vão nesta viagem: você vai\n"
      u8"acompanhar a aventura sem comandar gatos."},
     {u8"Aventure en cours\n"
      u8"\n"
@@ -1314,7 +1314,7 @@ const TrPair kTable_pt_br[] = {
      u8"abandoná-la. Ela continua sem você, e seus\n"
      u8"gatos ficam na equipe dele: a IA do jogo\n"
      u8"os controla em combate, e eles voltam para\n"
-     u8"você no fim.\n"
+     u8"sua casa no fim.\n"
      u8"\n"
      u8"Ir para casa? Para voltar à aventura,\n"
      u8"clique em uma placa da sua casa."},
@@ -1451,7 +1451,7 @@ const TrPair kTable_pt_br[] = {
      u8"Ton jeu charge l'aventure de %s.",
      u8"Rumo à aventura\n"
      u8"\n"
-     u8"Seu jogo carrega a aventura de %s."},
+     u8"Seu jogo está carregando a aventura de %s."},
     {u8"%s a rechargé l'aventure :\n"
      u8"tu la recharges aussi.",
      u8"%s recarregou a aventura:\n"
@@ -1492,8 +1492,8 @@ const TrPair kTable_pt_br[] = {
      u8"Juntar-se a %s\n"
      u8"\n"
      u8"Você já está em um lobby multijogador:\n"
-     u8"saia dele primeiro (Multijogador, depois “Sair”),\n"
-     u8"e clique de novo em “Entrar no jogo”."},
+     u8"saia dele primeiro (Multijogador, depois \"Sair\"),\n"
+     u8"e clique de novo em \"Entrar no jogo\"."},
     {u8"Rejoindre %s\n"
      u8"\n"
      u8"Ton jeu va revenir au menu principal (ta partie\n"
@@ -1505,7 +1505,7 @@ const TrPair kTable_pt_br[] = {
      u8"Juntar-se a %s\n"
      u8"\n"
      u8"Seu jogo vai voltar ao menu principal (sua partida\n"
-     u8"é salva, como com “Salvar e sair para o menu”),\n"
+     u8"é salva, como com \"Salvar e sair para o menu\"),\n"
      u8"e depois entrar no lobby de %s.\n"
      u8"\n"
      u8"Mais tarde: seu jogo entra quando você for\n"
@@ -1520,7 +1520,7 @@ const TrPair kTable_pt_br[] = {
      u8"\n"
      u8"Seu jogo vai entrar no lobby de %s\n"
      u8"assim que você estiver no menu principal\n"
-     u8"(Esc, depois “Salvar e sair para o menu”)."},
+     u8"(Esc, depois \"Salvar e sair para o menu\")."},
     {u8"Rejoindre %s\n"
      u8"\n"
      u8"La connexion par Steam est impossible pour l'instant.\n"
@@ -1530,7 +1530,7 @@ const TrPair kTable_pt_br[] = {
      u8"\n"
      u8"A conexão pela Steam não é possível no momento.\n"
      u8"Tente de novo daqui a pouco ou entre por endereço\n"
-     u8"(Multijogador, depois “Entrar”)."},
+     u8"(Multijogador, depois \"Entrar\")."},
     {u8"%s a annulé le départ.", u8"%s cancelou a saída."},
     {u8"réseau local", u8"rede local"},
     {u8"Départ en aventure\n"
@@ -1549,7 +1549,7 @@ const TrPair kTable_pt_br[] = {
     {u8"%s défend sa maison : un combat qu'il joue\n"
      u8"seul, avec ses chats. Il revient ensuite.",
      u8"%s está defendendo a casa: um combate que\n"
-     u8"joga sozinho, com os próprios gatos. Depois volta."},
+     u8"ele joga sozinho, com os próprios gatos. Depois volta."},
     {u8"%s défendent leur maison : chacun joue\n"
      u8"son combat seul, avec ses chats. Ils reviennent ensuite.",
      u8"%s defendem as próprias casas: cada um joga\n"
@@ -1592,7 +1592,7 @@ const TrPair kTable_pt_br[] = {
     {u8"C'est %s qui lance l'aventure :\n"
      u8"demande-lui de cliquer sur « À l'aventure ! ».",
      u8"Quem inicia a aventura é %s:\n"
-     u8"peça a ele para clicar em “Partir!”."},
+     u8"peça a ele para clicar em \"Partir!\"."},
     {u8"Multijoueur\n"
      u8"\n"
      u8"Héberge une partie pour que tes amis te rejoignent,\n"
@@ -1623,7 +1623,7 @@ const TrPair kTable_pt_br[] = {
      u8"liste d'amis Steam, « Rejoindre la partie » sur ton nom.\n"
      u8"\n",
      u8"Seus amigos da Steam entram com um clique: na lista\n"
-     u8"de amigos da Steam, “Entrar no jogo” no seu nome.\n"
+     u8"de amigos da Steam, \"Entrar no jogo\" no seu nome.\n"
      u8"\n"},
     {u8"Ou par adresse :\n"
      u8"%s   (%s, port %u)\n"
@@ -1674,7 +1674,7 @@ const TrPair kTable_pt_br[] = {
      u8"\n"
      u8"\n"
      u8"Pela Steam é mais simples: na sua lista\n"
-     u8"de amigos, “Entrar no jogo” no seu amigo."},
+     u8"de amigos, \"Entrar no jogo\" no nome do seu amigo."},
     {u8"Rejoindre une partie\n"
      u8"\n"
      u8"[c:red]Adresse invalide : %s[/c]\n"
@@ -1743,7 +1743,7 @@ const TrPair kTable_pt_br[] = {
      u8"\n"
      u8"[c:red]Não foi possível conectar a %s.[/c]\n"
      u8"Verifique o endereço e se seu amigo\n"
-     u8"clicou em “Hospedar”."},
+     u8"clicou em \"Hospedar\"."},
     {u8"Salon multijoueur\n"
      u8"\n"
      u8"Déconnecté.",
@@ -1838,7 +1838,7 @@ const TrPair kTable_pt_br[] = {
      u8"%s\n"
      u8"Escolha seu save: sua casa, seus gatos.\n"
      u8"Os NPCs e a história serão os de %s,\n"
-     u8"e para sair em aventura, você entra na equipe dele."},
+     u8"e para partir em aventura, você entra na equipe dele."},
     {u8"Héberger", u8"Hospedar"},
     {u8"Rejoindre", u8"Entrar"},
     {u8"Choisir la sauvegarde", u8"Escolher o save"},
