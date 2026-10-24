@@ -352,9 +352,9 @@ const TrPair kTable_de[] = {
     {u8"%s a bien reçu ton don : ce que tu as donné quittera ta maison à ton retour dans cette save.",
      u8"%s hat dein Geschenk erhalten: Es verlässt dein Haus, wenn du in diesen Speicherstand zurückkehrst."},
     {u8"Pas de réponse d'%s pour ton don : rien n'a quitté ta maison.",
-     u8"Keine Antwort von %s: Nichts hat dein Haus verlassen."},
+     u8"Keine Antwort von %s aufs Geschenk: Nichts hat dein Haus verlassen."},
     {u8"Pas de réponse de %s pour ton don : rien n'a quitté ta maison.",
-     u8"Keine Antwort von %s: Nichts hat dein Haus verlassen."},
+     u8"Keine Antwort von %s aufs Geschenk: Nichts hat dein Haus verlassen."},
     {u8"Les échanges marchent pendant une partie à plusieurs.",
      u8"Tauschen geht nur in einem Mehrspieler-Spiel."},
     {u8"Dans ta maison : %s.", u8"Bei dir zu Hause: %s."},
@@ -934,7 +934,7 @@ const TrPair kTable_de[] = {
      u8"\n"
      u8"Der freie Platz gehört schon %s:\n"
      u8"Bei 3 Spielern nimmst du 1 Katze mit.\n"
-     u8"Nimm eine aus deiner Abenteuerbox."},
+     u8"Nimm eine aus deiner Box heraus."},
     {u8"La 4e place\n"
      u8"\n"
      u8"Un quatrième joueur est là : chacun emmène\n"
@@ -942,7 +942,7 @@ const TrPair kTable_de[] = {
      u8"Der 4. Platz\n"
      u8"\n"
      u8"Ein vierter Spieler ist da: Jeder nimmt 1 Katze\n"
-     u8"mit. Nimm eine Katze aus deiner Abenteuerbox."},
+     u8"mit. Nimm eine Katze aus deiner Abenteuerbox heraus."},
     {u8"La 4e place va au premier qui met un 2e chat dans sa boîte.",
      u8"Der 4. Platz geht an den Ersten, der eine 2. Katze in seine Box setzt."},
     {u8"La 4e place est à %s.", u8"Der 4. Platz gehört %s."},
@@ -954,7 +954,7 @@ const TrPair kTable_de[] = {
      u8"Gemischtes Team\n"
      u8"\n"
      u8"Bei %d Spielern nimmst du höchstens %d Katzen mit:\n"
-     u8"Nimm %d Katzen aus deiner Abenteuerbox.%s\n"
+     u8"Nimm %d Katzen aus deiner Abenteuerbox heraus.%s\n"
      u8"Die anderen füllen das Team auf."},
     {u8"Équipe mixte\n"
      u8"\n"
@@ -964,7 +964,7 @@ const TrPair kTable_de[] = {
      u8"Gemischtes Team\n"
      u8"\n"
      u8"Bei %d Spielern nimmst du höchstens %d Katzen mit:\n"
-     u8"Nimm %d Katze aus deiner Abenteuerbox.%s\n"
+     u8"Nimm %d Katze aus deiner Abenteuerbox heraus.%s\n"
      u8"Die anderen füllen das Team auf."},
     {u8"Équipe mixte\n"
      u8"\n"
@@ -974,7 +974,7 @@ const TrPair kTable_de[] = {
      u8"Gemischtes Team\n"
      u8"\n"
      u8"Bei %d Spielern nimmst du höchstens %d Katze mit:\n"
-     u8"Nimm %d Katzen aus deiner Abenteuerbox.%s\n"
+     u8"Nimm %d Katzen aus deiner Abenteuerbox heraus.%s\n"
      u8"Die anderen füllen das Team auf."},
     {u8"Équipe mixte\n"
      u8"\n"
@@ -984,7 +984,7 @@ const TrPair kTable_de[] = {
      u8"Gemischtes Team\n"
      u8"\n"
      u8"Bei %d Spielern nimmst du höchstens %d Katze mit:\n"
-     u8"Nimm %d Katze aus deiner Abenteuerbox.%s\n"
+     u8"Nimm %d Katze aus deiner Abenteuerbox heraus.%s\n"
      u8"Die anderen füllen das Team auf."},
     {u8"Tu n'es pas dans ta maison :\n"
      u8"tu joueras avec les chats des autres.",
