@@ -342,11 +342,18 @@ Logs logs_find(const Paths& p) {
     } while (FindNextFileW(h, &fd));
     FindClose(h);
 
+    // La date dans l'ordre de la langue du lanceur (jour/mois, mois/jour, annee d'abord) : un
+    // format traduit ne pourrait pas changer l'ordre de ses %u.
+    static const wchar_t* const kLocale[mm::kLangCount] = { L"fr-FR", L"en-US", L"es-ES", L"de-DE", L"it-IT",
+                                                            L"pt-BR", L"ru-RU", L"ko-KR", L"ja-JP", L"zh-CN" };
     SYSTEMTIME utc, loc;
+    wchar_t day[80], hour[80];
+    const wchar_t* locale = kLocale[(int)mm::lang_current()];
     if (!l.latest.empty() && FileTimeToSystemTime(&best, &utc) &&
-        SystemTimeToTzSpecificLocalTime(nullptr, &utc, &loc)) {
-        l.when = fmt(tr(u8"%02u/%02u/%04u à %02u:%02u"), loc.wDay, loc.wMonth, loc.wYear, loc.wHour,
-                     loc.wMinute);
+        SystemTimeToTzSpecificLocalTime(nullptr, &utc, &loc) &&
+        GetDateFormatEx(locale, DATE_SHORTDATE, &loc, nullptr, day, 80, nullptr) &&
+        GetTimeFormatEx(locale, TIME_NOSECONDS, &loc, nullptr, hour, 80)) {
+        l.when = wide_to_utf8(day) + " " + wide_to_utf8(hour);
     }
     return l;
 }

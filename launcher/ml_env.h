@@ -90,7 +90,7 @@ int handle_command_line();
 struct Logs {
     int          count = 0;     // mgmp_trace_*.log du dossier
     std::wstring latest;        // chemin complet du plus recent, vide sans journal
-    std::string  when;          // UTF-8, "24/10/2026 a 00:28" avec l'accent (heure locale)
+    std::string  when;          // UTF-8, "24/10/2026 00:28" dans l'ordre de la langue (heure locale)
 };
 Logs logs_find(const Paths& p);
 bool logs_open_folder(const Paths& p);

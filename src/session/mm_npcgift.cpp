@@ -166,11 +166,12 @@ bool peer_present(uint8_t peer) {
     return false;
 }
 
-// Le nom affiche d'un PNJ (les cles : un traducteur peut reprendre le nom du jeu).
+// Le nom affiche d'un PNJ : celui du jeu (NPC_NAME_* de combined.csv ; le Broyeur d'organe, que
+// le joueur nomme lui-meme, par le nom de son evenement, EVENT_ORGANGRINDER_NAME).
 std::string npc_label(int npc) {
-    static const char* const names[kNpcGiftNpcs] = { trk(u8"Beanies"), trk(u8"Butch"), trk(u8"Tink"),
-                                                     trk(u8"Frank"),   trk(u8"Jack"),  trk(u8"Tracy"),
-                                                     trk(u8"l'orgue de barbarie"), trk(u8"Steven") };
+    static const char* const names[kNpcGiftNpcs] = { trk(u8"Dr Beanies"), trk(u8"Butch"),     trk(u8"Tink"),
+                                                     trk(u8"Frank"),      trk(u8"Bébé Jack"), trk(u8"Tracy"),
+                                                     trk(u8"Broyeur d'organe"), trk(u8"Steven") };
     return npc >= 0 && npc < (int)kNpcGiftNpcs ? tr(names[npc]) : "?";
 }
 

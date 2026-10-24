@@ -207,7 +207,7 @@ void open_box() {
     // Des montants gardes d'une autre fois : pas plus que ce qu'il a maintenant.
     t.coins = std::min(t.coins, max_coins());
     t.food  = std::min(t.food, max_food());
-    const char* yes = tr(u8"Valider");
+    const char* yes = tr(u8"Confirmer");   // pas « Valider » : ce nom-la cite le bouton du jeu (colliers, objets)
     const char* no  = tr(u8"Passer");
     switch (t.step) {
     case Step::Who:

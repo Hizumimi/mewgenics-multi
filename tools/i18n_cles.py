@@ -238,6 +238,7 @@ def norm(s):
 
 
 def main():
+    sys.stdout.reconfigure(encoding="utf-8")   # la console Windows sinon (cp1252) : les accents des cles cassent
     ap = argparse.ArgumentParser(description="Les cles a traduire de Mewgenics Multi (CSV).")
     ap.add_argument("-o", "--sortie", default="i18n_cles.csv")
     ap.add_argument("--jeu", default=STEAM_GPAK, help="resources.gpak, pour les noms officiels des boutons du jeu")
@@ -276,6 +277,9 @@ def main():
             if terms is not None:
                 found = []
                 for q in re.findall(r"«\s*([^»]+?)\s*»", text):
+                    if q in keys:   # un bouton du mod (« Rejoindre », « Recharger ») : sa traduction, pas un texte du jeu
+                        found.append("« %s » = bouton du mod : sa propre traduction" % q)
+                        continue
                     hit = terms.get(norm(q))
                     if hit:
                         found.append("« %s » = %s : %s" % (q, hit[0], " | ".join("%s %s" % (l, hit[1][l]) for l in LANGS)))
