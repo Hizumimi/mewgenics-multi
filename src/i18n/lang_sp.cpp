@@ -55,7 +55,7 @@ const TrPair kTable_sp[] = {
     {u8"steam_appid.txt n'a pas pu être écrit à côté du jeu : copie-le à la main (LISEZ-MOI, étape 2).",
      u8"No se ha podido escribir steam_appid.txt junto al juego: cópialo a mano (LISEZ-MOI, paso 2)."},
     {u8"Windows n'a pas eu ton accord : steam_appid.txt n'est pas copié. Tu peux réessayer, ou le copier à la main (LISEZ-MOI, étape 2).",
-     u8"Windows no ha recibido tu permiso: steam_appid.txt no se ha copiado. Puedes volver a intentarlo o copiarlo a mano (LISEZ-MOI, paso 2)."},
+     u8"No le has dado permiso a Windows: steam_appid.txt no se ha copiado. Puedes volver a intentarlo o copiarlo a mano (LISEZ-MOI, paso 2)."},
     {u8"Mewgenics Multi n'a pas pu se relancer en administrateur : copie steam_appid.txt à la main (LISEZ-MOI, étape 2).",
      u8"Mewgenics Multi no ha podido reiniciarse como administrador: copia steam_appid.txt a mano (LISEZ-MOI, paso 2)."},
     {u8"La copie en administrateur n'a pas marché : copie steam_appid.txt à la main (LISEZ-MOI, étape 2).",
@@ -67,7 +67,7 @@ const TrPair kTable_sp[] = {
     {u8"mgmp_loader.exe s'est arrêté (code %s) sans charger le mod. Cause la plus probable : Steam fermé ou déconnecté. Ouvre Steam, attends qu'il soit connecté, puis relance.",
      u8"mgmp_loader.exe se ha detenido (código %s) sin cargar el mod. Causa más probable: Steam cerrado o desconectado. Abre Steam, espera a que se conecte y vuelve a lanzarlo."},
     {u8"Le jeu s'est fermé pendant son démarrage, avant le mod. Cause la plus fréquente : Steam fermé ou déconnecté. Ouvre Steam, attends qu'il soit connecté, puis relance.",
-     u8"El juego se ha cerrado al arrancar, antes que el mod. Causa más frecuente: Steam cerrado o desconectado. Abre Steam, espera a que se conecte y vuelve a lanzarlo."},
+     u8"El juego se ha cerrado al arrancar, antes de cargar el mod. Causa más frecuente: Steam cerrado o desconectado. Abre Steam, espera a que se conecte y vuelve a lanzarlo."},
     {u8"Steam relance le jeu (ça peut prendre une minute ou deux)…",
      u8"Steam vuelve a lanzar el juego (puede tardar un minuto o dos)…"},
     {u8"Ouverture du jeu…", u8"Abriendo el juego…"},
@@ -150,7 +150,7 @@ const TrPair kTable_sp[] = {
     {u8"Journal copié : colle-le dans Discord avec Ctrl+V.",
      u8"Registro copiado: pégalo en Discord con Ctrl+V."},
     {u8"Le presse-papiers n'a pas pu être rempli : réessaie, ou ouvre le dossier.",
-     u8"No se ha podido usar el portapapeles: vuelve a intentarlo o abre la carpeta."},
+     u8"No se ha podido copiar al portapapeles: vuelve a intentarlo o abre la carpeta."},
     {u8"Où est Mewgenics.exe ?", u8"¿Dónde está Mewgenics.exe?"},
     {u8"Direct2D est indisponible sur ce PC : Mewgenics Multi ne peut pas s'afficher.",
      u8"Direct2D no está disponible en este PC: Mewgenics Multi no puede mostrarse."},
@@ -244,7 +244,7 @@ const TrPair kTable_sp[] = {
      u8"\n",
      u8"Rumbo a la aventura\n"
      u8"\n"
-     u8"Tu grupo carga tu partida para salir contigo:\n"
+     u8"Tu grupo está cargando tu partida para salir contigo:\n"
      u8"\n"},
     {u8"Choix des objets\n"
      u8"\n"
@@ -309,7 +309,7 @@ const TrPair kTable_sp[] = {
     {u8"Tu n'as pas de bourse dans cette aventure (tu n'y as pas amené de chat).",
      u8"No tienes bolsa en esta aventura (no has traído ningún gato)."},
     {u8"Les échanges marchent dans ta maison, ou en aventure à plusieurs avec ta bourse. Pour l'instant : %s.",
-     u8"Los intercambios funcionan en tu casa, o en una aventura en grupo con tu bolsa. Por ahora: %s."},
+     u8"Los intercambios funcionan en tu casa, o en una aventura multijugador con tu bolsa. Por ahora: %s."},
     {u8"pas de partie à plusieurs en cours", u8"no hay partida multijugador en curso"},
     {u8"une fonction du jeu manque, les échanges à la maison sont coupés",
      u8"falta una función del juego, los intercambios en casa están desactivados"},
@@ -330,15 +330,15 @@ const TrPair kTable_sp[] = {
     {u8"Choisis un joueur de la partie.", u8"Elige a un jugador de la partida."},
     {u8"Pas d'échange maintenant : %s n'est pas dans sa maison.",
      u8"No puedes intercambiar ahora: %s no está en su casa."},
-    {u8"Ce montant n'est pas possible.", u8"Esa cantidad no es posible."},
+    {u8"Ce montant n'est pas possible.", u8"Esa cantidad no es válida."},
     {u8"Choisis des pièces, de la nourriture ou des objets à donner.",
      u8"Elige monedas, comida u objetos para dar."},
     {u8"16 objets au plus par don.", u8"16 objetos como máximo por regalo."},
     {u8"Pas d'objets maintenant : %s.", u8"Ahora no puedes dar objetos: %s."},
-    {u8"Ta maison est illisible : pas de don.", u8"Tu casa no se puede leer: sin regalo."},
+    {u8"Ta maison est illisible : pas de don.", u8"No se puede leer tu casa: no puedes regalar."},
     {u8"Tu n'as pas autant de pièces.", u8"No tienes tantas monedas."},
     {u8"Tu n'as pas autant de nourriture.", u8"No tienes tanta comida."},
-    {u8"Ton rangement est illisible : pas de don.", u8"Tu almacén no se puede leer: sin regalo."},
+    {u8"Ton rangement est illisible : pas de don.", u8"No se puede leer tu almacén: no puedes regalar."},
     {u8"Un objet choisi est déjà promis à un don pas encore fini.",
      u8"Un objeto elegido ya está reservado para un regalo sin terminar."},
     {u8"Un objet choisi n'est plus dans ton rangement : choisis à nouveau.",
@@ -348,8 +348,8 @@ const TrPair kTable_sp[] = {
     {u8"Don envoyé à %s (%s) : en attente de sa réponse…",
      u8"Regalo enviado a %s (%s): esperando su respuesta…"},
     {u8"Don demandé à l'hôte : en attente de sa réponse…",
-     u8"Regalo pedido al anfitrión: esperando su respuesta…"},
-    {u8"Pas de don : %s.", u8"Sin regalo: %s."},
+     u8"Regalo solicitado al anfitrión: esperando su respuesta…"},
+    {u8"Pas de don : %s.", u8"No puedes regalar: %s."},
     {u8"%s a bien reçu ton don : tes objets quitteront ton rangement dès que l'écran des objets sera fermé.",
      u8"%s ha recibido tu regalo: tus objetos saldrán de tu almacén en cuanto se cierre la pantalla de objetos."},
     {u8"%s a bien reçu ton don : tes objets quitteront ton rangement dès que possible (après le départ, la défense de ta maison ou le retour de tes chats).",
@@ -393,10 +393,10 @@ const TrPair kTable_sp[] = {
     {u8"(%u objets n'ont pas pu quitter ton rangement : ils sont aussi chez toi.)",
      u8"(%u objetos no han podido salir de tu almacén: también siguen en tu casa)."},
     {u8"Le don à %s n'est pas passé : %s. Rien n'a quitté ta maison.",
-     u8"El regalo a %s no ha llegado: %s. No ha salido nada de tu casa."},
+     u8"El regalo a %s no se ha completado: %s. No ha salido nada de tu casa."},
     {u8"Rien à donner dans ton rangement.", u8"No hay nada que dar en tu almacén."},
-    {u8"Tape des lettres pour chercher un objet.", u8"Escribe letras para buscar un objeto."},
-    {u8"Recherche : %s_", u8"Buscar: %s_"},
+    {u8"Tape des lettres pour chercher un objet.", u8"Escribe para buscar un objeto."},
+    {u8"Recherche : %s_", u8"Búsqueda: %s_"},
     {u8"Aucun objet ne correspond.", u8"Ningún objeto coincide."},
     {u8"(page %u sur %u)", u8"(página %u de %u)"},
     {u8"Butin : %s.", u8"Botín: %s."},
@@ -412,12 +412,12 @@ const TrPair kTable_sp[] = {
     {u8"Cupidité : %s", u8"Codicia: %s"},
     {u8"Passer : %s", u8"Pasar: %s"},
     {u8"Partage du butin", u8"Reparto del botín"},
-    {u8"%u objets du sac à partager entre %s.", u8"%u objetos de la mochila a repartir entre %s."},
-    {u8"%u objet du sac à partager entre %s.", u8"%u objeto de la mochila a repartir entre %s."},
+    {u8"%u objets du sac à partager entre %s.", u8"%u objetos de la mochila para repartir entre %s."},
+    {u8"%u objet du sac à partager entre %s.", u8"%u objeto de la mochila para repartir entre %s."},
     {u8"Pour chaque objet : Besoin (il te sert), Cupidité (si\n"
      u8"personne n'en a besoin) ou Passer. Un dé de 100 départage.",
      u8"Para cada objeto: Necesidad (te sirve), Codicia (si\n"
-     u8"nadie lo necesita) o Pasar. Un dado de 100 desempata."},
+     u8"nadie lo necesita) o Pasar. Un dado de 100 caras desempata."},
     {u8"En attente de %s...", u8"Esperando a %s..."},
     {u8"En attente de %s... (%s)", u8"Esperando a %s... (%s)"},
     {u8"Tout le monde est là : ça commence !", u8"Ya está todo el mundo: ¡empezamos!"},
@@ -578,8 +578,8 @@ const TrPair kTable_sp[] = {
     {u8"%s : %s.", u8"%s: %s."},
     {u8"Toi : %s.", u8"Tú: %s."},
     {u8"Pas encore de réponse de l'hôte pour ton don : regarde ta bourse dans la fenêtre du chemin.",
-     u8"El anfitrión aún no ha respondido a tu regalo: mira tu bolsa en la ventana del camino."},
-    {u8"Ton don n'est pas passé : %s.", u8"Tu regalo no ha llegado: %s."},
+     u8"El anfitrión aún no ha respondido a tu regalo: mira tu bolsa en la ventana de elección del camino."},
+    {u8"Ton don n'est pas passé : %s.", u8"Tu regalo no se ha completado: %s."},
     {u8"(et d'autres trouvailles)", u8"(y otros hallazgos)"},
     {u8"pas de bourse pour ce joueur dans cette aventure",
      u8"este jugador no tiene bolsa en esta aventura"},
@@ -660,7 +660,7 @@ const TrPair kTable_sp[] = {
      u8"Équipe tes chats sur la carte.",
      u8"Objetos\n"
      u8"\n"
-     u8"Durante una casilla (una tienda, una subida de\n"
+     u8"En una casilla (una tienda, una subida de\n"
      u8"nivel...), solo el anfitrión cambia los objetos.\n"
      u8"Equipa a tus gatos en el mapa."},
     {u8"Objets\n"
@@ -999,13 +999,13 @@ const TrPair kTable_sp[] = {
      u8"Pour emmener les tiens : « Pas encore », mets-en 1 ou 2 dans ta boîte\n"
      u8"(chez Butch), puis clique sur ton panneau « À l'aventure ! ».",
      u8"Tu caja de aventura está vacía: jugarás con los gatos de los demás.\n"
-     u8"Para llevar los tuyos: «Todavía no», pon 1 o 2 en tu caja\n"
+     u8"Para llevar los tuyos: responde «Todavía no», pon 1 o 2 en tu caja\n"
      u8"(en la guarida de Butch) y haz clic en tu cartel «Partir»."},
     {u8"Ta boîte de départ est vide : tu joueras avec les chats des autres.\n"
      u8"Pour emmener les tiens : « Pas encore », mets-en un dans ta boîte\n"
      u8"(chez Butch), puis clique sur ton panneau « À l'aventure ! ».",
      u8"Tu caja de aventura está vacía: jugarás con los gatos de los demás.\n"
-     u8"Para llevar los tuyos: «Todavía no», pon uno en tu caja\n"
+     u8"Para llevar los tuyos: responde «Todavía no», pon uno en tu caja\n"
      u8"(en la guarida de Butch) y haz clic en tu cartel «Partir»."},
     {u8"Ta boîte de départ contient %d chats, %d au maximum :\n"
      u8"réponds « Pas encore », retires-en %d,\n"
@@ -1259,7 +1259,7 @@ const TrPair kTable_sp[] = {
      u8"Aventura en curso\n"
      u8"\n"
      u8"¡%s está de aventura!\n"
-     u8"Tus gatos no van en el viaje: seguirás\n"
+     u8"Tus gatos no van en este viaje: seguirás\n"
      u8"la aventura sin dirigir ningún gato."},
     {u8"Aventure en cours\n"
      u8"\n"
@@ -1318,8 +1318,8 @@ const TrPair kTable_sp[] = {
      u8"Es la aventura de %s: solo él puede\n"
      u8"abandonarla. Seguirá sin ti, y tus\n"
      u8"gatos se quedan en su grupo: la IA del juego\n"
-     u8"los controla en combate y luego vuelven a\n"
-     u8"tu casa al final.\n"
+     u8"los controla en combate y al final vuelven\n"
+     u8"a tu casa.\n"
      u8"\n"
      u8"¿Vuelves a tu casa? Para regresar,\n"
      u8"haz clic en un cartel de tu casa."},
@@ -1515,7 +1515,7 @@ const TrPair kTable_sp[] = {
      u8"\n"
      u8"Más tarde: se unirá cuando vayas\n"
      u8"al menú principal."},
-    {u8"Y aller", u8"Ir"},
+    {u8"Y aller", u8"Ir ahora"},
     {u8"Rejoindre %s\n"
      u8"\n"
      u8"Ton jeu rejoindra le salon de %s\n"
@@ -1732,7 +1732,7 @@ const TrPair kTable_sp[] = {
      u8"\n"
      u8"[c:red]No te puedes unir a %s:[/c]\n"
      u8"%s.\n"
-     u8"Sal de la sala y vuelve a intentarlo (o por dirección)."},
+     u8"Sal de la sala y vuelve a intentarlo (o únete por dirección)."},
     {u8"Salon multijoueur\n"
      u8"\n"
      u8"Connexion à %s...",
