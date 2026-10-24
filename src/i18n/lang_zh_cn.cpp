@@ -460,7 +460,7 @@ const TrPair kTable_zh_cn[] = {
      u8"%s\u200B的\u200B奖励\n"
      u8"\n"
      u8"%s\u200B送猫\u200B换来\u200B的\u200B奖励\u200B没能\n"
-     u8"发给\u200B对方：\u200B奖励\u200B留\u200B在\u200B你\u200B这里。"},
+     u8"发给\u200B他：\u200B奖励\u200B留\u200B在\u200B你\u200B这里。"},
     {u8"Récompense pour %s\n"
      u8"\n"
      u8"%s a récompensé le chat que %s\n"
