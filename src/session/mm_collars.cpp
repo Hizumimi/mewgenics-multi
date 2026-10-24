@@ -4,6 +4,7 @@
 #include "mm_collars.h"
 #include "mm_embark.h"
 #include "mm_menu.h"
+#include "mm_lang.h"
 #include "mm_team.h"
 
 #include "mgmp_addresses.h"
@@ -316,9 +317,9 @@ void mark_broken(const char* where) {
     log_line("COLLIERS", "!! exception dans le jeu (%s) : le choix partage des colliers s'arrete ici", where);
     if (c.role == CollarRole::Host) {
         c.act_frame = 0;
-        mm_show_info(u8"Choix des colliers\n\n"
-                     u8"Le choix partagé s'est arrêté (erreur du jeu) :\n"
-                     u8"choisis les colliers pour toute l'équipe.");
+        mm_show_info(tr(u8"Choix des colliers\n\n"
+                        u8"Le choix partagé s'est arrêté (erreur du jeu) :\n"
+                        u8"choisis les colliers pour toute l'équipe."));
     }
 }
 
@@ -549,12 +550,12 @@ bool guest_click(void* button, const char* name) {
                  sent ? "-> il sait que ce joueur a fini" : "!! (non envoye)");
         if (!c.close_info) {
             c.close_info = true;
-            mm_show_info(fmt(sent ? u8"Choix des colliers\n\n"
-                                    u8"Prêt ! %s sait que tu as fini :\n"
-                                    u8"il validera le départ pour toute l'équipe."
-                                  : u8"Choix des colliers\n\n"
-                                    u8"C'est %s qui valide le départ :\n"
-                                    u8"dis-lui quand tes chats ont leurs colliers.",
+            mm_show_info(fmt(sent ? tr(u8"Choix des colliers\n\n"
+                                       u8"Prêt ! %s sait que tu as fini :\n"
+                                       u8"il validera le départ pour toute l'équipe.")
+                                  : tr(u8"Choix des colliers\n\n"
+                                       u8"C'est %s qui valide le départ :\n"
+                                       u8"dis-lui quand tes chats ont leurs colliers."),
                              mm_peer_name(kHostPeer).c_str()));
         }
         return true;
@@ -611,11 +612,19 @@ bool host_close_early() {
     for (size_t i = 1; i < names.size(); ++i) who += (i + 1 == names.size() ? " et " : ", ") + names[i];
     log_line("COLLIERS", "« Valider » de l'hote retenu une fois : %s n'a pas encore valide ses colliers",
              who.c_str());
-    mm_show_info(fmt(u8"Choix des colliers\n\n"
-                     u8"%s %s encore les colliers de %s chats.\n"
-                     u8"Clique de nouveau sur « Valider » pour partir\n"
-                     u8"quand même.", who.c_str(), names.size() > 1 ? u8"choisissent" : u8"choisit",
-                     names.size() > 1 ? u8"leurs" : u8"ses"));
+    // La fenetre : les noms recolles dans la langue du joueur (comme team_run_guest_names).
+    who = names[0];
+    for (size_t i = 1; i < names.size(); ++i)
+        who = fmt(i + 1 == names.size() ? tr(u8"%s et %s") : tr(u8"%s, %s"), who.c_str(), names[i].c_str());
+    mm_show_info(fmt(names.size() > 1 ? tr(u8"Choix des colliers\n\n"
+                                           u8"%s choisissent encore les colliers de leurs chats.\n"
+                                           u8"Clique de nouveau sur « Valider » pour partir\n"
+                                           u8"quand même.")
+                                      : tr(u8"Choix des colliers\n\n"
+                                           u8"%s choisit encore les colliers de ses chats.\n"
+                                           u8"Clique de nouveau sur « Valider » pour partir\n"
+                                           u8"quand même."),
+                     who.c_str()));
     return true;
 }
 

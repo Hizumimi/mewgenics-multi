@@ -201,7 +201,7 @@ bool team_guest_storage_pending();
 // des recrues qu'on lui a donnees en route) -- il est du defile du butin.
 bool team_guest_brought_cats();
 // Hote : les joueurs dont des chats sont dans l'aventure mixte en cours (« Lou et
-// Max », sans [ ] : balises du jeu), "" sans chat d'invite. Pour la confirmation
+// Max », dans la langue du joueur, sans [ ] : balises du jeu), "" sans chat d'invite. Pour la confirmation
 // de l'abandon : c'est une defaite pour toute l'equipe.
 std::string team_run_guest_names();
 

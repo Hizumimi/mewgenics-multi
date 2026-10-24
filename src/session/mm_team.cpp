@@ -25,6 +25,7 @@
 #include "mgmp_resolve.h"
 #include "mgmp_savefile.h"
 #include "mm_menu.h"
+#include "mm_lang.h"
 
 #include "sqlite3.h"
 
@@ -342,7 +343,13 @@ std::string join_names(const std::vector<std::string>& v) {
     return s;
 }
 
-const char* plural(size_t n) { return n > 1 ? "s" : ""; }
+// Les noms d'une phrase montree au joueur (« Lou, Max et Tom »), dans sa langue.
+std::string say_names(const std::vector<std::string>& v) {
+    std::string s;
+    for (size_t i = 0; i < v.size(); ++i)
+        s = !i ? v[i] : fmt((i + 1 == v.size()) ? tr(u8"%s et %s") : tr(u8"%s, %s"), s.c_str(), v[i].c_str());
+    return s;
+}
 
 void say(const std::string& text) { k.infos.push_back(text); }
 
@@ -514,8 +521,8 @@ int read_box(std::vector<BoxCat>& out, bool& all_read) {
 }
 
 std::string too_many_text(int have, int quota) {
-    return fmt(u8"Ta boîte de départ contient %d chats, %d au maximum :\n"
-               u8"retires-en %d, puis clique sur ton panneau « À l'aventure ! ».",
+    return fmt(tr(u8"Ta boîte de départ contient %d chats, %d au maximum :\n"
+                  u8"retires-en %d, puis clique sur ton panneau « À l'aventure ! »."),
                have, quota, have - quota);
 }
 
@@ -682,13 +689,13 @@ std::string no_markup(std::string s) {
     return s;
 }
 
-// Le nom d'un chat, tel que le jeu le serialise (sans [ ] : balises).
+// Le nom d'un chat, tel que le jeu le serialise (sans [ ] : balises) ; "" sans nom.
 std::string cat_display_name(void* cat) {
     std::vector<uint8_t> raw;
     CatInfo info;
     if (cat && catsync_serialize_cat(cat, raw) && cat_info(raw, info) && !info.name.empty())
         return no_markup(info.name);
-    return u8"Un nouveau chat";
+    return std::string();
 }
 
 // Le tirage au sort de l'hote, hors du flux du jeu (il ne doit rien lui prendre).
@@ -705,15 +712,15 @@ uint32_t recruit_roll(uint32_t n, void*) {
 std::string recruit_text(const std::string& cat, int owner) {
     const uint8_t self = net_self();
     if (owner == (int)self && self != kHostPeer)
-        return fmt(u8"Nouveau chat dans l'équipe\n\n"
-                   u8"%s rejoint l'équipe : ce chat est à toi !\n"
-                   u8"Tu le diriges, et il rentrera chez toi\n"
-                   u8"à la fin de l'aventure.", cat.c_str());
+        return fmt(tr(u8"Nouveau chat dans l'équipe\n\n"
+                      u8"%s rejoint l'équipe : ce chat est à toi !\n"
+                      u8"Tu le diriges, et il rentrera chez toi\n"
+                      u8"à la fin de l'aventure."), cat.c_str());
     if (owner == (int)self)
-        return fmt(u8"Nouveau chat dans l'équipe\n\n"
-                   u8"%s rejoint l'équipe : ce chat est à toi.", cat.c_str());
-    return fmt(u8"Nouveau chat dans l'équipe\n\n"
-               u8"%s rejoint l'équipe : ce chat est à %s.", cat.c_str(),
+        return fmt(tr(u8"Nouveau chat dans l'équipe\n\n"
+                      u8"%s rejoint l'équipe : ce chat est à toi."), cat.c_str());
+    return fmt(tr(u8"Nouveau chat dans l'équipe\n\n"
+                  u8"%s rejoint l'équipe : ce chat est à %s."), cat.c_str(),
                no_markup(mm_peer_name((uint8_t)owner)).c_str());
 }
 
@@ -764,7 +771,8 @@ void recruits_tick() {
         Recruit r;
         r.host_key   = key;
         r.cat_id     = id;
-        r.name       = cat_display_name(cat);
+        const std::string raw = cat_display_name(cat);
+        r.name       = raw.empty() ? std::string(tr(u8"Un nouveau chat")) : raw;
         r.owner      = pick >= 0 && pick < 8 ? (uint8_t)pick : kHostPeer;
         r.owner_name = mm_peer_name(r.owner);
         r.first_owner = r.owner;
@@ -783,7 +791,7 @@ void recruits_tick() {
         note.cat_id   = id;
         note.host_key = key;
         note.owner    = r.owner;
-        note.name     = r.name;
+        note.name     = raw;   // "" sans nom : l'invite le dit dans sa langue
         if (!send_team(team_recruit_encode(note), -1))
             log_line("TEAM", "!! recrue : la fenetre des invites n'a pas pu partir");
         k.map_infos.push_back(recruit_text(r.name, r.owner));
@@ -1237,8 +1245,9 @@ void send_new_cats(void* dir) {
             k.recruits_sent += (uint32_t)msg.cats.size();
             log_line("TEAM", "-> recrue(s) %s envoyee(s) chez %s (jour de l'hote %lld)", join_names(names).c_str(),
                      who.c_str(), (long long)msg.host_day);
-            say(fmt(u8"Fin de l'aventure\n\n%s %s chez %s.", join_names(names).c_str(),
-                    names.size() > 1 ? u8"rentrent" : u8"rentre", who.c_str()));
+            say(fmt(names.size() > 1 ? tr(u8"Fin de l'aventure\n\n%s rentrent chez %s.")
+                                     : tr(u8"Fin de l'aventure\n\n%s rentre chez %s."),
+                    say_names(names).c_str(), who.c_str()));
             continue;
         }
         // Pas envoye : chez l'hote, comme si elles etaient les siennes -- leurs
@@ -1448,23 +1457,23 @@ bool __fastcall h_ButchDepart(void* box) {
         else
             log_line("TEAM", "boite de l'hote vide et aucun chat d'invite : pas de depart");
         mm_depart_called_off();
-        say(brought ? u8"Départ en aventure\n\n"
-                      u8"Les chats des autres joueurs n'ont pas pu partir\n"
-                      u8"et ta boîte de départ est vide : pas d'aventure\n"
-                      u8"cette fois. (Le journal du mod, mgmp.log, dit pourquoi.)"
-                    : u8"Départ en aventure\n\n"
-                      u8"Ta boîte de départ est vide et personne n'amène\n"
-                      u8"de chat : pas d'aventure cette fois.");
+        say(brought ? tr(u8"Départ en aventure\n\n"
+                         u8"Les chats des autres joueurs n'ont pas pu partir\n"
+                         u8"et ta boîte de départ est vide : pas d'aventure\n"
+                         u8"cette fois. (Le journal du mod, mgmp.log, dit pourquoi.)")
+                    : tr(u8"Départ en aventure\n\n"
+                         u8"Ta boîte de départ est vide et personne n'amène\n"
+                         u8"de chat : pas d'aventure cette fois."));
         return true;
     }
     // L'hote part avec les siens ; chacun le sait (une liste vide : le partage
     // reste celui de mgmp, par place dans l'equipe).
     send_owners(g.vote_seq, "depart sans les chats des invites");
     if (brought)
-        say(u8"Équipe mixte\n\n"
-            u8"Les chats des autres joueurs n'ont pas pu\n"
-            u8"rejoindre l'équipe : tu pars avec les tiens.\n"
-            u8"(Le journal du mod, mgmp.log, dit pourquoi.)");
+        say(tr(u8"Équipe mixte\n\n"
+               u8"Les chats des autres joueurs n'ont pas pu\n"
+               u8"rejoindre l'équipe : tu pars avec les tiens.\n"
+               u8"(Le journal du mod, mgmp.log, dit pourquoi.)"));
     // Depart ensemble : les invites attendent dans la maison de l'hote. Le
     // depart du jeu directement, avec les chats de la boite dans l'ordre de ses
     // emplacements (celui de ButchBox::depart, 0x1400ADC21..), puis l'equipe
@@ -1525,24 +1534,23 @@ void __fastcall h_RunCleared(void* dir) {
 // --- invite : retour -----------------------------------------------------------------------------
 
 std::string home_text(const TeamApplySummary& sum) {
-    std::string s = u8"Retour de l'aventure\n";
-    if (!sum.back.empty())
-        s += fmt(u8"\n%s %s de retour à la maison.", join_names(sum.back).c_str(),
-                 sum.back.size() > 1 ? u8"sont" : u8"est");
-    if (!sum.lost.empty())
-        s += fmt(u8"\n%s %s péri pendant l'aventure.", join_names(sum.lost).c_str(),
-                 sum.lost.size() > 1 ? u8"ont" : u8"a");
-    if (!sum.gone.empty())
-        s += fmt(u8"\n%s ne %s pas de l'aventure.", join_names(sum.gone).c_str(),
-                 sum.gone.size() > 1 ? u8"reviennent" : u8"revient");
-    if (!sum.changed.empty())
-        s += fmt(u8"\n%s %s changé depuis le départ :\n%s retour d'aventure n'a pas été recopié.",
-                 join_names(sum.changed).c_str(), sum.changed.size() > 1 ? u8"ont" : u8"a",
-                 sum.changed.size() > 1 ? u8"leur" : u8"son");
+    std::string s = tr(u8"Retour de l'aventure");
+    s += "\n";
+    // Une ligne par cas, au singulier ou au pluriel selon le nombre de chats.
+    auto line = [&](const std::vector<std::string>& names, const char* one, const char* many) {
+        if (!names.empty()) s += "\n" + fmt(names.size() > 1 ? many : one, say_names(names).c_str());
+    };
+    line(sum.back, tr(u8"%s est de retour à la maison."), tr(u8"%s sont de retour à la maison."));
+    line(sum.lost, tr(u8"%s a péri pendant l'aventure."), tr(u8"%s ont péri pendant l'aventure."));
+    line(sum.gone, tr(u8"%s ne revient pas de l'aventure."), tr(u8"%s ne reviennent pas de l'aventure."));
+    line(sum.changed, tr(u8"%s a changé depuis le départ :\nson retour d'aventure n'a pas été recopié."),
+         tr(u8"%s ont changé depuis le départ :\nleur retour d'aventure n'a pas été recopié."));
     if (sum.storage == kStorageChanged)
-        s += u8"\nTon rangement a changé depuis le départ :\nles objets équipés au départ n'en ont pas été retirés.";
+        s += std::string("\n") + tr(u8"Ton rangement a changé depuis le départ :\n"
+                                    u8"les objets équipés au départ n'en ont pas été retirés.");
     else if (sum.storage == kStorageCatsKept)
-        s += u8"\nTon rangement n'a pas été modifié : les objets\néquipés au départ y sont encore.";
+        s += std::string("\n") + tr(u8"Ton rangement n'a pas été modifié : les objets\n"
+                                    u8"équipés au départ y sont encore.");
     return s;
 }
 
@@ -1716,15 +1724,15 @@ void apply_payouts(const char* name, size_t home_before) {
     log_line("TEAM", "bourse ajoutee a %s : or %lld -> %lld, nourriture %lld -> %lld (%zu aventure(s))", name,
              (long long)r.gold_before, (long long)r.gold_after, (long long)r.food_before, (long long)r.food_after, n);
     if (coins || food) {
-        const std::string line = u8"Tu rapportes " + purse_amount_text(coins, food) + u8" dans ta maison.";
+        const std::string line = fmt(tr(u8"Tu rapportes %s dans ta maison."), purse_amount_text(coins, food).c_str());
         if (k.home_infos.size() > home_before) k.home_infos.back() += "\n" + line;
-        else k.home_infos.push_back(u8"Retour de l'aventure\n\n" + line);
+        else k.home_infos.push_back(tr(u8"Retour de l'aventure") + std::string("\n\n") + line);
     }
     if (gift_coins || gift_food) {
-        const std::string line = u8"Les PNJ te remercient de tes chats : " + purse_amount_text(gift_coins, gift_food) +
-                                 u8" dans ta maison.";
+        const std::string line = fmt(tr(u8"Les PNJ te remercient de tes chats : %s dans ta maison."),
+                                     purse_amount_text(gift_coins, gift_food).c_str());
         if (k.home_infos.size() > home_before) k.home_infos.back() += "\n" + line;
-        else k.home_infos.push_back(u8"Cadeaux des PNJ\n\n" + line);
+        else k.home_infos.push_back(tr(u8"Cadeaux des PNJ") + std::string("\n\n") + line);
     }
 }
 
@@ -1921,14 +1929,15 @@ void apply_loot(const char* name, size_t home_before) {
     pending_store(name);
     log_line("TEAM", "butin ajoute au rangement de %s : %zu objet(s), %u -> %u", name, items.size(), before, after);
     if (!names.empty()) {
-        const std::string line = u8"Ton butin est dans ton rangement : " + join_names(names) + ".";
+        const std::string line = fmt(tr(u8"Ton butin est dans ton rangement : %s."), say_names(names).c_str());
         if (k.home_infos.size() > home_before) k.home_infos.back() += "\n" + line;
-        else k.home_infos.push_back(u8"Retour de l'aventure\n\n" + line);
+        else k.home_infos.push_back(tr(u8"Retour de l'aventure") + std::string("\n\n") + line);
     }
     if (!gifts.empty()) {
-        const std::string line = u8"Les cadeaux des PNJ sont dans ton rangement : " + join_names(gifts) + ".";
+        const std::string line = fmt(tr(u8"Les cadeaux des PNJ sont dans ton rangement : %s."),
+                                     say_names(gifts).c_str());
         if (k.home_infos.size() > home_before) k.home_infos.back() += "\n" + line;
-        else k.home_infos.push_back(u8"Cadeaux des PNJ\n\n" + line);
+        else k.home_infos.push_back(tr(u8"Cadeaux des PNJ") + std::string("\n\n") + line);
     }
 }
 
@@ -2007,12 +2016,11 @@ void apply_new_cats(const char* name, size_t home_before) {
              unshifted.empty() ? "" : (" ; jours laisses tels quels : " + join_names(unshifted)).c_str(),
              res.unplaced ? " ; pas de maison ou les placer" : "");
     if (res.added.empty()) return;
-    const std::string line = fmt(u8"%s, %s pendant l'aventure, %s dans ta maison.",
-                                 join_names(res.added).c_str(),
-                                 res.added.size() > 1 ? u8"recrutés" : u8"recruté",
-                                 res.added.size() > 1 ? u8"arrivent" : u8"arrive");
+    const std::string line = fmt(res.added.size() > 1 ? tr(u8"%s, recrutés pendant l'aventure, arrivent dans ta maison.")
+                                                      : tr(u8"%s, recruté pendant l'aventure, arrive dans ta maison."),
+                                 say_names(res.added).c_str());
     if (k.home_infos.size() > home_before) k.home_infos.back() += "\n" + line;
-    else k.home_infos.push_back(u8"Retour de l'aventure\n\n" + line);
+    else k.home_infos.push_back(tr(u8"Retour de l'aventure") + std::string("\n\n") + line);
 }
 
 // Chez soi, la save ou on les a ajoutees chargee (invite, ou ancien invite qui
@@ -2141,21 +2149,33 @@ void on_owners(uint8_t from, const SaveFileMsg& m) {
     if (kept.empty()) {
         // Aucun de ses chats n'est parti : rien a attendre de ce depart.
         k.departs.erase(k.departs.begin() + (d - k.departs.data()));
-        if (!withdrawn)
-            say(fmt(u8"Équipe mixte\n\n"
-                    u8"%s %s pas pu rejoindre l'équipe :\n%s",
-                    join_names(missing).c_str(), missing.size() > 1 ? u8"n'ont" : u8"n'a",
-                    k.owners.empty() ? u8"pour cette aventure, tu diriges une partie\ndes chats de l'équipe."
-                                     : u8"tu suis l'aventure sans diriger de chat."));
+        if (!withdrawn) {
+            const bool many = missing.size() > 1;
+            const char* f = k.owners.empty()
+                ? (many ? tr(u8"Équipe mixte\n\n"
+                             u8"%s n'ont pas pu rejoindre l'équipe :\n"
+                             u8"pour cette aventure, tu diriges une partie\ndes chats de l'équipe.")
+                        : tr(u8"Équipe mixte\n\n"
+                             u8"%s n'a pas pu rejoindre l'équipe :\n"
+                             u8"pour cette aventure, tu diriges une partie\ndes chats de l'équipe."))
+                : (many ? tr(u8"Équipe mixte\n\n"
+                             u8"%s n'ont pas pu rejoindre l'équipe :\n"
+                             u8"tu suis l'aventure sans diriger de chat.")
+                        : tr(u8"Équipe mixte\n\n"
+                             u8"%s n'a pas pu rejoindre l'équipe :\n"
+                             u8"tu suis l'aventure sans diriger de chat."));
+            say(fmt(f, say_names(missing).c_str()));
+        }
         return;
     }
     if (!missing.empty()) {
         d->cats = std::move(kept);
         if (!withdrawn)
-            say(fmt(u8"Équipe mixte\n\n"
-                    u8"%s %s pas pu partir et %s à la maison.",
-                    join_names(missing).c_str(), missing.size() > 1 ? u8"n'ont" : u8"n'a",
-                    missing.size() > 1 ? u8"restent" : u8"reste"));
+            say(fmt(missing.size() > 1 ? tr(u8"Équipe mixte\n\n"
+                                            u8"%s n'ont pas pu partir et restent à la maison.")
+                                       : tr(u8"Équipe mixte\n\n"
+                                            u8"%s n'a pas pu partir et reste à la maison."),
+                    say_names(missing).c_str()));
     }
     supersede_older((size_t)(d - k.departs.data()));
 }
@@ -2216,7 +2236,7 @@ void on_result(uint8_t from, const SaveFileMsg& m) {
     d->departed     = true;
     // Deja chez lui : sa save est ouverte par le jeu, on ne peut rien y ecrire --
     // la fenetre « Recharger » (mm_menu).
-    if (d->home_loaded) mm_offer_reload(u8"Tes chats sont rentrés de l'aventure.");
+    if (d->home_loaded) mm_offer_reload(tr(u8"Tes chats sont rentrés de l'aventure."));
 }
 
 } // namespace
@@ -2232,7 +2252,7 @@ void on_recruit(uint8_t from, const SaveFileMsg& m) {
         log_line("TEAM", "!! recrue : message inattendu ou illisible -- ignore");
         return;
     }
-    const std::string cat = n.name.empty() ? std::string(u8"Un nouveau chat") : no_markup(n.name);
+    const std::string cat = n.name.empty() ? std::string(tr(u8"Un nouveau chat")) : no_markup(n.name);
     log_line("TEAM", "<- recrue : %s rejoint l'equipe -- elle est a %s%s", cat.c_str(),
              mm_peer_name(n.owner).c_str(), n.owner == net_self() ? " (ce joueur)" : "");
     // Dans l'aventure : la fenetre sur la carte. Hors de l'aventure (chez lui),
@@ -2241,11 +2261,11 @@ void on_recruit(uint8_t from, const SaveFileMsg& m) {
     if (mm_guest_in_run()) {
         k.map_infos.push_back(recruit_text(cat, n.owner));
     } else if (n.owner == net_self()) {
-        k.infos.push_back(fmt(u8"Nouveau chat dans l'équipe\n\n"
-                              u8"%s rejoint l'équipe de %s : ce chat est\n"
-                              u8"à toi ! Tant que tu n'es pas là, l'IA du jeu\n"
-                              u8"le joue en combat et %s choisit pour lui,\n"
-                              u8"et il rentrera chez toi à la fin de l'aventure.", cat.c_str(),
+        k.infos.push_back(fmt(tr(u8"Nouveau chat dans l'équipe\n\n"
+                                 u8"%s rejoint l'équipe de %s : ce chat est\n"
+                                 u8"à toi ! Tant que tu n'es pas là, l'IA du jeu\n"
+                                 u8"le joue en combat et %s choisit pour lui,\n"
+                                 u8"et il rentrera chez toi à la fin de l'aventure."), cat.c_str(),
                               no_markup(mm_peer_name(kHostPeer)).c_str(),
                               no_markup(mm_peer_name(kHostPeer)).c_str()));
     }
@@ -2299,8 +2319,9 @@ void on_newcats(uint8_t from, const SaveFileMsg& m) {
              join_names(names).c_str(), save.empty() ? "ta save" : save.c_str());
     // Deja chez lui : sa save est ouverte par le jeu, on ne peut rien y ecrire --
     // la fenetre « Recharger » (mm_menu).
-    mm_offer_reload(fmt(u8"Nouveaux chats : %s %s chez toi.", join_names(names).c_str(),
-                        names.size() > 1 ? u8"arrivent" : u8"arrive"));
+    mm_offer_reload(fmt(names.size() > 1 ? tr(u8"Nouveaux chats : %s arrivent chez toi.")
+                                         : tr(u8"Nouveaux chats : %s arrive chez toi."),
+                        say_names(names).c_str()));
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -2456,9 +2477,9 @@ void slot_feedback() {
     if (players == 3 && g.slot_owner == self) {
         if (g.slot_shown != 1) {
             g.slot_shown = 1;
-            say(u8"La 4e place\n\n"
-                u8"À 3 joueurs, l'équipe a une place libre :\n"
-                u8"elle est à toi, tu emmènes 2 chats.");
+            say(tr(u8"La 4e place\n\n"
+                   u8"À 3 joueurs, l'équipe a une place libre :\n"
+                   u8"elle est à toi, tu emmènes 2 chats."));
         }
         return;
     }
@@ -2466,18 +2487,18 @@ void slot_feedback() {
         if (g.slot_shown != 2 || g.slot_shown_owner != g.slot_owner) {
             g.slot_shown       = 2;
             g.slot_shown_owner = g.slot_owner;
-            say(fmt(u8"La 4e place\n\n"
-                    u8"La place libre est déjà prise par %s :\n"
-                    u8"à 3 joueurs, tu emmènes 1 chat.\n"
-                    u8"Retire un chat de ta boîte de départ.", slot_owner_name().c_str()));
+            say(fmt(tr(u8"La 4e place\n\n"
+                       u8"La place libre est déjà prise par %s :\n"
+                       u8"à 3 joueurs, tu emmènes 1 chat.\n"
+                       u8"Retire un chat de ta boîte de départ."), slot_owner_name().c_str()));
         }
         return;
     }
     if (players >= 4 && g.slot_shown == 1) {
         g.slot_shown = 3;
-        say(u8"La 4e place\n\n"
-            u8"Un quatrième joueur est là : chacun emmène\n"
-            u8"1 chat. Retire un chat de ta boîte de départ.");
+        say(tr(u8"La 4e place\n\n"
+               u8"Un quatrième joueur est là : chacun emmène\n"
+               u8"1 chat. Retire un chat de ta boîte de départ."));
     }
 }
 
@@ -2620,18 +2641,31 @@ int team_host_box_count() {
 static std::string slot_note(uint8_t peer, int players) {
     if (players != 3 || g.slot_owner == peer) return "";
     if (g.slot_owner == kSlotNobody)
-        return u8"\nLa 4e place va au premier qui met un 2e chat dans sa boîte.";
-    return fmt(u8"\nLa 4e place est à %s.", mm_peer_name(g.slot_owner).c_str());
+        return std::string("\n") + tr(u8"La 4e place va au premier qui met un 2e chat dans sa boîte.");
+    return "\n" + fmt(tr(u8"La 4e place est à %s."), mm_peer_name(g.slot_owner).c_str());
 }
 
 std::string team_host_too_many_text(int players, int have) {
     const int q = team_quota_for(kHostPeer, players);
-    return fmt(u8"Équipe mixte\n\n"
-               u8"À %d joueurs, tu emmènes %d chat%s au maximum :\n"
-               u8"retire %d chat%s de ta boîte de départ.%s\n"
-               u8"Les autres joueurs compléteront l'équipe avec les leurs.",
-               players, q, plural((size_t)q), have - q, plural((size_t)(have - q)),
-               slot_note(kHostPeer, players).c_str());
+    // Une phrase par cas : un ou plusieurs chats emmenes, un ou plusieurs a retirer.
+    const char* f = q > 1
+        ? (have - q > 1 ? tr(u8"Équipe mixte\n\n"
+                             u8"À %d joueurs, tu emmènes %d chats au maximum :\n"
+                             u8"retire %d chats de ta boîte de départ.%s\n"
+                             u8"Les autres joueurs compléteront l'équipe avec les leurs.")
+                        : tr(u8"Équipe mixte\n\n"
+                             u8"À %d joueurs, tu emmènes %d chats au maximum :\n"
+                             u8"retire %d chat de ta boîte de départ.%s\n"
+                             u8"Les autres joueurs compléteront l'équipe avec les leurs."))
+        : (have - q > 1 ? tr(u8"Équipe mixte\n\n"
+                             u8"À %d joueurs, tu emmènes %d chat au maximum :\n"
+                             u8"retire %d chats de ta boîte de départ.%s\n"
+                             u8"Les autres joueurs compléteront l'équipe avec les leurs.")
+                        : tr(u8"Équipe mixte\n\n"
+                             u8"À %d joueurs, tu emmènes %d chat au maximum :\n"
+                             u8"retire %d chat de ta boîte de départ.%s\n"
+                             u8"Les autres joueurs compléteront l'équipe avec les leurs."));
+    return fmt(f, players, q, have - q, slot_note(kHostPeer, players).c_str());
 }
 
 void team_vote_begin(uint8_t seq) {
@@ -2722,23 +2756,25 @@ std::string team_guest_offer_line() {
     std::vector<BoxCat> box;
     bool all_read = true;
     const int n = read_box(box, all_read);
-    if (n == kNoHouse) return u8"Tu n'es pas dans ta maison :\ntu joueras avec les chats des autres.";
+    if (n == kNoHouse) return tr(u8"Tu n'es pas dans ta maison :\ntu joueras avec les chats des autres.");
     if (n == kNoBox)
-        return u8"Ta boîte de départ n'est pas encore débloquée :\ntu joueras avec les chats des autres.";
+        return tr(u8"Ta boîte de départ n'est pas encore débloquée :\ntu joueras avec les chats des autres.");
     if (n == 0)
-        return fmt(u8"Ta boîte de départ est vide : tu joueras avec les chats des autres.\n"
-                   u8"Pour emmener les tiens : « Pas encore », mets-en %s dans ta boîte\n"
-                   u8"(chez Butch), puis clique sur ton panneau « À l'aventure ! ».",
-                   q > 1 ? u8"1 ou 2" : u8"un");
+        return q > 1 ? tr(u8"Ta boîte de départ est vide : tu joueras avec les chats des autres.\n"
+                          u8"Pour emmener les tiens : « Pas encore », mets-en 1 ou 2 dans ta boîte\n"
+                          u8"(chez Butch), puis clique sur ton panneau « À l'aventure ! ».")
+                     : tr(u8"Ta boîte de départ est vide : tu joueras avec les chats des autres.\n"
+                          u8"Pour emmener les tiens : « Pas encore », mets-en un dans ta boîte\n"
+                          u8"(chez Butch), puis clique sur ton panneau « À l'aventure ! ».");
     if (n > q)
-        return fmt(u8"Ta boîte de départ contient %d chats, %d au maximum :\n"
-                   u8"réponds « Pas encore », retires-en %d,\n"
-                   u8"puis clique sur ton panneau « À l'aventure ! ».%s", n, q, n - q,
+        return fmt(tr(u8"Ta boîte de départ contient %d chats, %d au maximum :\n"
+                      u8"réponds « Pas encore », retires-en %d,\n"
+                      u8"puis clique sur ton panneau « À l'aventure ! ».%s"), n, q, n - q,
                    slot_note(net_self(), players).c_str());
     std::vector<std::string> names;
     for (const BoxCat& b : box) names.push_back(b.info.name);
-    if (names.empty()) return u8"Tes chats partent de ta boîte de départ (chez Butch).";
-    return u8"Tu emmènes " + join_names(names) + ".";
+    if (names.empty()) return tr(u8"Tes chats partent de ta boîte de départ (chez Butch).");
+    return fmt(tr(u8"Tu emmènes %s."), say_names(names).c_str());
 }
 
 bool team_take_slot_wait() {
@@ -2749,9 +2785,9 @@ bool team_take_slot_wait() {
 
 bool team_guest_send(uint8_t seq, std::string& problem) {
     problem.clear();
-    const char* head = u8"Départ en aventure\n\n";
+    const std::string head = tr(u8"Départ en aventure") + std::string("\n\n");
     if (!g.on || net_role() != NetRole::Client) {
-        problem = std::string(head) + u8"La session n'est pas prête : réessaie dans un instant.";
+        problem = head + tr(u8"La session n'est pas prête : réessaie dans un instant.");
         return false;
     }
     const int players = (int)net_peer_count();
@@ -2763,14 +2799,14 @@ bool team_guest_send(uint8_t seq, std::string& problem) {
     // Mewgenics Multi (protocole 58) : deux chats a 3 joueurs, la place a personne
     // encore -- sa demande est en route chez l'hote.
     if (n == 2 && players == 3 && g.slot_owner == kSlotNobody) {
-        problem = std::string(head) + u8"La 4e place est en train de t'être attribuée :\n"
-                                      u8"la question revient dans un instant.";
+        problem = head + tr(u8"La 4e place est en train de t'être attribuée :\n"
+                            u8"la question revient dans un instant.");
         g.slot_wait_answer = true;          // mm_menu la repose dans 2 s (team_take_slot_wait)
         return false;
     }
-    if (n > q) { problem = std::string(head) + too_many_text(n, q) + slot_note(net_self(), players); return false; }
+    if (n > q) { problem = head + too_many_text(n, q) + slot_note(net_self(), players); return false; }
     if (n > 0 && (!all_read || box.empty())) {
-        problem = std::string(head) + u8"Tes chats n'ont pas pu être préparés\npour l'aventure (voir mgmp.log).";
+        problem = head + tr(u8"Tes chats n'ont pas pu être préparés\npour l'aventure (voir mgmp.log).");
         return false;
     }
     // Un chat dont l'etat final d'une aventure d'avant attend encore d'etre
@@ -2799,15 +2835,19 @@ bool team_guest_send(uint8_t seq, std::string& problem) {
         const bool many = waiting.size() > 1;
         log_line("TEAM", "!! %s : l'etat final d'une aventure d'avant n'est pas encore recopie -- pas de "
                          "depart avant que la save soit rechargee", join_names(waiting).c_str());
-        problem = std::string(head) +
-                  fmt(u8"%s %s d'une aventure, mais %s retour\n"
-                      u8"n'est pas encore recopié dans ta save : recharge-la\n"
-                      u8"avant de %s faire repartir (« Recharger » te sera\n"
-                      u8"proposé après ce départ ; sinon Échap, « Quitter\n"
-                      u8"vers le menu », puis « Jouer » et ta save).",
-                      join_names(waiting).c_str(), many ? u8"reviennent" : u8"revient",
-                      many ? u8"leur" : u8"son", many ? u8"les" : u8"le");
-        mm_offer_reload(fmt(u8"Le retour de %s attend d'être recopié.", join_names(waiting).c_str()));
+        problem = head +
+                  fmt(many ? tr(u8"%s reviennent d'une aventure, mais leur retour\n"
+                                u8"n'est pas encore recopié dans ta save : recharge-la\n"
+                                u8"avant de les faire repartir (« Recharger » te sera\n"
+                                u8"proposé après ce départ ; sinon Échap, « Sauvegarder\n"
+                                u8"et retourner au menu », puis « Jouer » et ta save).")
+                           : tr(u8"%s revient d'une aventure, mais son retour\n"
+                                u8"n'est pas encore recopié dans ta save : recharge-la\n"
+                                u8"avant de le faire repartir (« Recharger » te sera\n"
+                                u8"proposé après ce départ ; sinon Échap, « Sauvegarder\n"
+                                u8"et retourner au menu », puis « Jouer » et ta save)."),
+                      say_names(waiting).c_str());
+        mm_offer_reload(fmt(tr(u8"Le retour de %s attend d'être recopié."), say_names(waiting).c_str()));
         return false;
     }
     // Pas de maison, pas de boite, boite vide : il vient sans chat (un message
@@ -2822,7 +2862,7 @@ bool team_guest_send(uint8_t seq, std::string& problem) {
         names.push_back(b.info.name);
     }
     if (!send_team(team_encode(msg), -1)) {
-        problem = std::string(head) + u8"L'envoi de ta réponse à l'hôte a échoué :\nréessaie.";
+        problem = head + tr(u8"L'envoi de ta réponse à l'hôte a échoué :\nréessaie.");
         return false;
     }
     // Ce vote remplace ce qu'il avait repondu plus tot au meme vote, et un vote
@@ -2959,7 +2999,7 @@ std::string team_run_guest_names() {
         for (const std::string& o : names) have = have || o == n;
         if (!have) names.push_back(n);
     }
-    return join_names(names);
+    return say_names(names);
 }
 
 bool team_owners_active() { return !k.owners.empty(); }
@@ -3103,7 +3143,7 @@ void team_note_payout(uint8_t seq, int32_t coins, int32_t food) {
              p.save.empty() ? "ta save" : p.save.c_str());
     // Deja chez lui, sa save ouverte par le jeu : elle n'y sera qu'au prochain
     // chargement -- la fenetre « Recharger » (mm_menu).
-    mm_offer_reload(u8"Ta bourse de l'aventure : " + purse_amount_text(coins, food) + ".");
+    mm_offer_reload(fmt(tr(u8"Ta bourse de l'aventure : %s."), purse_amount_text(coins, food).c_str()));
 }
 
 bool team_note_loot(uint8_t seq, uint64_t key, const ItemFields& item, const std::string& name) {
