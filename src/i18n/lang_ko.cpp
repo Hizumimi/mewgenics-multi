@@ -37,7 +37,7 @@ const TrPair kTable_ko[] = {
     {u8"Jeu trouvé : %s.", u8"게임 위치: %s."},
     {u8"steam_appid.txt : à vérifier une fois le jeu trouvé.", u8"steam_appid.txt: 게임을 찾은 뒤에 확인합니다."},
     {u8"Il manque à côté de Mewgenics.exe : sans lui, Steam relance le jeu sans le mod.",
-     u8"Mewgenics.exe 옆에 없습니다. 이 파일이 없으면 Steam이 모드 없이 게임을 다시 실행합니다."},
+     u8"Mewgenics.exe 옆에 이 파일이 없습니다. 파일이 없으면 Steam이 모드 없이 게임을 다시 실행합니다."},
     {u8"Celui à côté de Mewgenics.exe ne contient pas 686060 : Steam relancerait le jeu sans le mod.",
      u8"Mewgenics.exe 옆의 파일에 686060이 없습니다. Steam이 모드 없이 게임을 다시 실행하게 됩니다."},
     {u8"steam_appid.txt est en place à côté du jeu.", u8"게임 옆에 steam_appid.txt가 있습니다."},
@@ -61,7 +61,7 @@ const TrPair kTable_ko[] = {
     {u8"%02u/%02u/%04u à %02u:%02u", u8"%02u/%02u/%04u %02u:%02u"},
     {u8"Le mod n'a pas pu être chargé : %s", u8"모드를 로드하지 못했습니다: %s"},
     {u8"mgmp_loader.exe s'est arrêté sans charger le mod. Relance ; si ça recommence, envoie loader.txt.",
-     u8"mgmp_loader.exe가 모드를 로드하지 못하고 종료되었습니다. 다시 실행해 보고, 또 그러면 loader.txt를 보내 주세요."},
+     u8"mgmp_loader.exe가 모드를 로드하지 못하고 종료되었습니다. 다시 실행해 보고, 문제가 반복되면 loader.txt를 보내 주세요."},
     {u8"mgmp_loader.exe s'est arrêté (code %s) sans charger le mod. Cause la plus probable : Steam fermé ou déconnecté. Ouvre Steam, attends qu'il soit connecté, puis relance.",
      u8"mgmp_loader.exe가 모드를 로드하지 못하고 종료되었습니다(코드 %s). 가장 흔한 원인: Steam이 꺼져 있거나 연결이 끊김. Steam을 실행하고 연결될 때까지 기다린 뒤 다시 실행하세요."},
     {u8"Le jeu s'est fermé pendant son démarrage, avant le mod. Cause la plus fréquente : Steam fermé ou déconnecté. Ouvre Steam, attends qu'il soit connecté, puis relance.",
@@ -93,7 +93,7 @@ const TrPair kTable_ko[] = {
     {u8"Le jeu a mis trop longtemps à démarrer : le mod n'est pas chargé. Relance.",
      u8"게임 시작이 너무 오래 걸려 모드를 로드하지 못했습니다. 다시 실행하세요."},
     {u8"L'injection du mod a échoué et le jeu a été fermé. Relance ; si ça recommence, envoie loader.txt.",
-     u8"모드 주입에 실패해 게임이 종료되었습니다. 다시 실행해 보고, 또 그러면 loader.txt를 보내 주세요."},
+     u8"모드 주입에 실패해 게임이 종료되었습니다. 다시 실행해 보고, 문제가 반복되면 loader.txt를 보내 주세요."},
     {u8"mgmp.json ne dit pas où est le jeu : dans Réglages, clique sur Parcourir… et choisis Mewgenics.exe.",
      u8"mgmp.json에 게임 위치가 없습니다. 설정에서 찾아보기…를 눌러 Mewgenics.exe를 선택하세요."},
     {u8"build %s · protocole %u", u8"빌드 %s · 프로토콜 %u"},
@@ -101,7 +101,7 @@ const TrPair kTable_ko[] = {
     {u8"Steam fermé", u8"Steam 꺼짐"},
     {u8"Réglages (mgmp.json)", u8"설정 (mgmp.json)"},
     {u8"Jeu trouvé", u8"게임 찾음"},
-    {u8"Jeu incomplet", u8"게임 파일 부족"},
+    {u8"Jeu incomplet", u8"게임 파일 누락"},
     {u8"Jeu introuvable", u8"게임 없음"},
     {u8"Fichiers du mod", u8"모드 파일"},
     {u8"Réparer", u8"복구"},
@@ -152,8 +152,8 @@ const TrPair kTable_ko[] = {
      u8"각자의 집과 고양이,\n"
      u8"모험은 다 함께!"},
     {u8"(illustrations du jeu introuvables)", u8"(게임 일러스트를 찾을 수 없음)"},
-    {u8"Comme le jeu (%s)", u8"게임과 같게 (%s)"},
-    {u8"Comme Windows (%s)", u8"Windows와 같게 (%s)"},
+    {u8"Comme le jeu (%s)", u8"게임과 동일 (%s)"},
+    {u8"Comme Windows (%s)", u8"Windows와 동일 (%s)"},
     {u8"Automatique (%s)", u8"자동 (%s)"},
     {u8"Lancement annulé.", u8"실행이 취소되었습니다."},
     {u8"Lancement du mod…", u8"모드 실행 중…"},
@@ -163,10 +163,10 @@ const TrPair kTable_ko[] = {
      u8"mgmp_loader.exe를 시작하지 못했습니다. zip에서 모드 폴더를 다시 압축 해제하세요(백신이 격리했을 수도 있습니다)."},
     {u8"la connexion Steam avec l'hôte est coupée", u8"호스트와의 Steam 연결이 끊김"},
     {u8"l'hôte ne répond pas par Steam (salon fermé, ou pas le mod ?)",
-     u8"호스트가 Steam으로 응답하지 않음 (로비가 닫혔거나 모드 미설치?)"},
+     u8"호스트가 Steam으로 응답하지 않음(로비가 닫혔거나 모드가 없을 수 있음)"},
     {u8"Steam refuse la connexion", u8"Steam이 연결을 거부함"},
-    {u8"À %s de choisir", u8"%s의 선택 차례"},
-    {u8"À toi de choisir", u8"내 선택 차례"},
+    {u8"À %s de choisir", u8"%s이(가) 고를 차례"},
+    {u8"À toi de choisir", u8"내가 고를 차례"},
     {u8"À %s de choisir la capacité à remplacer.", u8"%s이(가) 교체할 능력을 고를 차례입니다."},
     {u8"Ce chat est à %s", u8"%s의 고양이입니다"},
     {u8"Choix des colliers\n"
@@ -225,9 +225,9 @@ const TrPair kTable_ko[] = {
      u8"%s의 출발 화면이 더 이상 표시되지 않습니다.\n"
      u8"남은 화면은 직접 진행하세요. 지도에서\n"
      u8"합류하게 됩니다."},
-    {u8"  %s : parti", u8"  %s: 떠남"},
+    {u8"  %s : parti", u8"  %s: 나감"},
     {u8"  %s : prêt !", u8"  %s: 준비 완료!"},
-    {u8"  %s : charge ta partie...", u8"  %s: 내 게임 불러오는 중..."},
+    {u8"  %s : charge ta partie...", u8"  %s: 내 게임을 불러오는 중..."},
     {u8"Départ en aventure\n"
      u8"\n"
      u8"Ton équipe charge ta partie pour partir avec toi :\n"
@@ -243,7 +243,7 @@ const TrPair kTable_ko[] = {
      u8"아이템 선택\n"
      u8"\n"
      u8"여기서 보관함을 불러오지 못했습니다.\n"
-     u8"고양이들은 지금 착용한 아이템으로 출발합니다."},
+     u8"고양이들은 지금 장착한 아이템으로 출발합니다."},
     {u8"Choix des objets\n"
      u8"\n"
      u8"%s équipent encore leurs chats.\n"
@@ -299,7 +299,7 @@ const TrPair kTable_ko[] = {
     {u8"Tu n'as pas de bourse dans cette aventure (tu n'y as pas amené de chat).",
      u8"이번 모험에는 내 지갑이 없습니다(고양이를 데려오지 않았습니다)."},
     {u8"Les échanges marchent dans ta maison, ou en aventure à plusieurs avec ta bourse. Pour l'instant : %s.",
-     u8"교환은 집에서, 또는 멀티플레이 모험 중에 지갑으로 할 수 있습니다. 지금은: %s."},
+     u8"교환은 집에서, 또는 멀티플레이 모험 중에 지갑으로 할 수 있습니다. 지금은 교환 불가: %s."},
     {u8"pas de partie à plusieurs en cours", u8"진행 중인 멀티플레이 게임 없음"},
     {u8"une fonction du jeu manque, les échanges à la maison sont coupés", u8"게임 기능을 찾지 못해 집에서의 교환이 꺼짐"},
     {u8"tu es dans la partie de l'hôte", u8"호스트의 게임에 있음"},
@@ -318,7 +318,7 @@ const TrPair kTable_ko[] = {
      u8"모드가 아직 세이브를 인식하지 못했습니다. 메뉴에서 다시 불러오세요."},
     {u8"Choisis un joueur de la partie.", u8"게임에 있는 플레이어를 고르세요."},
     {u8"Pas d'échange maintenant : %s n'est pas dans sa maison.", u8"지금은 교환할 수 없습니다: %s이(가) 집에 없습니다."},
-    {u8"Ce montant n'est pas possible.", u8"불가능한 수량입니다."},
+    {u8"Ce montant n'est pas possible.", u8"줄 수 없는 수량입니다."},
     {u8"Choisis des pièces, de la nourriture ou des objets à donner.", u8"줄 코인, 음식 또는 아이템을 고르세요."},
     {u8"16 objets au plus par don.", u8"선물당 아이템 최대 16개."},
     {u8"Pas d'objets maintenant : %s.", u8"지금은 아이템을 줄 수 없습니다: %s."},
@@ -346,7 +346,7 @@ const TrPair kTable_ko[] = {
     {u8"Pas de réponse de %s pour ton don : rien n'a quitté ta maison.",
      u8"%s이(가) 선물에 응답하지 않았습니다. 집에서 빠진 것은 없습니다."},
     {u8"Les échanges marchent pendant une partie à plusieurs.", u8"교환은 멀티플레이 게임 중에만 할 수 있습니다."},
-    {u8"Dans ta maison : %s.", u8"집 보유량: %s."},
+    {u8"Dans ta maison : %s.", u8"내 집: %s."},
     {u8"%s n'est pas dans sa maison.", u8"%s이(가) 집에 없습니다."},
     {u8"%lld pièces", u8"%lld 코인"},
     {u8"%lld pièce", u8"%lld 코인"},
@@ -368,14 +368,14 @@ const TrPair kTable_ko[] = {
     {u8"C'est dans ta maison, et ta save est à jour.", u8"집에 들어왔고, 세이브에도 반영되었습니다."},
     {u8"C'est dans ta maison.", u8"집에 들어왔습니다."},
     {u8"Finalement, %s a bien reçu %s : c'est parti de ta maison.",
-     u8"결국 %s이(가) %s을(를) 받았습니다. 집에서 빠졌습니다."},
+     u8"뒤늦게 %s이(가) %s을(를) 받았습니다. 집에서 빠졌습니다."},
     {u8"%s a bien reçu %s : c'est parti de ta maison.", u8"%s이(가) %s을(를) 받았습니다. 집에서 빠졌습니다."},
     {u8"(1 objet n'a pas pu quitter ton rangement : il est aussi chez toi.)",
      u8"(아이템 1개가 보관함에서 빠지지 않아 내 집에도 남아 있습니다.)"},
     {u8"(%u objets n'ont pas pu quitter ton rangement : ils sont aussi chez toi.)",
      u8"(아이템 %u개가 보관함에서 빠지지 않아 내 집에도 남아 있습니다.)"},
     {u8"Le don à %s n'est pas passé : %s. Rien n'a quitté ta maison.",
-     u8"%s에게 보낸 선물이 실패했습니다: %s. 집에서 빠진 것은 없습니다."},
+     u8"%s에게 선물을 보내지 못했습니다: %s. 집에서 빠진 것은 없습니다."},
     {u8"Rien à donner dans ton rangement.", u8"보관함에 줄 수 있는 것이 없습니다."},
     {u8"Tape des lettres pour chercher un objet.", u8"글자를 입력해 아이템을 검색하세요."},
     {u8"Recherche : %s_", u8"검색: %s_"},
@@ -475,7 +475,7 @@ const TrPair kTable_ko[] = {
      u8"Les déblocages sont pour tout le monde.",
      u8"%s에게 가는 보상\n"
      u8"\n"
-     u8"%s이(가) %s의 고양이에 보상했습니다:\n"
+     u8"%s이(가) %s의 고양이에 답례했습니다:\n"
      u8"%s은(는) 그 플레이어의 집으로 갑니다.\n"
      u8"해금 요소는 모두에게 돌아갑니다."},
     {u8"Récompense pour tout le monde\n"
@@ -485,12 +485,12 @@ const TrPair kTable_ko[] = {
      u8"tout le monde.",
      u8"모두를 위한 보상\n"
      u8"\n"
-     u8"%s이(가) %s의 고양이에 보상했습니다:\n"
+     u8"%s이(가) %s의 고양이에 답례했습니다:\n"
      u8"해금 요소는 모두에게\n"
      u8"돌아갑니다."},
     {u8"%s te remercie pour ton chat : %s\n"
      u8"(ses déblocages sont pour tout le monde).",
-     u8"%s이(가) 고양이 선물에 감사합니다: %s\n"
+     u8"%s이(가) 고양이 선물에 답례합니다: %s\n"
      u8"(해금 요소는 모두에게 돌아갑니다)."},
     {u8"Récompense de %s\n"
      u8"\n"
@@ -501,7 +501,7 @@ const TrPair kTable_ko[] = {
      u8"tout le monde.",
      u8"%s의 보상\n"
      u8"\n"
-     u8"%s이(가) 고양이 선물에 감사합니다: %s.\n"
+     u8"%s이(가) 고양이 선물에 답례합니다: %s.\n"
      u8"보상은 다음에 세이브를 불러올 때(모험에서\n"
      u8"돌아올 때) 내 집에 들어옵니다.\n"
      u8"해금 요소는\n"
@@ -556,7 +556,7 @@ const TrPair kTable_ko[] = {
     {u8"Toi : %s.", u8"나: %s."},
     {u8"Pas encore de réponse de l'hôte pour ton don : regarde ta bourse dans la fenêtre du chemin.",
      u8"호스트가 아직 선물에 응답하지 않았습니다. 경로 선택 창에서 지갑을 확인하세요."},
-    {u8"Ton don n'est pas passé : %s.", u8"선물이 실패했습니다: %s."},
+    {u8"Ton don n'est pas passé : %s.", u8"선물을 보내지 못했습니다: %s."},
     {u8"(et d'autres trouvailles)", u8"(그 밖에도 더 있습니다)"},
     {u8"pas de bourse pour ce joueur dans cette aventure", u8"이번 모험에 이 플레이어의 지갑이 없음"},
     {u8"ta bourse n'en a pas autant", u8"지갑에 그만큼 없음"},
@@ -634,7 +634,7 @@ const TrPair kTable_ko[] = {
      u8"\n"
      u8"칸을 진행하는 동안(상점, 레벨 업\n"
      u8"등)에는 호스트만 아이템을 바꿀 수 있습니다.\n"
-     u8"고양이 장비는 지도에서 하세요."},
+     u8"아이템 장착은 지도에서 하세요."},
     {u8"Objets\n"
      u8"\n"
      u8"L'hôte n'est pas encore revenu sur la carte :\n"
@@ -816,7 +816,7 @@ const TrPair kTable_ko[] = {
      u8"장착한 아이템이 아직 보관함에 있습니다."},
     {u8"Tu rapportes %s dans ta maison.", u8"%s을(를) 집으로 가져갑니다."},
     {u8"Les PNJ te remercient de tes chats : %s dans ta maison.",
-     u8"NPC들이 고양이 선물에 감사합니다: %s을(를) 집으로 보냈습니다."},
+     u8"NPC들이 고양이 선물에 답례했습니다: %s을(를) 집으로 보냈습니다."},
     {u8"Cadeaux des PNJ", u8"NPC의 선물"},
     {u8"Ton butin est dans ton rangement : %s.", u8"전리품이 보관함에 들어왔습니다: %s."},
     {u8"Les cadeaux des PNJ sont dans ton rangement : %s.", u8"NPC의 선물이 보관함에 들어왔습니다: %s."},
@@ -990,7 +990,7 @@ const TrPair kTable_ko[] = {
      u8"잠시 후 다시 물어봅니다."},
     {u8"Tes chats n'ont pas pu être préparés\n"
      u8"pour l'aventure (voir mgmp.log).",
-     u8"고양이들을 모험에 맞게\n"
+     u8"모험에 보낼 고양이를\n"
      u8"준비하지 못했습니다(mgmp.log 참고)."},
     {u8"%s reviennent d'une aventure, mais leur retour\n"
      u8"n'est pas encore recopié dans ta save : recharge-la\n"
@@ -1087,7 +1087,7 @@ const TrPair kTable_ko[] = {
     {u8"%s (toi) : %s", u8"%s (나): %s"},
     {u8"%s : %s", u8"%s: %s"},
     {u8"En pause : on attend tout le monde sur la carte.", u8"일시 정지: 모두가 지도에 올 때까지 기다립니다."},
-    {u8"À toi de choisir : encore %u s.", u8"내 선택 차례: %u초 남음."},
+    {u8"À toi de choisir : encore %u s.", u8"내가 고를 차례: %u초 남음."},
     {u8"En attente des autres : encore %u s.", u8"다른 플레이어를 기다리는 중: %u초 남음."},
     {u8"Égalité entre %s :\n"
      u8"le sort choisit %s.",
@@ -1554,11 +1554,11 @@ const TrPair kTable_ko[] = {
     {u8"Le partage du butin n'est pas fini :\n"
      u8"attends la fin du défilé des objets.",
      u8"전리품 분배가 아직 끝나지 않았습니다.\n"
-     u8"아이템 분배가 끝날 때까지 기다리세요."},
+     u8"아이템이 모두 지나갈 때까지 기다리세요."},
     {u8"Tu pars rejoindre l'aventure de %s :\n"
      u8"tu défendras ta maison à ton retour.",
      u8"%s의 모험에 합류하러 갑니다.\n"
-     u8"집 지키기는 돌아온 뒤에 하세요."},
+     u8"집은 돌아온 뒤에 지키게 됩니다."},
     {u8"C'est %s qui lance l'aventure :\n"
      u8"demande-lui de cliquer sur « À l'aventure ! ».",
      u8"모험 출발은 %s이(가) 합니다.\n"
