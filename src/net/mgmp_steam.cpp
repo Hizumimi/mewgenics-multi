@@ -5,6 +5,7 @@
 #include "mgmp_steam.h"
 #include "mgmp_config.h"
 #include "mgmp_log.h"
+#include "mm_lang.h"
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -533,8 +534,8 @@ void on_status(HConn c) {
             if (st == kStateClosedByPeer) drain_to_tcp(g.client);
             if (!was_up || st != kStateClosedByPeer) {
                 g.client_state = 3;
-                g.client_why   = was_up ? u8"la connexion Steam avec l'hôte est coupée"
-                                        : u8"l'hôte ne répond pas par Steam (salon fermé, ou pas le mod ?)";
+                g.client_why   = was_up ? trk(u8"la connexion Steam avec l'hôte est coupée")
+                                        : trk(u8"l'hôte ne répond pas par Steam (salon fermé, ou pas le mod ?)");
             }
             close_bridge(g.client, was_up ? "coupee" : "impossible");
         }
@@ -614,7 +615,7 @@ DWORD WINAPI bridge_thread(LPVOID) {
             if (g.client_on && g.client.conn && !pump_bridge(g.client, buf, &why)) {
                 if (g.client.ever_up && g.client_state != 3) {
                     g.client_state = 3;
-                    g.client_why   = u8"la connexion Steam avec l'hôte est coupée";
+                    g.client_why   = trk(u8"la connexion Steam avec l'hôte est coupée");
                 }
                 close_bridge(g.client, why ? why : "?");
             }
@@ -879,7 +880,7 @@ uint16_t steam_client_begin(uint64_t host_id) {
     if (!c) {
         closesocket(l);
         g.client_state = 3;
-        g.client_why   = u8"Steam refuse la connexion";
+        g.client_why   = trk(u8"Steam refuse la connexion");
         return 0;
     }
     g.client_on     = true;
@@ -909,7 +910,7 @@ void steam_client_end() {
 int steam_client_state(std::string* why) {
     if (!g.cs_ready) return 0;
     Lock lock;
-    if (why) *why = g.client_why;
+    if (why) *why = tr(g.client_why.c_str());   // la cle francaise, traduite pour la fenetre
     return g.client_state;
 }
 

@@ -12,6 +12,7 @@
 #include "mgmp_proto.h"
 #include "mgmp_savefile.h"
 #include "mm_menu.h"
+#include "mm_lang.h"
 
 #include <windows.h>
 
@@ -235,7 +236,7 @@ void fill_names(std::string* names) {
 // sont proposees (« Combat (en haut) »). Les coordonnees sont celles de l'image
 // de la case (y vers le bas, comme le SWF).
 std::string node_label(void*, uint16_t index, uint8_t type) {
-    std::string name = vote_type_name(type);
+    std::string name = tr(vote_type_name(type));
     void* map = live_map();
     if (!map) return name;
     struct P { uint32_t i; float x, y; };
@@ -265,17 +266,19 @@ std::string node_label(void*, uint16_t index, uint8_t type) {
         if (a < b || (a == b && ps[k].i < ps[me].i)) ++rank;
     }
     const char* word = nullptr;
-    char buf[16];
-    if (n == 2)      word = vertical ? (rank ? u8"en bas" : u8"en haut") : (rank ? u8"à droite" : u8"à gauche");
+    char buf[64];
+    if (n == 2)      word = vertical ? (rank ? tr(u8"en bas") : tr(u8"en haut")) : (rank ? tr(u8"à droite") : tr(u8"à gauche"));
     else if (n == 3) {
-        static const char* kV[] = { u8"en haut", u8"au milieu", u8"en bas" };
-        static const char* kH[] = { u8"à gauche", u8"au milieu", u8"à droite" };
-        word = vertical ? kV[rank] : kH[rank];
+        static const char* kV[] = { trk(u8"en haut"), trk(u8"au milieu"), trk(u8"en bas") };
+        static const char* kH[] = { trk(u8"à gauche"), trk(u8"au milieu"), trk(u8"à droite") };
+        word = tr(vertical ? kV[rank] : kH[rank]);
     } else {
-        std::snprintf(buf, sizeof(buf), u8"n°%d", rank + 1);
+        std::snprintf(buf, sizeof(buf), tr(u8"n°%d"), rank + 1);
         word = buf;
     }
-    return name + " (" + word + ")";
+    char out[256];
+    std::snprintf(out, sizeof(out), tr(u8"%s (%s)"), name.c_str(), word);
+    return out;
 }
 
 // --- l'hote ---------------------------------------------------------------------------
@@ -847,6 +850,14 @@ void vote_on_mm(uint8_t from, const MmMsg& m) {
 // pris, quand il n'a pas de tour a afficher.
 constexpr uint32_t kNoticeLayout = 0xFF05;
 
+// La ligne rouge d'un vote refuse (en rouge, balises comprises).
+static std::string refused_line(uint8_t reason) {
+    char buf[512];
+    std::snprintf(buf, sizeof(buf), tr(u8"[c:red]Ton vote n'a pas été pris : %s.[/c]"),
+                  tr(vote_refusal_text(reason)));
+    return buf;
+}
+
 bool vote_popup(VotePopup& out, uint32_t open_layout) {
     const Mode md = mode();
     if (md == Mode::Off) return false;
@@ -863,9 +874,9 @@ bool vote_popup(VotePopup& out, uint32_t open_layout) {
             now - g.refused_at >= kRefusedShowMs)
             return false;
         out.layout = kNoticeLayout;
-        out.text   = std::string(u8"Choix du chemin\n\n[c:red]Ton vote n'a pas été pris : ") +
-                     vote_refusal_text(g.refused_reason) + u8".[/c]";
-        out.yes    = u8"D'accord";
+        out.text   = tr(u8"Choix du chemin\n\n");
+        out.text  += refused_line(g.refused_reason);
+        out.yes    = tr(u8"D'accord");
         out.no     = nullptr;
         return true;
     }
@@ -899,15 +910,14 @@ bool vote_popup(VotePopup& out, uint32_t open_layout) {
                                              // s'ouvre ou se met a jour avec ce texte
     if (md == Mode::Guest && g.refused_at && now - g.refused_at < kRefusedShowMs &&
         lay != VoteLayout::Result)
-        out.text += std::string(u8"\n[c:red]Ton vote n'a pas été pris : ") +
-                    vote_refusal_text(g.refused_reason) + ".[/c]";
+        out.text += "\n" + refused_line(g.refused_reason);
     out.yes    = nullptr;
     out.no     = nullptr;
     switch (lay) {
-        case VoteLayout::Open:   out.yes = u8"Même chemin"; out.no = u8"Choisir"; break;
-        case VoteLayout::Choose: out.yes = u8"Choisir"; break;
-        case VoteLayout::Voted:  out.yes = u8"Changer"; break;
-        case VoteLayout::Result: out.yes = u8"D'accord"; break;
+        case VoteLayout::Open:   out.yes = tr(u8"Même chemin"); out.no = tr(u8"Choisir"); break;
+        case VoteLayout::Choose: out.yes = tr(u8"Choisir"); break;
+        case VoteLayout::Voted:  out.yes = tr(u8"Changer"); break;
+        case VoteLayout::Result: out.yes = tr(u8"D'accord"); break;
         default: break;
     }
     return true;

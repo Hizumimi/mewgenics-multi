@@ -192,11 +192,12 @@ VoteLayout vote_layout(const VoteState& s, uint8_t self, VoteBallot own = {});
 // tete ; sinon une case invalide. C'est ce que « Même chemin » choisit.
 VoteBallot vote_leader_excluding(const VoteState& s, uint8_t self);
 
-// Le nom d'un type de case (« Combat », « Boutique »...).
+// Le nom d'un type de case (« Combat », « Boutique »...) : la cle francaise,
+// a passer a tr() pour l'afficher.
 const char* vote_type_name(uint8_t type);
 
-// Pourquoi un vote n'a pas ete pris, pour la fenetre (« l'hôte n'est pas sur
-// la carte »...).
+// Pourquoi un vote n'a pas ete pris (« l'hôte n'est pas sur la carte »...) : la
+// cle francaise, a passer a tr() pour la fenetre (le journal la garde telle quelle).
 const char* vote_refusal_text(uint8_t reason);
 
 // Le nom affiche d'une case : le type, et sa position quand plusieurs cases du

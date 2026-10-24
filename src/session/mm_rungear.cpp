@@ -4,6 +4,7 @@
 #include "mm_menu.h"
 #include "mm_team.h"
 #include "mm_team_merge.h"
+#include "mm_lang.h"
 
 #include "mgmp_addresses.h"
 #include "mgmp_catsync.h"
@@ -570,32 +571,32 @@ const char* why_name(Why w) {
 void tell_why(Why why, int owner) {
     switch (why) {
     case Why::Other:
-        tell(why, fmt(u8"Objets\n\nCe chat est à %s : seul son propriétaire\npeut changer ses objets.",
+        tell(why, fmt(tr(u8"Objets\n\nCe chat est à %s : seul son propriétaire\npeut changer ses objets."),
                       mm_peer_name((uint8_t)owner).c_str()));
         break;
     case Why::Node:
         if (follow_pending_count()) break;               // il va suivre l'hote : rien a lire apres coup
-        tell(why, u8"Objets\n\nPendant une case (une boutique, une montée de\n"
-                  u8"niveau...), seul l'hôte change les objets.\nÉquipe tes chats sur la carte.");
+        tell(why, tr(u8"Objets\n\nPendant une case (une boutique, une montée de\n"
+                     u8"niveau...), seul l'hôte change les objets.\nÉquipe tes chats sur la carte."));
         break;
     case Why::Wait:
-        tell(why, u8"Objets\n\nL'hôte n'est pas encore revenu sur la carte :\n"
-                  u8"attends-le, ton sac se débloquera tout seul.");
+        tell(why, tr(u8"Objets\n\nL'hôte n'est pas encore revenu sur la carte :\n"
+                     u8"attends-le, ton sac se débloquera tout seul."));
         break;
     case Why::Behind:
-        tell(why, u8"Objets\n\nTon sac se met à jour avec celui de l'hôte :\n"
-                  u8"ferme-le, puis rouvre-le dans un instant.");
+        tell(why, tr(u8"Objets\n\nTon sac se met à jour avec celui de l'hôte :\n"
+                     u8"ferme-le, puis rouvre-le dans un instant."));
         break;
     case Why::Conflict:
-        tell(why, u8"Objets\n\nUn autre joueur a pris cet objet juste avant toi :\n"
-                  u8"ton changement n'a pas été pris. Ton sac revient\ncomme chez l'hôte quand tu le fermes.");
+        tell(why, tr(u8"Objets\n\nUn autre joueur a pris cet objet juste avant toi :\n"
+                     u8"ton changement n'a pas été pris. Ton sac revient\ncomme chez l'hôte quand tu le fermes."));
         break;
     case Why::Late:
-        tell(why, u8"Objets\n\nL'hôte est entré dans une case avant que ton\n"
-                  u8"dernier changement n'arrive : il est annulé.\nRefais-le sur la carte.");
+        tell(why, tr(u8"Objets\n\nL'hôte est entré dans une case avant que ton\n"
+                     u8"dernier changement n'arrive : il est annulé.\nRefais-le sur la carte."));
         break;
     case Why::Gone:
-        tell(why, u8"Objets\n\nCet objet n'est plus là : un autre joueur\nl'a pris juste avant toi.");
+        tell(why, tr(u8"Objets\n\nCet objet n'est plus là : un autre joueur\nl'a pris juste avant toi."));
         break;
     case Why::None:
         break;
@@ -1180,7 +1181,7 @@ void guest_pump(uint64_t now) {
         if (now - g.bag_hold_since >= kBagHoldTellMs && !g.bag_told) {
             log_line("SAC", "une case de l'hote attend : ecran des objets ouvert, le suivi attend sa fermeture");
             g.bag_told = true;
-            mm_show_info(u8"Ton sac est ouvert\n\nL'hôte est entré dans une case :\nferme ton sac pour le suivre.");
+            mm_show_info(tr(u8"Ton sac est ouvert\n\nL'hôte est entré dans une case :\nferme ton sac pour le suivre."));
         }
     } else {
         g.bag_hold_since = 0;
