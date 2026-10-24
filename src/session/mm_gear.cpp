@@ -4,6 +4,7 @@
 #include "mm_gear.h"
 #include "mm_embark.h"
 #include "mm_menu.h"
+#include "mm_lang.h"
 #include "mm_rungear.h"
 #include "mm_team.h"
 #include "mm_team_merge.h"
@@ -349,9 +350,9 @@ void guest_pump() {
             : "rangement de ce joueur pas charge, il regarde");
         if (!g.loaded && !g.load_info && team_guest_has_cats_in_run()) {
             g.load_info = true;
-            mm_show_info(u8"Choix des objets\n\n"
-                         u8"Ton rangement n'a pas pu être chargé ici :\n"
-                         u8"tes chats partent avec les objets qu'ils portent.");
+            mm_show_info(tr(u8"Choix des objets\n\n"
+                            u8"Ton rangement n'a pas pu être chargé ici :\n"
+                            u8"tes chats partent avec les objets qu'ils portent."));
         }
     }
     if (!g.seen) return;
@@ -548,10 +549,21 @@ bool host_close_early() {
     if (!n) return false;
     g.close_warned = true;
     log_line("OBJETS", "« Valider » de l'hote retenu une fois : %s n'a pas encore valide", who.c_str());
-    mm_show_info(fmt(u8"Choix des objets\n\n"
-                     u8"%s %s encore %s chats.\n"
-                     u8"Clique de nouveau sur « Valider » pour partir\n"
-                     u8"quand même.", who.c_str(), n > 1 ? u8"équipent" : u8"équipe", n > 1 ? u8"leurs" : u8"ses"));
+    // La fenetre : les noms recolles dans la langue du joueur.
+    who.clear();
+    for (uint8_t p = 1; p < kGearPeers; ++p) {
+        if (!embark_follower_active(p) || g.peers[p].final) continue;
+        who = who.empty() ? mm_peer_name(p) : fmt(tr(u8"%s, %s"), who.c_str(), mm_peer_name(p).c_str());
+    }
+    mm_show_info(fmt(n > 1 ? tr(u8"Choix des objets\n\n"
+                                u8"%s équipent encore leurs chats.\n"
+                                u8"Clique de nouveau sur « Valider » pour partir\n"
+                                u8"quand même.")
+                           : tr(u8"Choix des objets\n\n"
+                                u8"%s équipe encore ses chats.\n"
+                                u8"Clique de nouveau sur « Valider » pour partir\n"
+                                u8"quand même."),
+                     who.c_str()));
     return true;
 }
 
@@ -625,9 +637,9 @@ bool gear_on_click(void* button, const char* name) {
         if (now) send_final("« Valider » de ce joueur");
         if (now && !g.close_info) {
             g.close_info = true;
-            mm_show_info(fmt(u8"Choix des objets\n\n"
-                             u8"Prêt ! Tes chats partent avec ces objets :\n"
-                             u8"%s validera le départ pour toute l'équipe.",
+            mm_show_info(fmt(tr(u8"Choix des objets\n\n"
+                                u8"Prêt ! Tes chats partent avec ces objets :\n"
+                                u8"%s validera le départ pour toute l'équipe."),
                              mm_peer_name(kHostPeer).c_str()));
         }
         return true;
@@ -707,21 +719,21 @@ void gear_on_team(uint8_t from, const uint8_t* data, size_t size) {
                                "qu'au depart, ton rangement ne change pas", (unsigned)a.vote);
             // Rien de change depuis l'ouverture : rien a dire.
             if (!editing && g_final_vote == a.vote && !g_final_changed) return;
-            g_notice = fmt(u8"Choix des objets\n\n"
-                           u8"Les objets choisis pour tes chats n'ont pas pu\n"
-                           u8"être repris dans l'aventure de %s : tes chats\n"
-                           u8"partent avec ceux qu'ils avaient, ton rangement\n"
-                           u8"ne change pas.", host.c_str());
+            g_notice = fmt(tr(u8"Choix des objets\n\n"
+                              u8"Les objets choisis pour tes chats n'ont pas pu\n"
+                              u8"être repris dans l'aventure de %s : tes chats\n"
+                              u8"partent avec ceux qu'ils avaient, ton rangement\n"
+                              u8"ne change pas."), host.c_str());
             return;
         }
         log_line("OBJETS", "<- l'hote a applique la photo %u (vote %u)%s", a.snap, (unsigned)a.vote,
                  editing ? " -- ce joueur equipait encore : la suite ne compte plus" : "");
         team_guest_storage_after(a.vote, a.storage);
         if (editing)
-            g_notice = fmt(u8"Choix des objets\n\n"
-                           u8"%s a déjà validé le départ : tes chats partent\n"
-                           u8"avec les objets choisis jusqu'ici, la suite\n"
-                           u8"ne compte plus.", host.c_str());
+            g_notice = fmt(tr(u8"Choix des objets\n\n"
+                              u8"%s a déjà validé le départ : tes chats partent\n"
+                              u8"avec les objets choisis jusqu'ici, la suite\n"
+                              u8"ne compte plus."), host.c_str());
         return;
     }
     GearMsg m;

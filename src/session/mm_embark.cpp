@@ -4,6 +4,7 @@
 #include "mm_collars.h"
 #include "mm_gear.h"
 #include "mm_menu.h"
+#include "mm_lang.h"
 #include "mm_rungear.h"
 #include "mm_team.h"
 
@@ -352,10 +353,10 @@ void lose_mirror(const char* why) {
     g.mirror_lost = true;
     g.queue.clear();
     log_line("EMBARK", "!! miroir du depart perdu (%s) : ce joueur finit les ecrans lui-meme", why);
-    mm_show_info(fmt(u8"Départ en aventure\n\n"
-                          u8"Le départ de %s ne s'affiche plus ici.\n"
-                          u8"Termine ces écrans toi-même : tu le rejoindras\n"
-                          u8"sur la carte.", mm_peer_name(kHostPeer).c_str()));
+    mm_show_info(fmt(tr(u8"Départ en aventure\n\n"
+                        u8"Le départ de %s ne s'affiche plus ici.\n"
+                        u8"Termine ces écrans toi-même : tu le rejoindras\n"
+                        u8"sur la carte."), mm_peer_name(kHostPeer).c_str()));
 }
 
 // Mewgenics Multi (protocole 60) : la copie de l'hote mise de cote -- son
@@ -748,11 +749,13 @@ std::string embark_wait_text() {
     for (uint8_t id = 1; id < 8; ++id) {
         if (!(g.joiners & (1u << id))) continue;
         const bool here = (present_mask() >> id) & 1;
-        lines += "  " + mm_peer_name(id) + " : " +
-                 (!here ? u8"parti" : ((g.ready >> id) & 1) ? u8"prêt !" : u8"charge ta partie...") + "\n";
+        lines += fmt(!here                    ? tr(u8"  %s : parti")
+                     : ((g.ready >> id) & 1)  ? tr(u8"  %s : prêt !")
+                                              : tr(u8"  %s : charge ta partie..."),
+                     mm_peer_name(id).c_str()) + "\n";
     }
-    return u8"Départ en aventure\n\n"
-           u8"Ton équipe charge ta partie pour partir avec toi :\n\n" + lines;
+    return tr(u8"Départ en aventure\n\n"
+              u8"Ton équipe charge ta partie pour partir avec toi :\n\n") + lines;
 }
 
 void embark_host_departed(uint8_t seq) {
