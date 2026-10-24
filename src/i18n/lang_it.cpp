@@ -49,13 +49,13 @@ const TrPair kTable_it[] = {
     {u8"Il manque %s à côté de Mewgenics\u00A0Multi.exe : extrais de nouveau tout le dossier du zip.",
      u8"Manca %s accanto a Mewgenics\u00A0Multi.exe: estrai di nuovo tutta la cartella dallo zip."},
     {u8"Mewgenics Multi, build %s, protocole %u : tout le monde doit avoir le même.",
-     u8"Mewgenics Multi, build %s, protocollo %u: tutti devono avere lo stesso."},
+     u8"Mewgenics Multi, build %s, protocollo %u: tutti devono avere la stessa versione."},
     {u8"Le jeu est introuvable : choisis d'abord Mewgenics.exe dans Réglages.",
      u8"Gioco non trovato: scegli prima Mewgenics.exe in Impostazioni."},
     {u8"steam_appid.txt n'a pas pu être écrit à côté du jeu : copie-le à la main (LISEZ-MOI, étape 2).",
      u8"Impossibile scrivere steam_appid.txt accanto al gioco: copialo a mano (LISEZ-MOI, passo 2)."},
     {u8"Windows n'a pas eu ton accord : steam_appid.txt n'est pas copié. Tu peux réessayer, ou le copier à la main (LISEZ-MOI, étape 2).",
-     u8"Windows non ha avuto il tuo consenso: steam_appid.txt non è stato copiato. Puoi riprovare, o copiarlo a mano (LISEZ-MOI, passo 2)."},
+     u8"Non hai dato il consenso a Windows: steam_appid.txt non è stato copiato. Puoi riprovare, o copiarlo a mano (LISEZ-MOI, passo 2)."},
     {u8"Mewgenics Multi n'a pas pu se relancer en administrateur : copie steam_appid.txt à la main (LISEZ-MOI, étape 2).",
      u8"Mewgenics Multi non è riuscito a riavviarsi come amministratore: copia steam_appid.txt a mano (LISEZ-MOI, passo 2)."},
     {u8"La copie en administrateur n'a pas marché : copie steam_appid.txt à la main (LISEZ-MOI, étape 2).",
@@ -81,7 +81,7 @@ const TrPair kTable_it[] = {
     {u8"Le mod a tardé à se mettre en place ; le jeu reprend quand même.",
      u8"Il mod ci ha messo molto a prepararsi; il gioco riprende comunque."},
     {u8"Le jeu relancé tarde à démarrer ; injection quand même.",
-     u8"Il gioco riavviato tarda ad avviarsi; iniezione comunque."},
+     u8"Il gioco riavviato tarda ad avviarsi; il mod viene iniettato comunque."},
     {u8"mgmp.dll est introuvable à côté de Mewgenics\u00A0Multi.exe : extrais de nouveau le dossier du mod depuis le zip.",
      u8"mgmp.dll non trovato accanto a Mewgenics\u00A0Multi.exe: estrai di nuovo la cartella del mod dallo zip."},
     {u8"Mewgenics.exe est introuvable : dans Réglages, clique sur Parcourir… et choisis Mewgenics.exe.",
@@ -172,7 +172,7 @@ const TrPair kTable_it[] = {
      u8"mgmp_loader.exe non è riuscito ad avviarsi: estrai di nuovo la cartella del mod dallo zip (o il tuo antivirus l'ha messo in quarantena)."},
     {u8"la connexion Steam avec l'hôte est coupée", u8"la connessione Steam con l'host si è interrotta"},
     {u8"l'hôte ne répond pas par Steam (salon fermé, ou pas le mod ?)",
-     u8"l'host non risponde tramite Steam (lobby chiusa, o niente mod?)"},
+     u8"l'host non risponde tramite Steam (lobby chiusa, o non ha il mod?)"},
     {u8"Steam refuse la connexion", u8"Steam rifiuta la connessione"},
     {u8"À %s de choisir", u8"Tocca a %s scegliere"},
     {u8"À toi de choisir", u8"Tocca a te scegliere"},
@@ -290,7 +290,7 @@ const TrPair kTable_it[] = {
      u8"Scelta degli oggetti\n"
      u8"\n"
      u8"Gli oggetti scelti per i tuoi gatti non sono\n"
-     u8"stati ripresi nell'avventura di %s: i tuoi gatti\n"
+     u8"stati trasferiti nell'avventura di %s: i tuoi gatti\n"
      u8"partono con quelli che avevano, il tuo deposito\n"
      u8"non cambia."},
     {u8"Choix des objets\n"
@@ -330,7 +330,7 @@ const TrPair kTable_it[] = {
     {u8"Choisis un joueur de la partie.", u8"Scegli un giocatore della partita."},
     {u8"Pas d'échange maintenant : %s n'est pas dans sa maison.",
      u8"Niente scambi ora: %s non è a casa sua."},
-    {u8"Ce montant n'est pas possible.", u8"Questo importo non è possibile."},
+    {u8"Ce montant n'est pas possible.", u8"Importo non valido."},
     {u8"Choisis des pièces, de la nourriture ou des objets à donner.",
      u8"Scegli monete, cibo od oggetti da dare."},
     {u8"16 objets au plus par don.", u8"Al massimo 16 oggetti per dono."},
@@ -340,7 +340,7 @@ const TrPair kTable_it[] = {
     {u8"Tu n'as pas autant de nourriture.", u8"Non hai così tanto cibo."},
     {u8"Ton rangement est illisible : pas de don.", u8"Il tuo deposito è illeggibile: niente dono."},
     {u8"Un objet choisi est déjà promis à un don pas encore fini.",
-     u8"Un oggetto scelto è già promesso a un dono non ancora concluso."},
+     u8"Un oggetto scelto fa già parte di un dono non ancora concluso."},
     {u8"Un objet choisi n'est plus dans ton rangement : choisis à nouveau.",
      u8"Un oggetto scelto non è più nel tuo deposito: scegli di nuovo."},
     {u8"Un objet choisi ne peut pas se donner.", u8"Un oggetto scelto non si può dare."},
@@ -348,7 +348,7 @@ const TrPair kTable_it[] = {
     {u8"Don envoyé à %s (%s) : en attente de sa réponse…",
      u8"Dono inviato a %s (%s): in attesa della sua risposta…"},
     {u8"Don demandé à l'hôte : en attente de sa réponse…",
-     u8"Dono chiesto all'host: in attesa della sua risposta…"},
+     u8"Dono richiesto all'host: in attesa della sua risposta…"},
     {u8"Pas de don : %s.", u8"Niente dono: %s."},
     {u8"%s a bien reçu ton don : tes objets quitteront ton rangement dès que l'écran des objets sera fermé.",
      u8"%s ha ricevuto il tuo dono: i tuoi oggetti lasceranno il deposito appena la schermata degli oggetti sarà chiusa."},
@@ -357,9 +357,9 @@ const TrPair kTable_it[] = {
     {u8"%s a bien reçu ton don : ce que tu as donné quittera ta maison à ton retour dans cette save.",
      u8"%s ha ricevuto il tuo dono: ciò che hai dato lascerà la tua casa quando tornerai in questo salvataggio."},
     {u8"Pas de réponse d'%s pour ton don : rien n'a quitté ta maison.",
-     u8"Nessuna risposta da %s per il tuo dono: niente ha lasciato la tua casa."},
+     u8"Nessuna risposta da %s per il tuo dono: dalla tua casa non è uscito nulla."},
     {u8"Pas de réponse de %s pour ton don : rien n'a quitté ta maison.",
-     u8"Nessuna risposta da %s per il tuo dono: niente ha lasciato la tua casa."},
+     u8"Nessuna risposta da %s per il tuo dono: dalla tua casa non è uscito nulla."},
     {u8"Les échanges marchent pendant une partie à plusieurs.",
      u8"Gli scambi funzionano durante una partita multigiocatore."},
     {u8"Dans ta maison : %s.", u8"A casa tua: %s."},
@@ -386,14 +386,15 @@ const TrPair kTable_it[] = {
      u8"È a casa tua, e il tuo salvataggio è aggiornato."},
     {u8"C'est dans ta maison.", u8"È a casa tua."},
     {u8"Finalement, %s a bien reçu %s : c'est parti de ta maison.",
-     u8"Alla fine, %s ha ricevuto %s: ha lasciato la tua casa."},
-    {u8"%s a bien reçu %s : c'est parti de ta maison.", u8"%s ha ricevuto %s: ha lasciato la tua casa."},
+     u8"Alla fine, %s ha ricevuto %s: il dono è uscito dalla tua casa."},
+    {u8"%s a bien reçu %s : c'est parti de ta maison.",
+     u8"%s ha ricevuto %s: il dono è uscito dalla tua casa."},
     {u8"(1 objet n'a pas pu quitter ton rangement : il est aussi chez toi.)",
      u8"(1 oggetto non è potuto uscire dal tuo deposito: ce l'hai ancora anche tu.)"},
     {u8"(%u objets n'ont pas pu quitter ton rangement : ils sont aussi chez toi.)",
      u8"(%u oggetti non sono potuti uscire dal tuo deposito: li hai ancora anche tu.)"},
     {u8"Le don à %s n'est pas passé : %s. Rien n'a quitté ta maison.",
-     u8"Il dono a %s non è riuscito: %s. Niente ha lasciato la tua casa."},
+     u8"Il dono a %s non è riuscito: %s. Dalla tua casa non è uscito nulla."},
     {u8"Rien à donner dans ton rangement.", u8"Niente da dare nel tuo deposito."},
     {u8"Tape des lettres pour chercher un objet.", u8"Digita delle lettere per cercare un oggetto."},
     {u8"Recherche : %s_", u8"Cerca: %s_"},
@@ -435,8 +436,8 @@ const TrPair kTable_it[] = {
     {u8"Ton choix est fait.", u8"Hai fatto la tua scelta."},
     {u8"En attente de %s (%s).", u8"In attesa di %s (%s)."},
     {u8"Le résultat arrive...", u8"Il risultato sta arrivando..."},
-    {u8"%s ne sont pas là : leur tour passe.", u8"%s non ci sono: il loro turno salta."},
-    {u8"%s n'est pas là : son tour passe.", u8"%s non c'è: il suo turno salta."},
+    {u8"%s ne sont pas là : leur tour passe.", u8"%s non ci sono: saltano il turno."},
+    {u8"%s n'est pas là : son tour passe.", u8"%s non c'è: salta il turno."},
     {u8"Personne n'en veut : il reste chez toi.", u8"Nessuno lo vuole: resta a te."},
     {u8"Personne n'en veut : il reste chez %s.", u8"Nessuno lo vuole: resta a %s."},
     {u8"Tu l'emportes (%s) !", u8"Lo vinci tu (%s)!"},
@@ -486,8 +487,8 @@ const TrPair kTable_it[] = {
      u8"lui être envoyée : elle reste chez toi.",
      u8"Ricompensa di %s\n"
      u8"\n"
-     u8"La ricompensa per il dono di %s non è potuta\n"
-     u8"essergli inviata: resta a te."},
+     u8"Non è stato possibile inviare a %s la\n"
+     u8"ricompensa del suo dono: resta a te."},
     {u8"Récompense pour %s\n"
      u8"\n"
      u8"%s a récompensé le chat que %s\n"
@@ -583,7 +584,7 @@ const TrPair kTable_it[] = {
     {u8"pas de bourse pour ce joueur dans cette aventure",
      u8"nessuna borsa per questo giocatore in questa avventura"},
     {u8"ta bourse n'en a pas autant", u8"la tua borsa non ne ha abbastanza"},
-    {u8"l'aventure n'est plus suivie", u8"l'avventura non è più seguita"},
+    {u8"l'aventure n'est plus suivie", u8"l'avventura non è più tracciata"},
     {u8"%s t'a donné %s : c'est dans ta bourse.", u8"%s ti ha dato %s: è nella tua borsa."},
     {u8"Tu as donné %s à %s : c'est dans sa bourse.", u8"Hai dato %s a %s: è nella sua borsa."},
     {u8"%s a donné %s à %s.", u8"%s ha dato %s a %s."},
@@ -696,7 +697,7 @@ const TrPair kTable_it[] = {
      u8"Oggetti\n"
      u8"\n"
      u8"L'host è entrato in una casella prima che la tua\n"
-     u8"ultima modifica arrivasse: è annullata.\n"
+     u8"ultima modifica arrivasse: è stata annullata.\n"
      u8"Rifalla sulla mappa."},
     {u8"Objets\n"
      u8"\n"
@@ -733,7 +734,7 @@ const TrPair kTable_it[] = {
      u8"Clicca ancora per uscire comunque."},
     {u8"Ton achat n'a pas pu être demandé à l'hôte :\n"
      u8"rien n'a été acheté. Réessaie dans un instant.",
-     u8"Impossibile chiedere il tuo acquisto all'host:\n"
+     u8"Impossibile inviare la richiesta d'acquisto all'host:\n"
      u8"non è stato comprato niente. Riprova tra un istante."},
     {u8"L'hôte n'est plus dans cette boutique :\n"
      u8"l'achat ne s'est pas fait.",
@@ -756,7 +757,7 @@ const TrPair kTable_it[] = {
      u8"Per ora solo l'host compra le caramelle\n"
      u8"e i famigli (con la sua borsa)."},
     {u8"Le jeu n'a pas pu faire l'achat chez l'hôte.",
-     u8"Il gioco non ha potuto fare l'acquisto dall'host."},
+     u8"Il gioco dell'host non è riuscito a fare l'acquisto."},
     {u8"Pas de bourses dans cette aventure :\n"
      u8"seul l'hôte achète.",
      u8"Niente borse in questa avventura:\n"
@@ -1020,7 +1021,7 @@ const TrPair kTable_it[] = {
      u8"La sessione non è pronta: riprova tra un istante."},
     {u8"La 4e place est en train de t'être attribuée :\n"
      u8"la question revient dans un instant.",
-     u8"Il quarto posto ti sta per essere assegnato:\n"
+     u8"Assegnazione del quarto posto in corso:\n"
      u8"la domanda tornerà tra un istante."},
     {u8"Tes chats n'ont pas pu être préparés\n"
      u8"pour l'aventure (voir mgmp.log).",
@@ -1121,7 +1122,8 @@ const TrPair kTable_it[] = {
     {u8"pas encore voté", u8"non ha ancora votato"},
     {u8"%s (toi) : %s", u8"%s (tu): %s"},
     {u8"%s : %s", u8"%s: %s"},
-    {u8"En pause : on attend tout le monde sur la carte.", u8"In pausa: si aspettano tutti sulla mappa."},
+    {u8"En pause : on attend tout le monde sur la carte.",
+     u8"In pausa: si aspetta che tutti siano sulla mappa."},
     {u8"À toi de choisir : encore %u s.", u8"Tocca a te scegliere: ancora %u s."},
     {u8"En attente des autres : encore %u s.", u8"In attesa degli altri: ancora %u s."},
     {u8"Égalité entre %s :\n"
@@ -1181,7 +1183,7 @@ const TrPair kTable_it[] = {
     {u8"Pour continuer, appuie sur Échap\n"
      u8"puis sur « Sauvegarder et retourner au menu ».",
      u8"Per continuare, premi Esc\n"
-     u8"poi \"Salva ed esci al menu\"."},
+     u8"e poi \"Salva ed esci al menu\"."},
     {u8"Ce qui t'attend\n"
      u8"\n"
      u8"%s\n"
@@ -1604,7 +1606,7 @@ const TrPair kTable_it[] = {
      u8"ou rejoins la partie d'un ami.",
      u8"Multigiocatore\n"
      u8"\n"
-     u8"Ospita una partita perché i tuoi amici si uniscano,\n"
+     u8"Ospita una partita a cui i tuoi amici possano unirsi,\n"
      u8"o unisciti alla partita di un amico."},
     {u8"Salon multijoueur\n"
      u8"\n"
@@ -1643,7 +1645,7 @@ const TrPair kTable_it[] = {
      u8"%s   (%s, porta %u)\n"
      u8"%s"},
     {u8"Elle est déjà copiée : colle-la-lui avec Ctrl+V.\n",
-     u8"È già copiato: incollaglielo con Ctrl+V.\n"},
+     u8"È già stato copiato: incollaglielo con Ctrl+V.\n"},
     {u8"Adresse introuvable sur ce PC (port %u).\n",
      u8"Indirizzo non trovato su questo PC (porta %u).\n"},
     {u8"Salon multijoueur\n"
@@ -1894,7 +1896,7 @@ const TrPair kTable_it[] = {
      u8"Scambiare in avventura\n"
      u8"\n"
      u8"Sulla mappa, premi E per dare monete\n"
-     u8"o cibo della tua borsa a un altro giocatore."},
+     u8"o cibo dalla tua borsa a un altro giocatore."},
     {nullptr, nullptr}   // fin de la table
 };
 
