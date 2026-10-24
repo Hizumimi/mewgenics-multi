@@ -14,87 +14,86 @@ extern const TrPair kTable_zh_cn[];
 const TrPair kTable_zh_cn[] = {
     {u8"mgmp.json n'a pas pu être lu : réglages non enregistrés.", u8"无法\u200B读取\u200Bmgmp.json：\u200B设置\u200B未保存。"},
     {u8"mgmp.json contient des commentaires (// ou /* */), que l'enregistrement effacerait : retire-les, ou change le réglage à la main dans le fichier.",
-     u8"mgmp.json\u200B里\u200B有\u200B注\u200B释\u200B（// 或 /* */），\u200B保存\u200B会\u200B把\u200B它们\u200B删\u200B掉：\u200B先\u200B删\u200B掉\u200B注\u200B释，\u200B或者\u200B直接\u200B在\u200B文件\u200B里\u200B手\u200B动\u200B修改\u200B设置。"},
+     u8"mgmp.json\u200B里\u200B有\u200B注释\u200B（// 或 /* */），\u200B保存\u200B会\u200B把\u200B它们\u200B删掉：\u200B先\u200B删掉\u200B注释，\u200B或者\u200B直接\u200B在\u200B文件\u200B里\u200B手动\u200B修改\u200B设置。"},
     {u8"mgmp.json n'est pas du JSON valide : corrige-le (ou remets celui du zip) avant de changer les réglages.",
-     u8"mgmp.json\u200B不\u200B是\u200B有\u200B效\u200B的\u200BJSON：\u200B修改\u200B设置\u200B前，\u200B先\u200B把\u200B它\u200B改\u200B好\u200B（或\u200B换\u200B回\u200Bzip\u200B里\u200B的\u200B那\u200B份）。"},
+     u8"mgmp.json\u200B不\u200B是\u200B有效\u200B的\u200BJSON：\u200B修改\u200B设置\u200B前，\u200B先\u200B把\u200B它\u200B改好\u200B（或\u200B换回\u200Bzip\u200B里\u200B的\u200B那\u200B份）。"},
     {u8"Impossible d'écrire dans le dossier du mod : réglages non enregistrés.",
      u8"无法\u200B写入\u200B模组\u200B文件夹：\u200B设置\u200B未保存。"},
     {u8"mgmp.json n'a pas pu être remplacé (ouvert ailleurs ?) : réglages non enregistrés.",
-     u8"无法\u200B替换\u200Bmgmp.json\u200B（被\u200B其他\u200B程\u200B序\u200B打开\u200B了？）：\u200B设置\u200B未保存。"},
+     u8"无法\u200B替换\u200Bmgmp.json\u200B（被\u200B其他\u200B程序\u200B打开\u200B了？）：\u200B设置\u200B未保存。"},
     {u8"Steam est ouvert.", u8"Steam\u200B已\u200B打开。"},
     {u8"Sans lui, le jeu se ferme avant que le mod se charge. Ouvre Steam et attends qu'il soit connecté.",
-     u8"没有\u200BSteam，\u200B游戏\u200B会\u200B在\u200B模组\u200B加载\u200B前\u200B关\u200B闭。\u200B打开\u200BSteam，\u200B等\u200B它\u200B连接\u200B上。"},
+     u8"没有\u200BSteam，\u200B游戏\u200B会\u200B在\u200B模组\u200B加载\u200B前\u200B关闭。\u200B打开\u200BSteam，\u200B等\u200B它\u200B连接\u200B上。"},
     {u8"mgmp.json manque à côté de Mewgenics\u00A0Multi.exe : enregistre les réglages pour le recréer.",
-     u8"Mewgenics\u00A0Multi.exe\u200B旁边\u200B缺少\u200Bmgmp.json：\u200B保存\u200B一次\u200B设置\u200B即\u200B可\u200B重新\u200B创\u200B建。"},
+     u8"Mewgenics\u00A0Multi.exe\u200B旁边\u200B缺少\u200Bmgmp.json：\u200B保存\u200B一次\u200B设置\u200B即可\u200B重新\u200B创建。"},
     {u8"mgmp.json n'est pas du JSON valide : corrige-le, ou remets celui du zip.",
-     u8"mgmp.json\u200B不\u200B是\u200B有\u200B效\u200B的\u200BJSON：\u200B把\u200B它\u200B改\u200B好，\u200B或\u200B换\u200B回\u200Bzip\u200B里\u200B的\u200B那\u200B份。"},
+     u8"mgmp.json\u200B不\u200B是\u200B有效\u200B的\u200BJSON：\u200B把\u200B它\u200B改好，\u200B或\u200B换回\u200Bzip\u200B里\u200B的\u200B那\u200B份。"},
     {u8"Réglages lus dans mgmp.json.", u8"已\u200B从\u200Bmgmp.json\u200B读取\u200B设置。"},
     {u8"Mewgenics.exe est introuvable (%s) : dans Réglages, clique sur Parcourir… et choisis Mewgenics.exe.",
-     u8"找不到\u200BMewgenics.exe\u200B（%s）：\u200B在\u200B“设置”\u200B里\u200B点\u200B击\u200B“浏览…”，\u200B选择\u200BMewgenics.exe。"},
+     u8"找不到\u200BMewgenics.exe\u200B（%s）：\u200B在\u200B“设置”\u200B里\u200B点击\u200B“浏览…”，\u200B选择\u200BMewgenics.exe。"},
     {u8"resources.gpak manque à côté de Mewgenics.exe : vérifie les fichiers du jeu dans Steam.",
-     u8"Mewgenics.exe\u200B旁边\u200B缺少\u200Bresources.gpak：\u200B在\u200BSteam\u200B里\u200B验\u200B证\u200B游戏\u200B文件。"},
+     u8"Mewgenics.exe\u200B旁边\u200B缺少\u200Bresources.gpak：\u200B在\u200BSteam\u200B里\u200B验证\u200B游戏\u200B文件。"},
     {u8"Jeu trouvé : %s.", u8"已\u200B找到\u200B游戏：\u200B%s。"},
     {u8"steam_appid.txt : à vérifier une fois le jeu trouvé.", u8"steam_appid.txt：\u200B找到\u200B游戏\u200B后\u200B再\u200B检查。"},
     {u8"Il manque à côté de Mewgenics.exe : sans lui, Steam relance le jeu sans le mod.",
      u8"Mewgenics.exe\u200B旁边\u200B缺少\u200B这个\u200B文件：\u200B没有\u200B它，\u200BSteam\u200B会\u200B不\u200B带\u200B模组\u200B重新启动\u200B游戏。"},
     {u8"Celui à côté de Mewgenics.exe ne contient pas 686060 : Steam relancerait le jeu sans le mod.",
      u8"Mewgenics.exe\u200B旁边\u200B的\u200B这个\u200B文件\u200B里\u200B没有\u200B686060：\u200BSteam\u200B会\u200B不\u200B带\u200B模组\u200B重新启动\u200B游戏。"},
-    {u8"steam_appid.txt est en place à côté du jeu.", u8"steam_appid.txt\u200B已\u200B在\u200B游戏\u200B旁边\u200B就\u200B位。"},
-    {u8"Fichiers du mod présents.", u8"模组\u200B文件\u200B齐\u200B全。"},
+    {u8"steam_appid.txt est en place à côté du jeu.", u8"steam_appid.txt\u200B已\u200B在\u200B游戏\u200B旁边\u200B就位。"},
+    {u8"Fichiers du mod présents.", u8"模组\u200B文件\u200B齐全。"},
     {u8"Il manque mgmp.dll et mgmp_loader.exe à côté de Mewgenics\u00A0Multi.exe : extrais de nouveau tout le dossier du zip.",
-     u8"Mewgenics\u00A0Multi.exe\u200B旁边\u200B缺少\u200Bmgmp.dll\u200B和\u200Bmgmp_loader.exe：\u200B从\u200Bzip\u200B里\u200B重新\u200B解\u200B压\u200B整个\u200B文件夹。"},
+     u8"Mewgenics\u00A0Multi.exe\u200B旁边\u200B缺少\u200Bmgmp.dll\u200B和\u200Bmgmp_loader.exe：\u200B从\u200Bzip\u200B里\u200B重新\u200B解压\u200B整个\u200B文件夹。"},
     {u8"Il manque %s à côté de Mewgenics\u00A0Multi.exe : extrais de nouveau tout le dossier du zip.",
-     u8"Mewgenics\u00A0Multi.exe\u200B旁边\u200B缺少\u200B%s：\u200B从\u200Bzip\u200B里\u200B重新\u200B解\u200B压\u200B整个\u200B文件夹。"},
+     u8"Mewgenics\u00A0Multi.exe\u200B旁边\u200B缺少\u200B%s：\u200B从\u200Bzip\u200B里\u200B重新\u200B解压\u200B整个\u200B文件夹。"},
     {u8"Mewgenics Multi, build %s, protocole %u : tout le monde doit avoir le même.",
-     u8"Mewgenics Multi，\u200B版本\u200B%s，\u200B协议\u200B%u：\u200B所有人\u200B必须\u200B相同。"},
+     u8"Mewgenics Multi，\u200B版本\u200B%s，\u200B协议\u200B%u：\u200B所有人\u200B的\u200B版本\u200B必须\u200B一致。"},
     {u8"Le jeu est introuvable : choisis d'abord Mewgenics.exe dans Réglages.",
      u8"找不到\u200B游戏：\u200B先\u200B在\u200B“设置”\u200B里\u200B选择\u200BMewgenics.exe。"},
     {u8"steam_appid.txt n'a pas pu être écrit à côté du jeu : copie-le à la main (LISEZ-MOI, étape 2).",
-     u8"无法\u200B在\u200B游戏\u200B旁边\u200B写入\u200Bsteam_appid.txt：\u200B手\u200B动\u200B复制\u200B它\u200B（见\u200BLISEZ-MOI\u200B第2步）。"},
+     u8"无法\u200B在\u200B游戏\u200B旁边\u200B写入\u200Bsteam_appid.txt：\u200B手动\u200B复制\u200B它\u200B（见\u200BLISEZ-MOI\u200B第2步）。"},
     {u8"Windows n'a pas eu ton accord : steam_appid.txt n'est pas copié. Tu peux réessayer, ou le copier à la main (LISEZ-MOI, étape 2).",
-     u8"Windows\u200B没有\u200B得到\u200B你\u200B的\u200B许\u200B可：\u200Bsteam_appid.txt\u200B未\u200B复制。\u200B你\u200B可以\u200B重试，\u200B或\u200B手\u200B动\u200B复制\u200B（见\u200BLISEZ-MOI\u200B第2步）。"},
+     u8"你\u200B没有\u200B同意\u200BWindows\u200B的\u200B授权\u200B请求：\u200Bsteam_appid.txt\u200B未\u200B复制。\u200B你\u200B可以\u200B重试，\u200B或\u200B手动\u200B复制\u200B（见\u200BLISEZ-MOI\u200B第2步）。"},
     {u8"Mewgenics Multi n'a pas pu se relancer en administrateur : copie steam_appid.txt à la main (LISEZ-MOI, étape 2).",
-     u8"Mewgenics Multi\u200B无法\u200B以\u200B管理\u200B员\u200B身\u200B份\u200B重新启动：\u200B手\u200B动\u200B复制\u200Bsteam_appid.txt\u200B（见\u200BLISEZ-MOI\u200B第2步）。"},
+     u8"Mewgenics Multi\u200B无法\u200B以\u200B管理员\u200B身份\u200B重新启动：\u200B手动\u200B复制\u200Bsteam_appid.txt\u200B（见\u200BLISEZ-MOI\u200B第2步）。"},
     {u8"La copie en administrateur n'a pas marché : copie steam_appid.txt à la main (LISEZ-MOI, étape 2).",
-     u8"以\u200B管理\u200B员\u200B身\u200B份\u200B复制\u200B失败：\u200B手\u200B动\u200B复制\u200Bsteam_appid.txt\u200B（见\u200BLISEZ-MOI\u200B第2步）。"},
+     u8"以\u200B管理员\u200B身份\u200B复制\u200B失败：\u200B手动\u200B复制\u200Bsteam_appid.txt\u200B（见\u200BLISEZ-MOI\u200B第2步）。"},
     {u8"%02u/%02u/%04u à %02u:%02u", u8"%02u/%02u/%04u %02u:%02u"},
     {u8"Le mod n'a pas pu être chargé : %s", u8"模组\u200B加载\u200B失败：\u200B%s"},
     {u8"mgmp_loader.exe s'est arrêté sans charger le mod. Relance ; si ça recommence, envoie loader.txt.",
-     u8"mgmp_loader.exe\u200B没有\u200B加载\u200B模组\u200B就\u200B停\u200B止\u200B了。\u200B重新启动；\u200B如果\u200B还是\u200B这样，\u200B请\u200B发\u200B送\u200Bloader.txt。"},
+     u8"mgmp_loader.exe\u200B没有\u200B加载\u200B模组\u200B就\u200B停止\u200B了。\u200B重新启动；\u200B如果\u200B还是\u200B这样，\u200B请\u200B发送\u200Bloader.txt。"},
     {u8"mgmp_loader.exe s'est arrêté (code %s) sans charger le mod. Cause la plus probable : Steam fermé ou déconnecté. Ouvre Steam, attends qu'il soit connecté, puis relance.",
-     u8"mgmp_loader.exe\u200B没有\u200B加载\u200B模组\u200B就\u200B停\u200B止\u200B了\u200B（代\u200B码\u200B%s）。\u200B最\u200B可能\u200B的\u200B原因：\u200BSteam\u200B未\u200B打开\u200B或\u200B未\u200B连接。\u200B打开\u200BSteam，\u200B等\u200B它\u200B连接\u200B上，\u200B然后\u200B重新启动。"},
+     u8"mgmp_loader.exe\u200B没有\u200B加载\u200B模组\u200B就\u200B停止\u200B了\u200B（代码\u200B%s）。\u200B最可能\u200B的\u200B原因：\u200BSteam\u200B未\u200B打开\u200B或\u200B未\u200B连接。\u200B打开\u200BSteam，\u200B等\u200B它\u200B连接\u200B上，\u200B然后\u200B重新启动。"},
     {u8"Le jeu s'est fermé pendant son démarrage, avant le mod. Cause la plus fréquente : Steam fermé ou déconnecté. Ouvre Steam, attends qu'il soit connecté, puis relance.",
-     u8"游戏\u200B在\u200B启动\u200B时、\u200B模组\u200B加载\u200B前\u200B就\u200B关\u200B闭\u200B了。\u200B最\u200B常见\u200B的\u200B原因：\u200BSteam\u200B未\u200B打开\u200B或\u200B未\u200B连接。\u200B打开\u200BSteam，\u200B等\u200B它\u200B连接\u200B上，\u200B然后\u200B重新启动。"},
-    {u8"Steam relance le jeu (ça peut prendre une minute ou deux)…",
-     u8"Steam\u200B正在\u200B重新启动\u200B游戏\u200B（可能\u200B需要\u200B一\u200B两\u200B分钟）……"},
+     u8"游戏\u200B在\u200B启动\u200B时、\u200B模组\u200B加载\u200B前\u200B就\u200B关闭\u200B了。\u200B最\u200B常见\u200B的\u200B原因：\u200BSteam\u200B未\u200B打开\u200B或\u200B未\u200B连接。\u200B打开\u200BSteam，\u200B等\u200B它\u200B连接\u200B上，\u200B然后\u200B重新启动。"},
+    {u8"Steam relance le jeu (ça peut prendre une minute ou deux)…", u8"Steam\u200B正在\u200B重新启动\u200B游戏\u200B（可能\u200B需要\u200B一两\u200B分钟）……"},
     {u8"Ouverture du jeu…", u8"正在\u200B打开\u200B游戏……"},
     {u8"Le jeu démarre…", u8"游戏启动中……"},
-    {u8"Injection du mod dans le jeu…", u8"正在\u200B向\u200B游戏\u200B注\u200B入\u200B模组……"},
-    {u8"Le mod est en place, le jeu reprend…", u8"模组\u200B已\u200B就\u200B位，\u200B游戏\u200B继续\u200B运\u200B行……"},
+    {u8"Injection du mod dans le jeu…", u8"正在\u200B向\u200B游戏\u200B注入\u200B模组……"},
+    {u8"Le mod est en place, le jeu reprend…", u8"模组\u200B已\u200B就位，\u200B游戏\u200B继续\u200B运行……"},
     {u8"Toujours en attente du jeu relancé par Steam… Si Steam vient de s'ouvrir, il te pose peut-être une question.",
-     u8"仍\u200B在\u200B等待\u200BSteam\u200B重新启动\u200B的\u200B游戏……\u200B如果\u200BSteam\u200B刚刚\u200B打开，\u200B它\u200B可能\u200B在\u200B问\u200B你\u200B问题。"},
-    {u8"Jeu relancé trouvé : injection du mod…", u8"已\u200B找到\u200B重新启动\u200B的\u200B游戏：\u200B正在\u200B注\u200B入\u200B模组……"},
+     u8"仍在\u200B等待\u200BSteam\u200B重新启动\u200B的\u200B游戏……\u200B如果\u200BSteam\u200B刚刚\u200B打开，\u200B它\u200B可能\u200B正在\u200B弹窗\u200B询问\u200B你。"},
+    {u8"Jeu relancé trouvé : injection du mod…", u8"已\u200B找到\u200B重新启动\u200B的\u200B游戏：\u200B正在\u200B注入\u200B模组……"},
     {u8"Le jeu est lancé avec le mod.", u8"游戏\u200B已\u200B带\u200B模组\u200B启动。"},
-    {u8"Le mod a tardé à se mettre en place ; le jeu reprend quand même.", u8"模组\u200B就\u200B位\u200B较\u200B慢；\u200B游戏\u200B照\u200B常\u200B继续。"},
-    {u8"Le jeu relancé tarde à démarrer ; injection quand même.", u8"重新启动\u200B的\u200B游戏\u200B迟\u200B迟\u200B没有\u200B启动；\u200B仍\u200B然\u200B注\u200B入。"},
+    {u8"Le mod a tardé à se mettre en place ; le jeu reprend quand même.", u8"模组\u200B就位\u200B较\u200B慢；\u200B游戏\u200B照常\u200B继续。"},
+    {u8"Le jeu relancé tarde à démarrer ; injection quand même.", u8"重新启动\u200B的\u200B游戏\u200B迟迟\u200B没有\u200B运行；\u200B照样\u200B注入\u200B模组。"},
     {u8"mgmp.dll est introuvable à côté de Mewgenics\u00A0Multi.exe : extrais de nouveau le dossier du mod depuis le zip.",
-     u8"Mewgenics\u00A0Multi.exe\u200B旁边\u200B找不到\u200Bmgmp.dll：\u200B从\u200Bzip\u200B里\u200B重新\u200B解\u200B压\u200B模组\u200B文件夹。"},
+     u8"Mewgenics\u00A0Multi.exe\u200B旁边\u200B找不到\u200Bmgmp.dll：\u200B从\u200Bzip\u200B里\u200B重新\u200B解压\u200B模组\u200B文件夹。"},
     {u8"Mewgenics.exe est introuvable : dans Réglages, clique sur Parcourir… et choisis Mewgenics.exe.",
-     u8"找不到\u200BMewgenics.exe：\u200B在\u200B“设置”\u200B里\u200B点\u200B击\u200B“浏览…”，\u200B选择\u200BMewgenics.exe。"},
+     u8"找不到\u200BMewgenics.exe：\u200B在\u200B“设置”\u200B里\u200B点击\u200B“浏览…”，\u200B选择\u200BMewgenics.exe。"},
     {u8"mgmp.json est illisible : corrige-le, ou remets celui du zip.",
-     u8"mgmp.json\u200B无法\u200B读取：\u200B把\u200B它\u200B改\u200B好，\u200B或\u200B换\u200B回\u200Bzip\u200B里\u200B的\u200B那\u200B份。"},
+     u8"mgmp.json\u200B无法\u200B读取：\u200B把\u200B它\u200B改好，\u200B或\u200B换回\u200Bzip\u200B里\u200B的\u200B那\u200B份。"},
     {u8"Steam a relancé le jeu sans le mod : vérifie steam_appid.txt à côté de Mewgenics.exe (bouton Réparer), puis relance.",
      u8"Steam\u200B在\u200B没有\u200B模组\u200B的\u200B情况\u200B下\u200B重新启动\u200B了\u200B游戏：\u200B检查\u200BMewgenics.exe\u200B旁边\u200B的\u200Bsteam_appid.txt\u200B（“修复”\u200B按钮），\u200B然后\u200B重新启动。"},
     {u8"Ce jeu n'est pas la version visée par le mod (1.1.21239) : a-t-il été mis à jour ?",
-     u8"这个\u200B游戏\u200B不\u200B是\u200B模组\u200B对应\u200B的\u200B版本\u200B（1.1.21239）：\u200B游戏\u200B更\u200B新\u200B了\u200B吗？"},
+     u8"这个\u200B游戏\u200B不\u200B是\u200B模组\u200B对应\u200B的\u200B版本\u200B（1.1.21239）：\u200B游戏\u200B更新\u200B了\u200B吗？"},
     {u8"Un programme (overlay, antivirus, anti-triche) a empêché le chargement du mod.",
-     u8"有\u200B程\u200B序\u200B（覆\u200B盖\u200B层、\u200B杀\u200B毒\u200B软\u200B件、\u200B反\u200B作\u200B弊）\u200B阻止\u200B了\u200B模组\u200B加载。"},
+     u8"有\u200B程序\u200B（覆盖层、\u200B杀毒软件、\u200B反作弊）\u200B阻止\u200B了\u200B模组\u200B加载。"},
     {u8"Le jeu a mis trop longtemps à démarrer : le mod n'est pas chargé. Relance.",
      u8"游戏\u200B启动\u200B时间\u200B太\u200B长：\u200B模组\u200B未\u200B加载。\u200B请\u200B重新启动。"},
     {u8"L'injection du mod a échoué et le jeu a été fermé. Relance ; si ça recommence, envoie loader.txt.",
-     u8"模组\u200B注\u200B入\u200B失败，\u200B游戏\u200B已\u200B关\u200B闭。\u200B重新启动；\u200B如果\u200B还是\u200B这样，\u200B请\u200B发\u200B送\u200Bloader.txt。"},
+     u8"模组\u200B注入\u200B失败，\u200B游戏\u200B已\u200B关闭。\u200B重新启动；\u200B如果\u200B还是\u200B这样，\u200B请\u200B发送\u200Bloader.txt。"},
     {u8"mgmp.json ne dit pas où est le jeu : dans Réglages, clique sur Parcourir… et choisis Mewgenics.exe.",
-     u8"mgmp.json\u200B里\u200B没有\u200B游戏\u200B位置：\u200B在\u200B“设置”\u200B里\u200B点\u200B击\u200B“浏览…”，\u200B选择\u200BMewgenics.exe。"},
+     u8"mgmp.json\u200B里\u200B没有\u200B游戏\u200B位置：\u200B在\u200B“设置”\u200B里\u200B点击\u200B“浏览…”，\u200B选择\u200BMewgenics.exe。"},
     {u8"build %s · protocole %u", u8"版本\u200B%s · 协议\u200B%u"},
     {u8"Steam ouvert", u8"Steam已打开"},
     {u8"Steam fermé", u8"Steam未打开"},
@@ -105,7 +104,7 @@ const TrPair kTable_zh_cn[] = {
     {u8"Fichiers du mod", u8"模组文件"},
     {u8"Réparer", u8"修复"},
     {u8"Jouer", u8"开始游戏"},
-    {u8"Règle d'abord les croix rouges.", u8"先\u200B解决\u200B红\u200B叉\u200B的\u200B问题。"},
+    {u8"Règle d'abord les croix rouges.", u8"先\u200B解决\u200B红叉\u200B的\u200B问题。"},
     {u8"Réglages", u8"设置"},
     {u8"Journaux", u8"日志"},
     {u8"Langue", u8"语言"},
@@ -116,7 +115,7 @@ const TrPair kTable_zh_cn[] = {
     {u8"Aucun Mewgenics.exe ici : choisis-le avec Parcourir.", u8"这里\u200B没有\u200BMewgenics.exe：\u200B用\u200B“浏览…”\u200B选择\u200B它。"},
     {u8"Jouer ensemble par Steam (liste d'amis)", u8"通过\u200BSteam\u200B一起\u200B玩\u200B（好友\u200B列表）"},
     {u8"Décoche si Steam pose problème : il ne reste que l'adresse, dans le menu Multijoueur du jeu.",
-     u8"如果\u200BSteam\u200B出\u200B问题\u200B就\u200B取消\u200B勾\u200B选：\u200B游戏\u200B的\u200B“多人游戏”\u200B菜\u200B单\u200B里\u200B将\u200B只\u200B剩\u200B地址\u200B连接。"},
+     u8"如果\u200BSteam\u200B出\u200B问题\u200B就\u200B取消\u200B勾选：\u200B游戏\u200B的\u200B“多人游戏”\u200B菜单\u200B里\u200B将\u200B只\u200B剩\u200B地址\u200B连接。"},
     {u8"Enregistrer", u8"保存"},
     {u8"Retour", u8"返回"},
     {u8"Aucun journal pour l'instant : le mod en écrit un à chaque partie.",
@@ -128,44 +127,43 @@ const TrPair kTable_zh_cn[] = {
     {u8"Ouvrir le dossier", u8"打开文件夹"},
     {u8"Copier le dernier journal", u8"复制最新日志"},
     {u8"Pour demander de l'aide : copie le dernier journal, puis colle-le dans Discord avec Ctrl+V.",
-     u8"需要\u200B帮助\u200B时：\u200B复制\u200B最新\u200B日志，\u200B然后\u200B在\u200BDiscord\u200B里\u200B按\u200BCtrl+V\u200B粘\u200B贴。"},
+     u8"需要\u200B帮助\u200B时：\u200B复制\u200B最新\u200B日志，\u200B然后\u200B在\u200BDiscord\u200B里\u200B按\u200BCtrl+V\u200B粘贴。"},
     {u8"Lancement", u8"启动"},
     {u8"Le jeu se lance avec le mod…", u8"游戏\u200B正在\u200B带\u200B模组\u200B启动……"},
-    {u8"Bonne partie ! Cette fenêtre se ferme toute seule.", u8"玩得\u200B开心！\u200B这个\u200B窗口\u200B会\u200B自动\u200B关\u200B闭。"},
+    {u8"Bonne partie ! Cette fenêtre se ferme toute seule.", u8"玩得\u200B开心！\u200B这个\u200B窗口\u200B会\u200B自动\u200B关闭。"},
     {u8"Le détail est dans loader.txt, à côté de Mewgenics\u00A0Multi.exe.",
-     u8"详\u200B情\u200B见\u200BMewgenics\u00A0Multi.exe\u200B旁边\u200B的\u200Bloader.txt。"},
+     u8"详情\u200B见\u200BMewgenics\u00A0Multi.exe\u200B旁边\u200B的\u200Bloader.txt。"},
     {u8"Réessayer", u8"重试"},
-    {u8"Si Steam relance le jeu, ça peut prendre une minute ou deux.",
-     u8"如果\u200BSteam\u200B重新启动\u200B游戏，\u200B可能\u200B需要\u200B一\u200B两\u200B分钟。"},
-    {u8"Journal copié : colle-le dans Discord avec Ctrl+V.", u8"日志\u200B已\u200B复制：\u200B在\u200BDiscord\u200B里\u200B按\u200BCtrl+V\u200B粘\u200B贴。"},
+    {u8"Si Steam relance le jeu, ça peut prendre une minute ou deux.", u8"如果\u200BSteam\u200B重新启动\u200B游戏，\u200B可能\u200B需要\u200B一两\u200B分钟。"},
+    {u8"Journal copié : colle-le dans Discord avec Ctrl+V.", u8"日志\u200B已\u200B复制：\u200B在\u200BDiscord\u200B里\u200B按\u200BCtrl+V\u200B粘贴。"},
     {u8"Le presse-papiers n'a pas pu être rempli : réessaie, ou ouvre le dossier.",
-     u8"无法\u200B写入\u200B剪\u200B贴\u200B板：\u200B请\u200B重试，\u200B或\u200B打开\u200B文件夹。"},
+     u8"无法\u200B写入\u200B剪贴板：\u200B请\u200B重试，\u200B或\u200B打开\u200B文件夹。"},
     {u8"Où est Mewgenics.exe ?", u8"Mewgenics.exe\u200B在\u200B哪里？"},
     {u8"Direct2D est indisponible sur ce PC : Mewgenics Multi ne peut pas s'afficher.",
      u8"这\u200B台\u200B电脑\u200B无法\u200B使用\u200BDirect2D：\u200BMewgenics Multi\u200B无法\u200B显示。"},
     {u8"La carte graphique n'a pas pu être préparée : Mewgenics Multi ne peut pas s'afficher.",
-     u8"显\u200B卡\u200B初始\u200B化\u200B失败：\u200BMewgenics Multi\u200B无法\u200B显示。"},
+     u8"显卡\u200B初始化\u200B失败：\u200BMewgenics Multi\u200B无法\u200B显示。"},
     {u8"Chacun sa maison et ses chats,\n"
      u8"l'aventure ensemble !",
-     u8"各\u200B有\u200B各\u200B的\u200B家\u200B和\u200B猫咪，\n"
+     u8"各有各的\u200B家\u200B和\u200B猫咪，\n"
      u8"一起\u200B去\u200B冒险！"},
-    {u8"(illustrations du jeu introuvables)", u8"（找不到\u200B游戏\u200B插\u200B图）"},
-    {u8"Comme le jeu (%s)", u8"跟\u200B随\u200B游戏\u200B（%s）"},
-    {u8"Comme Windows (%s)", u8"跟\u200B随\u200BWindows\u200B（%s）"},
+    {u8"(illustrations du jeu introuvables)", u8"（找不到\u200B游戏\u200B插图）"},
+    {u8"Comme le jeu (%s)", u8"跟随\u200B游戏\u200B（%s）"},
+    {u8"Comme Windows (%s)", u8"跟随\u200BWindows\u200B（%s）"},
     {u8"Automatique (%s)", u8"自动（%s）"},
     {u8"Lancement annulé.", u8"启动已取消。"},
     {u8"Lancement du mod…", u8"正在\u200B启动\u200B模组……"},
     {u8"Windows n'a pas pu préparer le lancement. Relance Mewgenics Multi.",
      u8"Windows\u200B无法\u200B准备\u200B启动。\u200B请\u200B重新\u200B打开\u200BMewgenics Multi。"},
     {u8"mgmp_loader.exe n'a pas pu démarrer : extrais de nouveau le dossier du mod depuis le zip (ou ton antivirus l'a mis de côté).",
-     u8"mgmp_loader.exe\u200B无法\u200B启动：\u200B从\u200Bzip\u200B里\u200B重新\u200B解\u200B压\u200B模组\u200B文件夹\u200B（也\u200B可能\u200B被\u200B杀\u200B毒\u200B软\u200B件\u200B隔\u200B离\u200B了）。"},
+     u8"mgmp_loader.exe\u200B无法\u200B启动：\u200B从\u200Bzip\u200B里\u200B重新\u200B解压\u200B模组\u200B文件夹\u200B（也\u200B可能\u200B被\u200B杀毒软件\u200B隔离\u200B了）。"},
     {u8"la connexion Steam avec l'hôte est coupée", u8"与\u200B房主\u200B的\u200BSteam\u200B连接\u200B已\u200B断开"},
     {u8"l'hôte ne répond pas par Steam (salon fermé, ou pas le mod ?)",
-     u8"房主\u200B没有\u200B通过\u200BSteam\u200B回应\u200B（房间\u200B已\u200B关\u200B闭，\u200B或\u200B没\u200B装\u200B模组？）"},
-    {u8"Steam refuse la connexion", u8"Steam\u200B拒\u200B绝\u200B了\u200B连接"},
+     u8"房主\u200B没有\u200B通过\u200BSteam\u200B回应\u200B（房间\u200B已\u200B关闭，\u200B或\u200B没\u200B装\u200B模组？）"},
+    {u8"Steam refuse la connexion", u8"Steam\u200B拒绝\u200B了\u200B连接"},
     {u8"À %s de choisir", u8"轮到%s选择"},
     {u8"À toi de choisir", u8"轮到你选择"},
-    {u8"À %s de choisir la capacité à remplacer.", u8"轮到\u200B%s\u200B选择\u200B要\u200B替换\u200B的\u200B技\u200B能。"},
+    {u8"À %s de choisir la capacité à remplacer.", u8"轮到\u200B%s\u200B选择\u200B要\u200B替换\u200B的\u200B能力。"},
     {u8"Ce chat est à %s", u8"这只猫属于%s"},
     {u8"Choix des colliers\n"
      u8"\n"
@@ -173,7 +171,7 @@ const TrPair kTable_zh_cn[] = {
      u8"choisis les colliers pour toute l'équipe.",
      u8"选择\u200B项圈\n"
      u8"\n"
-     u8"共\u200B同\u200B选择\u200B中\u200B断\u200B了\u200B（游戏\u200B出\u200B错）：\n"
+     u8"共同\u200B选择\u200B中断\u200B了\u200B（游戏\u200B出错）：\n"
      u8"由\u200B你\u200B为\u200B整个\u200B队伍\u200B选择\u200B项圈。"},
     {u8"Choix des colliers\n"
      u8"\n"
@@ -278,7 +276,7 @@ const TrPair kTable_zh_cn[] = {
      u8"ne change pas.",
      u8"选择\u200B物品\n"
      u8"\n"
-     u8"给\u200B你\u200B的\u200B猫\u200B选\u200B的\u200B物品\u200B没\u200B能\n"
+     u8"给\u200B你\u200B的\u200B猫\u200B选\u200B的\u200B物品\u200B没能\n"
      u8"带\u200B进\u200B%s\u200B的\u200B冒险：\u200B你\u200B的\u200B猫\n"
      u8"带着\u200B原来\u200B的\u200B物品\u200B出发，\u200B你\u200B的\u200B仓库\n"
      u8"不\u200B变。"},
@@ -291,16 +289,15 @@ const TrPair kTable_zh_cn[] = {
      u8"\n"
      u8"%s\u200B已经\u200B确认\u200B出发：\u200B你\u200B的\u200B猫\u200B将\u200B带着\n"
      u8"目前\u200B选\u200B好\u200B的\u200B物品\u200B出发，\u200B之后\u200B的\n"
-     u8"更\u200B改\u200B不\u200B再\u200B算\u200B数。"},
+     u8"更改\u200B不\u200B再\u200B算数。"},
     {u8"Ta bourse : %s.", u8"你\u200B的\u200B钱袋：\u200B%s。"},
     {u8"%s n'est plus dans la partie.", u8"%s\u200B已\u200B不\u200B在\u200B游戏\u200B中。"},
     {u8"Tu n'as pas de bourse dans cette aventure (tu n'y as pas amené de chat).",
      u8"你\u200B在\u200B这\u200B次\u200B冒险\u200B中\u200B没有\u200B钱袋\u200B（你\u200B没有\u200B带\u200B猫\u200B来）。"},
     {u8"Les échanges marchent dans ta maison, ou en aventure à plusieurs avec ta bourse. Pour l'instant : %s.",
-     u8"交易\u200B可以\u200B在\u200B家里\u200B进行，\u200B或\u200B在\u200B多\u200B人\u200B冒险\u200B中\u200B用\u200B钱袋\u200B进行。\u200B目前：\u200B%s。"},
+     u8"交易\u200B可以\u200B在\u200B家里\u200B进行，\u200B或\u200B在\u200B多人\u200B冒险\u200B中\u200B用\u200B钱袋\u200B进行。\u200B目前：\u200B%s。"},
     {u8"pas de partie à plusieurs en cours", u8"当前\u200B没有\u200B进行\u200B中\u200B的\u200B多人游戏"},
-    {u8"une fonction du jeu manque, les échanges à la maison sont coupés",
-     u8"缺少\u200B一\u200B项\u200B游戏\u200B功\u200B能，\u200B家\u200B中\u200B交易\u200B已\u200B关\u200B闭"},
+    {u8"une fonction du jeu manque, les échanges à la maison sont coupés", u8"缺少\u200B一\u200B项\u200B游戏\u200B功能，\u200B家中\u200B交易\u200B已\u200B关闭"},
     {u8"tu es dans la partie de l'hôte", u8"你\u200B在\u200B房主\u200B的\u200B游戏\u200B里"},
     {u8"tu n'es pas dans ta maison", u8"你\u200B不\u200B在\u200B自己\u200B家里"},
     {u8"ta save n'est pas chargée", u8"你\u200B的\u200B存档\u200B未\u200B加载"},
@@ -314,7 +311,7 @@ const TrPair kTable_zh_cn[] = {
     {u8"Pas d'échange maintenant : %s.", u8"现在\u200B无法\u200B交易：\u200B%s。"},
     {u8"Ton don précédent attend encore sa réponse.", u8"你\u200B上\u200B一次\u200B的\u200B赠送\u200B还在\u200B等待\u200B对方\u200B回应。"},
     {u8"Ta save n'est pas encore connue du mod : recharge-la depuis le menu.",
-     u8"模组\u200B还\u200B不\u200B认识\u200B你\u200B的\u200B存档：\u200B从\u200B菜\u200B单\u200B重新加载\u200B它。"},
+     u8"模组\u200B还\u200B没有\u200B识别\u200B你\u200B的\u200B存档：\u200B从\u200B菜单\u200B重新加载\u200B它。"},
     {u8"Choisis un joueur de la partie.", u8"选择\u200B一\u200B名\u200B游戏\u200B中\u200B的\u200B玩家。"},
     {u8"Pas d'échange maintenant : %s n'est pas dans sa maison.", u8"现在\u200B无法\u200B交易：\u200B%s\u200B不\u200B在\u200B自己\u200B家里。"},
     {u8"Ce montant n'est pas possible.", u8"这个\u200B数量\u200B不行。"},
@@ -325,17 +322,16 @@ const TrPair kTable_zh_cn[] = {
     {u8"Tu n'as pas autant de pièces.", u8"你\u200B没有\u200B那么\u200B多\u200B钱。"},
     {u8"Tu n'as pas autant de nourriture.", u8"你\u200B没有\u200B那么\u200B多\u200B食物。"},
     {u8"Ton rangement est illisible : pas de don.", u8"无法\u200B读取\u200B你\u200B的\u200B仓库：\u200B无法\u200B赠送。"},
-    {u8"Un objet choisi est déjà promis à un don pas encore fini.",
-     u8"选\u200B中\u200B的\u200B某\u200B件\u200B物品\u200B已\u200B用\u200B于\u200B一次\u200B尚\u200B未\u200B完成\u200B的\u200B赠送。"},
+    {u8"Un objet choisi est déjà promis à un don pas encore fini.", u8"选中\u200B的\u200B某\u200B件\u200B物品\u200B已\u200B用于\u200B一次\u200B尚未\u200B完成\u200B的\u200B赠送。"},
     {u8"Un objet choisi n'est plus dans ton rangement : choisis à nouveau.",
-     u8"选\u200B中\u200B的\u200B某\u200B件\u200B物品\u200B已\u200B不\u200B在\u200B你\u200B的\u200B仓库\u200B里：\u200B请\u200B重新\u200B选择。"},
-    {u8"Un objet choisi ne peut pas se donner.", u8"选\u200B中\u200B的\u200B某\u200B件\u200B物品\u200B不\u200B能\u200B赠送。"},
-    {u8"Le don n'a pas pu partir (connexion).", u8"赠送\u200B没\u200B能\u200B发出\u200B（连接\u200B问题）。"},
+     u8"选中\u200B的\u200B某\u200B件\u200B物品\u200B已\u200B不\u200B在\u200B你\u200B的\u200B仓库\u200B里：\u200B请\u200B重新\u200B选择。"},
+    {u8"Un objet choisi ne peut pas se donner.", u8"选中\u200B的\u200B某\u200B件\u200B物品\u200B不\u200B能\u200B赠送。"},
+    {u8"Le don n'a pas pu partir (connexion).", u8"赠送\u200B没能\u200B发出\u200B（连接\u200B问题）。"},
     {u8"Don envoyé à %s (%s) : en attente de sa réponse…", u8"已\u200B向\u200B%s\u200B赠送\u200B（%s）：\u200B等待\u200B对方\u200B回应……"},
-    {u8"Don demandé à l'hôte : en attente de sa réponse…", u8"已\u200B向\u200B房主\u200B申\u200B请\u200B赠送：\u200B等待\u200B回应……"},
+    {u8"Don demandé à l'hôte : en attente de sa réponse…", u8"已\u200B向\u200B房主\u200B申请\u200B赠送：\u200B等待\u200B回应……"},
     {u8"Pas de don : %s.", u8"无法\u200B赠送：\u200B%s。"},
     {u8"%s a bien reçu ton don : tes objets quitteront ton rangement dès que l'écran des objets sera fermé.",
-     u8"%s\u200B已\u200B收到\u200B你\u200B的\u200B赠送：\u200B物品\u200B画面\u200B关\u200B闭\u200B后，\u200B你\u200B的\u200B物品\u200B就\u200B会\u200B离开\u200B你\u200B的\u200B仓库。"},
+     u8"%s\u200B已\u200B收到\u200B你\u200B的\u200B赠送：\u200B物品\u200B画面\u200B关闭\u200B后，\u200B你\u200B的\u200B物品\u200B就\u200B会\u200B离开\u200B你\u200B的\u200B仓库。"},
     {u8"%s a bien reçu ton don : tes objets quitteront ton rangement dès que possible (après le départ, la défense de ta maison ou le retour de tes chats).",
      u8"%s\u200B已\u200B收到\u200B你\u200B的\u200B赠送：\u200B你\u200B的\u200B物品会\u200B尽快\u200B离开\u200B你\u200B的\u200B仓库\u200B（在\u200B出发、\u200B守家\u200B或\u200B你\u200B的\u200B猫\u200B回来\u200B之后）。"},
     {u8"%s a bien reçu ton don : ce que tu as donné quittera ta maison à ton retour dans cette save.",
@@ -345,7 +341,7 @@ const TrPair kTable_zh_cn[] = {
     {u8"Pas de réponse de %s pour ton don : rien n'a quitté ta maison.",
      u8"%s\u200B没有\u200B回应\u200B你\u200B的\u200B赠送：\u200B你\u200B家里\u200B什么\u200B都\u200B没\u200B少。"},
     {u8"Les échanges marchent pendant une partie à plusieurs.", u8"交易\u200B只能\u200B在\u200B多人游戏\u200B中\u200B进行。"},
-    {u8"Dans ta maison : %s.", u8"家\u200B中\u200B现\u200B有：\u200B%s。"},
+    {u8"Dans ta maison : %s.", u8"家中\u200B现有：\u200B%s。"},
     {u8"%s n'est pas dans sa maison.", u8"%s\u200B不\u200B在\u200B自己\u200B家里。"},
     {u8"%lld pièces", u8"%lld块钱"},
     {u8"%lld pièce", u8"%lld块钱"},
@@ -354,9 +350,9 @@ const TrPair kTable_zh_cn[] = {
     {u8"rien", u8"什么都没有"},
     {u8"%s n'est pas dans sa maison", u8"%s\u200B不\u200B在\u200B自己\u200B家里"},
     {u8"une fenêtre ou l'écran des objets est resté ouvert chez %s", u8"%s\u200B那边\u200B还\u200B开着\u200B某个\u200B窗口\u200B或\u200B物品\u200B画面"},
-    {u8"le jeu d'%s n'a pas pu les ranger", u8"%s\u200B的\u200B游戏\u200B没\u200B能\u200B把\u200B它们\u200B收\u200B进\u200B仓库"},
-    {u8"le jeu de %s n'a pas pu les ranger", u8"%s\u200B的\u200B游戏\u200B没\u200B能\u200B把\u200B它们\u200B收\u200B进\u200B仓库"},
-    {u8"les dons ne marchent pas chez %s", u8"%s\u200B那边\u200B无法\u200B接\u200B收\u200B赠送"},
+    {u8"le jeu d'%s n'a pas pu les ranger", u8"%s\u200B的\u200B游戏\u200B没能\u200B把\u200B它们\u200B收\u200B进\u200B仓库"},
+    {u8"le jeu de %s n'a pas pu les ranger", u8"%s\u200B的\u200B游戏\u200B没能\u200B把\u200B它们\u200B收\u200B进\u200B仓库"},
+    {u8"les dons ne marchent pas chez %s", u8"%s\u200B那边\u200B无法\u200B接收\u200B赠送"},
     {u8"%s n'est plus dans la partie", u8"%s\u200B已\u200B不\u200B在\u200B游戏\u200B中"},
     {u8"%s a encore des chats dans l'aventure de l'hôte (son rangement attend leur retour)",
      u8"%s\u200B还\u200B有\u200B猫\u200B在\u200B房主\u200B的\u200B冒险\u200B中\u200B（他\u200B的\u200B仓库\u200B在\u200B等\u200B它们\u200B回来）"},
@@ -364,20 +360,20 @@ const TrPair kTable_zh_cn[] = {
     {u8"Cadeau d'%s", u8"%s的礼物"},
     {u8"Cadeau de %s", u8"%s的礼物"},
     {u8"%s t'a donné %s.", u8"%s送给你%s。"},
-    {u8"C'est dans ta maison, et ta save est à jour.", u8"东西\u200B已\u200B放进\u200B你\u200B家，\u200B存档\u200B也\u200B已\u200B更\u200B新。"},
+    {u8"C'est dans ta maison, et ta save est à jour.", u8"东西\u200B已\u200B放进\u200B你\u200B家，\u200B存档\u200B也\u200B已\u200B更新。"},
     {u8"C'est dans ta maison.", u8"东西\u200B已\u200B放进\u200B你\u200B家。"},
-    {u8"Finalement, %s a bien reçu %s : c'est parti de ta maison.", u8"%s\u200B最\u200B终\u200B还是\u200B收到\u200B了\u200B%s：\u200B东西\u200B已\u200B离开\u200B你\u200B家。"},
+    {u8"Finalement, %s a bien reçu %s : c'est parti de ta maison.", u8"%s\u200B最终\u200B还是\u200B收到\u200B了\u200B%s：\u200B东西\u200B已\u200B离开\u200B你\u200B家。"},
     {u8"%s a bien reçu %s : c'est parti de ta maison.", u8"%s\u200B已\u200B收到\u200B%s：\u200B东西\u200B已\u200B离开\u200B你\u200B家。"},
     {u8"(1 objet n'a pas pu quitter ton rangement : il est aussi chez toi.)",
-     u8"（有\u200B1件\u200B物品\u200B没\u200B能\u200B离开\u200B你\u200B的\u200B仓库：\u200B它\u200B也\u200B还在\u200B你\u200B这里。）"},
+     u8"（有\u200B1件\u200B物品\u200B没能\u200B离开\u200B你\u200B的\u200B仓库：\u200B它\u200B也\u200B还在\u200B你\u200B这里。）"},
     {u8"(%u objets n'ont pas pu quitter ton rangement : ils sont aussi chez toi.)",
-     u8"（有\u200B%u件\u200B物品\u200B没\u200B能\u200B离开\u200B你\u200B的\u200B仓库：\u200B它们\u200B也\u200B还在\u200B你\u200B这里。）"},
+     u8"（有\u200B%u件\u200B物品\u200B没能\u200B离开\u200B你\u200B的\u200B仓库：\u200B它们\u200B也\u200B还在\u200B你\u200B这里。）"},
     {u8"Le don à %s n'est pas passé : %s. Rien n'a quitté ta maison.",
      u8"给\u200B%s\u200B的\u200B赠送\u200B没有\u200B成功：\u200B%s。\u200B你\u200B家里\u200B什么\u200B都\u200B没\u200B少。"},
     {u8"Rien à donner dans ton rangement.", u8"你\u200B的\u200B仓库\u200B里\u200B没有\u200B可\u200B赠送\u200B的\u200B东西。"},
-    {u8"Tape des lettres pour chercher un objet.", u8"输\u200B入\u200B字母\u200B来\u200B搜\u200B索\u200B物品。"},
+    {u8"Tape des lettres pour chercher un objet.", u8"输入\u200B字母\u200B来\u200B搜索\u200B物品。"},
     {u8"Recherche : %s_", u8"搜索：%s_"},
-    {u8"Aucun objet ne correspond.", u8"没有\u200B匹\u200B配\u200B的\u200B物品。"},
+    {u8"Aucun objet ne correspond.", u8"没有\u200B匹配\u200B的\u200B物品。"},
     {u8"(page %u sur %u)", u8"（第%u页，\u200B共\u200B%u页）"},
     {u8"Butin : %s.", u8"战利品：%s。"},
     {u8"Besoin", u8"需求"},
@@ -387,20 +383,20 @@ const TrPair kTable_zh_cn[] = {
     {u8"toi", u8"你"},
     {u8"Joueur %u", u8"玩家%u"},
     {u8"Un objet", u8"一件物品"},
-    {u8"Partage du butin : objet %u sur %u", u8"分\u200B配\u200B战利品：\u200B第%u件，\u200B共\u200B%u件"},
+    {u8"Partage du butin : objet %u sur %u", u8"分配\u200B战利品：\u200B第%u件，\u200B共\u200B%u件"},
     {u8"Besoin : %s", u8"需求：%s"},
     {u8"Cupidité : %s", u8"贪婪：%s"},
     {u8"Passer : %s", u8"跳过：%s"},
     {u8"Partage du butin", u8"分配战利品"},
-    {u8"%u objets du sac à partager entre %s.", u8"背包里\u200B的\u200B%u件\u200B物品\u200B将\u200B在\u200B%s\u200B之间\u200B分\u200B配。"},
-    {u8"%u objet du sac à partager entre %s.", u8"背包里\u200B的\u200B%u件\u200B物品\u200B将\u200B在\u200B%s\u200B之间\u200B分\u200B配。"},
+    {u8"%u objets du sac à partager entre %s.", u8"背包里\u200B的\u200B%u件\u200B物品\u200B将\u200B在\u200B%s\u200B之间\u200B分配。"},
+    {u8"%u objet du sac à partager entre %s.", u8"背包里\u200B的\u200B%u件\u200B物品\u200B将\u200B在\u200B%s\u200B之间\u200B分配。"},
     {u8"Pour chaque objet : Besoin (il te sert), Cupidité (si\n"
      u8"personne n'en a besoin) ou Passer. Un dé de 100 départage.",
      u8"每\u200B件\u200B物品\u200B可\u200B选：\u200B需求\u200B（对\u200B你\u200B有用）、\u200B贪婪\u200B（如果\n"
-     u8"没\u200B人\u200B需要）\u200B或\u200B跳过。\u200B掷\u200B100面\u200B骰\u200B决定\u200B归\u200B属。"},
+     u8"没\u200B人\u200B需要）\u200B或\u200B跳过。\u200B掷\u200B100面\u200B骰\u200B决定\u200B归属。"},
     {u8"En attente de %s...", u8"正在等待%s……"},
     {u8"En attente de %s... (%s)", u8"正在\u200B等待\u200B%s……\u200B（%s）"},
-    {u8"Tout le monde est là : ça commence !", u8"大家\u200B都\u200B到\u200B齐\u200B了：\u200B开始！"},
+    {u8"Tout le monde est là : ça commence !", u8"大家\u200B都\u200B到齐\u200B了：\u200B开始！"},
     {u8"Commencer", u8"开始"},
     {u8"D'accord", u8"好"},
     {u8"Le veux-tu ? (%s)", u8"你\u200B想要\u200B吗？\u200B（%s）"},
@@ -414,26 +410,26 @@ const TrPair kTable_zh_cn[] = {
     {u8"Ton choix : %s.", u8"你\u200B的\u200B选择：\u200B%s。"},
     {u8"Ton choix est fait.", u8"你\u200B已\u200B做\u200B出\u200B选择。"},
     {u8"En attente de %s (%s).", u8"正在\u200B等待\u200B%s\u200B（%s）。"},
-    {u8"Le résultat arrive...", u8"结果\u200B马上\u200B揭\u200B晓……"},
-    {u8"%s ne sont pas là : leur tour passe.", u8"%s\u200B不\u200B在，\u200B视\u200B为\u200B跳过。"},
-    {u8"%s n'est pas là : son tour passe.", u8"%s\u200B不\u200B在，\u200B视\u200B为\u200B跳过。"},
+    {u8"Le résultat arrive...", u8"结果\u200B马上\u200B揭晓……"},
+    {u8"%s ne sont pas là : leur tour passe.", u8"%s\u200B不\u200B在，\u200B视为\u200B跳过。"},
+    {u8"%s n'est pas là : son tour passe.", u8"%s\u200B不\u200B在，\u200B视为\u200B跳过。"},
     {u8"Personne n'en veut : il reste chez toi.", u8"没\u200B人\u200B想要：\u200B它\u200B留\u200B在\u200B你\u200B这里。"},
     {u8"Personne n'en veut : il reste chez %s.", u8"没\u200B人\u200B想要：\u200B它\u200B留\u200B在\u200B%s\u200B那\u200B里。"},
     {u8"Tu l'emportes (%s) !", u8"你\u200B得到\u200B了\u200B它\u200B（%s）！"},
     {u8"%s l'emporte (%s).", u8"%s\u200B得到\u200B了\u200B它\u200B（%s）。"},
-    {u8"Dés : %s (égalité départagée).", u8"骰子：\u200B%s\u200B（平\u200B局\u200B已\u200B重掷）。"},
+    {u8"Dés : %s (égalité départagée).", u8"骰子：\u200B%s\u200B（平局\u200B已\u200B重掷）。"},
     {u8"Dés : %s.", u8"骰子：%s。"},
-    {u8"Partage du butin terminé", u8"战利品\u200B分\u200B配\u200B完\u200B毕"},
+    {u8"Partage du butin terminé", u8"战利品\u200B分配\u200B完毕"},
     {u8"Tu remportes : %s.", u8"你获得：%s。"},
     {u8"%s remporte : %s.", u8"%s获得：%s。"},
     {u8"Remporté, mais resté chez %s : %s.", u8"已\u200B获得，\u200B但\u200B仍\u200B留\u200B在\u200B%s\u200B那\u200B里：\u200B%s。"},
     {u8"Personne n'en a voulu (restent chez toi) : %s.", u8"没\u200B人\u200B想要\u200B（留\u200B在\u200B你\u200B这里）：\u200B%s。"},
     {u8"Personne n'en a voulu (restent chez %s) : %s.", u8"没\u200B人\u200B想要\u200B（留\u200B在\u200B%s\u200B那\u200B里）：\u200B%s。"},
-    {u8"Aucun objet n'a été partagé.", u8"没有\u200B分\u200B配\u200B任何\u200B物品。"},
+    {u8"Aucun objet n'a été partagé.", u8"没有\u200B分配\u200B任何\u200B物品。"},
     {u8"Ta save est déjà ouverte : la fenêtre suivante\n"
      u8"te dit comment la recharger avec ton butin.",
      u8"你\u200B的\u200B存档\u200B已经\u200B打开：\u200B下一\u200B个\u200B窗口\u200B会\u200B告诉\u200B你\n"
-     u8"如\u200B何\u200B重新加载，\u200B拿到\u200B你\u200B的\u200B战利品。"},
+     u8"如何\u200B重新加载，\u200B拿到\u200B你\u200B的\u200B战利品。"},
     {u8"Ton butin t'attend dans ton rangement, chez toi.", u8"你\u200B的\u200B战利品\u200B在\u200B你\u200B家\u200B的\u200B仓库\u200B里\u200B等\u200B你。"},
     {u8"Ce que les autres remportent quitte ton rangement.", u8"其他\u200B人\u200B获得\u200B的\u200B物品会\u200B离开\u200B你\u200B的\u200B仓库。"},
     {u8"Beanies", u8"比尼斯博士"},
@@ -451,11 +447,11 @@ const TrPair kTable_zh_cn[] = {
      u8"dès que tu seras dans ta maison : ses pièces,\n"
      u8"sa nourriture et ses objets iront à %s,\n"
      u8"ses déblocages à tout le monde.",
-     u8"奖励\u200B已\u200B就\u200B绪\n"
+     u8"奖励\u200B已\u200B就绪\n"
      u8"\n"
-     u8"%s\u200B送\u200B给\u200B%s\u200B的\u200B猫\u200B填\u200B满\u200B了\n"
+     u8"%s\u200B送\u200B给\u200B%s\u200B的\u200B猫\u200B填满\u200B了\n"
      u8"好感条。\u200B等\u200B你\u200B回到\u200B家，\u200B就\u200B会\u200B替\u200B他\n"
-     u8"领\u200B取\u200B奖励：\u200B其中\u200B的\u200B钱、\n"
+     u8"领取\u200B奖励：\u200B其中\u200B的\u200B钱、\n"
      u8"食物\u200B和\u200B物品\u200B归\u200B%s，\n"
      u8"解锁内容\u200B归\u200B所有人。"},
     {u8"Récompense de %s\n"
@@ -464,7 +460,7 @@ const TrPair kTable_zh_cn[] = {
      u8"lui être envoyée : elle reste chez toi.",
      u8"%s\u200B的\u200B奖励\n"
      u8"\n"
-     u8"%s\u200B赠送\u200B所\u200B得\u200B的\u200B奖励\u200B没\u200B能\n"
+     u8"%s\u200B赠送\u200B所得\u200B的\u200B奖励\u200B没能\n"
      u8"发\u200B给\u200B他：\u200B奖励\u200B留\u200B在\u200B你\u200B这里。"},
     {u8"Récompense pour %s\n"
      u8"\n"
@@ -512,7 +508,7 @@ const TrPair kTable_zh_cn[] = {
      u8"à son prochain chargement.",
      u8"%s\u200B的\u200B奖励\n"
      u8"\n"
-     u8"你\u200B的\u200B猫\u200B填\u200B满\u200B了\u200B%s\u200B的\u200B好感条：\n"
+     u8"你\u200B的\u200B猫\u200B填满\u200B了\u200B%s\u200B的\u200B好感条：\n"
      u8"奖励\u200B是\u200B解锁内容，\u200B归\n"
      u8"所有人。\u200B下次\u200B加载\u200B存档\u200B时\n"
      u8"生效。"},
@@ -522,25 +518,25 @@ const TrPair kTable_zh_cn[] = {
      u8"n'est plus là : la récompense reste chez toi.",
      u8"%s\u200B的\u200B奖励\n"
      u8"\n"
-     u8"%s\u200B之前\u200B填\u200B满\u200B了\u200B%s\u200B的\u200B好感条，\n"
+     u8"%s\u200B之前\u200B填满\u200B了\u200B%s\u200B的\u200B好感条，\n"
      u8"但\u200B已经\u200B离开\u200B了：\u200B奖励\u200B留\u200B在\u200B你\u200B这里。"},
     {u8"Récompense prête\n"
      u8"\n"
      u8"Ton chat a rempli la jauge de %s !\n"
      u8"%s prendra la récompense pour toi\n"
      u8"dès qu'il sera dans sa maison.",
-     u8"奖励\u200B已\u200B就\u200B绪\n"
+     u8"奖励\u200B已\u200B就绪\n"
      u8"\n"
-     u8"你\u200B的\u200B猫\u200B填\u200B满\u200B了\u200B%s\u200B的\u200B好感条！\n"
+     u8"你\u200B的\u200B猫\u200B填满\u200B了\u200B%s\u200B的\u200B好感条！\n"
      u8"%s\u200B回到\u200B家\u200B后，\u200B就\u200B会\u200B替\u200B你\n"
-     u8"领\u200B取\u200B奖励。"},
+     u8"领取\u200B奖励。"},
     {u8"les bourses ne marchent pas dans cette partie", u8"这\u200B局\u200B游戏\u200B不\u200B能\u200B使用\u200B钱袋"},
     {u8"rien à donner", u8"没有\u200B可\u200B送\u200B的\u200B东西"},
     {u8"c'est trop d'un coup", u8"一次送太多了"},
     {u8"choisis un autre joueur", u8"选择其他玩家"},
     {u8"ton don précédent attend encore la réponse de l'hôte", u8"你\u200B上\u200B一次\u200B的\u200B赠送\u200B还在\u200B等\u200B房主\u200B回应"},
     {u8"tu n'as pas de bourse dans cette aventure", u8"你\u200B在\u200B这\u200B次\u200B冒险\u200B中\u200B没有\u200B钱袋"},
-    {u8"envoi impossible (connexion)", u8"无法\u200B发\u200B送\u200B（连接\u200B问题）"},
+    {u8"envoi impossible (connexion)", u8"无法\u200B发送\u200B（连接\u200B问题）"},
     {u8"Fin de l'aventure\n"
      u8"\n"
      u8"Chacun rapporte sa bourse dans sa maison :",
@@ -549,16 +545,16 @@ const TrPair kTable_zh_cn[] = {
      u8"每个\u200B人\u200B把\u200B自己\u200B的\u200B钱袋\u200B带\u200B回家："},
     {u8"%s n'est plus là : sa bourse reste chez toi.", u8"%s\u200B已\u200B不\u200B在：\u200B他\u200B的\u200B钱袋\u200B留\u200B在\u200B你\u200B这里。"},
     {u8"%s : rien.", u8"%s：\u200B什么\u200B都\u200B没有。"},
-    {u8"%s n'a pas pu recevoir sa bourse : elle reste chez toi.", u8"%s\u200B没\u200B能\u200B收到\u200B钱袋：\u200B钱袋\u200B留\u200B在\u200B你\u200B这里。"},
+    {u8"%s n'a pas pu recevoir sa bourse : elle reste chez toi.", u8"%s\u200B没能\u200B收到\u200B钱袋：\u200B钱袋\u200B留\u200B在\u200B你\u200B这里。"},
     {u8"%s : %s.", u8"%s：%s。"},
     {u8"Toi : %s.", u8"你：%s。"},
     {u8"Pas encore de réponse de l'hôte pour ton don : regarde ta bourse dans la fenêtre du chemin.",
-     u8"房主\u200B还\u200B没\u200B回应\u200B你\u200B的\u200B赠送：\u200B在\u200B路线\u200B窗口\u200B里\u200B查\u200B看\u200B你\u200B的\u200B钱袋。"},
+     u8"房主\u200B还\u200B没\u200B回应\u200B你\u200B的\u200B赠送：\u200B在\u200B路线\u200B窗口\u200B里\u200B查看\u200B你\u200B的\u200B钱袋。"},
     {u8"Ton don n'est pas passé : %s.", u8"你\u200B的\u200B赠送\u200B没有\u200B成功：\u200B%s。"},
-    {u8"(et d'autres trouvailles)", u8"（还\u200B有\u200B其他\u200B收\u200B获）"},
+    {u8"(et d'autres trouvailles)", u8"（还\u200B有\u200B其他\u200B收获）"},
     {u8"pas de bourse pour ce joueur dans cette aventure", u8"这\u200B名\u200B玩家\u200B在\u200B这\u200B次\u200B冒险\u200B中\u200B没有\u200B钱袋"},
     {u8"ta bourse n'en a pas autant", u8"你\u200B的\u200B钱袋\u200B里\u200B没有\u200B那么\u200B多"},
-    {u8"l'aventure n'est plus suivie", u8"已\u200B不\u200B再\u200B跟\u200B随\u200B这\u200B次\u200B冒险"},
+    {u8"l'aventure n'est plus suivie", u8"这\u200B次\u200B冒险\u200B已\u200B不再\u200B同步"},
     {u8"%s t'a donné %s : c'est dans ta bourse.", u8"%s\u200B送\u200B给\u200B你\u200B%s：\u200B已\u200B放进\u200B你\u200B的\u200B钱袋。"},
     {u8"Tu as donné %s à %s : c'est dans sa bourse.", u8"你\u200B把\u200B%s\u200B送\u200B给\u200B了\u200B%s：\u200B已\u200B放进\u200B对方\u200B的\u200B钱袋。"},
     {u8"%s a donné %s à %s.", u8"%s\u200B把\u200B%s\u200B送\u200B给\u200B了\u200B%s。"},
@@ -571,16 +567,16 @@ const TrPair kTable_zh_cn[] = {
     {u8"%s a trouvé %s : c'est pour ta bourse.", u8"%s\u200B找到\u200B了\u200B%s：\u200B归\u200B你\u200B的\u200B钱袋。"},
     {u8"%s a trouvé %s : c'est pour la bourse de %s.", u8"%s\u200B找到\u200B了\u200B%s：\u200B归\u200B%s\u200B的\u200B钱袋。"},
     {u8"%s a trouvé %s : c'est pour la bourse d'%s.", u8"%s\u200B找到\u200B了\u200B%s：\u200B归\u200B%s\u200B的\u200B钱袋。"},
-    {u8"%s a dépensé %s : c'est pris sur ta bourse.", u8"%s\u200B花\u200B掉\u200B了\u200B%s：\u200B从\u200B你\u200B的\u200B钱袋\u200B里\u200B扣\u200B除。"},
-    {u8"%s a dépensé %s : c'est pris sur la bourse de %s.", u8"%s\u200B花\u200B掉\u200B了\u200B%s：\u200B从\u200B%s\u200B的\u200B钱袋\u200B里\u200B扣\u200B除。"},
-    {u8"%s a dépensé %s : c'est pris sur la bourse d'%s.", u8"%s\u200B花\u200B掉\u200B了\u200B%s：\u200B从\u200B%s\u200B的\u200B钱袋\u200B里\u200B扣\u200B除。"},
-    {u8"%s a perdu %s : c'est pris sur ta bourse.", u8"%s\u200B失去\u200B了\u200B%s：\u200B从\u200B你\u200B的\u200B钱袋\u200B里\u200B扣\u200B除。"},
-    {u8"%s a perdu %s : c'est pris sur la bourse de %s.", u8"%s\u200B失去\u200B了\u200B%s：\u200B从\u200B%s\u200B的\u200B钱袋\u200B里\u200B扣\u200B除。"},
-    {u8"%s a perdu %s : c'est pris sur la bourse d'%s.", u8"%s\u200B失去\u200B了\u200B%s：\u200B从\u200B%s\u200B的\u200B钱袋\u200B里\u200B扣\u200B除。"},
+    {u8"%s a dépensé %s : c'est pris sur ta bourse.", u8"%s\u200B花掉\u200B了\u200B%s：\u200B从\u200B你\u200B的\u200B钱袋\u200B里\u200B扣除。"},
+    {u8"%s a dépensé %s : c'est pris sur la bourse de %s.", u8"%s\u200B花掉\u200B了\u200B%s：\u200B从\u200B%s\u200B的\u200B钱袋\u200B里\u200B扣除。"},
+    {u8"%s a dépensé %s : c'est pris sur la bourse d'%s.", u8"%s\u200B花掉\u200B了\u200B%s：\u200B从\u200B%s\u200B的\u200B钱袋\u200B里\u200B扣除。"},
+    {u8"%s a perdu %s : c'est pris sur ta bourse.", u8"%s\u200B失去\u200B了\u200B%s：\u200B从\u200B你\u200B的\u200B钱袋\u200B里\u200B扣除。"},
+    {u8"%s a perdu %s : c'est pris sur la bourse de %s.", u8"%s\u200B失去\u200B了\u200B%s：\u200B从\u200B%s\u200B的\u200B钱袋\u200B里\u200B扣除。"},
+    {u8"%s a perdu %s : c'est pris sur la bourse d'%s.", u8"%s\u200B失去\u200B了\u200B%s：\u200B从\u200B%s\u200B的\u200B钱袋\u200B里\u200B扣除。"},
     {u8"%s n'a rien trouvé.", u8"%s\u200B什么\u200B都\u200B没\u200B找到。"},
     {u8"un objet", u8"一件物品"},
-    {u8"Tu as acheté %s pour %s : c'est pris sur ta bourse.", u8"你\u200B买\u200B了\u200B%s，\u200B花\u200B费\u200B%s：\u200B从\u200B你\u200B的\u200B钱袋\u200B里\u200B扣\u200B除。"},
-    {u8"%s a acheté %s pour %s : c'est pris sur sa bourse.", u8"%s\u200B买\u200B了\u200B%s，\u200B花\u200B费\u200B%s：\u200B从\u200B他\u200B的\u200B钱袋\u200B里\u200B扣\u200B除。"},
+    {u8"Tu as acheté %s pour %s : c'est pris sur ta bourse.", u8"你\u200B买\u200B了\u200B%s，\u200B花费\u200B%s：\u200B从\u200B你\u200B的\u200B钱袋\u200B里\u200B扣除。"},
+    {u8"%s a acheté %s pour %s : c'est pris sur sa bourse.", u8"%s\u200B买\u200B了\u200B%s，\u200B花费\u200B%s：\u200B从\u200B他\u200B的\u200B钱袋\u200B里\u200B扣除。"},
     {u8"Tu as acheté %s : %s de plus pour ta bourse.", u8"你\u200B买\u200B了\u200B%s：\u200B你\u200B的\u200B钱袋\u200B增加\u200B了\u200B%s。"},
     {u8"%s a acheté %s : %s de plus pour sa bourse.", u8"%s\u200B买\u200B了\u200B%s：\u200B他\u200B的\u200B钱袋\u200B增加\u200B了\u200B%s。"},
     {u8"Tu as acheté %s (gratuit).", u8"你\u200B买\u200B了\u200B%s\u200B（免费）。"},
@@ -589,7 +585,7 @@ const TrPair kTable_zh_cn[] = {
      u8"战斗\u200B中，\u200B你\u200B的\u200B猫\u200B找到\u200B了\u200B%s，\u200B失去\u200B了\u200B%s：\u200B计\u200B入\u200B你\u200B的\u200B钱袋。"},
     {u8"En combat, tes chats ont trouvé %s : c'est pour ta bourse.", u8"战斗\u200B中，\u200B你\u200B的\u200B猫\u200B找到\u200B了\u200B%s：\u200B归\u200B你\u200B的\u200B钱袋。"},
     {u8"En combat, tes chats ont perdu %s : c'est pris sur ta bourse.",
-     u8"战斗\u200B中，\u200B你\u200B的\u200B猫\u200B失去\u200B了\u200B%s：\u200B从\u200B你\u200B的\u200B钱袋\u200B里\u200B扣\u200B除。"},
+     u8"战斗\u200B中，\u200B你\u200B的\u200B猫\u200B失去\u200B了\u200B%s：\u200B从\u200B你\u200B的\u200B钱袋\u200B里\u200B扣除。"},
     {u8"En combat, tes chats n'ont rien trouvé.", u8"战斗\u200B中，\u200B你\u200B的\u200B猫\u200B什么\u200B都\u200B没\u200B找到。"},
     {u8"En combat, les chats d'%s ont trouvé %s et perdu %s : ça compte pour sa bourse.",
      u8"战斗\u200B中，\u200B%s\u200B的\u200B猫\u200B找到\u200B了\u200B%s，\u200B失去\u200B了\u200B%s：\u200B计\u200B入\u200B他\u200B的\u200B钱袋。"},
@@ -600,9 +596,9 @@ const TrPair kTable_zh_cn[] = {
     {u8"En combat, les chats de %s ont trouvé %s : c'est pour sa bourse.",
      u8"战斗\u200B中，\u200B%s\u200B的\u200B猫\u200B找到\u200B了\u200B%s：\u200B归\u200B他\u200B的\u200B钱袋。"},
     {u8"En combat, les chats d'%s ont perdu %s : c'est pris sur sa bourse.",
-     u8"战斗\u200B中，\u200B%s\u200B的\u200B猫\u200B失去\u200B了\u200B%s：\u200B从\u200B他\u200B的\u200B钱袋\u200B里\u200B扣\u200B除。"},
+     u8"战斗\u200B中，\u200B%s\u200B的\u200B猫\u200B失去\u200B了\u200B%s：\u200B从\u200B他\u200B的\u200B钱袋\u200B里\u200B扣除。"},
     {u8"En combat, les chats de %s ont perdu %s : c'est pris sur sa bourse.",
-     u8"战斗\u200B中，\u200B%s\u200B的\u200B猫\u200B失去\u200B了\u200B%s：\u200B从\u200B他\u200B的\u200B钱袋\u200B里\u200B扣\u200B除。"},
+     u8"战斗\u200B中，\u200B%s\u200B的\u200B猫\u200B失去\u200B了\u200B%s：\u200B从\u200B他\u200B的\u200B钱袋\u200B里\u200B扣除。"},
     {u8"En combat, les chats d'%s n'ont rien trouvé.", u8"战斗\u200B中，\u200B%s\u200B的\u200B猫\u200B什么\u200B都\u200B没\u200B找到。"},
     {u8"En combat, les chats de %s n'ont rien trouvé.", u8"战斗\u200B中，\u200B%s\u200B的\u200B猫\u200B什么\u200B都\u200B没\u200B找到。"},
     {u8"Ton sac est ouvert\n"
@@ -612,7 +608,7 @@ const TrPair kTable_zh_cn[] = {
      u8"背包\u200B已\u200B打开\n"
      u8"\n"
      u8"房主\u200B进入\u200B了\u200B一\u200B个\u200B地点：\n"
-     u8"关\u200B上\u200B背包\u200B才\u200B能\u200B跟\u200B上\u200B他。"},
+     u8"关上\u200B背包\u200B才\u200B能\u200B跟上\u200B他。"},
     {u8"Objets\n"
      u8"\n"
      u8"Ce chat est à %s : seul son propriétaire\n"
@@ -620,7 +616,7 @@ const TrPair kTable_zh_cn[] = {
      u8"物品\n"
      u8"\n"
      u8"这\u200B只猫\u200B属于\u200B%s：\u200B只有\u200B它\u200B的\u200B主人\n"
-     u8"才\u200B能\u200B更\u200B换\u200B它\u200B的\u200B物品。"},
+     u8"才\u200B能\u200B更换\u200B它\u200B的\u200B物品。"},
     {u8"Objets\n"
      u8"\n"
      u8"Pendant une case (une boutique, une montée de\n"
@@ -628,8 +624,8 @@ const TrPair kTable_zh_cn[] = {
      u8"Équipe tes chats sur la carte.",
      u8"物品\n"
      u8"\n"
-     u8"身\u200B处\u200B某个\u200B地点\u200B时\u200B（商店、\u200B升级\n"
-     u8"等），\u200B只有\u200B房主\u200B能\u200B更\u200B换\u200B物品。\n"
+     u8"身处\u200B某个\u200B地点\u200B时\u200B（商店、\u200B升级\n"
+     u8"等），\u200B只有\u200B房主\u200B能\u200B更换\u200B物品。\n"
      u8"请\u200B在\u200B地图\u200B上\u200B给\u200B你\u200B的\u200B猫\u200B装备。"},
     {u8"Objets\n"
      u8"\n"
@@ -646,7 +642,7 @@ const TrPair kTable_zh_cn[] = {
      u8"物品\n"
      u8"\n"
      u8"你\u200B的\u200B背包\u200B正在\u200B与\u200B房主\u200B的\u200B同步：\n"
-     u8"先\u200B关\u200B上，\u200B稍\u200B后\u200B再\u200B打开。"},
+     u8"先\u200B关上，\u200B稍后\u200B再\u200B打开。"},
     {u8"Objets\n"
      u8"\n"
      u8"Un autre joueur a pris cet objet juste avant toi :\n"
@@ -654,8 +650,8 @@ const TrPair kTable_zh_cn[] = {
      u8"comme chez l'hôte quand tu le fermes.",
      u8"物品\n"
      u8"\n"
-     u8"另\u200B一\u200B名\u200B玩家\u200B抢\u200B先\u200B拿走\u200B了\u200B这\u200B件\u200B物品：\n"
-     u8"你\u200B的\u200B更\u200B改\u200B无\u200B效。\u200B关\u200B上\u200B背包\u200B后，\n"
+     u8"另\u200B一\u200B名\u200B玩家\u200B抢先\u200B拿走\u200B了\u200B这\u200B件\u200B物品：\n"
+     u8"你\u200B的\u200B更改\u200B无效。\u200B关上\u200B背包\u200B后，\n"
      u8"它\u200B会\u200B恢复\u200B成\u200B房主\u200B那边\u200B的\u200B样子。"},
     {u8"Objets\n"
      u8"\n"
@@ -664,8 +660,8 @@ const TrPair kTable_zh_cn[] = {
      u8"Refais-le sur la carte.",
      u8"物品\n"
      u8"\n"
-     u8"你\u200B最后\u200B的\u200B更\u200B改\u200B送\u200B达\u200B前，\u200B房主\n"
-     u8"已\u200B进入\u200B一\u200B个\u200B地点：\u200B更\u200B改\u200B已\u200B取消。\n"
+     u8"你\u200B最后\u200B的\u200B更改\u200B送达\u200B前，\u200B房主\n"
+     u8"已\u200B进入\u200B一\u200B个\u200B地点：\u200B更改\u200B已\u200B取消。\n"
      u8"请\u200B在\u200B地图\u200B上\u200B重新\u200B操作。"},
     {u8"Objets\n"
      u8"\n"
@@ -674,56 +670,56 @@ const TrPair kTable_zh_cn[] = {
      u8"物品\n"
      u8"\n"
      u8"这\u200B件\u200B物品\u200B已经\u200B不\u200B在\u200B了：\u200B另\u200B一\u200B名\u200B玩家\n"
-     u8"抢\u200B先\u200B拿走\u200B了\u200B它。"},
+     u8"抢先\u200B拿走\u200B了\u200B它。"},
     {u8"%s n'est plus là : ses achats restent chez toi (%s).", u8"%s\u200B已\u200B不\u200B在：\u200B他\u200B买\u200B的\u200B东西\u200B留\u200B在\u200B你\u200B这里\u200B（%s）。"},
     {u8"%s rapporte ses achats : %s.", u8"%s\u200B带回\u200B了\u200B他\u200B买\u200B的\u200B东西：\u200B%s。"},
     {u8"Les achats d'%s n'ont pas pu lui être envoyés : ils restent chez toi.",
-     u8"%s\u200B买\u200B的\u200B东西\u200B没\u200B能\u200B发\u200B给\u200B他：\u200B留\u200B在\u200B你\u200B这里。"},
+     u8"%s\u200B买\u200B的\u200B东西\u200B没能\u200B发\u200B给\u200B他：\u200B留\u200B在\u200B你\u200B这里。"},
     {u8"Les achats de %s n'ont pas pu lui être envoyés : ils restent chez toi.",
-     u8"%s\u200B买\u200B的\u200B东西\u200B没\u200B能\u200B发\u200B给\u200B他：\u200B留\u200B在\u200B你\u200B这里。"},
-    {u8"Achats de l'aventure", u8"冒险中的购物"},
+     u8"%s\u200B买\u200B的\u200B东西\u200B没能\u200B发\u200B给\u200B他：\u200B留\u200B在\u200B你\u200B这里。"},
+    {u8"Achats de l'aventure", u8"冒险\u200B中\u200B买\u200B的\u200B东西"},
     {u8"Boutique", u8"商店"},
     {u8"%s n'ont pas fini dans cette\n"
      u8"boutique : attends-les (une fois sorti, tu ne\n"
      u8"pourrais plus acheter pour eux).\n"
      u8"Clique encore pour sortir quand même.",
      u8"%s\u200B还\u200B没\u200B在\u200B这\u200B家\n"
-     u8"商店\u200B买\u200B完：\u200B等等\u200B他们\u200B（你\u200B一\u200B旦\u200B离开，\n"
-     u8"就\u200B没\u200B法\u200B再\u200B替\u200B他们\u200B购买\u200B了）。\n"
-     u8"再\u200B点\u200B一次\u200B即\u200B可\u200B直接\u200B离开。"},
+     u8"商店\u200B买\u200B完：\u200B等等\u200B他们\u200B（你\u200B一旦\u200B离开，\n"
+     u8"就\u200B没法\u200B再\u200B替\u200B他们\u200B购买\u200B了）。\n"
+     u8"再\u200B点\u200B一次\u200B即可\u200B直接\u200B离开。"},
     {u8"%s n'a pas fini dans cette\n"
      u8"boutique : attends-le (une fois sorti, tu ne\n"
      u8"pourrais plus acheter pour lui).\n"
      u8"Clique encore pour sortir quand même.",
      u8"%s\u200B还\u200B没\u200B在\u200B这\u200B家\n"
-     u8"商店\u200B买\u200B完：\u200B等等\u200B他\u200B（你\u200B一\u200B旦\u200B离开，\n"
-     u8"就\u200B没\u200B法\u200B再\u200B替\u200B他\u200B购买\u200B了）。\n"
-     u8"再\u200B点\u200B一次\u200B即\u200B可\u200B直接\u200B离开。"},
+     u8"商店\u200B买\u200B完：\u200B等等\u200B他\u200B（你\u200B一旦\u200B离开，\n"
+     u8"就\u200B没法\u200B再\u200B替\u200B他\u200B购买\u200B了）。\n"
+     u8"再\u200B点\u200B一次\u200B即可\u200B直接\u200B离开。"},
     {u8"Ton achat n'a pas pu être demandé à l'hôte :\n"
      u8"rien n'a été acheté. Réessaie dans un instant.",
-     u8"无法\u200B向\u200B房主\u200B发出\u200B购买\u200B请\u200B求：\n"
-     u8"什么\u200B都\u200B没\u200B买。\u200B请\u200B稍\u200B后\u200B再\u200B试。"},
+     u8"无法\u200B向\u200B房主\u200B发出\u200B购买\u200B请求：\n"
+     u8"什么\u200B都\u200B没\u200B买。\u200B请\u200B稍后\u200B再\u200B试。"},
     {u8"L'hôte n'est plus dans cette boutique :\n"
      u8"l'achat ne s'est pas fait.",
      u8"房主\u200B已\u200B不\u200B在\u200B这\u200B家\u200B商店：\n"
      u8"购买\u200B没有\u200B完成。"},
     {u8"Cet objet n'est plus à vendre chez l'hôte :\n"
      u8"l'achat ne s'est pas fait.",
-     u8"房主\u200B那边\u200B已\u200B不\u200B再\u200B出\u200B售\u200B这\u200B件\u200B物品：\n"
+     u8"房主\u200B那边\u200B已\u200B不\u200B再\u200B出售\u200B这\u200B件\u200B物品：\n"
      u8"购买\u200B没有\u200B完成。"},
     {u8"Cet objet vient d'être vendu :\n"
      u8"l'achat ne s'est pas fait.",
-     u8"这\u200B件\u200B物品\u200B刚刚\u200B被\u200B卖\u200B掉\u200B了：\n"
+     u8"这\u200B件\u200B物品\u200B刚刚\u200B被\u200B卖掉\u200B了：\n"
      u8"购买\u200B没有\u200B完成。"},
-    {u8"Il coûte %s ; ta bourse en a %lld.", u8"价\u200B格\u200B是\u200B%s；\u200B你\u200B的\u200B钱袋\u200B里\u200B只有\u200B%lld块钱。"},
+    {u8"Il coûte %s ; ta bourse en a %lld.", u8"价格\u200B是\u200B%s；\u200B你\u200B的\u200B钱袋\u200B里\u200B只有\u200B%lld块钱。"},
     {u8"Ta bourse ne suffit pas pour cet objet.", u8"你\u200B的\u200B钱袋\u200B不够\u200B买\u200B这\u200B件\u200B物品。"},
-    {u8"(Chacun paie avec sa bourse, toi aussi.)", u8"（每个\u200B人\u200B都\u200B用\u200B自己\u200B的\u200B钱袋\u200B付\u200B钱，\u200B你\u200B也\u200B一样。）"},
-    {u8"(Chacun paie avec sa bourse.)", u8"（每个\u200B人\u200B都\u200B用\u200B自己\u200B的\u200B钱袋\u200B付\u200B钱。）"},
+    {u8"(Chacun paie avec sa bourse, toi aussi.)", u8"（每个\u200B人\u200B都\u200B用\u200B自己\u200B的\u200B钱袋\u200B付钱，\u200B你\u200B也\u200B一样。）"},
+    {u8"(Chacun paie avec sa bourse.)", u8"（每个\u200B人\u200B都\u200B用\u200B自己\u200B的\u200B钱袋\u200B付钱。）"},
     {u8"Pour l'instant, seul l'hôte achète les\n"
      u8"bonbons et les familiers (avec sa bourse).",
      u8"目前\u200B只有\u200B房主\u200B能\u200B购买\n"
      u8"糖果\u200B和\u200B跟班\u200B（用\u200B他\u200B的\u200B钱袋）。"},
-    {u8"Le jeu n'a pas pu faire l'achat chez l'hôte.", u8"游戏\u200B没\u200B能\u200B在\u200B房主\u200B那边\u200B完成\u200B购买。"},
+    {u8"Le jeu n'a pas pu faire l'achat chez l'hôte.", u8"游戏\u200B没能\u200B在\u200B房主\u200B那边\u200B完成\u200B购买。"},
     {u8"Pas de bourses dans cette aventure :\n"
      u8"seul l'hôte achète.",
      u8"这\u200B次\u200B冒险\u200B没有\u200B钱袋：\n"
@@ -733,7 +729,7 @@ const TrPair kTable_zh_cn[] = {
      u8"acheter.",
      u8"你\u200B没有\u200B带\u200B猫\u200B参加\u200B这\u200B次\n"
      u8"冒险：\u200B没有\u200B钱袋\u200B可以\n"
-     u8"购\u200B物。"},
+     u8"购物。"},
     {u8"Tu n'as pas de bourse dans cette aventure\n"
      u8"(tu n'y as pas amené de chats) : pas d'achat.",
      u8"你\u200B在\u200B这\u200B次\u200B冒险\u200B中\u200B没有\u200B钱袋\n"
@@ -743,7 +739,7 @@ const TrPair kTable_zh_cn[] = {
      u8"rien n'a été acheté. Réessaie dans un instant.",
      u8"房主\u200B现在\u200B无法\u200B替\u200B你\n"
      u8"购买\u200B（他\u200B那边\u200B开着\u200B一\u200B个\u200B窗口）：\n"
-     u8"什么\u200B都\u200B没\u200B买。\u200B请\u200B稍\u200B后\u200B再\u200B试。"},
+     u8"什么\u200B都\u200B没\u200B买。\u200B请\u200B稍后\u200B再\u200B试。"},
     {u8"un bonbon", u8"一块糖果"},
     {u8"un familier", u8"一个跟班"},
     {u8"un article", u8"一件商品"},
@@ -766,7 +762,7 @@ const TrPair kTable_zh_cn[] = {
      u8"cette fois. (Le journal du mod, mgmp.log, dit pourquoi.)",
      u8"出发\u200B冒险\n"
      u8"\n"
-     u8"其他\u200B玩家\u200B的\u200B猫\u200B没\u200B能\u200B出发，\n"
+     u8"其他\u200B玩家\u200B的\u200B猫\u200B没能\u200B出发，\n"
      u8"而\u200B你\u200B的\u200B冒险箱\u200B是\u200B空\u200B的：\u200B这\u200B次\n"
      u8"无法\u200B冒险。\u200B（原因\u200B见\u200B模组\u200B日志\u200Bmgmp.log。）"},
     {u8"Départ en aventure\n"
@@ -784,24 +780,24 @@ const TrPair kTable_zh_cn[] = {
      u8"(Le journal du mod, mgmp.log, dit pourquoi.)",
      u8"混合队伍\n"
      u8"\n"
-     u8"其他\u200B玩家\u200B的\u200B猫\u200B没\u200B能\n"
+     u8"其他\u200B玩家\u200B的\u200B猫\u200B没能\n"
      u8"加入\u200B队伍：\u200B你\u200B带着\u200B自己\u200B的\u200B猫\u200B出发。\n"
      u8"（原因\u200B见\u200B模组\u200B日志\u200Bmgmp.log。）"},
     {u8"Retour de l'aventure", u8"冒险归来"},
     {u8"%s est de retour à la maison.", u8"%s回家了。"},
     {u8"%s sont de retour à la maison.", u8"%s回家了。"},
-    {u8"%s a péri pendant l'aventure.", u8"%s\u200B在\u200B冒险\u200B中\u200B丧\u200B命\u200B了。"},
-    {u8"%s ont péri pendant l'aventure.", u8"%s\u200B在\u200B冒险\u200B中\u200B丧\u200B命\u200B了。"},
+    {u8"%s a péri pendant l'aventure.", u8"%s\u200B在\u200B冒险\u200B中\u200B死掉\u200B了。"},
+    {u8"%s ont péri pendant l'aventure.", u8"%s\u200B在\u200B冒险\u200B中\u200B死掉\u200B了。"},
     {u8"%s ne revient pas de l'aventure.", u8"%s\u200B没有\u200B从\u200B冒险\u200B中\u200B回来。"},
     {u8"%s ne reviennent pas de l'aventure.", u8"%s\u200B没有\u200B从\u200B冒险\u200B中\u200B回来。"},
     {u8"%s a changé depuis le départ :\n"
      u8"son retour d'aventure n'a pas été recopié.",
      u8"%s\u200B在\u200B出发\u200B后\u200B有\u200B了\u200B变化：\n"
-     u8"冒险\u200B归\u200B来\u200B的\u200B结果\u200B没有\u200B同步\u200B过来。"},
+     u8"冒险\u200B归来\u200B的\u200B结果\u200B没有\u200B同步\u200B过来。"},
     {u8"%s ont changé depuis le départ :\n"
      u8"leur retour d'aventure n'a pas été recopié.",
      u8"%s\u200B在\u200B出发\u200B后\u200B有\u200B了\u200B变化：\n"
-     u8"他们\u200B冒险\u200B归\u200B来\u200B的\u200B结果\u200B没有\u200B同步\u200B过来。"},
+     u8"他们\u200B冒险\u200B归来\u200B的\u200B结果\u200B没有\u200B同步\u200B过来。"},
     {u8"Ton rangement a changé depuis le départ :\n"
      u8"les objets équipés au départ n'en ont pas été retirés.",
      u8"你\u200B的\u200B仓库\u200B在\u200B出发\u200B后\u200B有\u200B了\u200B变化：\n"
@@ -824,9 +820,9 @@ const TrPair kTable_zh_cn[] = {
      u8"des chats de l'équipe.",
      u8"混合队伍\n"
      u8"\n"
-     u8"%s\u200B没\u200B能\u200B加入\u200B队伍：\n"
+     u8"%s\u200B没能\u200B加入\u200B队伍：\n"
      u8"这\u200B次\u200B冒险\u200B中，\u200B你\u200B来\u200B操控\u200B队伍\u200B里\u200B的\n"
-     u8"一\u200B部分\u200B猫。"},
+     u8"一部分\u200B猫。"},
     {u8"Équipe mixte\n"
      u8"\n"
      u8"%s n'a pas pu rejoindre l'équipe :\n"
@@ -834,37 +830,37 @@ const TrPair kTable_zh_cn[] = {
      u8"des chats de l'équipe.",
      u8"混合队伍\n"
      u8"\n"
-     u8"%s\u200B没\u200B能\u200B加入\u200B队伍：\n"
+     u8"%s\u200B没能\u200B加入\u200B队伍：\n"
      u8"这\u200B次\u200B冒险\u200B中，\u200B你\u200B来\u200B操控\u200B队伍\u200B里\u200B的\n"
-     u8"一\u200B部分\u200B猫。"},
+     u8"一部分\u200B猫。"},
     {u8"Équipe mixte\n"
      u8"\n"
      u8"%s n'ont pas pu rejoindre l'équipe :\n"
      u8"tu suis l'aventure sans diriger de chat.",
      u8"混合队伍\n"
      u8"\n"
-     u8"%s\u200B没\u200B能\u200B加入\u200B队伍：\n"
-     u8"你\u200B将\u200B跟\u200B随\u200B冒险，\u200B但\u200B不\u200B操控\u200B任何\u200B猫。"},
+     u8"%s\u200B没能\u200B加入\u200B队伍：\n"
+     u8"你\u200B会\u200B随队\u200B冒险，\u200B但\u200B不\u200B操控\u200B任何\u200B猫。"},
     {u8"Équipe mixte\n"
      u8"\n"
      u8"%s n'a pas pu rejoindre l'équipe :\n"
      u8"tu suis l'aventure sans diriger de chat.",
      u8"混合队伍\n"
      u8"\n"
-     u8"%s\u200B没\u200B能\u200B加入\u200B队伍：\n"
-     u8"你\u200B将\u200B跟\u200B随\u200B冒险，\u200B但\u200B不\u200B操控\u200B任何\u200B猫。"},
+     u8"%s\u200B没能\u200B加入\u200B队伍：\n"
+     u8"你\u200B会\u200B随队\u200B冒险，\u200B但\u200B不\u200B操控\u200B任何\u200B猫。"},
     {u8"Équipe mixte\n"
      u8"\n"
      u8"%s n'ont pas pu partir et restent à la maison.",
      u8"混合队伍\n"
      u8"\n"
-     u8"%s\u200B没\u200B能\u200B出发，\u200B留\u200B在\u200B了\u200B家里。"},
+     u8"%s\u200B没能\u200B出发，\u200B留\u200B在\u200B了\u200B家里。"},
     {u8"Équipe mixte\n"
      u8"\n"
      u8"%s n'a pas pu partir et reste à la maison.",
      u8"混合队伍\n"
      u8"\n"
-     u8"%s\u200B没\u200B能\u200B出发，\u200B留\u200B在\u200B了\u200B家里。"},
+     u8"%s\u200B没能\u200B出发，\u200B留\u200B在\u200B了\u200B家里。"},
     {u8"Tes chats sont rentrés de l'aventure.", u8"你\u200B的\u200B猫\u200B从\u200B冒险\u200B中\u200B回来\u200B了。"},
     {u8"Nouveau chat dans l'équipe\n"
      u8"\n"
@@ -886,7 +882,7 @@ const TrPair kTable_zh_cn[] = {
      u8"elle est à toi, tu emmènes 2 chats.",
      u8"第4个\u200B位置\n"
      u8"\n"
-     u8"3人\u200B游戏\u200B时，\u200B队伍\u200B有\u200B一\u200B个\u200B空\u200B位：\n"
+     u8"3人\u200B游戏\u200B时，\u200B队伍\u200B有\u200B一\u200B个\u200B空位：\n"
      u8"它\u200B归\u200B你\u200B了，\u200B你\u200B可以\u200B带\u200B2只猫。"},
     {u8"La 4e place\n"
      u8"\n"
@@ -895,7 +891,7 @@ const TrPair kTable_zh_cn[] = {
      u8"Retire un chat de ta boîte de départ.",
      u8"第4个\u200B位置\n"
      u8"\n"
-     u8"空\u200B位\u200B已经\u200B被\u200B%s\u200B占\u200B了：\n"
+     u8"空位\u200B已经\u200B被\u200B%s\u200B占\u200B了：\n"
      u8"3人\u200B游戏\u200B时，\u200B你\u200B只能\u200B带\u200B1只猫。\n"
      u8"从\u200B你\u200B的\u200B冒险箱\u200B里\u200B拿出\u200B一\u200B只猫。"},
     {u8"La 4e place\n"
@@ -904,7 +900,7 @@ const TrPair kTable_zh_cn[] = {
      u8"1 chat. Retire un chat de ta boîte de départ.",
      u8"第4个\u200B位置\n"
      u8"\n"
-     u8"第\u200B四\u200B名\u200B玩家\u200B来\u200B了：\u200B每\u200B人\u200B只能\u200B带\n"
+     u8"第四\u200B名\u200B玩家\u200B来\u200B了：\u200B每人\u200B只能\u200B带\n"
      u8"1只猫。\u200B从\u200B你\u200B的\u200B冒险箱\u200B里\u200B拿出\u200B一\u200B只猫。"},
     {u8"La 4e place va au premier qui met un 2e chat dans sa boîte.",
      u8"第4个\u200B位置\u200B归\u200B第一\u200B个\u200B往\u200B冒险箱\u200B里\u200B放\u200B第2只猫\u200B的\u200B人。"},
@@ -978,14 +974,14 @@ const TrPair kTable_zh_cn[] = {
     {u8"Tes chats partent de ta boîte de départ (chez Butch).", u8"你\u200B的\u200B猫\u200B从\u200B你\u200B的\u200B冒险箱\u200B出发\u200B（在\u200B布奇\u200B那\u200B里）。"},
     {u8"Tu emmènes %s.", u8"你带上了%s。"},
     {u8"Départ en aventure", u8"出发冒险"},
-    {u8"La session n'est pas prête : réessaie dans un instant.", u8"会\u200B话\u200B还\u200B没\u200B准备\u200B好：\u200B请\u200B稍\u200B后\u200B再\u200B试。"},
+    {u8"La session n'est pas prête : réessaie dans un instant.", u8"会话\u200B还\u200B没\u200B准备\u200B好：\u200B请\u200B稍后\u200B再\u200B试。"},
     {u8"La 4e place est en train de t'être attribuée :\n"
      u8"la question revient dans un instant.",
-     u8"正在\u200B把\u200B第4个\u200B位置\u200B分\u200B配\u200B给\u200B你：\n"
-     u8"稍\u200B后\u200B会\u200B再\u200B问\u200B你\u200B一次。"},
+     u8"正在\u200B把\u200B第4个\u200B位置\u200B分配\u200B给\u200B你：\n"
+     u8"稍后\u200B会\u200B再\u200B问\u200B你\u200B一次。"},
     {u8"Tes chats n'ont pas pu être préparés\n"
      u8"pour l'aventure (voir mgmp.log).",
-     u8"你\u200B的\u200B猫\u200B没\u200B能\u200B做好\n"
+     u8"你\u200B的\u200B猫\u200B没能\u200B做好\n"
      u8"冒险\u200B准备\u200B（见\u200Bmgmp.log）。"},
     {u8"%s reviennent d'une aventure, mais leur retour\n"
      u8"n'est pas encore recopié dans ta save : recharge-la\n"
@@ -1010,7 +1006,7 @@ const TrPair kTable_zh_cn[] = {
     {u8"Le retour de %s attend d'être recopié.", u8"%s\u200B的\u200B冒险\u200B结果\u200B还在\u200B等待\u200B同步。"},
     {u8"L'envoi de ta réponse à l'hôte a échoué :\n"
      u8"réessaie.",
-     u8"你\u200B的\u200B回\u200B复\u200B没\u200B能\u200B发\u200B给\u200B房主：\n"
+     u8"你\u200B的\u200B回复\u200B没能\u200B发\u200B给\u200B房主：\n"
      u8"请\u200B重试。"},
     {u8"Ta bourse de l'aventure : %s.", u8"你\u200B这\u200B次\u200B冒险\u200B的\u200B钱袋：\u200B%s。"},
     {u8"Ta boîte de départ contient %d chats, %d au maximum :\n"
@@ -1047,7 +1043,7 @@ const TrPair kTable_zh_cn[] = {
     {u8"au milieu", u8"中间"},
     {u8"n°%d", u8"%d号"},
     {u8"%s (%s)", u8"%s（%s）"},
-    {u8"[c:red]Ton vote n'a pas été pris : %s.[/c]", u8"[c:red]你\u200B的\u200B投\u200B票\u200B无\u200B效：\u200B%s。[/c]"},
+    {u8"[c:red]Ton vote n'a pas été pris : %s.[/c]", u8"[c:red]你\u200B的\u200B投票\u200B无效：\u200B%s。[/c]"},
     {u8"Choix du chemin\n"
      u8"\n",
      u8"选择路线\n"
@@ -1076,18 +1072,18 @@ const TrPair kTable_zh_cn[] = {
     {u8"ce tour est fini", u8"这一轮已结束"},
     {u8"l'hôte ne l'a pas pris", u8"房主没有采纳"},
     {u8"pas de vote", u8"未投票"},
-    {u8"absent, ne vote pas", u8"不\u200B在，\u200B不\u200B参\u200B与\u200B投\u200B票"},
+    {u8"absent, ne vote pas", u8"不\u200B在，\u200B不\u200B参与\u200B投票"},
     {u8"pas encore sur la carte", u8"还没到地图上"},
     {u8"pas encore voté", u8"还没投票"},
     {u8"%s (toi) : %s", u8"%s（你）：%s"},
     {u8"%s : %s", u8"%s：%s"},
-    {u8"En pause : on attend tout le monde sur la carte.", u8"暂\u200B停\u200B中：\u200B等待\u200B所有人\u200B到\u200B达\u200B地图。"},
-    {u8"À toi de choisir : encore %u s.", u8"轮到\u200B你\u200B选择：\u200B还\u200B剩\u200B%u秒。"},
-    {u8"En attente des autres : encore %u s.", u8"等待\u200B其他\u200B人：\u200B还\u200B剩\u200B%u秒。"},
+    {u8"En pause : on attend tout le monde sur la carte.", u8"暂停\u200B中：\u200B等待\u200B所有人\u200B到达\u200B地图。"},
+    {u8"À toi de choisir : encore %u s.", u8"轮到\u200B你\u200B选择：\u200B还剩\u200B%u秒。"},
+    {u8"En attente des autres : encore %u s.", u8"等待\u200B其他\u200B人：\u200B还剩\u200B%u秒。"},
     {u8"Égalité entre %s :\n"
      u8"le sort choisit %s.",
-     u8"%s\u200B平\u200B票：\n"
-     u8"随机\u200B选\u200B中\u200B了\u200B%s。"},
+     u8"%s\u200B平票：\n"
+     u8"随机\u200B选中\u200B了\u200B%s。"},
     {u8"Tout le monde a choisi %s.", u8"所有人\u200B都\u200B选\u200B了\u200B%s。"},
     {u8"%s l'emporte.", u8"%s胜出。"},
     {u8"%s : prêt", u8"%s：准备好了"},
@@ -1112,8 +1108,8 @@ const TrPair kTable_zh_cn[] = {
      u8"Ton panneau sert au départ en aventure :\n"
      u8"retire tes chats de l'équipe pour finir la journée.",
      u8"\n"
-     u8"你\u200B的\u200B牌子\u200B现在\u200B用\u200B于\u200B出发\u200B冒险：\n"
-     u8"把\u200B你\u200B的\u200B猫\u200B从\u200B队伍\u200B中\u200B撤\u200B下\u200B才\u200B能\u200B结束今天。"},
+     u8"你\u200B的\u200B牌子\u200B现在\u200B用于\u200B出发\u200B冒险：\n"
+     u8"把\u200B你\u200B的\u200B猫\u200B从\u200B队伍\u200B中\u200B撤下\u200B才\u200B能\u200B结束今天。"},
     {u8"Fin de journée\n"
      u8"\n"
      u8"1 joueur attend pour passer la nuit.\n"
@@ -1149,13 +1145,13 @@ const TrPair kTable_zh_cn[] = {
      u8"Ta save est déjà ouverte : tout cela n'y sera\n"
      u8"qu'à son prochain chargement. « Recharger » :\n"
      u8"le mod passe par le menu et la rouvre.",
-     u8"等\u200B着\u200B你\u200B的\u200B东西\n"
+     u8"等着\u200B你\u200B的\u200B东西\n"
      u8"\n"
      u8"%s\n"
      u8"\n"
      u8"你\u200B的\u200B存档\u200B已经\u200B打开：\u200B这些\u200B要\u200B等\n"
      u8"下次\u200B加载\u200B存档\u200B时\u200B才\u200B会\u200B出现。\u200B选\u200B“重新加载”：\n"
-     u8"模组\u200B会\u200B经过\u200B菜\u200B单\u200B重新\u200B打开\u200B存档。"},
+     u8"模组\u200B会\u200B先\u200B回到\u200B主菜单，\u200B再\u200B重新\u200B打开\u200B存档。"},
     {u8"Ce qui t'attend\n"
      u8"\n"
      u8"%s\n"
@@ -1183,7 +1179,7 @@ const TrPair kTable_zh_cn[] = {
      u8"出发\u200B冒险\n"
      u8"\n"
      u8"你\u200B想\u200B出发\u200B去\u200B冒险。\n"
-     u8"队友\u200B们\u200B的\u200B回\u200B答：\n"
+     u8"队友\u200B们\u200B的\u200B回答：\n"
      u8"\n"
      u8"%s"},
     {u8"%s : pas encore là", u8"%s：还没到"},
@@ -1196,7 +1192,7 @@ const TrPair kTable_zh_cn[] = {
      u8"等待\u200B你\u200B的\u200B队友\n"
      u8"\n"
      u8"%s\n"
-     u8"如果\u200B你\u200B不\u200B等\u200B就\u200B先\u200B走，\u200B在\u200B他们\u200B到\u200B达\u200B之前，\n"
+     u8"如果\u200B你\u200B不\u200B等\u200B就\u200B先\u200B走，\u200B在\u200B他们\u200B到达\u200B之前，\n"
      u8"游戏\u200BAI\u200B会\u200B在\u200B战斗\u200B中\u200B操控\n"
      u8"他们\u200B的\u200B猫。"},
     {u8"Départ en aventure\n"
@@ -1219,7 +1215,7 @@ const TrPair kTable_zh_cn[] = {
      u8"冒险\u200B进行\u200B中\n"
      u8"\n"
      u8"%s\u200B正在\u200B冒险！\n"
-     u8"你\u200B的\u200B猫\u200B没有\u200B同\u200B行：\u200B你\u200B将\u200B跟\u200B随\n"
+     u8"你\u200B的\u200B猫\u200B没有\u200B同行：\u200B你\u200B会\u200B随队\n"
      u8"冒险，\u200B但\u200B不\u200B操控\u200B任何\u200B猫。"},
     {u8"Aventure en cours\n"
      u8"\n"
@@ -1299,7 +1295,7 @@ const TrPair kTable_zh_cn[] = {
      u8"\n"
      u8"La partie de %s va se charger :\n"
      u8"tu partiras avec lui.",
-     u8"踏上\u200B冒险\n"
+     u8"踏上\u200B冒险\u200B之旅\n"
      u8"\n"
      u8"即将\u200B加载\u200B%s\u200B的\u200B游戏：\n"
      u8"你\u200B会\u200B和\u200B他\u200B一起\u200B出发。"},
@@ -1317,7 +1313,7 @@ const TrPair kTable_zh_cn[] = {
      u8"Tu rentres dans ta maison.",
      u8"回家\n"
      u8"\n"
-     u8"和\u200B%s\u200B的\u200B出发\u200B没有\u200B成\u200B行。\n"
+     u8"和\u200B%s\u200B的\u200B出发\u200B没有\u200B成行。\n"
      u8"你\u200B将\u200B回到\u200B自己\u200B家。"},
     {u8"Retour à la maison\n"
      u8"\n"
@@ -1378,7 +1374,7 @@ const TrPair kTable_zh_cn[] = {
      u8"回家\n"
      u8"\n"
      u8"%s\u200B进入\u200B了\u200B一\u200B个\u200B你\u200B的\u200B游戏\n"
-     u8"跟\u200B不\u200B上\u200B的\u200B地点：\u200B你\u200B这边\u200B的\u200B冒险\n"
+     u8"跟不上\u200B的\u200B地点：\u200B你\u200B这边\u200B的\u200B冒险\n"
      u8"已经\u200B和\u200B他\u200B的\u200B不\u200B一样\u200B了。\u200B你\u200B已\u200B回家；\u200B你\u200B的\n"
      u8"猫\u200B留\u200B在\u200B他\u200B的\u200B队伍\u200B里，\u200B由\u200B游戏\u200BAI\n"
      u8"操控。\n"
@@ -1409,8 +1405,8 @@ const TrPair kTable_zh_cn[] = {
      u8"ou finis celle-ci en solo.",
      u8"你\u200B的\u200B存档\u200B正\u200B处于\u200B冒险\u200B中。\n"
      u8"多人游戏\u200B时，\u200B冒险\u200B要\u200B和\u200B房主\u200B一起\u200B进行：\n"
-     u8"回到\u200B菜\u200B单\u200B选择\u200B另\u200B一\u200B个\u200B存档，\n"
-     u8"或者\u200B单\u200B人\u200B玩\u200B完\u200B这\u200B一\u200B个。"},
+     u8"回到\u200B菜单\u200B选择\u200B另\u200B一个\u200B存档，\n"
+     u8"或者\u200B单人\u200B把\u200B这个\u200B存档\u200B玩完。"},
     {u8"Départ en aventure\n"
      u8"\n"
      u8"Ton jeu charge l'aventure de %s.",
@@ -1438,9 +1434,9 @@ const TrPair kTable_zh_cn[] = {
     {u8"Les PNJ suivent la partie de %s :\n"
      u8"envoyer tes chats dans le tuyau n'est\n"
      u8"pas possible avec cette version du jeu.",
-     u8"NPC\u200B跟\u200B随\u200B%s\u200B的\u200B游戏：\n"
+     u8"NPC\u200B以\u200B%s\u200B的\u200B游戏\u200B为准：\n"
      u8"这个\u200B版本\u200B的\u200B游戏\u200B无法\n"
-     u8"把\u200B你\u200B的\u200B猫\u200B送\u200B进\u200B管道。"},
+     u8"把\u200B你\u200B的\u200B猫\u200B送进\u200B管道。"},
     {u8"\n"
      u8"\n"
      u8"C'est une défaite pour toute l'équipe :\n"
@@ -1456,7 +1452,7 @@ const TrPair kTable_zh_cn[] = {
      u8"puis clique à nouveau sur « Rejoindre la partie ».",
      u8"加入\u200B%s\n"
      u8"\n"
-     u8"你\u200B已经\u200B在\u200B一\u200B个\u200B多\u200B人\u200B房间\u200B里\u200B了：\n"
+     u8"你\u200B已经\u200B在\u200B一\u200B个\u200B多人房间\u200B里\u200B了：\n"
      u8"先\u200B退出\u200B房间\u200B（“多人游戏”，\u200B然后\u200B“退出”），\n"
      u8"再\u200B点\u200B一次\u200B“加入游戏”。"},
     {u8"Rejoindre %s\n"
@@ -1469,11 +1465,11 @@ const TrPair kTable_zh_cn[] = {
      u8"au menu principal.",
      u8"加入\u200B%s\n"
      u8"\n"
-     u8"你\u200B的\u200B游戏\u200B将\u200B回到\u200B主菜单\u200B（你\u200B的\u200B进\u200B度\n"
+     u8"你\u200B的\u200B游戏\u200B将\u200B回到\u200B主菜单\u200B（你\u200B的\u200B进度\n"
      u8"会\u200B保存，\u200B和\u200B“保存然后退到主菜单”\u200B一样），\n"
      u8"然后\u200B加入\u200B%s\u200B的\u200B房间。\n"
      u8"\n"
-     u8"以后\u200B再\u200B说：\u200B等\u200B你\u200B回到\u200B主菜单\u200B时\n"
+     u8"以后\u200B再说：\u200B等\u200B你\u200B回到\u200B主菜单\u200B时\n"
      u8"再\u200B加入。"},
     {u8"Y aller", u8"前往"},
     {u8"Rejoindre %s\n"
@@ -1494,7 +1490,7 @@ const TrPair kTable_zh_cn[] = {
      u8"加入\u200B%s\n"
      u8"\n"
      u8"目前\u200B无法\u200B通过\u200BSteam\u200B连接。\n"
-     u8"稍\u200B后\u200B再\u200B试，\u200B或者\u200B通过\u200B地址\u200B加入\n"
+     u8"稍后\u200B再\u200B试，\u200B或者\u200B通过\u200B地址\u200B加入\n"
      u8"（“多人游戏”，\u200B然后\u200B“加入”）。"},
     {u8"%s a annulé le départ.", u8"%s\u200B取消\u200B了\u200B出发。"},
     {u8"réseau local", u8"局域网"},
@@ -1506,7 +1502,7 @@ const TrPair kTable_zh_cn[] = {
      u8"chez toi à la fin de l'aventure.",
      u8"出发\u200B冒险\n"
      u8"\n"
-     u8"你\u200B的\u200B猫\u200B已经\u200B跟\u200B着\u200B%s\u200B的\u200B队伍\u200B出发\u200B了：\n"
+     u8"你\u200B的\u200B猫\u200B已经\u200B跟着\u200B%s\u200B的\u200B队伍\u200B出发\u200B了：\n"
      u8"你\u200B不\u200B在\u200B的\u200B时候，\u200B战斗\u200B中\u200B由\u200B游戏\u200BAI\u200B操控\n"
      u8"它们，\u200B%s\u200B替\u200B它们\u200B做\u200B选择；\u200B冒险\u200B结束\u200B后\n"
      u8"它们\u200B会\u200B回到\u200B你\u200B家。"},
@@ -1514,11 +1510,11 @@ const TrPair kTable_zh_cn[] = {
     {u8"%s défend sa maison : un combat qu'il joue\n"
      u8"seul, avec ses chats. Il revient ensuite.",
      u8"%s\u200B正在\u200B守家：\u200B这\u200B场\u200B战斗\u200B他\u200B要\n"
-     u8"独\u200B自\u200B用\u200B自己\u200B的\u200B猫\u200B来\u200B打。\u200B打完\u200B就\u200B回来。"},
+     u8"独自\u200B用\u200B自己\u200B的\u200B猫\u200B来\u200B打。\u200B打完\u200B就\u200B回来。"},
     {u8"%s défendent leur maison : chacun joue\n"
      u8"son combat seul, avec ses chats. Ils reviennent ensuite.",
      u8"%s\u200B正在\u200B守家：\u200B每个\u200B人\u200B都\u200B要\n"
-     u8"独\u200B自\u200B用\u200B自己\u200B的\u200B猫\u200B打\u200B各自\u200B的\u200B战斗。\u200B打完\u200B就\u200B回来。"},
+     u8"独自\u200B用\u200B自己\u200B的\u200B猫\u200B打\u200B各自\u200B的\u200B战斗。\u200B打完\u200B就\u200B回来。"},
     {u8"%s a fini de défendre sa maison.", u8"%s\u200B守家\u200B结束\u200B了。"},
     {u8"%s a fini de défendre sa maison.\n"
      u8"%s défend la sienne encore.",
@@ -1535,7 +1531,7 @@ const TrPair kTable_zh_cn[] = {
      u8"son aventure une fois qu'il sera sur la carte.",
      u8"出发\u200B冒险\n"
      u8"\n"
-     u8"你\u200B在\u200B投\u200B票\u200B后\u200B取消\u200B了：\u200B%s\u200B将\n"
+     u8"你\u200B在\u200B投票\u200B后\u200B取消\u200B了：\u200B%s\u200B将\n"
      u8"不\u200B带\u200B你\u200B和\u200B你\u200B的\u200B猫\u200B出发。\u200B等\u200B他\u200B到\u200B了\u200B地图\u200B上，\n"
      u8"你\u200B可以\u200B加入\u200B他\u200B的\u200B冒险。"},
     {u8"Départ en aventure\n"
@@ -1548,8 +1544,8 @@ const TrPair kTable_zh_cn[] = {
      u8"%s\u200B不\u200B去\u200B冒险\u200B了。"},
     {u8"Le partage du butin n'est pas fini :\n"
      u8"attends la fin du défilé des objets.",
-     u8"战利品\u200B还\u200B没\u200B分\u200B配\u200B完：\n"
-     u8"等\u200B物品\u200B逐\u200B个\u200B展\u200B示\u200B完\u200B毕。"},
+     u8"战利品\u200B还\u200B没\u200B分配\u200B完：\n"
+     u8"等\u200B物品\u200B逐个\u200B展示\u200B完毕。"},
     {u8"Tu pars rejoindre l'aventure de %s :\n"
      u8"tu défendras ta maison à ton retour.",
      u8"你\u200B要\u200B去\u200B加入\u200B%s\u200B的\u200B冒险：\n"
@@ -1571,15 +1567,15 @@ const TrPair kTable_zh_cn[] = {
      u8"[c:red]Impossible d'ouvrir le port %u.[/c]\n"
      u8"Un autre programme l'utilise peut-être.\n"
      u8"Arrête le salon, puis réessaie.",
-     u8"多\u200B人\u200B房间\n"
+     u8"多人房间\n"
      u8"\n"
      u8"[c:red]无法\u200B打开\u200B端口\u200B%u。[/c]\n"
-     u8"可能\u200B有\u200B其他\u200B程\u200B序\u200B正在\u200B使用\u200B它。\n"
-     u8"关\u200B闭\u200B房间，\u200B然后\u200B重试。"},
+     u8"可能\u200B有\u200B其他\u200B程序\u200B正在\u200B使用\u200B它。\n"
+     u8"关闭\u200B房间，\u200B然后\u200B重试。"},
     {u8"Salon multijoueur\n"
      u8"\n"
      u8"Ouverture du salon...",
-     u8"多\u200B人\u200B房间\n"
+     u8"多人房间\n"
      u8"\n"
      u8"正在\u200B创建房间……"},
     {u8"%s (hôte)", u8"%s（房主）"},
@@ -1587,7 +1583,7 @@ const TrPair kTable_zh_cn[] = {
     {u8"Tes amis Steam te rejoignent en un clic : dans leur\n"
      u8"liste d'amis Steam, « Rejoindre la partie » sur ton nom.\n"
      u8"\n",
-     u8"Steam\u200B好友\u200B一\u200B键\u200B就\u200B能\u200B加入：\u200B在\u200B他们\u200B的\n"
+     u8"Steam\u200B好友\u200B一键\u200B就\u200B能\u200B加入：\u200B在\u200B他们\u200B的\n"
      u8"Steam\u200B好友\u200B列表\u200B里，\u200B对\u200B你\u200B的\u200B名字\u200B选\u200B“加入游戏”。\n"
      u8"\n"},
     {u8"Ou par adresse :\n"
@@ -1603,7 +1599,7 @@ const TrPair kTable_zh_cn[] = {
      u8"%s   （%s，\u200B端口\u200B%u）\n"
      u8"%s"},
     {u8"Elle est déjà copiée : colle-la-lui avec Ctrl+V.\n",
-     u8"地址\u200B已\u200B复制：\u200B用\u200BCtrl+V\u200B粘\u200B贴\u200B给\u200B他。\n"},
+     u8"地址\u200B已\u200B复制：\u200B用\u200BCtrl+V\u200B粘贴\u200B给\u200B他。\n"},
     {u8"Adresse introuvable sur ce PC (port %u).\n",
      u8"在\u200B这\u200B台\u200B电脑\u200B上\u200B找不到\u200B地址\u200B（端口\u200B%u）。\n"},
     {u8"Salon multijoueur\n"
@@ -1612,12 +1608,12 @@ const TrPair kTable_zh_cn[] = {
      u8"Joueurs (%d/4) :\n"
      u8"%s\n"
      u8"Quand tout le monde est là, choisis ta sauvegarde.",
-     u8"多\u200B人\u200B房间\n"
+     u8"多人房间\n"
      u8"\n"
      u8"%s\n"
      u8"玩家\u200B（%d/4）：\n"
      u8"%s\n"
-     u8"所有人\u200B到\u200B齐\u200B后，\u200B选择\u200B你\u200B的\u200B存档。"},
+     u8"所有人\u200B到齐\u200B后，\u200B选择\u200B你\u200B的\u200B存档。"},
     {u8"Rejoindre une partie\n"
      u8"\n"
      u8"Adresse de l'hôte :\n"
@@ -1630,8 +1626,8 @@ const TrPair kTable_zh_cn[] = {
      u8"房主\u200B地址：\n"
      u8"%s_\n"
      u8"\n"
-     u8"输\u200B入\u200B朋友\u200B给\u200B你\u200B的\u200B地址，\n"
-     u8"或\u200B用\u200BCtrl+V\u200B粘\u200B贴。\u200B按\u200BEnter\u200B确认。\u200B%s"},
+     u8"输入\u200B朋友\u200B给\u200B你\u200B的\u200B地址，\n"
+     u8"或\u200B用\u200BCtrl+V\u200B粘贴。\u200B按\u200BEnter\u200B确认。\u200B%s"},
     {u8"\n"
      u8"\n"
      u8"Par Steam, c'est plus simple : dans ta liste\n"
@@ -1648,9 +1644,9 @@ const TrPair kTable_zh_cn[] = {
      u8"ou, avec un autre port : 26.123.45.67:27600",
      u8"加入\u200B游戏\n"
      u8"\n"
-     u8"[c:red]地址\u200B无\u200B效：\u200B%s[/c]\n"
+     u8"[c:red]地址\u200B无效：\u200B%s[/c]\n"
      u8"\n"
-     u8"例\u200B如：\u200B26.123.45.67\n"
+     u8"例如：\u200B26.123.45.67\n"
      u8"或\u200B使用\u200B其他\u200B端口：\u200B26.123.45.67:27600"},
     {u8"(vide)", u8"（空）"},
     {u8"Vérifiez que vous avez la même version du jeu et du mod.", u8"请\u200B确认\u200B你们\u200B的\u200B游戏\u200B和\u200B模组\u200B版本\u200B相同。"},
@@ -1658,19 +1654,19 @@ const TrPair kTable_zh_cn[] = {
     {u8"Vous n'avez pas la même version du mod :\n"
      u8"prenez tous les deux la dernière.",
      u8"你们\u200B的\u200B模组\u200B版本\u200B不同：\n"
-     u8"双方\u200B都\u200B更\u200B新\u200B到\u200B最新\u200B版。"},
+     u8"双方\u200B都\u200B更新\u200B到\u200B最新版。"},
     {u8"Vous n'avez pas la même version du jeu :\n"
      u8"mettez Mewgenics à jour tous les deux (Steam).",
      u8"你们\u200B的\u200B游戏\u200B版本\u200B不同：\n"
-     u8"双方\u200B都\u200B在\u200BSteam\u200B里\u200B更\u200B新\u200BMewgenics。"},
+     u8"双方\u200B都\u200B在\u200BSteam\u200B里\u200B更新\u200BMewgenics。"},
     {u8"Les fichiers du jeu ne sont pas les mêmes :\n"
      u8"vérifiez-les dans Steam (Propriétés, Fichiers installés).",
-     u8"游戏\u200B文件\u200B不\u200B一\u200B致：\n"
-     u8"在\u200BSteam\u200B里\u200B验\u200B证\u200B文件\u200B完\u200B整\u200B性\u200B（属性 > 已\u200B安\u200B装\u200B文件）。"},
+     u8"游戏\u200B文件\u200B不\u200B一致：\n"
+     u8"在\u200BSteam\u200B里\u200B验证\u200B文件\u200B完整性\u200B（属性 > 已安装文件）。"},
     {u8"Le réglage net.control de mgmp.json donne le même chat\n"
      u8"aux deux joueurs : remettez-le sur \"auto\".",
      u8"mgmp.json\u200B里\u200B的\u200Bnet.control\u200B设置\u200B让\u200B两\u200B名\u200B玩家\n"
-     u8"控制\u200B同\u200B一\u200B只猫：\u200B把\u200B它\u200B改\u200B回\u200B\"auto\"。"},
+     u8"控制\u200B同一\u200B只猫：\u200B把\u200B它\u200B改回\u200B\"auto\"。"},
     {u8"Salon multijoueur\n"
      u8"\n"
      u8"[c:red]La connexion a été refusée.[/c]\n"
@@ -1686,7 +1682,7 @@ const TrPair kTable_zh_cn[] = {
      u8"[c:red]Impossible de rejoindre %s :[/c]\n"
      u8"%s.\n"
      u8"Quitte le salon, puis réessaie (ou par adresse).",
-     u8"多\u200B人\u200B房间\n"
+     u8"多人房间\n"
      u8"\n"
      u8"[c:red]无法\u200B加入\u200B%s：[/c]\n"
      u8"%s。\n"
@@ -1702,7 +1698,7 @@ const TrPair kTable_zh_cn[] = {
      u8"[c:red]Impossible de joindre %s.[/c]\n"
      u8"Vérifie l'adresse, et que ton ami a bien\n"
      u8"cliqué sur « Héberger ».",
-     u8"多\u200B人\u200B房间\n"
+     u8"多人房间\n"
      u8"\n"
      u8"[c:red]无法\u200B连接\u200B%s。[/c]\n"
      u8"检查\u200B地址，\u200B并\u200B确认\u200B朋友\u200B已经\n"
@@ -1722,14 +1718,14 @@ const TrPair kTable_zh_cn[] = {
     {u8"Salon multijoueur\n"
      u8"\n"
      u8"Connexion à %s...%s",
-     u8"多\u200B人\u200B房间\n"
+     u8"多人房间\n"
      u8"\n"
      u8"正在\u200B连接\u200B%s……\u200B%s"},
     {u8"Salon multijoueur\n"
      u8"\n"
      u8"[c:red]La connexion avec l'hôte est coupée.[/c]\n"
      u8"Quitte le salon, puis rejoins-le à nouveau.",
-     u8"多\u200B人\u200B房间\n"
+     u8"多人房间\n"
      u8"\n"
      u8"[c:red]与\u200B房主\u200B的\u200B连接\u200B已\u200B断开。[/c]\n"
      u8"退出\u200B房间，\u200B然后\u200B重新\u200B加入。"},
@@ -1737,16 +1733,16 @@ const TrPair kTable_zh_cn[] = {
      u8"\n"
      u8"Connexion à %s par Steam...\n"
      u8"(quelques secondes)%s",
-     u8"多\u200B人\u200B房间\n"
+     u8"多人房间\n"
      u8"\n"
      u8"正在\u200B通过\u200BSteam\u200B连接\u200B%s……\n"
-     u8"（需要\u200B几\u200B秒\u200B钟）\u200B%s"},
+     u8"（需要\u200B几秒钟）\u200B%s"},
     {u8"Salon multijoueur\n"
      u8"\n"
      u8"Connecté, présentation à l'hôte...%s",
-     u8"多\u200B人\u200B房间\n"
+     u8"多人房间\n"
      u8"\n"
-     u8"已\u200B连接，\u200B正在\u200B向\u200B房主\u200B确认\u200B身\u200B份……\u200B%s"},
+     u8"已\u200B连接，\u200B正在\u200B向\u200B房主\u200B确认\u200B身份……\u200B%s"},
     {u8"%s (toi)", u8"%s（你）"},
     {u8"Salon multijoueur\n"
      u8"\n"
@@ -1757,7 +1753,7 @@ const TrPair kTable_zh_cn[] = {
      u8"En attente de la partie de %s :\n"
      u8"dès qu'il aura choisi sa sauvegarde,\n"
      u8"l'écran des sauvegardes s'ouvrira tout seul.",
-     u8"多\u200B人\u200B房间\n"
+     u8"多人房间\n"
      u8"\n"
      u8"你\u200B加入\u200B了\u200B%s\u200B的\u200B游戏！\n"
      u8"\n"
@@ -1775,7 +1771,7 @@ const TrPair kTable_zh_cn[] = {
      u8"En attente de la partie de %s :\n"
      u8"dès qu'il aura choisi sa sauvegarde,\n"
      u8"tu pourras choisir la tienne.",
-     u8"多\u200B人\u200B房间\n"
+     u8"多人房间\n"
      u8"\n"
      u8"你\u200B加入\u200B了\u200B%s\u200B的\u200B游戏！\n"
      u8"\n"
@@ -1793,14 +1789,14 @@ const TrPair kTable_zh_cn[] = {
      u8"Choisis ta sauvegarde : ta maison, tes chats.\n"
      u8"Les PNJ et l'histoire seront ceux de %s,\n"
      u8"et pour partir à l'aventure, tu rejoindras son équipe.",
-     u8"多\u200B人\u200B房间\n"
+     u8"多人房间\n"
      u8"\n"
      u8"你\u200B加入\u200B了\u200B%s\u200B的\u200B游戏！\n"
      u8"\n"
      u8"玩家\u200B（%d/4）：\n"
      u8"%s\n"
      u8"选择\u200B你\u200B的\u200B存档：\u200B你\u200B的\u200B家，\u200B你\u200B的\u200B猫。\n"
-     u8"NPC\u200B和\u200B剧情\u200B将\u200B沿\u200B用\u200B%s\u200B的，\n"
+     u8"NPC\u200B和\u200B剧情\u200B将\u200B沿用\u200B%s\u200B的，\n"
      u8"出发\u200B冒险\u200B时，\u200B你\u200B会\u200B加入\u200B他\u200B的\u200B队伍。"},
     {u8"Héberger", u8"创建房间"},
     {u8"Rejoindre", u8"加入"},
@@ -1814,15 +1810,15 @@ const TrPair kTable_zh_cn[] = {
     {u8"Haut ou Bas pour choisir, puis Entrée.", u8"按\u200B上\u200B或\u200B下\u200B选择，\u200B然后\u200B按\u200BEnter。"},
     {u8"Pièces à donner : %lld_", u8"要\u200B赠送\u200B的\u200B钱：\u200B%lld_"},
     {u8"Nourriture à donner : %lld_", u8"要\u200B赠送\u200B的\u200B食物：\u200B%lld_"},
-    {u8"Tape un nombre (T : tout), puis Entrée.", u8"输\u200B入\u200B数字\u200B（T：\u200B全部），\u200B然后\u200B按\u200BEnter。"},
+    {u8"Tape un nombre (T : tout), puis Entrée.", u8"输入\u200B数字\u200B（T：\u200B全部），\u200B然后\u200B按\u200BEnter。"},
     {u8"Échanger avec %s : les objets de ton rangement", u8"与\u200B%s\u200B交易：\u200B你\u200B仓库\u200B里\u200B的\u200B物品"},
     {u8"16 au plus par don : %u choisis.", u8"每\u200B次\u200B最多\u200B赠送\u200B16件：\u200B已\u200B选\u200B%u件。"},
     {u8"16 au plus par don : %u choisi.", u8"每\u200B次\u200B最多\u200B赠送\u200B16件：\u200B已\u200B选\u200B%u件。"},
     {u8"Lecture du rangement...", u8"正在\u200B读取\u200B仓库……"},
     {u8"Haut/Bas : choisir, Espace : cocher, Gauche/Droite : combien.\n"
      u8"Des lettres pour chercher, puis Entrée.",
-     u8"上\u200B/\u200B下：\u200B选择，\u200B空格：\u200B勾\u200B选，\u200B左\u200B/\u200B右：\u200B数量。\n"
-     u8"输\u200B入\u200B字母\u200B搜\u200B索，\u200B然后\u200B按\u200BEnter。"},
+     u8"上/下：\u200B选择，\u200B空格：\u200B勾选，\u200B左/右：\u200B数量。\n"
+     u8"输入\u200B字母\u200B搜索，\u200B然后\u200B按\u200BEnter。"},
     {u8"Tu n'as rien choisi à donner.", u8"你\u200B没有\u200B选择\u200B要\u200B赠送\u200B的\u200B东西。"},
     {u8"Tu n'as rien à donner pour l'instant.", u8"你\u200B暂时\u200B没有\u200B可\u200B赠送\u200B的\u200B东西。"},
     {u8"Donner %s de ta bourse\n"
@@ -1834,7 +1830,7 @@ const TrPair kTable_zh_cn[] = {
      u8"把%s\n"
      u8"送给%s？"},
     {u8"Envoi du don...", u8"正在赠送……"},
-    {u8"Personne ne peut recevoir maintenant.", u8"现在\u200B没\u200B人\u200B能\u200B接\u200B收。"},
+    {u8"Personne ne peut recevoir maintenant.", u8"现在\u200B没\u200B人\u200B能\u200B接收。"},
     {u8"Personne d'autre n'est dans la partie.", u8"游戏\u200B里\u200B没有\u200B其他\u200B人。"},
     {u8"Valider", u8"确定"},
     {u8"Donner", u8"赠送"},
@@ -1843,7 +1839,7 @@ const TrPair kTable_zh_cn[] = {
     {u8"Pas d'échange possible ici.", u8"这里\u200B无法\u200B交易。"},
     {u8"La fenêtre s'est fermée : l'hôte est entré dans une case.\n"
      u8"Ce que tu avais choisi est gardé (E pour reprendre).",
-     u8"窗口\u200B已\u200B关\u200B闭：\u200B房主\u200B进入\u200B了\u200B一\u200B个\u200B地点。\n"
+     u8"窗口\u200B已\u200B关闭：\u200B房主\u200B进入\u200B了\u200B一\u200B个\u200B地点。\n"
      u8"你\u200B的\u200B选择\u200B已\u200B保留\u200B（按\u200BE\u200B继续）。"},
     {u8"Échanger en aventure\n"
      u8"\n"
