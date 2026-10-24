@@ -53,7 +53,7 @@ const TrPair kTable_ja[] = {
     {u8"steam_appid.txt n'a pas pu être écrit à côté du jeu : copie-le à la main (LISEZ-MOI, étape 2).",
      u8"ゲームの\u200Bフォルダーに\u200Bsteam_appid.txtを\u200B書き込めませんでした。\u200B手動で\u200Bコピーしてください（LISEZ-MOIの\u200B手順2）。"},
     {u8"Windows n'a pas eu ton accord : steam_appid.txt n'est pas copié. Tu peux réessayer, ou le copier à la main (LISEZ-MOI, étape 2).",
-     u8"Windowsで\u200B許可されなかったため、\u200Bsteam_appid.txtは\u200Bコピーされていません。\u200Bもう一度\u200B試すか、\u200B手動で\u200Bコピーしてください（LISEZ-MOIの\u200B手順2）。"},
+     u8"Windowsの\u200B確認で\u200B許可しなかったため、\u200Bsteam_appid.txtは\u200Bコピーされていません。\u200Bもう一度\u200B試すか、\u200B手動で\u200Bコピーしてください（LISEZ-MOIの\u200B手順2）。"},
     {u8"Mewgenics Multi n'a pas pu se relancer en administrateur : copie steam_appid.txt à la main (LISEZ-MOI, étape 2).",
      u8"Mewgenics\u00A0Multiを\u200B管理者として\u200B再起動できませんでした。\u200Bsteam_appid.txtを\u200B手動で\u200Bコピーしてください（LISEZ-MOIの\u200B手順2）。"},
     {u8"La copie en administrateur n'a pas marché : copie steam_appid.txt à la main (LISEZ-MOI, étape 2).",
@@ -236,7 +236,7 @@ const TrPair kTable_ja[] = {
      u8"\n",
      u8"冒険に出発\n"
      u8"\n"
-     u8"チームが\u200B一緒に\u200B出発するため、\u200Bあなたの\u200Bゲームを\u200B読み込んでいます：\n"
+     u8"チームが、\u200B一緒に\u200B出発するために\u200Bあなたの\u200Bゲームを\u200B読み込んでいます：\n"
      u8"\n"},
     {u8"Choix des objets\n"
      u8"\n"
@@ -336,7 +336,7 @@ const TrPair kTable_ja[] = {
     {u8"Un objet choisi ne peut pas se donner.", u8"選んだ\u200Bアイテムの\u200B1つは\u200B渡せません。"},
     {u8"Le don n'a pas pu partir (connexion).", u8"プレゼントを\u200B送れませんでした（接続）。"},
     {u8"Don envoyé à %s (%s) : en attente de sa réponse…", u8"%sに\u200Bプレゼントを\u200B送りました（%s）。\u200B返事を\u200B待っています…"},
-    {u8"Don demandé à l'hôte : en attente de sa réponse…", u8"ホストに\u200Bプレゼントを\u200B依頼しました。\u200B返事を\u200B待っています…"},
+    {u8"Don demandé à l'hôte : en attente de sa réponse…", u8"プレゼントの\u200B送信を\u200Bホストに\u200B依頼しました。\u200B返事を\u200B待っています…"},
     {u8"Pas de don : %s.", u8"渡せません：%s。"},
     {u8"%s a bien reçu ton don : tes objets quitteront ton rangement dès que l'écran des objets sera fermé.",
      u8"%sが\u200Bプレゼントを\u200B受け取りました。\u200Bアイテムは、\u200Bアイテム画面を\u200B閉じると\u200B倉庫から\u200Bなくなります。"},
@@ -479,7 +479,7 @@ const TrPair kTable_ja[] = {
      u8"%sへの報酬\n"
      u8"\n"
      u8"%sが、\u200B%sの\u200B贈った\u200Bネコに\n"
-     u8"報酬を\u200Bくれました。\u200B%sは\u200Bその人に\u200B送ります。\n"
+     u8"報酬を\u200Bくれました。\u200B%sは\u200Bその人に\u200B送られます。\n"
      u8"アンロックは\u200B全員の\u200Bものです。"},
     {u8"Récompense pour tout le monde\n"
      u8"\n"
@@ -852,7 +852,7 @@ const TrPair kTable_ja[] = {
      u8"混成チーム\n"
      u8"\n"
      u8"%sが\u200Bチームに\u200B加われませんでした。\n"
-     u8"ネコを\u200B操作せずに\u200B冒険に\u200B同行します。"},
+     u8"あなたは\u200Bネコを\u200B操作せずに\u200B冒険に\u200B同行します。"},
     {u8"Équipe mixte\n"
      u8"\n"
      u8"%s n'a pas pu rejoindre l'équipe :\n"
@@ -860,7 +860,7 @@ const TrPair kTable_ja[] = {
      u8"混成チーム\n"
      u8"\n"
      u8"%sが\u200Bチームに\u200B加われませんでした。\n"
-     u8"ネコを\u200B操作せずに\u200B冒険に\u200B同行します。"},
+     u8"あなたは\u200Bネコを\u200B操作せずに\u200B冒険に\u200B同行します。"},
     {u8"Équipe mixte\n"
      u8"\n"
      u8"%s n'ont pas pu partir et restent à la maison.",
@@ -1228,7 +1228,7 @@ const TrPair kTable_ja[] = {
      u8"\n"
      u8"%sが\u200B冒険中です！\n"
      u8"あなたの\u200Bネコは\u200B参加していないので、\n"
-     u8"ネコを\u200B操作せずに\u200B冒険に\u200B同行します。"},
+     u8"あなたは\u200Bネコを\u200B操作せずに\u200B冒険に\u200B同行します。"},
     {u8"Aventure en cours\n"
      u8"\n"
      u8"%s est en aventure avec tes chats !\n"
