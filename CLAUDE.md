@@ -34,4 +34,7 @@ l'histoire, les PNJ et les aventures se vivent ensemble.
   celles de ce build.
 - Tout changement de ce que calcule un pair est un changement de protocole :
   incrémenter la version dans `src/net/mgmp_proto.h`.
-- Les textes affichés aux joueurs sont en français.
+- Les textes affichés aux joueurs s'écrivent en français dans le code, passés par
+  `tr()` ; ils sont traduits dans les 9 autres langues du jeu (`src/i18n/`). Un texte
+  ajouté ou changé se traduit dans chaque table : règles et outils dans
+  `docs/TRADUCTION.md` (`tests/test_i18n.cpp` les vérifie).

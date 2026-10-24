@@ -53,10 +53,11 @@ jeu à plusieurs, copie du document de conception en ligne) et `docs/NOTES_MGMP.
 |---|---|
 | Le code | ce dépôt : `src/`, `loader/`, `tests/`, `tools/` |
 | Les règles du jeu à plusieurs | document en ligne https://claude.ai/code/artifact/5e9195c8-3a1e-446a-a5a6-a43fea7459f7 ; copie du 22 octobre : `docs/CONCEPTION.md`. Dans « Plan de développement », les builds 1–18 sont dans les étapes numérotées, puis un paragraphe par build ou groupe de builds, les décisions de Hizu datées dans « Questions ouvertes » |
-| Le binaire du jeu | `docs/NOTES_MGMP.md` (écrit par l'auteur de mgmp ; tenues à jour depuis la build 40 : sections « Protocol 59 » à « Protocol 67 », « Steam transport », et le paragraphe « protocol 58 » de « Reconnect and mid-fight join » ; avant, les trouvailles sur le binaire sont dans les messages de commit et les commentaires du code) |
-| L'historique du protocole | le commentaire de `kProtoVersion`, `src/net/mgmp_proto.h` ligne 54 : une phrase par version, de 67 (en tête) à 28 (avec deux entrées « 48 »), puis l'historique de mgmp, 2 à 27, en anglais. **Une seule ligne de 24 Ko** : la lire par morceaux (`grep -n -a … \| cut -c1-200`) |
+| Le binaire du jeu | `docs/NOTES_MGMP.md` (écrit par l'auteur de mgmp ; tenues à jour depuis la build 40 : sections « Protocol 59 » à « Protocol 68 », « Steam transport », et le paragraphe « protocol 58 » de « Reconnect and mid-fight join » ; avant, les trouvailles sur le binaire sont dans les messages de commit et les commentaires du code) |
+| L'historique du protocole | le commentaire de `kProtoVersion`, `src/net/mgmp_proto.h` ligne 54 : une phrase par version, de 68 (en tête) à 28 (avec deux entrées « 48 »), puis l'historique de mgmp, 2 à 27, en anglais. **Une seule ligne de 24 Ko** : la lire par morceaux (`grep -n -a … \| cut -c1-200`) |
 | Le pourquoi de chaque changement | les messages de commit (en français depuis le 11 octobre : la règle, le cas, le protocole, les tests) |
-| Les builds | releases `build-1` à `build-53` du dépôt |
+| Les builds | releases `build-1` à `build-55` du dépôt |
+| Les traductions | `src/i18n/` (une table par langue), règles et outils : `docs/TRADUCTION.md` (section 13) |
 | Le graphe du projet | `graphify-out/` (ignoré par git, refait par `/graphify` dans Claude Code) : `graph.html`, `GRAPH_REPORT.md`, `graph.json` |
 | Le zip de l'ami | modèle dans `paquet/` ; `tools/paquet.ps1` (Windows) ou `tools/linux/paquet.sh` le refont |
 | Le mod chez Hizu | `C:\Users\Hizumi\Desktop\mgmp` : `mgmp.dll`, `mgmp_loader.exe`, `Mewgenics Multi.exe` (le lanceur, depuis la build 55), `mgmp.json`, `Lancer Mewgenics coop.bat` (l'ancien lanceur, gardé), les journaux, `mgmp-pour-ton-ami.zip` ; `original-mgmp-v1\` (les binaires de mgmp v1, gardés à part) et `outils\` (des scripts des débuts, qui listent les fichiers du jeu) |
@@ -347,6 +348,7 @@ session) ; une case vide veut dire : pas de retour.
 | 53 | 22 | 67 | Relecture complète (section 11) : 49 défauts corrigés, intro du jeu passée chez l'invité, « Échanger » en fenêtres du jeu, .bat qui détecte Steam fermé | compilée sur le PC de Hizu, installée et jouée le 22 au soir : tout marche sauf l'intro |
 | 54 | 23 | 67 | L'intro passée depuis `SwfCutscene::update` (nouveau crochet `T_SwfCutUpdate`, diagnostic au journal) ; plus de fausse fenêtre « Ta save est en pleine aventure » au chargement de la maison | jouée le 24 vers 0 h 20 (`mgmp_trace_20261024-002123` / `-002143`) : intro passée aux deux retours au menu (2,6 s au lieu de 4,3 à 5,7), aucune désynchronisation |
 | 55 | 24 | 67 | Le lanceur « Mewgenics Multi.exe » aux couleurs du jeu (section 12), à la place du .bat | |
+| 56 | 24 | 68 | Le mod et le lanceur dans les dix langues du jeu (section 13) | compilée et installée le 24 sur le PC de Hizu, pas encore jouée |
 
 ## 7. Le dernier bug corrigé : le gel du 18 octobre (builds 50–52)
 
@@ -414,6 +416,12 @@ d'une aventure, victoire ou défaite (9), un invité qui équipe ses chats de so
 rangement au départ (17), les objets en aventure et reconnus d'un joueur à l'autre
 (20, 22, 24–25), les builds 19 et 40, la nuit votée à distance, et une aventure
 complète à deux.
+
+Ensuite la **build 56** (section 13) : un jeu réglé dans une autre langue que le
+français (journal « langue du jeu : xx » au chargement de la DLL et après un
+changement), les fenêtres du mod dans cette langue — surtout la hauteur des plus
+longues avec de vrais pseudos, et les polices du jeu en russe, coréen, japonais et
+chinois —, et le lanceur qui suit le choix « Langue » de ses Réglages.
 
 ### Questions et propositions sans réponse
 
@@ -717,3 +725,73 @@ les numéros de caractères donnerait ce repli, sans plantage.
 illustrations et un lancement simulé avec un faux loader), relecture du code et
 du design. **Pas vérifié** : un vrai lancement du jeu par le lanceur, un écran à
 plus de 96 DPI, la perte de la carte graphique, le chemin UAC de « Réparer ».
+
+## 13. La traduction (build 56)
+
+Demandé par Hizu le 24 octobre : « traduire le mod et le launcher par toutes les
+langues qui existent dans Mewgenics ». Son choix : le LISEZ-MOI du zip reste en
+français.
+
+**Ce qui change pour le joueur.** Les fenêtres du mod dans le jeu et le lanceur
+parlent les dix langues du jeu : `fr` (la source), `en`, `sp`, `de`, `it`, `pt-br`,
+`ru`, `ko`, `ja`, `zh-cn`. La DLL suit la langue du jeu (ligne `current_language`
+de son `settings.txt`, lue au chargement, à chaque retour au menu principal et dans
+les 2 s qui suivent un changement ; journal « langue du jeu : xx »). Le lanceur prend
+le choix « Langue » de ses Réglages (`"ui": { "lang": … }` dans `mgmp.json`), sinon
+la langue du jeu, puis celle de Windows, puis le français ; en russe, coréen,
+japonais et chinois il charge les polices du jeu pour cet alphabet
+(`swfs/international_fonts.swf`), puis celles de Windows. Restent en français : les
+journaux, le panneau F1, le LISEZ-MOI. Chacun voit sa propre langue : un texte
+envoyé à un autre joueur est composé par celui qui le lit (protocole 68 : le nom
+d'une recrue sans nom, la ligne de boutique d'une bourse).
+
+**Comment c'est fait.** Chaque texte reste écrit en français dans le code, passé par
+`tr()` (`src/i18n/mm_lang.h`) : ce texte exact est la clé ; une table par langue
+(`src/i18n/lang_<code>.cpp`), 591 textes chacune. Les règles (largeur des lignes,
+`\n`, marqueurs printf, U+200B en japonais et chinois, boutons cités, ton, glossaire
+tiré de `combined.csv`) sont dans `docs/TRADUCTION.md` ; `tests/test_i18n.cpp` les
+vérifie (avec `MM_I18N_STRICT=1`, une clé non traduite est une erreur). Les outils :
+`tools/i18n_cles.py` (toutes les clés en CSV, avec le texte officiel des boutons du
+jeu cités), `tools/i18n_table.py` (écrit une table depuis des JSON, ou l'inverse, sans
+perdre les caractères invisibles), `tools/i18n_lignes.py` (compte les lignes de chaque
+texte dans la boîte du jeu, avec les polices du jeu et sa coupure).
+
+**Comment les traductions ont été faites.** Pour chaque langue, quatre passes par
+quatre agents différents : la traduction (avec un glossaire tiré des textes du jeu) ;
+une relecture indépendante qui corrige (en 39, sp 25, de 35, it 26, pt-br 47, ru 62,
+ko 28, ja 18, zh-cn 194 corrections) ; une seconde passe (clés changées, textes qui
+prenaient plus de lignes que le français, captures du lanceur, relecture complète en
+se mettant à la place du joueur) ; une rétro-traduction vers le français pour trouver
+les contresens (2 à 6 par langue, corrigés). Les textes du jeu qui prennent plus de
+lignes qu'en français sont passés de 254 à 6, selon `tools/i18n_lignes.py` (deux
+boutons sur 2 lignes sur les 3 permises, une ligne de plus dans le salon en
+portugais, et un faux positif). Puis les captures du lanceur, dans les dix langues,
+vérifiées une à une.
+
+**Les textes français changés en route.** Le bouton de l'échange s'appelle
+« Confirmer » (« Valider » est le nom du bouton du jeu des colliers et des objets,
+que chaque langue doit citer avec son texte officiel : « Lock In! », « Fertig! »,
+« やったるニャ！ »…) ; les PNJ portent leur nom du jeu (« Dr Beanies », « Bébé Jack »,
+« Broyeur d'organe », au lieu de « Beanies », « Jack », « l'orgue de barbarie ») ;
+« Nouveau chat : %s arrive chez toi. » (le titre était au pluriel pour un seul chat) ;
+la date du dernier journal du lanceur est écrite par Windows dans l'ordre de la langue
+(un format traduit ne pouvait pas changer l'ordre jour/mois) ; le LISEZ-MOI cite
+« Sauvegarder et quitter le jeu », le vrai nom du bouton.
+
+**Limites connues.** Un nom inséré par `%s` ne prend ni article ni déclinaison
+(« Ricompensa di Dr. Beanies » en italien, « von Leichensammler » en allemand, un
+pseudo non décliné en russe) ; le Broyeur d'organe porte le nom de son événement, pas
+celui que le joueur lui donne (`{organname}`) ; en japonais, Bébé Jack s'écrit
+« ジャック » (le nom complet dépasse la largeur permise) ; « Passer » est le même mot
+pour le butin et pour sauter une étape de l'échange ; la recherche par lettres de
+l'échange ne sert guère quand les noms d'objets sont en idéogrammes ;
+`tools/i18n_cles.py` prend deux raisons courtes (« ta maison est attaquée ») pour des
+boutons. Une même règle de largeur vaut pour toutes les lignes : une ligne pleine en
+français peut encore être recoupée avec un pseudo long, dans toutes les langues.
+
+**Vérifié** : compilation, 29 tests, `test_i18n` strict à 591 / 591 sans erreur dans
+les neuf langues, `tools/i18n_lignes.py`, captures du lanceur dans les dix langues
+(écran principal, Réglages, Journaux, état en erreur sans les illustrations du jeu).
+**Pas vérifié** : en jeu — la lecture de `settings.txt` par la DLL, la mise en page
+réelle des fenêtres traduites, les polices du jeu pour nos textes en russe, coréen,
+japonais et chinois.

@@ -3160,6 +3160,42 @@ protocol-61 guard "a guest whose link dropped does not play its own cats" was
 unreachable (`h_GetChoice` went through the lockstep only while `net_active()`);
 it is now reached through `lockstep_link_lost()`.
 
+### Protocol 68 — the mod in the game's ten languages (Mewgenics Multi, build 56)
+
+Rules for translators: `docs/TRADUCTION.md`. What the binary and its data told us:
+
+- **The language.** `settings.txt` in `%APPDATA%\Glaiel Games\Mewgenics\<SteamID64>\`
+  (next to `saves`) holds a line `current_language <code>` (`prev_steam_language`
+  beside it is not the choice). Codes, as the columns of `data/text/combined.csv`:
+  `en sp fr de it pt-br ru ko ja zh-cn`. The DLL reads the most recent
+  `settings.txt` at load, on every `MainMenu::init`, and within 2 s of a change
+  (file time) — the game rewrites it when the player changes the language.
+- **Text layout.** `SwfSetText` (`0x14098E8A0`) lays text out with `0x140990480`
+  (plain) or `0x140992440` (with `[c:…]` tags); both sum glyph advances and, past
+  the field width, break at the last U+0020 or U+200B of the line (zero-width,
+  never drawn), else just before the overflowing glyph. The `WordWrap` flag of the
+  SWF field is ignored. `&nbsp;` is only replaced in the game's own strings (by
+  `0x1409610A0`, which its translation lookup calls), never in ours: write U+00A0.
+  `ConfirmationBox` (`swfs/ui.swf` character 2879): `prompt` (2877) is TikaFont
+  24 px, 536 x 234; the `yes`/`no` buttons (2748) TikaFont 28 px, 223 x 105.
+- **Fonts.** `data/font_remap.gon` gives each language a glyph lookup order for
+  TikaFont (default `[TikaFont TikaFontCyr TikaFontCN TikaFontJP KoreanAll]`,
+  `ru` puts TikaFontCyr first, `ko`/`ja`/`zh-cn` put KoreanAll / TikaFontJP /
+  TikaFontCN second), fallback NotoSans. Glyph counts in
+  `swfs/international_fonts.swf`: TikaFontCyr 336, KoreanAll 11325, TikaFontJP 3449,
+  TikaFontCN 8959. `tools/i18n_lignes.py` uses these advances and that order to
+  count the lines each translated text takes in the box.
+- **NPC names.** `NPC_NAME_*` in `combined.csv` (Dr Beanies, Bébé Jack…); the organ
+  grinder's is `{organname}`, a name the player gives him, so the mod uses the
+  event's name `EVENT_ORGANGRINDER_NAME` instead.
+
+**Wire change (protocol 68).** Nothing moves on the wire, but two texts are now
+composed by the reader in their own language: a recruit without a name travels
+with an empty name (each peer writes "Un nouveau chat" through `tr()`), and an
+`MM_PURSE kFindShop` line carries the label tag `#mm-shop:<kind>:<qty>` with an
+empty `cat_name`, named on arrival by `shop_label_text`. A peer of protocol 67
+would show the raw tag, hence the bump.
+
 ### Steam transport (Mewgenics Multi, `src/net/mgmp_steam.cpp`)
 
 **The mod's transport stays TCP; Steam is a byte pipe beside it.** The host's
