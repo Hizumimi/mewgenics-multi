@@ -14,6 +14,7 @@
 #include "mgmp_replay.h"
 #include "mgmp_session.h"
 #include "mgmp_ui.h"
+#include "mm_menu.h"     // mm_lang_watch
 
 #include <windows.h>
 #include <cstdio>
@@ -58,6 +59,8 @@ DWORD WINAPI init_thread(LPVOID) {
 
     log_init(config().log_path, tune::kConsole);
     breadcrumb("init_thread: log open");
+    // Mewgenics Multi : la langue des textes du mod, celle du jeu (settings.txt).
+    mm_lang_watch(true);
 
     wchar_t exe[MAX_PATH] = {};
     GetModuleFileNameW(nullptr, exe, MAX_PATH);

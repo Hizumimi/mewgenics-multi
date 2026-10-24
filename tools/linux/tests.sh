@@ -47,6 +47,11 @@ t() {
 }
 
 S=src/session
+# La traduction (src/i18n) : ajoutee a chaque test qui compile un module du mod,
+# qui peut passer ses textes par tr().
+I18N="-Isrc/i18n src/i18n/mm_lang.cpp src/i18n/lang_en.cpp src/i18n/lang_sp.cpp src/i18n/lang_de.cpp
+      src/i18n/lang_it.cpp src/i18n/lang_pt_br.cpp src/i18n/lang_ru.cpp src/i18n/lang_ko.cpp
+      src/i18n/lang_ja.cpp src/i18n/lang_zh_cn.cpp"
 t test_proto       $SHIM -Isrc/net -Isrc/determinism -I$S tests/test_proto.cpp
 t test_barrier     $SHIM -Isrc/net -Isrc/determinism -I$S tests/test_barrier.cpp
 t test_split       $SHIM -Isrc/net -Isrc/determinism -I$S tests/test_split.cpp
@@ -55,31 +60,32 @@ t test_orphan      $SHIM -Isrc/net -I$S tests/test_orphan.cpp
 t test_members     -I$S tests/test_members.cpp
 t test_slot        -I$S tests/test_slot.cpp
 t test_seen        -I$S tests/test_seen.cpp
-t test_recruit     -I$S tests/test_recruit.cpp $S/mm_recruit_core.cpp
+t test_recruit     -I$S tests/test_recruit.cpp $S/mm_recruit_core.cpp $I18N
 t test_ai          -Wno-comment -I$S -Isrc/determinism tests/test_ai.cpp
 t test_hashring    -Isrc/net tests/test_hashring.cpp
 t test_peerbook    -Isrc/net tests/test_peerbook.cpp
 t test_recvq       -Isrc/net tests/test_recvq.cpp
 t test_timedelay   -Isrc/determinism tests/test_timedelay.cpp
-t test_vote        -I$S -Isrc/core -Isrc/net tests/test_vote.cpp $S/mm_vote_core.cpp
-t test_purse       -I$S -Isrc/core -Isrc/net tests/test_purse.cpp $S/mm_purse_core.cpp
-t test_team_merge  -I$S -Isrc/core -Ithird_party/sqlite tests/test_team_merge.cpp $S/mm_team_merge.cpp $SQL
+t test_vote        -I$S -Isrc/core -Isrc/net tests/test_vote.cpp $S/mm_vote_core.cpp $I18N
+t test_purse       -I$S -Isrc/core -Isrc/net tests/test_purse.cpp $S/mm_purse_core.cpp $I18N
+t test_team_merge  -I$S -Isrc/core -Ithird_party/sqlite tests/test_team_merge.cpp $S/mm_team_merge.cpp $SQL $I18N
 t test_world_merge -I$S -Isrc/core -Ithird_party/sqlite tests/test_world_merge.cpp $S/mm_world_merge.cpp \
-                   $S/mm_npc_state.cpp $SQL
+                   $S/mm_npc_state.cpp $SQL $I18N
 t test_loot        -I$S -Isrc/core -Ithird_party/sqlite tests/test_loot.cpp $S/mm_loot_core.cpp \
-                   $S/mm_team_merge.cpp $SQL
+                   $S/mm_team_merge.cpp $SQL $I18N
 t test_npcgift     -I$S -Isrc/core -Ithird_party/sqlite tests/test_npcgift.cpp $S/mm_npcgift_core.cpp \
-                   $S/mm_team_merge.cpp $SQL
+                   $S/mm_team_merge.cpp $SQL $I18N
 t test_shop        -I$S -Isrc/core -Ithird_party/sqlite tests/test_shop.cpp $S/mm_shop_core.cpp \
-                   $S/mm_team_merge.cpp $SQL
+                   $S/mm_team_merge.cpp $SQL $I18N
 t test_gift        -I$S -Isrc/core -Isrc/net -Ithird_party/sqlite tests/test_gift.cpp $S/mm_gift_core.cpp \
-                   $S/mm_purse_core.cpp $S/mm_team_merge.cpp $SQL
+                   $S/mm_purse_core.cpp $S/mm_team_merge.cpp $SQL $I18N
 L=launcher
-t test_swf         -I$L -Ithird_party tests/test_swf.cpp $L/ml_swf.cpp
+t test_swf         -I$L -Ithird_party tests/test_swf.cpp $L/ml_swf.cpp $I18N
 t test_assets_live -I$L -Ithird_party tests/test_assets_live.cpp $L/ml_assets.cpp $L/ml_swf.cpp \
-                   $L/ml_gpak.cpp -lpthread
+                   $L/ml_gpak.cpp -lpthread $I18N
 t test_launcher    -I$L -Ithird_party '-DMM_LOADER_SRC="loader/mgmp_loader.cpp"' tests/test_launcher.cpp \
-                   $L/ml_config.cpp $L/ml_loader.cpp $L/ml_text.cpp
+                   $L/ml_config.cpp $L/ml_loader.cpp $L/ml_text.cpp $I18N
+t test_i18n        '-DMM_SRC_DIR="."' tests/test_i18n.cpp $I18N
 
 if [ $fail -eq 0 ]; then echo "tous les tests passent"; else echo "$fail test(s) en echec"; fi
 exit $fail

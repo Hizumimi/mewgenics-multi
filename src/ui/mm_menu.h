@@ -57,6 +57,12 @@ bool mm_menu_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
 // HELLO, affiche dans le salon des autres.
 const char* mm_local_name();
 
+// Mewgenics Multi : la langue des textes du mod (tr(), src/i18n/mm_lang.h) suit
+// celle du jeu, lue dans son settings.txt (a cote du dossier des saves). `force` :
+// relue tout de suite (chargement de la DLL, MainMenu::init) ; sinon, au plus
+// toutes les 2 s, et seulement si la date du fichier a change (debut d'image).
+void mm_lang_watch(bool force);
+
 // Un pair s'est presente (HELLO accepte) : on garde son nom pour le salon.
 void mm_on_peer_hello(uint8_t peer, const char* name_utf8);
 

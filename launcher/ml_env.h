@@ -10,6 +10,7 @@
 // l'interface rappelle check_all() quand elle veut un etat a jour.
 
 #include "ml_config.h"
+#include "mm_lang.h"
 
 #include <windows.h>
 
@@ -42,6 +43,13 @@ bool config_save(const Paths& p, const Settings& s, std::string* why);
 // Le jeu d'apres les reglages.
 std::wstring game_exe(const Settings& s);
 std::wstring game_dir(const Settings& s);   // sans \ final
+
+// La langue du lanceur (tr(), src/i18n/mm_lang.h) : `setting` ("ui"."lang" de
+// mgmp.json) s'il nomme une langue du jeu ; sinon ("auto") celle du jeu, lue dans
+// son settings.txt le plus recent ; sinon celle de Windows ; sinon le francais.
+// `from` dit laquelle a servi.
+enum class LangFrom { Setting, Game, Windows, Default };
+mm::Lang ui_lang(const std::string& setting, LangFrom* from);
 
 // --- verifications ---------------------------------------------------------
 

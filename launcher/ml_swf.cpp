@@ -339,4 +339,20 @@ bool swf_decode_font(const SwfTag& tag, Font& out, std::string& err) {
     return true;
 }
 
+bool swf_symbol_classes(const SwfTag& tag, std::vector<std::pair<uint16_t, std::string>>& out) {
+    out.clear();
+    if (tag.code != 76) return false;
+    Rd r{tag.p, tag.len};
+    const uint16_t n = r.u16();
+    for (uint32_t i = 0; i < n && !r.bad; ++i) {
+        const uint16_t id = r.u16();
+        const void* z = r.bad ? nullptr : memchr(tag.p + r.i, 0, tag.len - r.i);
+        if (!z) return false;
+        const size_t len = (const uint8_t*)z - (tag.p + r.i);
+        out.emplace_back(id, std::string((const char*)tag.p + r.i, len));
+        r.i += len + 1;
+    }
+    return !r.bad;
+}
+
 } // namespace ml

@@ -15,8 +15,14 @@
 // la fenetre s'ouvre tout de suite avec ses replis (papier creme dessine, Segoe
 // UI par DirectWrite), puis le decor du jeu apparait en fondu. Le texte est
 // dessine glyphe par glyphe en geometries Direct2D : les contours des polices du
-// jeu, ou ceux de Segoe UI pour un caractere qu'elles n'ont pas (ou sans l'art).
-// Une seule facon de dessiner le texte, avec ou sans le jeu.
+// jeu, puis ceux des polices du jeu pour l'alphabet de la langue (russe, coreen,
+// japonais, chinois : international_fonts.swf, lues seulement pour elle), puis
+// ceux de Segoe UI et des polices CJK de Windows pour un caractere qu'elles n'ont
+// pas (ou sans l'art). Une seule facon de dessiner le texte, avec ou sans le jeu.
+//
+// La langue (tr(), src/i18n/mm_lang.h) : "ui"."lang" de mgmp.json, sinon celle du
+// jeu, de Windows, le francais (ml::ui_lang) ; le choix « Langue » des Reglages
+// l'enregistre et l'applique tout de suite.
 //
 // Tout est place en points logiques (1152 x 648) ; une echelle (le DPI de
 // l'ecran) les passe en pixels. Les zones cliquables sont notees pendant le
@@ -76,7 +82,11 @@ const uint32_t kGreen = 0x4f9a3b, kRed = 0xc4402c, kOrange = 0xe58b1f, kWarm = 0
 enum Face { kTitle, kText, kHand, kFaces };   // Peralta, TikaFont, EdmundMcMillen
 enum class Panel { Main, Settings, Logs, Launch };
 enum Hot { kNone, kMin, kClose, kPlay, kRepair, kToSettings, kToLogs, kBack, kBrowse, kSteam,
-           kSave, kOpenDir, kCopyLog, kRetry, kCancel };
+           kSave, kOpenDir, kCopyLog, kRetry, kCancel, kLangPrev, kLangNext };
+
+// Le choix « Langue » des reglages, dans l'ordre : "auto" puis les langues du jeu.
+const char* const kLangChoices[] = {"auto", "fr", "en", "sp", "de", "it", "pt-br", "ru", "ko", "ja", "zh-cn"};
+constexpr int kLangChoiceCount = sizeof(kLangChoices) / sizeof(kLangChoices[0]);
 enum class Mark { Ok, Bad, Warn };
 
 struct Zone { int id; D2D1_RECT_F r; bool paper, enabled; };
@@ -146,8 +156,16 @@ private:
     void window_buttons();
 
     // art et texte
+    std::filesystem::path gpak_path() const {
+        return std::filesystem::path(ml::game_dir(settings_) + L"\\resources.gpak");
+    }
     void start_assets();
     void poll_assets();
+    void apply_lang();
+    void poll_intl();
+    void cycle_lang(int step);
+    std::string lang_label();
+    IDWriteFontFace* system_glyph(char16_t c, bool bold, UINT16* gi);
     const Shape& glyph(int face, char16_t c);
     template <class F> ComPtr<ID2D1PathGeometry> path(F&& add);
     float width(int face, float size, const std::u16string& s);
@@ -225,6 +243,16 @@ private:
     ml::Font fonts_[kFaces];
     std::unordered_map<char16_t, Shape> glyphs_[kFaces];
 
+    // La langue (tr()) et les polices du jeu de son alphabet (international_fonts.swf,
+    // lues sur un fil a part quand la langue en a besoin) : texte et titres, a la main.
+    mm::Lang     lang_ = mm::Lang::fr;
+    ml::LangFrom lang_from_ = ml::LangFrom::Default;
+    ml::Font     intl_[2];
+    std::string  intl_lang_, intl_want_;   // codes : charge (ou essaye), voulu
+    std::future<ml::IntlFonts> intl_pending_;
+    std::vector<ComPtr<IDWriteFontFace>> sys_;   // polices CJK du systeme, dans l'ordre de la langue
+    bool sys_ready_ = false;
+
     ml::Paths    paths_;
     ml::Settings settings_, edit_;
     std::vector<ml::Check> checks_;
@@ -252,6 +280,7 @@ int App::run(HINSTANCE inst) {
     no_art_ = wcsstr(GetCommandLineW(), L"--sans-art") != nullptr;
     paths_ = ml::mod_paths();
     ml::config_load(paths_, &settings_);
+    apply_lang();     // avant tout texte ; lance aussi la lecture des polices de son alphabet
     start_assets();   // tout de suite : la lecture avance pendant qu'on cree la fenetre
 
     D2D1_FACTORY_OPTIONS fo = {};
@@ -679,7 +708,92 @@ void App::start_assets() {
         art_missing_ = true;
         return;
     }
-    pending_ = ml::load_assets_async(std::filesystem::path(ml::game_dir(settings_) + L"\\resources.gpak"));
+    pending_ = ml::load_assets_async(gpak_path());
+}
+
+// La langue des reglages (ou celle du jeu, de Windows) : tr() la suit des le dessin suivant.
+void App::apply_lang() {
+    lang_ = ml::ui_lang(settings_.lang, &lang_from_);
+    mm::lang_set(lang_);
+    const std::string code = mm::lang_code(lang_);
+    if (ml::intl_fonts_needed(code)) intl_want_ = code;
+    sys_.clear();
+    sys_ready_ = false;
+    for (auto& g : glyphs_) g.clear();
+    front_dirty_ = true;
+    poll_intl();
+}
+
+void App::poll_intl() {
+    if (intl_pending_.valid()) {
+        if (intl_pending_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
+        ml::IntlFonts f;
+        try {
+            f = intl_pending_.get();
+        } catch (...) {   // std::bad_alloc : on garde les replis (polices du systeme)
+            f.lang = intl_want_;
+        }
+        intl_[0] = std::move(f.text);
+        intl_[1] = std::move(f.hand);
+        intl_lang_ = f.lang;
+        for (auto& g : glyphs_) g.clear();
+        front_dirty_ = true;
+    }
+    // Une seule lecture a la fois (le destructeur d'un std::async attend la fin) :
+    // la langue choisie entre-temps passe ensuite.
+    if (!no_art_ && !intl_want_.empty() && intl_want_ != intl_lang_)
+        intl_pending_ = ml::load_intl_fonts_async(gpak_path(), intl_want_);
+}
+
+// Le choix « Langue » : enregistre tout de suite dans mgmp.json et applique.
+void App::cycle_lang(int step) {
+    int i = 0;
+    for (int k = 0; k < kLangChoiceCount; ++k)
+        if (settings_.lang == kLangChoices[k]) i = k;
+    ml::Settings s = settings_;
+    s.lang = kLangChoices[(i + step + kLangChoiceCount) % kLangChoiceCount];
+    std::string why;
+    settings_note_ = ml::config_save(paths_, s, &why) ? std::string() : why;
+    settings_.lang = edit_.lang = s.lang;
+    apply_lang();
+    refresh_checks();
+}
+
+std::string App::lang_label() {
+    mm::Lang l;
+    if (settings_.lang != "auto" && mm::lang_from_code(settings_.lang, &l)) return mm::lang_name(l);
+    const char* f = lang_from_ == ml::LangFrom::Game      ? tr(u8"Comme le jeu (%s)")
+                    : lang_from_ == ml::LangFrom::Windows ? tr(u8"Comme Windows (%s)")
+                                                          : tr(u8"Automatique (%s)");
+    char buf[256];
+    snprintf(buf, sizeof(buf), f, mm::lang_name(lang_));
+    return buf;
+}
+
+// Un caractere qu'aucune police du jeu n'a : Segoe UI, puis les polices coreenne,
+// japonaise et chinoise de Windows (dans l'ordre de la langue : les memes
+// ideogrammes n'ont pas la meme forme en japonais et en chinois). Sans aucune :
+// le glyphe « absent » de Segoe UI.
+IDWriteFontFace* App::system_glyph(char16_t c, bool bold, UINT16* gi) {
+    IDWriteFontFace* segoe = bold ? segoe_bold_.Get() : segoe_.Get();
+    UINT32 cp = c;
+    *gi = 0;
+    if (segoe && SUCCEEDED(segoe->GetGlyphIndices(&cp, 1, gi)) && *gi) return segoe;
+    if (!sys_ready_) {
+        sys_ready_ = true;
+        const wchar_t* ko = L"Malgun Gothic";
+        const wchar_t* ja = L"Yu Gothic UI";
+        const wchar_t* zh = L"Microsoft YaHei UI";
+        const wchar_t* order[3] = {ko, ja, zh};
+        if (lang_ == mm::Lang::ja) order[0] = ja, order[1] = zh, order[2] = ko;
+        if (lang_ == mm::Lang::zh_cn) order[0] = zh, order[1] = ja, order[2] = ko;
+        for (const wchar_t* fam : order)
+            if (auto f = system_face(fam, DWRITE_FONT_WEIGHT_NORMAL)) sys_.push_back(f);
+    }
+    for (auto& f : sys_)
+        if (SUCCEEDED(f->GetGlyphIndices(&cp, 1, gi)) && *gi) return f.Get();
+    *gi = 0;
+    return segoe;
 }
 
 void App::poll_assets() {
@@ -724,7 +838,13 @@ const Shape& App::glyph(int face, char16_t c) {
     auto it = cache.find(c);
     if (it != cache.end()) return it->second;
     Shape s;
-    if (const ml::Glyph* g = fonts_[face].find(c)) {
+    // La police du jeu, puis celle de l'alphabet de la langue (international_fonts.swf).
+    const ml::Font& intl = face == kHand && !intl_[1].glyphs.empty() ? intl_[1] : intl_[0];
+    const ml::Glyph* found = fonts_[face].find(c);
+    if (!found) found = intl.find(c);
+    if (c == u'\u200B') {
+        // Coupure permise (japonais, chinois) : ni largeur ni dessin, comme dans le jeu.
+    } else if (const ml::Glyph* g = found) {
         s.adv = g->advance;
         if (!g->path.empty()) {
             s.geo = path([&](ID2D1GeometrySink* k) {
@@ -744,14 +864,12 @@ const Shape& App::glyph(int face, char16_t c) {
                 if (open) k->EndFigure(D2D1_FIGURE_END_CLOSED);
             });
         }
-    } else if (IDWriteFontFace* f = face == kText ? segoe_.Get() : segoe_bold_.Get()) {
-        // Absent de la police du jeu (ou pas d'art) : le contour de Segoe UI, en EM aussi.
-        UINT32 cp = c;
-        UINT16 gi = 0;
+    } else if (UINT16 gi = 0; IDWriteFontFace* f = system_glyph(c, face != kText, &gi)) {
+        // Absent des polices du jeu (ou pas d'art) : le contour d'une police du systeme, en EM aussi.
         DWRITE_FONT_METRICS fm;
         DWRITE_GLYPH_METRICS gm;
         f->GetMetrics(&fm);
-        if (SUCCEEDED(f->GetGlyphIndices(&cp, 1, &gi)) && SUCCEEDED(f->GetDesignGlyphMetrics(&gi, 1, &gm, FALSE))) {
+        if (SUCCEEDED(f->GetDesignGlyphMetrics(&gi, 1, &gm, FALSE))) {
             s.adv = gm.advanceWidth / (float)fm.designUnitsPerEm;
             s.geo = path([&](ID2D1GeometrySink* k) { f->GetGlyphRunOutline(1.f, &gi, nullptr, nullptr, 1, FALSE, FALSE, k); });
         }
@@ -1053,9 +1171,26 @@ void App::panel_main() {
 
 void App::panel_settings() {
     heading(u8"Réglages");
-    text(kText, 21, kLeft, 166, u8"Le jeu (Mewgenics.exe)", rgb(kInk));
-    button(kBrowse, {kRight - 150, 138, kRight, 174}, u8"Parcourir…", false);
-    const D2D1_RECT_F box = {kLeft, 184, kRight, 254};   // trois lignes de chemin
+
+    // La langue : < choix >, un clic sur le nom passe au suivant. Enregistree et
+    // appliquee tout de suite (cycle_lang), sans attendre « Enregistrer ».
+    const float lgy = 134, lx = kLeft + 170;
+    text(kText, 21, kLeft, lgy + 23, tr(u8"Langue"), rgb(kInk));
+    zone(kLangNext, {lx + 40, lgy, kRight - 40, lgy + 36});
+    button(kLangPrev, {lx, lgy, lx + 40, lgy + 36}, "<", false);
+    button(kLangNext, {kRight - 40, lgy, kRight, lgy + 36}, ">", false);
+    {
+        const std::string label = lang_label();
+        const float avail = kRight - lx - 80 - 16;
+        float size = 19;
+        while (size > 13 && width(kText, size, ml::utf8_to_u16(label)) > avail) size -= 0.5f;
+        text(kText, size, (lx + kRight) / 2, lgy + 18 + size * 0.36f, elide(kText, size, avail, label),
+             rgb(hover_ == kLangNext ? 0x9a3d1f : kInk), 1);
+    }
+
+    text(kText, 21, kLeft, 212, u8"Le jeu (Mewgenics.exe)", rgb(kInk));
+    button(kBrowse, {kRight - 150, 184, kRight, 220}, u8"Parcourir…", false);
+    const D2D1_RECT_F box = {kLeft, 228, kRight, 298};   // trois lignes de chemin
     auto g = blob(box, 8, 1.2f, 99);
     fill(g.Get(), rgb(0xfffaf0, 0.55f));
     stroke(g.Get(), rgb(kInkSoft), 2);
@@ -1068,14 +1203,14 @@ void App::panel_settings() {
 
     const bool exe_ok = is_file(ml::game_exe(edit_));
     const bool gpak_ok = exe_ok && is_file(ml::game_dir(edit_) + L"\\resources.gpak");
-    mark(gpak_ok ? Mark::Ok : Mark::Bad, kLeft, 266, 24);
-    para(kText, 15.5f, kLeft + 34, 284, kRight - kLeft - 34,
+    mark(gpak_ok ? Mark::Ok : Mark::Bad, kLeft, 308, 24);
+    para(kText, 15.5f, kLeft + 34, 326, kRight - kLeft - 34,
          gpak_ok  ? u8"Mewgenics.exe et resources.gpak sont là."
          : exe_ok ? u8"resources.gpak manque à côté : ce n'est pas le bon dossier."
                   : u8"Aucun Mewgenics.exe ici : choisis-le avec Parcourir.",
          rgb(kInkSoft), 19);
 
-    const float cy = 344;
+    const float cy = 366;
     zone(kSteam, {kLeft - 4, cy - 6, kRight, cy + 34});
     auto cb = blob({kLeft, cy, kLeft + 28, cy + 28}, 5, 1.f, 5);
     fill(cb.Get(), rgb(0xfffaf0, hover_ == kSteam ? 0.95f : 0.6f));
@@ -1086,8 +1221,8 @@ void App::panel_settings() {
          u8"Décoche si Steam pose problème : il ne reste que l'adresse, dans le menu Multijoueur du jeu.",
          rgb(kInkSoft), 18);
 
-    if (!settings_note_.empty()) para(kText, 15.5f, kLeft, 440, kRight - kLeft, settings_note_, rgb(0x9b2f1f), 19);
-    button(kSave, {kMid - 115, 470, kMid + 115, 520}, u8"Enregistrer", true);
+    if (!settings_note_.empty()) para(kText, 15.5f, kLeft, 456, kRight - kLeft, settings_note_, rgb(0x9b2f1f), 19);
+    button(kSave, {kMid - 115, 484, kMid + 115, 532}, u8"Enregistrer", true);
     link(kBack, kLeft, 562, u8"Retour", 0);
 }
 
@@ -1165,6 +1300,7 @@ void App::tick() {
     sun_angle_ = fmodf(sun_angle_ + dt * (running ? 14.f : 3.f), 360.f);   // le soleil s'emballe au lancement
 
     poll_assets();
+    poll_intl();
     if (art_ && fade_ < 1) {
         fade_ = std::min(1.f, (now - fade_start_) / 450.f);
         front_dirty_ = true;
@@ -1195,7 +1331,9 @@ void App::tick() {
 }
 
 void App::refresh_checks() {
+    const std::string lang = settings_.lang;
     ml::config_load(paths_, &settings_);
+    if (settings_.lang != lang) apply_lang();   // mgmp.json change a la main
     std::vector<ml::Check> c = ml::check_all();
     checked_at_ = GetTickCount64();
     bool same = c.size() == checks_.size();
@@ -1247,6 +1385,8 @@ void App::activate(int id) {
                               : u8"Le presse-papiers n'a pas pu être rempli : réessaie, ou ouvre le dossier.";
         break;
     case kCancel: launch_.cancel(); break;
+    case kLangPrev: cycle_lang(-1); break;
+    case kLangNext: cycle_lang(1); break;
     }
     front_dirty_ = true;
     render();
@@ -1317,6 +1457,11 @@ void App::save() {
     settings_ = edit_;
     // Le jeu a change de place et l'art manquait : on le relit au nouvel endroit.
     if (moved && art_missing_ && !no_art_ && !pending_.valid()) start_assets();
+    // Les polices de l'alphabet aussi, si elles manquaient.
+    if (moved && intl_[0].glyphs.empty() && !intl_pending_.valid()) {
+        intl_lang_.clear();
+        poll_intl();
+    }
     panel_ = Panel::Main;
     refresh_checks();
 }

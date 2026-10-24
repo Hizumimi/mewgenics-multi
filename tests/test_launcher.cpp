@@ -110,6 +110,26 @@ void settings() {
     check(!settings_write(noted, s, &out), "commentaire // : jamais reecrit");
     check(!settings_write("{ /* note */ \"game\": \"C:\\\\a.exe\" }", s, &out), "commentaire /* */ : jamais reecrit");
     check(settings_read(noted, &back) && back.game == "C:\\a.exe", "mais toujours lu");
+
+    // La langue du lanceur : "ui"."lang", "auto" s'il manque.
+    check(settings_read(kShipped, &back) && back.lang == "auto", "lang absent : auto");
+    check(settings_write(kShipped, s, &out) && out.find("\"lang\"") == std::string::npos,
+          "lang auto : rien d'ajoute");
+    Settings j = s;
+    j.lang = "ja";
+    check(settings_write(kShipped, j, &out) &&
+          out.find("\"key\": \"F1\",\n    \"lang\": \"ja\"\n  }") != std::string::npos,
+          "lang ja : ajoute a la fin de ui, les autres champs gardes");
+    check(settings_read(out, &back) && back.lang == "ja" && back.game == kDefaultGame, "lang relu tel qu'ecrit");
+    j.lang = "auto";
+    check(settings_write(out, j, &out) && settings_read(out, &back) && back.lang == "auto" &&
+          out.find("\"lang\": \"auto\"") != std::string::npos, "lang deja present : remis a auto");
+    check(settings_write("{ \"ui\": 3 }", j, &out) && out.find("\"ui\": 3") != std::string::npos,
+          "ui qui n'est pas un objet et lang auto : laisse tel quel");
+    j.lang = "ru";
+    check(settings_write("{ \"ui\": 3 }", j, &out) && settings_read(out, &back) && back.lang == "ru",
+          "ui qui n'est pas un objet : remplace pour y mettre lang");
+    check(settings_read("{ \"ui\": { \"lang\": 5 } }", &back) && back.lang == "auto", "lang du mauvais type : auto");
 }
 
 void appid() {
@@ -241,6 +261,16 @@ void text() {
     check(lines.size() == 1 && lines[0].empty(), "texte vide : une ligne vide");
     lines = wrap_lines(u"tout tient", 100, one);
     check(lines.size() == 1 && lines[0] == u"tout tient", "assez de place : une ligne");
+
+    // Japonais et chinois : U+200B marque les coupures permises (comme le jeu) ; il
+    // ne prend pas de place et disparait a la coupe.
+    auto zw = [](char16_t c) { return c == u'\u200B' ? 0.f : 1.f; };
+    lines = wrap_lines(u"冒険を\u200Bやめますか？", 6, zw);
+    check(lines.size() == 2 && lines[0] == u"冒険を" && lines[1] == u"やめますか？", "coupe a U+200B, qui disparait");
+    lines = wrap_lines(u"冒険を\u200Bやめ", 6, zw);
+    check(lines.size() == 1 && lines[0] == u"冒険を\u200Bやめ", "U+200B sans coupe : garde (sans largeur)");
+    lines = wrap_lines(u"冒険をやめますか", 3, zw);
+    check(lines.size() == 3 && lines[0] == u"冒険を" && lines[2] == u"すか", "sans U+200B : coupe ou ca deborde");
 }
 
 } // namespace

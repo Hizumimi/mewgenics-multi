@@ -71,6 +71,30 @@ int main() {
     font("texte", a.text);
     font("notes", a.hand);
 
+    // Les polices des autres alphabets (international_fonts.swf), langue par langue.
+    printf("polices internationales\n");
+    const struct { const char* lang; char16_t text, hand; } intl[] = {
+        {"ru", 0x0416, 0x0416},      // Ж
+        {"ko", 0xD55C, 0},           // 한 (pas de police a la main)
+        {"ja", 0x3042, 0x3042},      // あ
+        {"zh-cn", 0x6C49, 0x6C49},   // 汉
+    };
+    for (const auto& w : intl) {
+        const auto t1 = std::chrono::steady_clock::now();
+        IntlFonts f = load_intl_fonts_async(gpak, w.lang).get();
+        const double ms1 = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t1).count();
+        printf("  %s : \"%s\" %zu glyphes, \"%s\" %zu glyphes, %.0f ms\n", w.lang, f.text.name.c_str(),
+               f.text.glyphs.size(), f.hand.name.c_str(), f.hand.glyphs.size(), ms1);
+        for (const std::string& p : f.problems) printf("    probleme : %s\n", p.c_str());
+        const Glyph* g = f.text.find(w.text);
+        check(f.problems.empty() && g && !g->path.empty() && g->advance > 0.2f, "texte : le caractere de la langue");
+        check(w.hand ? (f.hand.find(w.hand) && !f.hand.find(w.hand)->path.empty()) : f.hand.glyphs.empty(),
+              w.hand ? "a la main : le caractere de la langue" : "a la main : aucune (comme le jeu)");
+    }
+    check(!intl_fonts_needed("fr") && !intl_fonts_needed("pt-br") && intl_fonts_needed("ja"),
+          "seuls ru, ko, ja, zh-cn en ont besoin");
+    check(load_intl_fonts(gpak, "de").text.glyphs.empty(), "allemand : rien a lire");
+
     printf("archive absente\n");
     Assets none = load_assets(gpak.parent_path() / "absent.gpak");
     check(none.problems.size() == 1 && none.house.empty() && none.title.glyphs.empty(),

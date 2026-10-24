@@ -2,6 +2,7 @@
 #include "ml_env.h"
 
 #include "mgmp_proto.h"   // kProtoVersion : la version que le launcher annonce
+#include "mm_lang_win.h"  // la langue du jeu (ui_lang)
 
 #include <shellapi.h>
 #include <shlobj.h>
@@ -150,6 +151,19 @@ bool config_save(const Paths& p, const Settings& s, std::string* why) {
 
 std::wstring game_exe(const Settings& s) { return utf8_to_wide(s.game); }
 std::wstring game_dir(const Settings& s) { return parent(game_exe(s)); }
+
+mm::Lang ui_lang(const std::string& setting, LangFrom* from) {
+    mm::Lang l = mm::Lang::fr;
+    *from = LangFrom::Setting;
+    if (setting != "auto" && mm::lang_from_code(setting, &l)) return l;
+    *from = LangFrom::Game;
+    const std::wstring game = mm::game_settings_newest();
+    if (!game.empty() && mm::game_settings_lang(game, &l)) return l;
+    *from = LangFrom::Windows;
+    if (mm::lang_from_windows(GetUserDefaultUILanguage(), &l)) return l;
+    *from = LangFrom::Default;
+    return mm::Lang::fr;
+}
 
 bool steam_running() {
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);

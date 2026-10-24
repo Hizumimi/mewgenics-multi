@@ -24,7 +24,7 @@ void wrap_paragraph(const std::u16string& s, float width,
         size_t cut = std::u16string::npos, resume = 0, i = start;
         for (; i < s.size(); ++i) {
             char16_t c = s[i];
-            if (c == u' ' && space_breaks(s, i)) { cut = i; resume = i + 1; }
+            if ((c == u' ' && space_breaks(s, i)) || c == u'\u200B') { cut = i; resume = i + 1; }
             w += advance(c);
             if (w > width && i > start && c != u' ') break;
             if (c == u'\\' || c == u'/') { cut = i + 1; resume = i + 1; }

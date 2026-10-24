@@ -120,4 +120,10 @@ bool swf_font_name(const SwfTag& tag, std::string& name);
 // DefineFont3 -> Font. Faux si la balise est mal formee.
 bool swf_decode_font(const SwfTag& tag, Font& out, std::string& err);
 
+// SymbolClass (balise 76) : les noms de classe des caracteres, {id, nom}. C'est
+// ainsi que le jeu nomme les polices de international_fonts.swf (« TikaFontJP »),
+// dont le nom interne est celui de la police d'origine. Faux si la balise est
+// mal formee (`out` garde alors ce qui a ete lu).
+bool swf_symbol_classes(const SwfTag& tag, std::vector<std::pair<uint16_t, std::string>>& out);
+
 } // namespace ml
