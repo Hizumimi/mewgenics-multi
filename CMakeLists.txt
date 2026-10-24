@@ -51,6 +51,23 @@ target_compile_definitions(mm_sqlite PRIVATE
 )
 target_compile_options(mm_sqlite PRIVATE /W0)
 
+# Mewgenics Multi : la traduction (src/i18n, docs/TRADUCTION.md). tr() et une table
+# par langue, sans Windows : liee a la DLL, au lanceur et aux tests (tests/).
+add_library(mm_i18n STATIC
+    src/i18n/mm_lang.cpp
+    src/i18n/lang_en.cpp
+    src/i18n/lang_sp.cpp
+    src/i18n/lang_de.cpp
+    src/i18n/lang_it.cpp
+    src/i18n/lang_pt_br.cpp
+    src/i18n/lang_ru.cpp
+    src/i18n/lang_ko.cpp
+    src/i18n/lang_ja.cpp
+    src/i18n/lang_zh_cn.cpp
+)
+target_compile_options(mm_i18n PRIVATE /W3 /utf-8)
+target_include_directories(mm_i18n PUBLIC src/i18n)
+
 add_library(mgmp SHARED
     res/mgmp_dll.rc
     src/core/dllmain.cpp
@@ -112,6 +129,7 @@ add_library(mgmp SHARED
     src/ui/mgmp_ui.cpp
     src/ui/mm_menu.cpp
     src/ui/mm_trade_ui.cpp
+    src/i18n/mm_lang_win.cpp
     # Dear ImGui, compiled straight into mgmp.dll -- same rule as minhook and
     # stb_image: the payload runs inside the game's process and cannot pull in
     # a second DLL that would have to be shipped and found beside it.
@@ -151,7 +169,7 @@ target_include_directories(mgmp PRIVATE
     # sqlite3.h (Mewgenics Multi : le monde partage, mm_world.cpp)
     third_party/sqlite
 )
-target_link_libraries(mgmp PRIVATE minhook mm_sqlite kernel32 user32 shell32)
+target_link_libraries(mgmp PRIVATE minhook mm_sqlite mm_i18n kernel32 user32 shell32)
 
 add_executable(mgmp_loader loader/mgmp_loader.cpp res/mgmp_loader.rc)
 target_compile_definitions(mgmp_loader PRIVATE _CRT_SECURE_NO_WARNINGS)
@@ -186,6 +204,7 @@ add_executable(mgmp_launcher WIN32
     launcher/ml_loader.cpp
     launcher/ml_env.cpp
     launcher/ml_run.cpp
+    src/i18n/mm_lang_win.cpp
     res/mgmp_launcher.rc
     res/mgmp_launcher.manifest
 )
@@ -198,7 +217,7 @@ target_compile_options(mgmp_launcher PRIVATE /W3 /utf-8)
 # src/net pour mgmp_proto.h (la version de protocole affichee), third_party pour
 # json.hpp et stb_image.h (le zlib des SWF).
 target_include_directories(mgmp_launcher PRIVATE launcher src/net third_party)
-target_link_libraries(mgmp_launcher PRIVATE d2d1 dwrite d3d11 dxgi dxguid dwmapi ole32 shell32 user32)
+target_link_libraries(mgmp_launcher PRIVATE mm_i18n d2d1 dwrite d3d11 dxgi dxguid dwmapi ole32 shell32 user32)
 
 if(MGMP_BUILD_TESTS)
     enable_testing()

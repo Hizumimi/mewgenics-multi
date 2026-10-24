@@ -53,6 +53,7 @@
 #include "mgmp_steam.h"        // jouer ensemble par Steam (protocole 59)
 #include "mgmp_rtti.h"         // la cinematique d'ouverture : glaiel::SwfCutscene
 #include "mgmp_sigscan.h"      // ... et le test du jeu qu'on reproduit
+#include "mm_lang_win.h"       // la langue du jeu (settings.txt), pour tr()
 
 #include <winsock2.h>   // avant windows.h : types reseau d'iphlpapi
 #include <ws2tcpip.h>
@@ -2768,6 +2769,8 @@ namespace {
 
 void __fastcall h_MainMenuInit(void* self) {
     o_MainMenuInit(self);
+    // La langue a pu changer dans les options du jeu (elles sont dans ce menu).
+    mm_lang_watch(true);
     // Le menu principal se reconstruit : la partie d'avant (la copie de
     // l'aventure de l'hote, peut-etre) n'est plus chargee.
     savefile_left_game();
@@ -3362,8 +3365,48 @@ static void steam_menu_pump() {
     open_client_lobby();
 }
 
+void mm_lang_watch(bool force) {
+    static ULONGLONG    checked = 0;
+    static std::wstring path;
+    static uint64_t     stamp = 0;
+    static bool         said = false;
+    const ULONGLONG now = GetTickCount64();
+    if (!force && now - checked < 2000) return;
+    checked = now;
+    if (force || path.empty()) {
+        // Le settings.txt du compte dont le jeu ouvre les saves ; a defaut, le plus recent.
+        wchar_t dir[MAX_PATH] = {};
+        uint64_t s = 0;
+        path.clear();
+        if (savefile_save_dir(dir, MAX_PATH)) {
+            if (wchar_t* slash = wcsrchr(dir, L'\\')) *slash = 0;
+            path = std::wstring(dir) + L"\\settings.txt";
+        }
+        if (path.empty() || !mm::file_stamp(path, &s)) path = mm::game_settings_newest();
+    }
+    uint64_t s = 0;
+    if (path.empty() || !mm::file_stamp(path, &s)) {
+        if (!said) log_line("MULTI", "!! langue du jeu : settings.txt introuvable, textes en %s",
+                            mm::lang_code(mm::lang_current()));
+        said = true;
+        return;
+    }
+    if (!force && s == stamp) return;
+    stamp = s;
+    mm::Lang l = mm::Lang::fr;
+    if (!mm::game_settings_lang(path, &l)) {
+        log_line("MULTI", "!! langue du jeu : pas de current_language lisible dans %ls", path.c_str());
+        return;
+    }
+    if (said && l == mm::lang_current()) return;
+    said = true;
+    mm::lang_set(l);
+    log_line("MULTI", "langue du jeu : %s", mm::lang_code(l));
+}
+
 void mm_menu_pump() {
     ++g_frame;
+    mm_lang_watch(false);
     game_prompt_alive();                 // oubliee des que sa scene s'en va
     embark_frame_begin();
     embark_pump();

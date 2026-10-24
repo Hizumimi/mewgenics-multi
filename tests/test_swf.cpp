@@ -258,9 +258,31 @@ void rejects() {
     check(ok_before_end == 0, "police tronquee a chaque octet : refusee");
 }
 
+// SymbolClass : les noms des polices de international_fonts.swf (« TikaFontJP »).
+void symbols() {
+    printf("SymbolClass\n");
+    Bytes b;
+    put16(b, 2);
+    put16(b, 12);
+    for (char c : std::string("TikaFontJP")) b.push_back((uint8_t)c);
+    b.push_back(0);
+    put16(b, 15);
+    for (char c : std::string("KoreanAll")) b.push_back((uint8_t)c);
+    b.push_back(0);
+    std::vector<std::pair<uint16_t, std::string>> out;
+    check(swf_symbol_classes({76, b.data(), (uint32_t)b.size()}, out) && out.size() == 2 && out[0].first == 12 &&
+          out[0].second == "TikaFontJP" && out[1].first == 15 && out[1].second == "KoreanAll", "deux noms lus");
+    check(!swf_symbol_classes({75, b.data(), (uint32_t)b.size()}, out), "une autre balise : refusee");
+    int ok_before_end = 0;
+    for (size_t n = 0; n + 1 < b.size(); ++n)
+        if (swf_symbol_classes({76, b.data(), (uint32_t)n}, out)) ++ok_before_end;
+    check(ok_before_end == 0, "tronquee a chaque octet : refusee");
+}
+
 } // namespace
 
 int main() {
+    symbols();
     decode(make_swf(false), "FWS, offsets sur 16 bits");
     decode(make_swf(true), "FWS, offsets sur 32 bits");
 

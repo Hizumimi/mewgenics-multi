@@ -49,7 +49,7 @@ for f in "$@"; do
     [ "$b" = mgmp_sigscan ] && extra="-mavx2 -mxsave"
     # shellcheck disable=SC2086
     timeout 900 python3 -m ziglang c++ -target x86_64-windows-gnu -std=c++17 $extra -c "$src" -o "$O/$b.o" \
-        -Isrc/core -Isrc/determinism -Isrc/net -Isrc/session -Isrc/ui \
+        -Isrc/core -Isrc/determinism -Isrc/net -Isrc/session -Isrc/ui -Isrc/i18n \
         -Ithird_party -Ithird_party/imgui -Ithird_party/sqlite -Ithird_party/minhook/include \
         -DWIN32_LEAN_AND_MEAN -D_CRT_SECURE_NO_WARNINGS -DNOMINMAX -DMM_BUILD_ID=\"linux\" \
         -fms-extensions -Wall -Wno-unknown-pragmas -Wno-missing-braces > "$O/$b.log" 2>&1

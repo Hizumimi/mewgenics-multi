@@ -55,4 +55,25 @@ Assets load_assets(const std::filesystem::path& gpak);
 // (une seule fois) et cree ses bitmaps et geometries Direct2D sur son fil.
 std::future<Assets> load_assets_async(std::filesystem::path gpak);
 
+// Les polices du jeu pour l'alphabet d'une langue, dans swfs/international_fonts.swf
+// (85 Mo : lu seulement quand la langue en a besoin). Elles y sont nommees par leur
+// classe (SymbolClass), celle de data/font_remap.gon :
+//   ru     TikaFontCyr  EdmundmCyr   latin et cyrillique, 336 et 327 glyphes
+//   ko     KoreanAll    (aucune)     hangul, 11325 glyphes ; `hand` reste vide :
+//                                    le jeu ecrit aussi a la main avec celle-ci
+//   ja     TikaFontJP   EdmundmJP    kana et kanji, 3449 et 7485 glyphes
+//   zh-cn  TikaFontCN   EdmundmCN    hanzi simplifies, 8959 et 6923 glyphes
+// Les autres langues n'en ont pas besoin : intl_fonts_needed() est faux. Le texte
+// sert aussi aux titres (le jeu remplace Peralta par TikaFont hors du latin).
+// Ce qui manque ne bloque rien, comme load_assets : la police reste vide et
+// `problems` le dit (pour le journal).
+struct IntlFonts {
+    std::string lang;   // le code demande ("ja")
+    Font text, hand;
+    std::vector<std::string> problems;
+};
+bool intl_fonts_needed(const std::string& lang);
+IntlFonts load_intl_fonts(const std::filesystem::path& gpak, const std::string& lang);
+std::future<IntlFonts> load_intl_fonts_async(std::filesystem::path gpak, std::string lang);
+
 } // namespace ml

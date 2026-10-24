@@ -4,6 +4,7 @@
 #include "ml_gpak.h"
 
 #include <cstring>
+#include <unordered_map>
 
 namespace ml {
 namespace {
@@ -103,6 +104,73 @@ Assets load_assets(const std::filesystem::path& gpak_path) {
 
 std::future<Assets> load_assets_async(std::filesystem::path gpak) {
     return std::async(std::launch::async, [p = std::move(gpak)] { return load_assets(p); });
+}
+
+namespace {
+struct IntlWanted { const char* lang; const char* text; const char* hand; };   // hand nul : text
+const IntlWanted kIntl[] = {
+    {"ru",    "TikaFontCyr", "EdmundmCyr"},
+    {"ko",    "KoreanAll",   nullptr},
+    {"ja",    "TikaFontJP",  "EdmundmJP"},
+    {"zh-cn", "TikaFontCN",  "EdmundmCN"},
+};
+const IntlWanted* intl_wanted(const std::string& lang) {
+    for (const IntlWanted& w : kIntl)
+        if (lang == w.lang) return &w;
+    return nullptr;
+}
+} // namespace
+
+bool intl_fonts_needed(const std::string& lang) { return intl_wanted(lang) != nullptr; }
+
+IntlFonts load_intl_fonts(const std::filesystem::path& gpak_path, const std::string& lang) {
+    IntlFonts f;
+    f.lang = lang;
+    const IntlWanted* w = intl_wanted(lang);
+    if (!w) return f;
+    Gpak gpak;
+    if (!gpak.open(gpak_path)) {
+        f.problems.push_back(u8"resources.gpak : " + gpak.error());
+        return f;
+    }
+    Assets ignored;   // open_swf range ses problemes dans un Assets
+    Swf swf;
+    if (!open_swf(gpak, "swfs/international_fonts.swf", swf, ignored)) {
+        f.problems = ignored.problems;
+        return f;
+    }
+    // Les polices viennent avant leurs noms (SymbolClass est a la fin) : on garde
+    // chaque DefineFont3 par identifiant, puis on decode les deux voulues.
+    std::unordered_map<uint16_t, SwfTag> fonts;
+    std::unordered_map<std::string, uint16_t> ids;
+    const bool whole = swf_each_tag(swf, [&](const SwfTag& tag) {
+        uint16_t id = 0;
+        std::vector<std::pair<uint16_t, std::string>> names;
+        if (tag.code == 75 && swf_char_id(tag, id)) fonts.emplace(id, tag);
+        else if (tag.code == 76 && swf_symbol_classes(tag, names))
+            for (auto& n : names) ids.emplace(n.second, n.first);
+        return true;
+    });
+    if (!whole) f.problems.push_back(u8"international_fonts.swf : fichier tronqué");
+    const std::pair<const char*, Font*> want[] = {{w->text, &f.text}, {w->hand, &f.hand}};
+    for (const auto& [cls, dst] : want) {
+        if (!cls) continue;
+        auto id = ids.find(cls);
+        auto tag = id == ids.end() ? fonts.end() : fonts.find(id->second);
+        std::string err;
+        if (tag == fonts.end()) {
+            f.problems.push_back(std::string(u8"international_fonts.swf : la police ") + cls + u8" est introuvable");
+        } else if (!swf_decode_font(tag->second, *dst, err)) {
+            f.problems.push_back(std::string(u8"international_fonts.swf : ") + cls + " : " + err);
+            *dst = Font{};
+        }
+    }
+    return f;
+}
+
+std::future<IntlFonts> load_intl_fonts_async(std::filesystem::path gpak, std::string lang) {
+    return std::async(std::launch::async,
+                      [p = std::move(gpak), l = std::move(lang)] { return load_intl_fonts(p, l); });
 }
 
 } // namespace ml

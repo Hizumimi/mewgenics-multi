@@ -18,10 +18,11 @@ std::u16string utf8_to_u16(const std::string& s);
 std::string    u16_to_utf8(const std::u16string& s);   // l'inverse (plan de base)
 
 // Coupe `text` en lignes d'au plus `width` (unites de `advance`). On coupe a une
-// espace (qui disparait), ou apres \ et / (un chemin) ; jamais devant : ; ! ? ni
-// le guillemet fermant, ni apres l'ouvrant, comme en typographie francaise. Un
-// mot plus large que la ligne est coupe la ou il deborde. '\n' force une ligne ;
-// une ligne vide reste.
+// espace ou a U+200B (qui disparaissent ; U+200B marque les coupures permises du
+// japonais et du chinois, comme dans le jeu), ou apres \ et / (un chemin) ; jamais
+// devant : ; ! ? ni le guillemet fermant, ni apres l'ouvrant, comme en typographie
+// francaise. Un mot plus large que la ligne est coupe la ou il deborde. '\n' force
+// une ligne ; une ligne vide reste.
 std::vector<std::u16string> wrap_lines(const std::u16string& text, float width,
                                        const std::function<float(char16_t)>& advance);
 

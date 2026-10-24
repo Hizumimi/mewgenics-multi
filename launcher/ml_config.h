@@ -23,6 +23,7 @@ constexpr const char* kAppId = "686060";
 struct Settings {
     std::string game = kDefaultGame;   // chemin du jeu, en UTF-8 comme dans le JSON
     bool        steam = true;          // "net"."steam" : absent du fichier livre, donc vrai
+    std::string lang = "auto";         // "ui"."lang" : "auto" (absent) ou un code du jeu ("ja")
 };
 
 // Lit les reglages d'un mgmp.json. Un texte vide (pas de fichier) donne les
@@ -31,7 +32,8 @@ struct Settings {
 bool settings_read(const std::string& text, Settings* out);
 
 // Le texte de mgmp.json avec les reglages de `s`, tout le reste garde. "steam"
-// n'est ajoute que s'il change quelque chose (faux, ou deja present). false si
+// n'est ajoute que s'il change quelque chose (faux, ou deja present), "lang" de
+// meme (autre que "auto", ou deja present). false si
 // `text` n'est pas un objet JSON : on ne reecrit pas un fichier qu'on ne
 // comprend pas. false aussi s'il a des commentaires (que le loader tolere, et
 // settings_read aussi) : les reecrire les effacerait. Les fins de ligne CRLF

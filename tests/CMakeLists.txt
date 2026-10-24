@@ -195,6 +195,21 @@ target_compile_options(test_launcher PRIVATE /utf-8)
 target_compile_definitions(test_launcher PRIVATE MM_LOADER_SRC="${CMAKE_SOURCE_DIR}/loader/mgmp_loader.cpp")
 add_test(NAME test_launcher COMMAND test_launcher)
 
-foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_members test_battleid test_config test_world_merge test_team_merge test_vote test_purse test_loot test_recruit test_npcgift test_seen test_shop test_ai test_slot test_gift test_orphan test_swf test_assets_live test_launcher)
+# Mewgenics Multi : la traduction -- tr() (src/i18n/mm_lang.h), les tables des
+# traducteurs, et les regles de docs/TRADUCTION.md verifiees sur les cles que le test
+# trouve dans les sources (src/, launcher/). Variable d'environnement
+# MM_I18N_STRICT=1 : une traduction manquante devient une erreur.
+add_executable(test_i18n test_i18n.cpp)
+target_compile_options(test_i18n PRIVATE /utf-8)
+target_compile_definitions(test_i18n PRIVATE _CRT_SECURE_NO_WARNINGS MM_SRC_DIR="${CMAKE_SOURCE_DIR}")
+add_test(NAME test_i18n COMMAND test_i18n)
+
+# Tous les tests lient mm_i18n : un module teste ici qui passe ses textes par tr()
+# (mm_vote_core, ml_loader...) compile sans rien changer de plus.
+foreach(t test_proto test_hashring test_peerbook test_recvq test_timedelay test_barrier test_split test_members test_battleid test_sigscan test_resolve_live test_config test_world_merge test_team_merge test_vote test_purse test_loot test_recruit test_npcgift test_seen test_shop test_ai test_slot test_gift test_orphan test_swf test_assets_live test_launcher test_i18n)
+    target_link_libraries(${t} PRIVATE mm_i18n)
+endforeach()
+
+foreach(t test_proto test_hashring test_timedelay test_barrier test_split test_members test_battleid test_config test_world_merge test_team_merge test_vote test_purse test_loot test_recruit test_npcgift test_seen test_shop test_ai test_slot test_gift test_orphan test_swf test_assets_live test_launcher test_i18n)
     target_compile_options(${t} PRIVATE /W3)
 endforeach()

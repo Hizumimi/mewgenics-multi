@@ -36,6 +36,12 @@ bool settings_read(const std::string& text, Settings* out) {
         auto s = n->find("steam");
         if (s != n->end() && s->is_boolean()) out->steam = s->get<bool>();
     }
+
+    auto u = j.find("ui");
+    if (u != j.end() && u->is_object()) {
+        auto l = u->find("lang");
+        if (l != u->end() && l->is_string() && !l->get<std::string>().empty()) out->lang = l->get<std::string>();
+    }
     return true;
 }
 
@@ -50,6 +56,12 @@ bool settings_write(const std::string& text, const Settings& s, std::string* out
     if (has || !s.steam) {
         if (n == j.end() || !n->is_object()) j["net"] = Json::object();
         j["net"]["steam"] = s.steam;
+    }
+
+    auto u = j.find("ui");
+    if ((u != j.end() && u->is_object() && u->contains("lang")) || s.lang != "auto") {
+        if (u == j.end() || !u->is_object()) j["ui"] = Json::object();
+        j["ui"]["lang"] = s.lang;
     }
 
     // ensure_ascii faux : les accents restent lisibles dans le Bloc-notes.
