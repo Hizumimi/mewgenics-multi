@@ -101,7 +101,7 @@ std::string mm_scene_list();
 // ailleurs.
 void* mm_house();
 // Une fenetre d'information du jeu (« D'accord »), des qu'une fenetre peut
-// s'ouvrir. Texte UTF-8, en francais.
+// s'ouvrir. Texte UTF-8, deja dans la langue du joueur (tr(), mm_lang.h).
 // kInfoYieldToFollow : chez un invite, la fenetre ne s'ouvre pas tant qu'il a
 // une case de l'hote a suivre ou qu'il n'est pas sur la carte, et se referme
 // (pour revenir apres) si l'hote entre dans une case pendant qu'elle est
