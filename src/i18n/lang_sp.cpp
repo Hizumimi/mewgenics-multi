@@ -496,7 +496,7 @@ const TrPair kTable_sp[] = {
      u8"Recompensa para %s\n"
      u8"\n"
      u8"%s ha recompensado al gato que %s\n"
-     u8"le ha dado y le manda a casa: %s.\n"
+     u8"le ha dado: %s van a su casa.\n"
      u8"Los desbloqueos son para todos."},
     {u8"Récompense pour tout le monde\n"
      u8"\n"
@@ -955,7 +955,7 @@ const TrPair kTable_sp[] = {
      u8"\n"
      u8"Con %d jugadores, llevas %d gatos como máximo:\n"
      u8"quita %d gatos de tu caja de aventura.%s\n"
-     u8"Los demás completarán el grupo."},
+     u8"Los demás jugadores ponen el resto."},
     {u8"Équipe mixte\n"
      u8"\n"
      u8"À %d joueurs, tu emmènes %d chats au maximum :\n"
@@ -965,7 +965,7 @@ const TrPair kTable_sp[] = {
      u8"\n"
      u8"Con %d jugadores, llevas %d gatos como máximo:\n"
      u8"quita %d gato de tu caja de aventura.%s\n"
-     u8"Los demás completarán el grupo."},
+     u8"Los demás jugadores ponen el resto."},
     {u8"Équipe mixte\n"
      u8"\n"
      u8"À %d joueurs, tu emmènes %d chat au maximum :\n"
@@ -975,7 +975,7 @@ const TrPair kTable_sp[] = {
      u8"\n"
      u8"Con %d jugadores, llevas %d gato como máximo:\n"
      u8"quita %d gatos de tu caja de aventura.%s\n"
-     u8"Los demás completarán el grupo."},
+     u8"Los demás jugadores ponen el resto."},
     {u8"Équipe mixte\n"
      u8"\n"
      u8"À %d joueurs, tu emmènes %d chat au maximum :\n"
@@ -985,7 +985,7 @@ const TrPair kTable_sp[] = {
      u8"\n"
      u8"Con %d jugadores, llevas %d gato como máximo:\n"
      u8"quita %d gato de tu caja de aventura.%s\n"
-     u8"Los demás completarán el grupo."},
+     u8"Los demás jugadores ponen el resto."},
     {u8"Tu n'es pas dans ta maison :\n"
      u8"tu joueras avec les chats des autres.",
      u8"No estás en tu casa:\n"
