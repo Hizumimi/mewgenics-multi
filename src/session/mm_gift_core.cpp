@@ -3,8 +3,10 @@
 
 #include "mm_gift_core.h"
 #include "mm_purse_core.h"   // purse_of, purse_safe
+#include "mm_lang.h"
 
 #include <algorithm>
+#include <cstdarg>
 #include <cstdio>
 #include <cstring>
 
@@ -199,57 +201,75 @@ bool gift_storage_append(std::vector<uint8_t>& blob, const std::vector<ItemField
 
 // --- les textes -------------------------------------------------------------------------------
 
+namespace {
+
+std::string fmt(const char* f, ...) {
+    char buf[1024];
+    va_list ap;
+    va_start(ap, f);
+    vsnprintf(buf, sizeof(buf), f, ap);
+    va_end(ap);
+    return buf;
+}
+
+} // namespace
+
+bool gift_elide(const std::string& name) { return purse_of(name).compare(0, 2, "d'") == 0; }
+
 std::string gift_list_text(int64_t coins, int64_t food, const std::vector<std::string>& labels) {
     std::vector<std::string> parts;
-    char b[64] = {};
-    if (coins > 0) {
-        snprintf(b, sizeof(b), coins > 1 ? u8"%lld pièces" : u8"%lld pièce", (long long)coins);
-        parts.push_back(b);
-    }
-    if (food > 0) {
-        snprintf(b, sizeof(b), food > 1 ? u8"%lld nourritures" : u8"%lld nourriture", (long long)food);
-        parts.push_back(b);
-    }
+    if (coins > 0) parts.push_back(fmt(coins > 1 ? tr(u8"%lld pièces") : tr(u8"%lld pièce"), (long long)coins));
+    if (food > 0)
+        parts.push_back(fmt(food > 1 ? tr(u8"%lld nourritures") : tr(u8"%lld nourriture"), (long long)food));
     for (const std::string& l : labels)
         if (!l.empty()) parts.push_back(l);
-    if (parts.empty()) return "rien";
+    if (parts.empty()) return tr(u8"rien");
     std::string s = parts[0];
-    for (size_t i = 1; i < parts.size(); ++i) s += (i + 1 == parts.size() ? " et " : ", ") + parts[i];
+    for (size_t i = 1; i < parts.size(); ++i)
+        s = fmt(i + 1 == parts.size() ? tr(u8"%s et %s") : tr(u8"%s, %s"), s.c_str(), parts[i].c_str());
     return s;
 }
 
 std::string gift_why_text(uint8_t why, const std::string& raw) {
     const std::string name = purse_safe(raw.empty() ? std::string("?") : raw);
+    const char*       n    = name.c_str();
     switch (why) {
-    case kGiftWhyNotHome: return name + u8" n'est pas dans sa maison";
-    case kGiftWhyBusy:    return u8"une fenêtre ou l'écran des objets est resté ouvert chez " + name;
-    case kGiftWhyFailed:  return u8"le jeu " + purse_of(name) + u8" n'a pas pu les ranger";
-    case kGiftWhyOff:     return u8"les dons ne marchent pas chez " + name;
-    case kGiftWhyGone:    return name + u8" n'est plus dans la partie";
-    case kGiftWhyRun:     return name + u8" a encore des chats dans l'aventure de l'hôte (son rangement attend leur retour)";
-    default:              return u8"raison inconnue";
+    case kGiftWhyNotHome: return fmt(tr(u8"%s n'est pas dans sa maison"), n);
+    case kGiftWhyBusy:    return fmt(tr(u8"une fenêtre ou l'écran des objets est resté ouvert chez %s"), n);
+    case kGiftWhyFailed:
+        return fmt(gift_elide(name) ? tr(u8"le jeu d'%s n'a pas pu les ranger") : tr(u8"le jeu de %s n'a pas pu les ranger"),
+                   n);
+    case kGiftWhyOff:     return fmt(tr(u8"les dons ne marchent pas chez %s"), n);
+    case kGiftWhyGone:    return fmt(tr(u8"%s n'est plus dans la partie"), n);
+    case kGiftWhyRun:
+        return fmt(tr(u8"%s a encore des chats dans l'aventure de l'hôte (son rangement attend leur retour)"), n);
+    default:              return tr(u8"raison inconnue");
     }
 }
 
 std::string gift_received_text(const std::string& giver, const std::string& list, bool saved) {
     const std::string name = purse_safe(giver.empty() ? std::string("?") : giver);
-    return u8"Cadeau " + purse_of(name) + u8"\n\n" + name + u8" t'a donné " + list + u8".\n" +
-           (saved ? u8"C'est dans ta maison, et ta save est à jour." : u8"C'est dans ta maison.");
+    return fmt(gift_elide(name) ? tr(u8"Cadeau d'%s") : tr(u8"Cadeau de %s"), name.c_str()) + "\n\n" +
+           fmt(tr(u8"%s t'a donné %s."), name.c_str(), list.c_str()) + "\n" +
+           (saved ? tr(u8"C'est dans ta maison, et ta save est à jour.") : tr(u8"C'est dans ta maison."));
 }
 
 std::string gift_done_text(const std::string& target, const std::string& list, size_t kept, bool late) {
     const std::string name = purse_safe(target.empty() ? std::string("?") : target);
-    std::string s = (late ? u8"Finalement, " : "") + name + u8" a bien reçu " + list + u8" : c'est parti de ta maison.";
+    std::string s = fmt(late ? tr(u8"Finalement, %s a bien reçu %s : c'est parti de ta maison.")
+                             : tr(u8"%s a bien reçu %s : c'est parti de ta maison."),
+                        name.c_str(), list.c_str());
     if (kept == 1)
-        s += u8" (1 objet n'a pas pu quitter ton rangement : il est aussi chez toi.)";
+        s += std::string(" ") + tr(u8"(1 objet n'a pas pu quitter ton rangement : il est aussi chez toi.)");
     else if (kept > 1)
-        s += u8" (" + std::to_string(kept) + u8" objets n'ont pas pu quitter ton rangement : ils sont aussi chez toi.)";
+        s += " " + fmt(tr(u8"(%u objets n'ont pas pu quitter ton rangement : ils sont aussi chez toi.)"), (unsigned)kept);
     return s;
 }
 
 std::string gift_refused_text(const std::string& target, uint8_t why) {
     const std::string name = purse_safe(target.empty() ? std::string("?") : target);
-    return u8"Le don à " + name + u8" n'est pas passé : " + gift_why_text(why, name) + u8". Rien n'a quitté ta maison.";
+    return fmt(tr(u8"Le don à %s n'est pas passé : %s. Rien n'a quitté ta maison."), name.c_str(),
+               gift_why_text(why, name).c_str());
 }
 
 GiftStep gift_receiver_step(bool at_home, bool busy, uint64_t waited_ms, uint8_t& why) {
@@ -393,13 +413,13 @@ std::vector<size_t> trade_list_chosen(const TradeList& l) {
 }
 
 std::string trade_list_text(const TradeList& l, size_t page) {
-    if (l.labels.empty()) return u8"Rien à donner dans ton rangement.";
+    if (l.labels.empty()) return tr(u8"Rien à donner dans ton rangement.");
     if (!page) page = 1;
-    std::string s = l.filter.empty() ? std::string(u8"Tape des lettres pour chercher un objet.")
-                                     : u8"Recherche : " + purse_safe(l.filter) + "_";
+    std::string s = l.filter.empty() ? std::string(tr(u8"Tape des lettres pour chercher un objet."))
+                                     : fmt(tr(u8"Recherche : %s_"), purse_safe(l.filter).c_str());
     s += "\n\n";
     const std::vector<TradeLine> lines = trade_lines(l);
-    if (lines.empty()) return s + u8"Aucun objet ne correspond.";
+    if (lines.empty()) return s + tr(u8"Aucun objet ne correspond.");
     const size_t cur   = std::min(l.cursor, lines.size() - 1);
     const size_t first = cur / page * page;
     for (size_t i = first; i < lines.size() && i < first + page; ++i) {
@@ -412,7 +432,7 @@ std::string trade_list_text(const TradeList& l, size_t page) {
         s += "\n";
     }
     const size_t pages = (lines.size() + page - 1) / page;
-    if (pages > 1) s += "(page " + std::to_string(first / page + 1) + " sur " + std::to_string(pages) + ")";
+    if (pages > 1) s += fmt(tr(u8"(page %u sur %u)"), (unsigned)(first / page + 1), (unsigned)pages);
     else s.pop_back();
     return s;
 }

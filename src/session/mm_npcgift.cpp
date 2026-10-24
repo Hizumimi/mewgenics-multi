@@ -3,6 +3,7 @@
 
 #include "mm_npcgift.h"
 #include "mm_npcgift_core.h"
+#include "mm_lang.h"
 
 #include "mm_loot.h"          // le rangement : objets, retrait, noms
 #include "mm_npc_state.h"     // npc_name
@@ -165,14 +166,13 @@ bool peer_present(uint8_t peer) {
     return false;
 }
 
+// Le nom affiche d'un PNJ (les cles : un traducteur peut reprendre le nom du jeu).
 std::string npc_label(int npc) {
-    static const char* names[kNpcGiftNpcs] = { "Beanies", "Butch", "Tink", "Frank", "Jack", "Tracy",
-                                               u8"l'orgue de barbarie", "Steven" };
-    return npc >= 0 && npc < (int)kNpcGiftNpcs ? names[npc] : "?";
+    static const char* const names[kNpcGiftNpcs] = { trk(u8"Beanies"), trk(u8"Butch"), trk(u8"Tink"),
+                                                     trk(u8"Frank"),   trk(u8"Jack"),  trk(u8"Tracy"),
+                                                     trk(u8"l'orgue de barbarie"), trk(u8"Steven") };
+    return npc >= 0 && npc < (int)kNpcGiftNpcs ? tr(names[npc]) : "?";
 }
-
-// Le PNJ « a » ou « au » : « à Tink », « à l'orgue de barbarie ».
-std::string to_npc(int npc) { return u8"à " + npc_label(npc); }
 
 void* progress() {
     const void** slot = (const void**)addr_of_data(D_MewDirectorPtr);
@@ -381,13 +381,13 @@ void auto_take(void* prog) {
                 send_ready(npc, d);
                 log_line("PNJ", "%s : recompense de %s prete, prise des que tu seras dans ta maison", npc_name(npc),
                          d.name.c_str());
-                say(fmt(u8"Récompense prête\n\n"
-                        u8"Le chat que %s a donné %s a rempli\n"
+                say(fmt(tr(u8"Récompense prête\n\n"
+                        u8"Le chat que %s a donné à %s a rempli\n"
                         u8"sa jauge. La récompense sera prise pour lui\n"
                         u8"dès que tu seras dans ta maison : ses pièces,\n"
                         u8"sa nourriture et ses objets iront à %s,\n"
-                        u8"ses déblocages à tout le monde.",
-                        no_markup(d.name).c_str(), to_npc(npc).c_str(), no_markup(d.name).c_str()));
+                        u8"ses déblocages à tout le monde."),
+                        no_markup(d.name).c_str(), npc_label(npc).c_str(), no_markup(d.name).c_str()));
             }
             continue;
         }
@@ -465,9 +465,9 @@ void route_reward(void* prog, int npc, const NpcDonor& donor) {
     if (!team_send(npcgift_encode(m), donor.peer)) {
         log_line("PNJ", "!! %s : la recompense de %s (%s) n'a pas pu partir -- elle reste chez toi", npc_name(npc),
                  donor.name.c_str(), list.c_str());
-        say(fmt(u8"Récompense de %s\n\n"
+        say(fmt(tr(u8"Récompense de %s\n\n"
                 u8"La récompense du don de %s n'a pas pu\n"
-                u8"lui être envoyée : elle reste chez toi.", npc_label(npc).c_str(),
+                u8"lui être envoyée : elle reste chez toi."), npc_label(npc).c_str(),
                 no_markup(donor.name).c_str()));
         return;
     }
@@ -475,16 +475,16 @@ void route_reward(void* prog, int npc, const NpcDonor& donor) {
              donor.name.c_str(), list.c_str());
     g.gifts.push_back(rec);                   // meme sans rien : sa reponse est attendue
     const bool things = coins || food || !rec.ids.empty();
-    say(things ? fmt(u8"Récompense pour %s\n\n"
+    say(things ? fmt(tr(u8"Récompense pour %s\n\n"
                      u8"%s a récompensé le chat que %s\n"
                      u8"lui a donné : %s partent chez lui.\n"
-                     u8"Les déblocages sont pour tout le monde.",
+                     u8"Les déblocages sont pour tout le monde."),
                      no_markup(donor.name).c_str(), npc_label(npc).c_str(), no_markup(donor.name).c_str(),
                      list.c_str())
-               : fmt(u8"Récompense pour tout le monde\n\n"
+               : fmt(tr(u8"Récompense pour tout le monde\n\n"
                      u8"%s a récompensé le chat que %s\n"
                      u8"lui a donné : ses déblocages sont pour\n"
-                     u8"tout le monde.",
+                     u8"tout le monde."),
                      npc_label(npc).c_str(), no_markup(donor.name).c_str()));
 }
 
@@ -626,7 +626,12 @@ void guest_on_gift(const NpcGiftMsg& m) {
     std::vector<std::string> labels;
     for (size_t i = 0; i < m.items.size() && i < 64; ++i) {
         const uint64_t key = m.gift ^ (0x9E3779B97F4A7C15ull * (uint64_t)(i + 1));
-        const std::string label = m.items[i].label.empty() ? m.items[i].f.name : m.items[i].label;
+        // Le nom dans la langue de ce joueur ; sans les noms du jeu (repli sur la cle GON),
+        // celui de l'hote (dans sa langue).
+        std::string label = loot_item_label(m.items[i].f);
+        if ((label.empty() || label.compare(0, m.items[i].f.name.size(), m.items[i].f.name) == 0) &&
+            !m.items[i].label.empty())
+            label = m.items[i].label;
         if (team_note_loot(kNpcGiftSeq, key, m.items[i].f, label)) {
             kept |= 1ull << i;
             labels.push_back(label);
@@ -651,21 +656,21 @@ void guest_on_gift(const NpcGiftMsg& m) {
     const bool things = (money && (m.coins || m.food)) || !labels.empty();
     // Chez lui, sa save ouverte (il donne depuis sa maison) : la fenetre
     // « Recharger » (mm_menu) ; ailleurs, ils arrivent a son retour.
-    if (things && mm_offer_reload(fmt(u8"%s te remercie pour ton chat : %s\n(ses déblocages sont pour tout le monde).",
+    if (things && mm_offer_reload(fmt(tr(u8"%s te remercie pour ton chat : %s\n(ses déblocages sont pour tout le monde)."),
                                       npc_label(m.npc).c_str(), list.c_str())))
         return;
-    say(things ? fmt(u8"Récompense de %s\n\n"
+    say(things ? fmt(tr(u8"Récompense de %s\n\n"
                      u8"%s te remercie pour ton chat : %s.\n"
                      u8"Ils arrivent dans ta maison au prochain\n"
                      u8"chargement de ta save (au retour de\n"
                      u8"l'aventure). Ses déblocages sont pour\n"
-                     u8"tout le monde.",
+                     u8"tout le monde."),
                      npc_label(m.npc).c_str(), npc_label(m.npc).c_str(), list.c_str())
-               : fmt(u8"Récompense de %s\n\n"
+               : fmt(tr(u8"Récompense de %s\n\n"
                      u8"Ton chat a rempli la jauge de %s :\n"
                      u8"sa récompense, des déblocages, est pour\n"
                      u8"tout le monde. Elle arrive dans ta save\n"
-                     u8"à son prochain chargement.",
+                     u8"à son prochain chargement."),
                      npc_label(m.npc).c_str(), npc_label(m.npc).c_str()));
 }
 
@@ -706,9 +711,9 @@ void __fastcall h_CacheReward_entry(void* prog, int npc) {
     if (!peer_present(owner) || mm_peer_name(owner) != donor.name) {
         log_line("PNJ", "%s : %s n'est plus la -- sa recompense reste chez toi", npc_name(npc), donor.name.c_str());
         o_CacheReward(prog, npc);
-        say(fmt(u8"Récompense de %s\n\n"
+        say(fmt(tr(u8"Récompense de %s\n\n"
                 u8"%s, qui avait rempli la jauge de %s,\n"
-                u8"n'est plus là : la récompense reste chez toi.",
+                u8"n'est plus là : la récompense reste chez toi."),
                 npc_label(npc).c_str(), no_markup(donor.name).c_str(), npc_label(npc).c_str()));
         return;
     }
@@ -818,10 +823,10 @@ void npcgift_on_team(uint8_t from, const uint8_t* p, size_t n) {
     case kNpcReady:
         if (host || from != kHostPeer) break;
         log_line("PNJ", "<- %s : ta recompense est prete, l'hote la prendra pour toi chez lui", npc_name(m.npc));
-        say(fmt(u8"Récompense prête\n\n"
+        say(fmt(tr(u8"Récompense prête\n\n"
                 u8"Ton chat a rempli la jauge de %s !\n"
                 u8"%s prendra la récompense pour toi\n"
-                u8"dès qu'il sera dans sa maison.",
+                u8"dès qu'il sera dans sa maison."),
                 npc_label(m.npc).c_str(), no_markup(mm_peer_name(kHostPeer)).c_str()));
         break;
     case kNpcGift:
