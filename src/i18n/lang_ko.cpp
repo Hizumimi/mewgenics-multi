@@ -332,7 +332,7 @@ const TrPair kTable_ko[] = {
     {u8"Un objet choisi ne peut pas se donner.", u8"고른 아이템 중 줄 수 없는 것이 있습니다."},
     {u8"Le don n'a pas pu partir (connexion).", u8"선물을 보내지 못했습니다(연결 문제)."},
     {u8"Don envoyé à %s (%s) : en attente de sa réponse…", u8"%s에게 선물을 보냈습니다(%s). 응답을 기다리는 중…"},
-    {u8"Don demandé à l'hôte : en attente de sa réponse…", u8"호스트에게 선물을 요청했습니다. 응답을 기다리는 중…"},
+    {u8"Don demandé à l'hôte : en attente de sa réponse…", u8"호스트에게 선물 처리를 요청했습니다. 응답을 기다리는 중…"},
     {u8"Pas de don : %s.", u8"선물 불가: %s."},
     {u8"%s a bien reçu ton don : tes objets quitteront ton rangement dès que l'écran des objets sera fermé.",
      u8"%s이(가) 선물을 받았습니다. 아이템 화면을 닫으면 선물한 아이템이 보관함에서 빠집니다."},
@@ -691,16 +691,16 @@ const TrPair kTable_ko[] = {
      u8"pourrais plus acheter pour eux).\n"
      u8"Clique encore pour sortir quand même.",
      u8"%s이(가) 아직 이 상점에서\n"
-     u8"쇼핑 중입니다. 기다려 주세요(나가면 더 이상\n"
-     u8"대신 구매할 수 없습니다).\n"
+     u8"쇼핑 중입니다. 기다려 주세요(나가면 더는\n"
+     u8"그 플레이어들 대신 구매할 수 없습니다).\n"
      u8"그래도 나가려면 한 번 더 누르세요."},
     {u8"%s n'a pas fini dans cette\n"
      u8"boutique : attends-le (une fois sorti, tu ne\n"
      u8"pourrais plus acheter pour lui).\n"
      u8"Clique encore pour sortir quand même.",
      u8"%s이(가) 아직 이 상점에서\n"
-     u8"쇼핑 중입니다. 기다려 주세요(나가면 더 이상\n"
-     u8"대신 구매할 수 없습니다).\n"
+     u8"쇼핑 중입니다. 기다려 주세요(나가면 더는\n"
+     u8"그 플레이어 대신 구매할 수 없습니다).\n"
      u8"그래도 나가려면 한 번 더 누르세요."},
     {u8"Ton achat n'a pas pu être demandé à l'hôte :\n"
      u8"rien n'a été acheté. Réessaie dans un instant.",
