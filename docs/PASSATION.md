@@ -763,10 +763,13 @@ ko 28, ja 18, zh-cn 194 corrections) ; une seconde passe (clés changées, texte
 prenaient plus de lignes que le français, captures du lanceur, relecture complète en
 se mettant à la place du joueur) ; une rétro-traduction vers le français pour trouver
 les contresens (2 à 6 par langue, corrigés). Les textes du jeu qui prennent plus de
-lignes qu'en français sont passés de 254 à 6, selon `tools/i18n_lignes.py` (deux
-boutons sur 2 lignes sur les 3 permises, une ligne de plus dans le salon en
-portugais, et un faux positif). Puis les captures du lanceur, dans les dix langues,
-vérifiées une à une.
+lignes qu'en français sont passés de 254 à 6, selon `tools/i18n_lignes.py` : trois
+boutons sur 2 lignes sur les 3 permises (« Passer la nuit » en espagnol et en
+portugais, « Multijoueur » en italien), une ligne de plus dans le salon en
+portugais, et deux faux positifs (« ta maison est attaquée » en anglais et en
+portugais, une raison que l'outil prend pour un bouton). Puis une dernière passe sur
+les captures du lanceur, dans les dix langues, vérifiées une à une, qui a retouché
+chaque table (de 3 lignes en espagnol à 40 en russe).
 
 **Les textes français changés en route.** Le bouton de l'échange s'appelle
 « Confirmer » (« Valider » est le nom du bouton du jeu des colliers et des objets,
@@ -791,7 +794,8 @@ français peut encore être recoupée avec un pseudo long, dans toutes les langu
 
 **Vérifié** : compilation, 29 tests, `test_i18n` strict à 591 / 591 sans erreur dans
 les neuf langues, `tools/i18n_lignes.py`, captures du lanceur dans les dix langues
-(écran principal, Réglages, Journaux, état en erreur sans les illustrations du jeu).
+(écran principal, Réglages, Journaux, état en erreur sans les illustrations du jeu),
+refaites avec la compilation installée.
 **Pas vérifié** : en jeu — la lecture de `settings.txt` par la DLL, la mise en page
 réelle des fenêtres traduites, les polices du jeu pour nos textes en russe, coréen,
 japonais et chinois.
