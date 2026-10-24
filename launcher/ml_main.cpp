@@ -1204,9 +1204,10 @@ void App::panel_settings() {
     fill(g.Get(), rgb(0xfffaf0, 0.55f));
     stroke(g.Get(), rgb(kInkSoft), 2);
     const float bw = box.right - box.left - 24;
-    auto path_lines = wrap(kText, 15, bw, edit_.game);
+    const std::string shown = ml::wide_to_utf8(ml::game_exe(edit_));   // celui d'a cote du mod, s'il a servi
+    auto path_lines = wrap(kText, 15, bw, shown);
     for (float f = 2.8f; path_lines.size() > 3 && f > 1; f -= 0.2f)   // trop long : la fin reste visible
-        path_lines = wrap(kText, 15, bw, elide(kText, 15, bw * f, edit_.game));
+        path_lines = wrap(kText, 15, bw, elide(kText, 15, bw * f, shown));
     float ly = box.top + 22 + (3 - (float)std::min<size_t>(path_lines.size(), 3)) * 9;   // centre dans la boite
     for (size_t i = 0; i < path_lines.size() && i < 3; ++i, ly += 18) text16(kText, 15, box.left + 12, ly, path_lines[i], rgb(kInk));
 

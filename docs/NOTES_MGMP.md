@@ -3232,7 +3232,41 @@ own lock, never the worker's, which holds its lock across Steam calls.
 game" and "Invite to game" appear), plus `status`, `steam_player_group(_size)`;
 only these keys are cleared when the lobby closes. A friend whose game was not
 running is launched by Steam **without the mod** (the loader is not involved):
-the game has to be started with the mod first.
+the game has to be started with the mod first. On Linux, with the launch option of
+the next section, Steam starts the mod's launcher instead, but `+mgmp_join` is still
+lost: the launcher does not pass it to the loader and the DLL never reads the
+command line.
+
+### Linux / Proton (Mewgenics Multi, build 57)
+
+Mewgenics ships only a Windows build; on Linux it runs under Proton (Steam Deck
+Verified). The mod rides along unchanged: same exe, same addresses, same DLL. The
+game renders through OpenGL (Wine's `opengl32`, not DXVK), and so does the overlay.
+Steam networking goes through Proton's `lsteamclient` (Proton 9 queues the
+`ConnectionStatusChanged` function-pointer config value instead of calling it from
+Linux, and rebuilds `SteamNetworkingMessage_t`). The exe and `mgmp.dll` link the CRT
+statically, so a Proton peer simulates with the same Microsoft code as a Windows
+peer; nothing in the handshake differs. Not run on a real Linux machine.
+
+What had to change, all in the launch path:
+- The mod must run in the game's Proton prefix (`compatdata/686060`), started by
+  Steam. The player extracts `mgmp/` into the game folder and sets the launch option
+  `bash -c 'exec "${@/Mewgenics.exe/mgmp/Mewgenics Multi.exe}"' -- %command%`, which
+  swaps the game's path in Proton's command line for the launcher's
+  (`paquet/LISEZ-MOI.txt`).
+- The default `"game"` path does not exist in a prefix (the game is under
+  `Z:\home\<user>\...`). When it is not a file, the launcher (`ml::game_exe`) and the
+  loader (`near_game`) both take `<folder containing the mod folder>\Mewgenics.exe`;
+  `mgmp.json` is left as is.
+- Wine copies the parent's standard handles and console into a child created
+  without `STARTF_USESTDHANDLES` (kernelbase `process.c`; wineserver duplicates them
+  even without handle inheritance). The game thus held a copy of the launcher's pipe
+  to the loader, and the launcher's reader thread, with its kill-on-close job, lived
+  until the game exited. The loader now creates the game with `STARTF_USESTDHANDLES`
+  (null handles) and `DETACHED_PROCESS`, both no-ops on Windows for a GUI exe.
+- A first argument starting with `+` is no longer taken for the game path: under
+  the launch option Steam may start the loader with the game's arguments
+  (`+mgmp_join <id>`), which are passed through to the game.
 
 ### `HOSTLEFT` — the one thing the host does that nothing else reports
 

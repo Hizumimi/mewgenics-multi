@@ -1,5 +1,8 @@
 ﻿Mewgenics Multi - mod coop pour Mewgenics (version du jeu 1.1.21239)
 
+Sous Linux ou sur Steam Deck : lis d'abord la partie « Sous Linux » après
+l'étape 4.
+
 1. Extrais le dossier mgmp de ce zip, par exemple sur ton Bureau.
    Garde tous les fichiers ensemble.
 
@@ -22,6 +25,44 @@
    ferme tout seul. S'il n'y arrive pas, il te dit pourquoi.
    Pour m'envoyer tes journaux après une partie : « Journaux », puis
    « Copier le dernier journal », et colle-le dans Discord avec Ctrl+V.
+
+Sous Linux ou sur Steam Deck, à la place des étapes 1 à 4 (le jeu tourne
+avec Proton, comme d'habitude, et tu peux jouer avec des amis sous Windows).
+Sur Steam Deck, fais tout ceci en mode Bureau.
+   a. Dans Steam, clic droit sur Mewgenics > Gérer > Parcourir les fichiers
+      locaux : extrais le dossier mgmp de ce zip dans ce dossier-là, à côté
+      de Mewgenics.exe.
+   b. Clic droit sur Mewgenics > Propriétés > Options de lancement : efface
+      ce qu'il y a dans la case, puis colle cette ligne en entier :
+      bash -c 'exec "${@/Mewgenics.exe/mgmp/Mewgenics Multi.exe}"' -- %command%
+   c. Lance Mewgenics depuis Steam : le lanceur du mod s'ouvre à la place du
+      jeu et trouve le jeu tout seul, dans le dossier au-dessus du sien.
+      Clique sur « Réparer » s'il le propose, puis sur « Jouer ».
+   Si rien ne s'ouvre, vérifie que le dossier du jeu contient un dossier mgmp
+   avec Mewgenics Multi.exe dedans. Si le lanceur ne s'affiche toujours pas,
+   mets cette ligne à la place : le jeu démarre directement avec le mod, mais
+   rien ne te dit pourquoi s'il n'y arrive pas.
+      bash -c 'exec "${@/Mewgenics.exe/mgmp/mgmp_loader.exe}"' -- %command%
+   Pour rejouer sans le mod, vide les options de lancement.
+   Pour m'envoyer tes journaux, glisse dans Discord le fichier mgmp_trace_…
+   le plus récent du dossier mgmp, et loader.txt. Si le jeu ne démarre pas
+   du tout, ajoute PROTON_LOG=1 au début de la ligne (avant bash), relance,
+   et envoie-moi le fichier steam-686060.log de ton dossier personnel.
+   Pour jouer ensemble, passe par Steam (étape 5). Par adresse, un hôte sous
+   Linux doit ouvrir le port TCP 27600 si son pare-feu est actif (rien à
+   faire sur Steam Deck) :
+      sudo ufw allow 27600/tcp
+   ou, avec firewalld :
+      sudo firewall-cmd --permanent --add-port=27600/tcp
+      sudo firewall-cmd --reload
+   Radmin VPN n'existe pas sous Linux : si vous passez par un VPN, installez
+   tous Tailscale, et un hôte qui a aussi Radmin donne son adresse Tailscale
+   (100.x), pas celle que montre son salon.
+   Les saves du jeu (et mgmp_backups, étape 6) sont dans le préfixe Proton :
+   depuis le dossier du jeu (étape a), remonte de deux dossiers (jusqu'à
+   steamapps), puis ouvre compatdata, 686060, pfx, drive_c, users,
+   steamuser, AppData, Roaming, Glaiel Games, Mewgenics, ton numéro Steam,
+   puis saves.
 
 5. Le plus simple : par Steam. Quand l'hôte a cliqué sur « Multijoueur »
    puis « Héberger », ouvre ta liste d'amis Steam et choisis « Rejoindre la

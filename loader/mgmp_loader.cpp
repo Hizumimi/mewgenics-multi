@@ -96,6 +96,24 @@ bool game_from_config(const wchar_t* dir, wchar_t* out, size_t out_len) {
     return out[0] != 0;
 }
 
+// Mewgenics Multi : le jeu du dossier qui contient celui du loader, quand celui de
+// mgmp.json n'existe pas. Sous Linux, le LISEZ-MOI fait extraire mgmp dans le dossier
+// du jeu, et le chemin par defaut n'existe pas dans le prefixe Proton. Comme le
+// lanceur (launcher/ml_env.cpp, game_exe). Un chemin sans « .. » : wait_for_relaunch
+// le compare a celui des processus.
+bool near_game(const wchar_t* dir, wchar_t* out, size_t out_len) {
+    wchar_t up[MAX_PATH];
+    wcsncpy_s(up, dir, _TRUNCATE);
+    wchar_t* slash = wcsrchr(up, L'\\');
+    if (!slash) return false;
+    *slash = 0;
+    wchar_t exe[MAX_PATH];
+    swprintf_s(exe, L"%s\\Mewgenics.exe", up);
+    if (GetFileAttributesW(exe) == INVALID_FILE_ATTRIBUTES) return false;
+    wcsncpy_s(out, out_len, exe, _TRUNCATE);
+    return true;
+}
+
 // --- pre-main injection -----------------------------------------------------
 //
 // CreateRemoteThread(LoadLibraryW) cannot be used on a process straight out of
@@ -523,8 +541,11 @@ int wmain(int argc, wchar_t** argv) {
 
     // --- launch mode ---
     wchar_t game[MAX_PATH] = {};
-    int     first_game_arg = 2;
-    if (argc >= 2) {
+    // Mewgenics Multi : sous Linux, Steam peut lancer le loader a la place du jeu, avec
+    // les arguments du jeu (« +mgmp_join … ») : ce ne sont pas un chemin, ils suivent.
+    const bool game_arg = argc >= 2 && argv[1][0] != L'+';
+    int        first_game_arg = game_arg ? 2 : 1;
+    if (game_arg) {
         wcsncpy_s(game, argv[1], _TRUNCATE);
     } else if (!game_from_config(dir, game, MAX_PATH)) {
         fwprintf(stderr,
@@ -533,9 +554,14 @@ int wmain(int argc, wchar_t** argv) {
                  L"   ou mettre  \"game\": \"<chemin>\"  dans mgmp.json a cote du loader.\n");
         return 1;
     }
+    // Pas de fichier a ce chemin (un dossier compris, comme is_file du lanceur) : le
+    // jeu d'a cote du dossier du mod.
+    const DWORD attr = GetFileAttributesW(game);
+    if (!game_arg && (attr == INVALID_FILE_ATTRIBUTES || (attr & FILE_ATTRIBUTE_DIRECTORY)))
+        near_game(dir, game, MAX_PATH);
     if (GetFileAttributesW(game) == INVALID_FILE_ATTRIBUTES) {
         fwprintf(stderr, L"[!] exe du jeu introuvable : %s\n%s", game,
-                 argc >= 2 ? L"" : L"    Corrige \"game\" dans mgmp.json.\n");
+                 game_arg ? L"" : L"    Corrige \"game\" dans mgmp.json.\n");
         return 1;
     }
 
@@ -552,10 +578,14 @@ int wmain(int argc, wchar_t** argv) {
         wcsncat_s(cmdline, argv[i], _TRUNCATE);
     }
 
+    // Mewgenics Multi : sorties standard nulles, pas de console. Sous Wine, le jeu
+    // recevait sinon une copie du tuyau du lanceur, qui attendait alors la fin de la
+    // partie, et la console du loader. Sans effet sous Windows : le jeu est un exe a fenetre.
     STARTUPINFOW        si = { sizeof(si) };
+    si.dwFlags = STARTF_USESTDHANDLES;
     PROCESS_INFORMATION pi = {};
     if (!CreateProcessW(game, cmdline, nullptr, nullptr, FALSE,
-                        CREATE_SUSPENDED, nullptr, workdir, &si, &pi))
+                        CREATE_SUSPENDED | DETACHED_PROCESS, nullptr, workdir, &si, &pi))
         die(L"CreateProcessW");
 
     wprintf(L"[*] jeu lance en pause : pid %lu\n", pi.dwProcessId);

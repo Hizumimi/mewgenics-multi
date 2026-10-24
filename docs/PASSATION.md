@@ -349,6 +349,7 @@ session) ; une case vide veut dire : pas de retour.
 | 54 | 23 | 67 | L'intro passée depuis `SwfCutscene::update` (nouveau crochet `T_SwfCutUpdate`, diagnostic au journal) ; plus de fausse fenêtre « Ta save est en pleine aventure » au chargement de la maison | jouée le 24 vers 0 h 20 (`mgmp_trace_20261024-002123` / `-002143`) : intro passée aux deux retours au menu (2,6 s au lieu de 4,3 à 5,7), aucune désynchronisation |
 | 55 | 24 | 67 | Le lanceur « Mewgenics Multi.exe » aux couleurs du jeu (section 12), à la place du .bat | |
 | 56 | 24 | 68 | Le mod et le lanceur dans les dix langues du jeu (section 13) | compilée et installée le 24 sur le PC de Hizu, pas encore jouée |
+| 57 | 24 | 68 | Linux et Steam Deck : le jeu trouvé à côté du dossier du mod, partie Linux du LISEZ-MOI (section 14) | compilée et installée le 24, pas encore lancée avec le vrai jeu |
 
 ## 7. Le dernier bug corrigé : le gel du 18 octobre (builds 50–52)
 
@@ -422,6 +423,11 @@ français (journal « langue du jeu : xx » au chargement de la DLL et après un
 changement), les fenêtres du mod dans cette langue — surtout la hauteur des plus
 longues avec de vrais pseudos, et les polices du jeu en russe, coréen, japonais et
 chinois —, et le lanceur qui suit le choix « Langue » de ses Réglages.
+
+Puis la **build 57** (section 14) : d'abord, sous Windows, un lancement normal
+(« Jouer », le jeu démarre avec le mod : le loader crée maintenant le jeu sans
+sorties standard ni console) ; ensuite un ami sous Linux ou sur Steam Deck qui suit
+la partie Linux du LISEZ-MOI et rejoint par Steam une partie hébergée sous Windows.
 
 ### Questions et propositions sans réponse
 
@@ -799,3 +805,60 @@ refaites avec la compilation installée.
 **Pas vérifié** : en jeu — la lecture de `settings.txt` par la DLL, la mise en page
 réelle des fenêtres traduites, les polices du jeu pour nos textes en russe, coréen,
 japonais et chinois.
+
+## 14. Linux et Steam Deck (build 57)
+
+Demandé par Hizu le 24 octobre : que les joueurs Windows et Linux puissent jouer
+ensemble. Mewgenics n'a pas de version Linux : sous Linux, Steam fait tourner le
+`.exe` Windows avec Proton (le jeu est « Vérifié » Steam Deck, Platinum sur
+ProtonDB). Le mod suit le même chemin : même exe, mêmes adresses, même DLL. Le jeu
+dessine en OpenGL, le réseau Steam passe par la couche Steam de Proton, et le CRT est
+statique dans l'exe et dans la DLL : un pair sous Proton calcule donc comme un pair
+sous Windows. Rien ne change dans le protocole.
+
+**Ce qui a changé**, tout dans le démarrage :
+- le LISEZ-MOI a une partie « Sous Linux ou sur Steam Deck » (et un renvoi en tête) :
+  extraire `mgmp` dans le dossier du jeu, puis l'option de lancement Steam
+  `bash -c 'exec "${@/Mewgenics.exe/mgmp/Mewgenics Multi.exe}"' -- %command%`, qui
+  remplace le jeu par le lanceur dans la commande de Proton. Le lanceur tourne ainsi
+  dans le préfixe du jeu (`compatdata/686060`), avec l'environnement de Steam. Suivent
+  un repli avec `mgmp_loader.exe`, l'envoi des journaux, le pare-feu, Tailscale et le
+  chemin des saves ;
+- quand le chemin `"game"` de `mgmp.json` n'est pas un fichier (dans un préfixe
+  Proton, le jeu est sous `Z:\home\…`), le lanceur (`ml::game_exe`) et le loader
+  (`near_game`) prennent `Mewgenics.exe` dans le dossier qui contient celui du mod ;
+  `mgmp.json` n'est pas réécrit, et la page Réglages montre le chemin qui sert ;
+- le loader crée le jeu avec des sorties standard nulles et sans console
+  (`STARTF_USESTDHANDLES`, `DETACHED_PROCESS`). Sous Wine, le jeu gardait sinon une
+  copie du tuyau du lanceur, qui restait caché jusqu'à la fin de la partie (et son
+  job aurait tué le jeu si on l'avait fermé de force). Sans effet sous Windows, où le
+  jeu est un exe à fenêtre ;
+- un premier argument qui commence par `+` n'est plus pris pour le chemin du jeu :
+  Steam peut lancer le loader avec `+mgmp_join <id>`, qui est passé au jeu.
+
+**Comment ça a été vérifié.** Deux workflows : une analyse du lanceur, du loader et de
+la DLL sous Wine/Proton, avec une recherche web, relue par un sceptique ; puis une
+relecture du changement sous quatre angles (code, parcours Proton, LISEZ-MOI, jeu
+croisé), chaque remarque contre-vérifiée. Les 13 remarques confirmées sont corrigées,
+sauf la première limite ci-dessous. Sous Windows : compilation, 29 tests, et une
+fausse installation (un faux `Mewgenics.exe`, `mgmp` dans son dossier, un
+`mgmp.json` qui pointe ailleurs). Le lanceur y affiche « Jeu trouvé » avec le bon
+chemin et lit la sortie du loader après « Jouer » ; le loader lance ce jeu-là, avec
+ou sans `+mgmp_join`, aussi quand `"game"` désigne un dossier, et `--attach` sans pid
+refuse comme avant.
+
+**Limites connues.** « Rejoindre la partie » dans Steam quand le jeu est fermé : sous
+Linux, Steam lance bien le lanceur du mod, mais le `+mgmp_join` se perd (le lanceur ne
+le passe pas au loader, la DLL ne lit pas la ligne de commande) ; il faut recliquer une
+fois le jeu ouvert. Le repli `mgmp_loader.exe` n'affiche pas ses erreurs (sa console
+se ferme avec lui). Un hôte qui a Radmin VPN ne montre que son adresse Radmin
+(le LISEZ-MOI le dit). La vérification « Steam ouvert » voit le `steam.exe` de Proton,
+pas le Steam Linux. « Copier le dernier journal » ne se colle probablement pas dans
+Discord sous Linux : le LISEZ-MOI fait glisser le fichier.
+
+**Pas vérifié** : rien n'a tourné sous Linux (pas de machine Linux, pas de Wine sur le
+PC de Hizu). Les points les plus incertains : l'affichage du lanceur (Direct2D sur
+DXVK), l'option de lancement dans le client Steam, la session Steam qui reste « en
+jeu » quand le lanceur et le loader se ferment, et le mode Jeu de la Steam Deck. Le
+lancement avec le vrai jeu sous Windows n'a pas été refait après le changement de
+création du processus : c'est le premier essai.

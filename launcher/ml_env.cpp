@@ -150,7 +150,15 @@ bool config_save(const Paths& p, const Settings& s, std::string* why) {
     return true;
 }
 
-std::wstring game_exe(const Settings& s) { return utf8_to_wide(s.game); }
+std::wstring game_exe(const Settings& s) {
+    std::wstring exe = utf8_to_wide(s.game);
+    if (is_file(exe)) return exe;
+    // Sinon le jeu du dossier qui contient celui du mod : sous Linux, le LISEZ-MOI fait
+    // extraire mgmp dans le dossier du jeu, et le chemin par defaut n'existe pas dans le
+    // prefixe Proton. Le loader fait de meme (mgmp_loader.cpp, near_game).
+    std::wstring near_exe = parent(mod_paths().dir) + L"\\Mewgenics.exe";
+    return is_file(near_exe) ? near_exe : exe;
+}
 std::wstring game_dir(const Settings& s) { return parent(game_exe(s)); }
 
 mm::Lang ui_lang(const std::string& setting, LangFrom* from) {
