@@ -2,7 +2,9 @@
 #include "mm_vote_core.h"
 
 #include "mgmp_proto.h"
+#include "mm_lang.h"
 
+#include <cstdarg>
 #include <cstdio>
 #include <cstring>
 #include <utility>
@@ -15,9 +17,14 @@ uint32_t bit(uint8_t slot) { return slot < kVoteSlots ? 1u << slot : 0u; }
 void put16(uint8_t* p, uint16_t v) { p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); }
 uint16_t get16(const uint8_t* p) { return (uint16_t)(p[0] | (p[1] << 8)); }
 
-std::string secs_text(uint32_t ms) {
-    char buf[16];
-    std::snprintf(buf, sizeof(buf), "%u", (unsigned)((ms + 999) / 1000));
+unsigned secs(uint32_t ms) { return (unsigned)((ms + 999) / 1000); }
+
+std::string fmt(const char* f, ...) {
+    char buf[1024];
+    va_list ap;
+    va_start(ap, f);
+    std::vsnprintf(buf, sizeof(buf), f, ap);
+    va_end(ap);
     return buf;
 }
 
@@ -336,33 +343,33 @@ VoteLayout vote_layout(const VoteState& s, uint8_t self, VoteBallot own) {
 
 const char* vote_type_name(uint8_t type) {
     switch (type) {
-        case 3:  return u8"Sortie";
-        case 4:  return u8"Retour à la maison";
-        case 5:  return u8"Combat";
-        case 6:  return u8"Combat difficile";
-        case 7:  return u8"Mini-boss";
-        case 8:  return u8"Boss";
-        case 9:  return u8"Événement";
-        case 10: return u8"Événement";
-        case 11: return u8"Événement spécial";
-        case 12: return u8"Boutique";
-        case 13: return u8"Trésor";
-        case 14: return u8"Meuble";
-        case 15: return u8"Nourriture";
-        case 16: return u8"Bonus";
-        case 17: return u8"Case vide";
-        default: return u8"Case";
+        case 3:  return trk(u8"Sortie");
+        case 4:  return trk(u8"Retour à la maison");
+        case 5:  return trk(u8"Combat");
+        case 6:  return trk(u8"Combat difficile");
+        case 7:  return trk(u8"Mini-boss");
+        case 8:  return trk(u8"Boss");
+        case 9:  return trk(u8"Événement");
+        case 10: return trk(u8"Événement");
+        case 11: return trk(u8"Événement spécial");
+        case 12: return trk(u8"Boutique");
+        case 13: return trk(u8"Trésor");
+        case 14: return trk(u8"Meuble");
+        case 15: return trk(u8"Nourriture");
+        case 16: return trk(u8"Bonus");
+        case 17: return trk(u8"Case vide");
+        default: return trk(u8"Case");
     }
 }
 
 const char* vote_refusal_text(uint8_t reason) {
     switch (reason) {
-        case kRefuseOffMap:   return u8"l'hôte n'est pas sur la carte";
-        case kRefuseOtherMap: return u8"vos cartes ne sont pas les mêmes";
-        case kRefuseBlocked:  return u8"l'hôte ne peut pas aller sur cette case";
-        case kRefuseDecided:  return u8"le chemin est déjà choisi";
-        case kRefuseStale:    return u8"ce tour est fini";
-        default:              return u8"l'hôte ne l'a pas pris";
+        case kRefuseOffMap:   return trk(u8"l'hôte n'est pas sur la carte");
+        case kRefuseOtherMap: return trk(u8"vos cartes ne sont pas les mêmes");
+        case kRefuseBlocked:  return trk(u8"l'hôte ne peut pas aller sur cette case");
+        case kRefuseDecided:  return trk(u8"le chemin est déjà choisi");
+        case kRefuseStale:    return trk(u8"ce tour est fini");
+        default:              return trk(u8"l'hôte ne l'a pas pris");
     }
 }
 
@@ -370,53 +377,49 @@ std::string vote_text(const VoteState& s, uint8_t self, const std::string* names
                       uint32_t remaining_ms, VoteLabelFn label, void* ctx, VoteBallot own) {
     auto lab = [&](const VoteBallot& b) -> std::string {
         if (label) return label(ctx, b.node, b.type);
-        return vote_type_name(b.type);
+        return tr(vote_type_name(b.type));
     };
     auto who = [&](uint8_t i) -> std::string {
         if (names && !names[i].empty()) return names[i];
-        char buf[16];
-        std::snprintf(buf, sizeof(buf), "Joueur %u", (unsigned)i + 1);
-        return buf;
+        return fmt(tr(u8"Joueur %u"), (unsigned)i + 1);
     };
 
-    std::string out = u8"Choix du chemin\n\n";
+    std::string out = tr(u8"Choix du chemin\n\n");
     for (uint8_t i = 0; i < kVoteSlots; ++i) {
         if (!(s.voters & bit(i))) continue;
-        std::string line = "  " + who(i);
-        if (i == self) line += u8" (toi)";
-        line += " : ";
         const VoteBallot b = ballot_of(s, i, self, own);
-        if (b.valid())                            line += lab(b);
-        else if (s.phase == VotePhase::Result)   line += u8"pas de vote";
-        else if (s.dropped & bit(i))              line += u8"absent, ne vote pas";
-        else if (!(s.present & bit(i)))           line += u8"pas encore sur la carte";
-        else                                      line += u8"pas encore voté";
-        out += line + "\n";
+        std::string what;
+        if (b.valid())                            what = lab(b);
+        else if (s.phase == VotePhase::Result)   what = tr(u8"pas de vote");
+        else if (s.dropped & bit(i))              what = tr(u8"absent, ne vote pas");
+        else if (!(s.present & bit(i)))           what = tr(u8"pas encore sur la carte");
+        else                                      what = tr(u8"pas encore voté");
+        out += "  " + fmt(i == self ? tr(u8"%s (toi) : %s") : tr(u8"%s : %s"),
+                          who(i).c_str(), what.c_str()) + "\n";
     }
     out += "\n";
 
     if (s.phase == VotePhase::Voting) {
         if (!s.running)
-            out += u8"En pause : on attend tout le monde sur la carte.";
+            out += tr(u8"En pause : on attend tout le monde sur la carte.");
         else if (!ballot_of(s, self, self, own).valid())
-            out += u8"À toi de choisir : encore " + secs_text(remaining_ms) + " s.";
+            out += fmt(tr(u8"À toi de choisir : encore %u s."), secs(remaining_ms));
         else
-            out += u8"En attente des autres : encore " + secs_text(remaining_ms) + " s.";
+            out += fmt(tr(u8"En attente des autres : encore %u s."), secs(remaining_ms));
         return out;
     }
     if (s.phase != VotePhase::Result || !s.winner.valid()) return out;
 
     const std::string w = lab(s.winner);
     if (s.drawn && s.tied_count >= 2) {
-        std::string list;
-        for (uint8_t k = 0; k < s.tied_count; ++k) {
-            if (k) list += (k + 1 == s.tied_count) ? u8" et " : ", ";
-            list += lab(s.tied[k]);
-        }
-        out += u8"Égalité entre " + list + u8" :\nle sort choisit " + w + ".";
+        std::string list = lab(s.tied[0]);
+        for (uint8_t k = 1; k < s.tied_count; ++k)
+            list = fmt(k + 1 == s.tied_count ? tr(u8"%s et %s") : tr(u8"%s, %s"),
+                       list.c_str(), lab(s.tied[k]).c_str());
+        out += fmt(tr(u8"Égalité entre %s :\nle sort choisit %s."), list.c_str(), w.c_str());
     } else {
-        if (vote_unanimous(s)) out += u8"Tout le monde a choisi " + w + ".";
-        else                   out += w + u8" l'emporte.";
+        if (vote_unanimous(s)) out += fmt(tr(u8"Tout le monde a choisi %s."), w.c_str());
+        else                   out += fmt(tr(u8"%s l'emporte."), w.c_str());
     }
     return out;
 }

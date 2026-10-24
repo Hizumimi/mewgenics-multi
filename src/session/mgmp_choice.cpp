@@ -15,6 +15,7 @@
 #include "mm_shop.h"         // Mewgenics Multi : shop_host_inside (un bonbon achete par l'hote)
 #include "mgmp_catsync.h"    // Mewgenics Multi : catsync_cat_by_key (le choix du chat d'un evenement)
 #include "mgmp_hooks.h"      // Mewgenics Multi : hooks_is_live
+#include "mm_lang.h"          // Mewgenics Multi : tr
 
 #include <windows.h>
 #include <intrin.h>
@@ -256,6 +257,7 @@ struct State {
     uint64_t    etitle_at     = 0;
     uint64_t    etitle_until  = 0;   // un avis (« Ce chat est a X ») : jusque-la
     bool        etitle_other  = false;
+    bool        etitle_self   = false;   // notre ligne est « A toi de choisir » (dans la langue d'alors)
     bool        etitle_unreadable = false;   // ni titre ni texte lisible : on n'y ecrit pas...
     uint64_t    etitle_retry_at = 0;         //   ... et on ne relit qu'a partir de la
     // Le dernier texte ecrit et le texte du jeu d'alors, gardes apres un oubli : un
@@ -1287,8 +1289,8 @@ void title_level(void* screen) {
     g.titled_at    = now;
     g.titled_other = other;
     char buf[160];
-    if (other) snprintf(buf, sizeof(buf), u8"À %s de choisir", decider_name(decider).c_str());
-    else       snprintf(buf, sizeof(buf), u8"À toi de choisir");
+    if (other) snprintf(buf, sizeof(buf), tr(u8"À %s de choisir"), decider_name(decider).c_str());
+    else       snprintf(buf, sizeof(buf), "%s", tr(u8"À toi de choisir"));
     if (!mm_panel_set_text(panel, "title", buf) && !same)
         log_line("CHOICE", "!! could not write who decides on the level-up screen (no 'title' field)");
 }
@@ -1303,7 +1305,7 @@ void title_chooser(void* chooser, Chooser* c) {
     if (!mem_read((const uint8_t*)chooser + kAbl_Panel, &panel, sizeof(panel)) || !panel) return;
     c->titled = true;
     char buf[200];
-    snprintf(buf, sizeof(buf), u8"À %s de choisir la capacité à remplacer.", decider_name(decider).c_str());
+    snprintf(buf, sizeof(buf), tr(u8"À %s de choisir la capacité à remplacer."), decider_name(decider).c_str());
     if (!mm_panel_set_text(panel, "prompt", buf))
         log_line("CHOICE", "!! could not write who decides on the ability chooser (no 'prompt' field)");
 }
@@ -1335,6 +1337,7 @@ void etitle_forget() {
     g.etitle_written.clear();
     g.etitle_at = g.etitle_until = 0;
     g.etitle_other = false;
+    g.etitle_self = false;
     g.etitle_unreadable = false;
     g.etitle_retry_at = 0;
 }
@@ -1419,6 +1422,7 @@ void etitle_restore(void* we) {
     g.etitle_ours.clear();
     g.etitle_written.clear();
     g.etitle_other = false;
+    g.etitle_self = false;
 }
 
 // Un avis court dans le titre (le « ok » d'un chat qui n'est pas a ce joueur).
@@ -1427,6 +1431,7 @@ void etitle_notice(void* we, const std::string& text) {
     const uint64_t now = GetTickCount64();
     g.etitle_at = 0;                                   // reecrit tout de suite
     etitle_write(we, text, now);
+    g.etitle_self = false;
     g.etitle_until = now + kNoticeMs;
 }
 
@@ -1446,12 +1451,12 @@ void title_event(void* we) {
         other = gate_for(event_subject_id(we), &decider) == Gate::Refuse && !host_took_over();
         if (other) {
             char buf[160];
-            snprintf(buf, sizeof(buf), u8"À %s de choisir", decider_name(decider).c_str());
+            snprintf(buf, sizeof(buf), tr(u8"À %s de choisir"), decider_name(decider).c_str());
             want = buf;
-        } else if (g.etitle_on && (g.etitle_other || g.etitle_ours == u8"À toi de choisir")) {
+        } else if (g.etitle_on && (g.etitle_other || g.etitle_self)) {
             // Ce joueur a pris la main : « A toi de choisir » tant que les options
             // sont la (et remis si le jeu change le texte de la page).
-            want = u8"À toi de choisir";
+            want = tr(u8"À toi de choisir");
         }
     }
     if (want.empty()) {
@@ -1462,6 +1467,7 @@ void title_event(void* we) {
     }
     etitle_write(we, want, now);
     g.etitle_other = other;
+    g.etitle_self  = !other;
 }
 
 // Mewgenics Multi : la derniere image ou un ecran de choix a tourne (sans le
@@ -1635,7 +1641,7 @@ Pick on_event_cat_pick(void* cap, void** we_out) {
     case Gate::Refuse: {
         refused_click("event cat", cat_id, decider);
         char buf[160];
-        snprintf(buf, sizeof(buf), u8"Ce chat est à %s", decider_name(decider).c_str());
+        snprintf(buf, sizeof(buf), tr(u8"Ce chat est à %s"), decider_name(decider).c_str());
         etitle_notice(we, buf);
         return Pick::Swallow;
     }
