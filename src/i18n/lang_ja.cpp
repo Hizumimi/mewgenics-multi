@@ -47,28 +47,27 @@ const TrPair kTable_ja[] = {
     {u8"Il manque %s à côté de Mewgenics\u00A0Multi.exe : extrais de nouveau tout le dossier du zip.",
      u8"Mewgenics\u00A0Multi.exeと\u200B同じ\u200Bフォルダーに\u200B%sが\u200Bありません。\u200Bzipから\u200Bフォルダーを\u200Bまるごと\u200B展開し直してください。"},
     {u8"Mewgenics Multi, build %s, protocole %u : tout le monde doit avoir le même.",
-     u8"Mewgenics\u00A0Multi、\u200Bビルド%s、\u200Bプロトコル%u：\u200B全員が\u200B同じ\u200Bバージョンを\u200B使う\u200B必要が\u200Bあります。"},
+     u8"Mewgenics\u00A0Multi、\u200Bビルド %s、\u200Bプロトコル %u：\u200B全員が\u200B同じ\u200Bバージョンを\u200B使う\u200B必要が\u200Bあります。"},
     {u8"Le jeu est introuvable : choisis d'abord Mewgenics.exe dans Réglages.",
      u8"ゲームが\u200B見つかりません。\u200B先に\u200B「設定」で\u200BMewgenics.exeを\u200B選んでください。"},
     {u8"steam_appid.txt n'a pas pu être écrit à côté du jeu : copie-le à la main (LISEZ-MOI, étape 2).",
      u8"ゲームの\u200Bフォルダーに\u200Bsteam_appid.txtを\u200B書き込めませんでした。\u200B手動で\u200Bコピーしてください（LISEZ-MOIの\u200B手順2）。"},
     {u8"Windows n'a pas eu ton accord : steam_appid.txt n'est pas copié. Tu peux réessayer, ou le copier à la main (LISEZ-MOI, étape 2).",
-     u8"Windowsで\u200B許可されなかったため、\u200Bsteam_appid.txtは\u200Bコピーされていません。\u200Bもう一度\u200B試すか、\u200B手動で\u200Bコピーしてください（LISEZ-MOIの\u200B手順2）。"},
+     u8"Windowsの\u200B確認で\u200B許可しなかったため、\u200Bsteam_appid.txtは\u200Bコピーされていません。\u200Bもう一度\u200B試すか、\u200B手動で\u200Bコピーしてください（LISEZ-MOIの\u200B手順2）。"},
     {u8"Mewgenics Multi n'a pas pu se relancer en administrateur : copie steam_appid.txt à la main (LISEZ-MOI, étape 2).",
      u8"Mewgenics\u00A0Multiを\u200B管理者として\u200B再起動できませんでした。\u200Bsteam_appid.txtを\u200B手動で\u200Bコピーしてください（LISEZ-MOIの\u200B手順2）。"},
     {u8"La copie en administrateur n'a pas marché : copie steam_appid.txt à la main (LISEZ-MOI, étape 2).",
      u8"管理者としての\u200Bコピーに\u200B失敗しました。\u200Bsteam_appid.txtを\u200B手動で\u200Bコピーしてください（LISEZ-MOIの\u200B手順2）。"},
-    {u8"%02u/%02u/%04u à %02u:%02u", u8"%02u/%02u/%04u %02u:%02u"},
     {u8"Le mod n'a pas pu être chargé : %s", u8"MODを\u200B読み込めませんでした：%s"},
     {u8"mgmp_loader.exe s'est arrêté sans charger le mod. Relance ; si ça recommence, envoie loader.txt.",
      u8"mgmp_loader.exeが\u200BMODを\u200B読み込まずに\u200B終了しました。\u200Bもう一度\u200B起動してください。\u200Bまた\u200B問題が\u200B起きたら、\u200Bloader.txtを\u200B送ってください。"},
     {u8"mgmp_loader.exe s'est arrêté (code %s) sans charger le mod. Cause la plus probable : Steam fermé ou déconnecté. Ouvre Steam, attends qu'il soit connecté, puis relance.",
      u8"mgmp_loader.exeが\u200BMODを\u200B読み込まずに\u200B終了しました（コード%s）。\u200B最も\u200B考えられる\u200B原因：\u200BSteamが\u200B起動していないか、\u200B接続されていません。\u200BSteamを\u200B起動し、\u200B接続されるまで\u200B待ってから、\u200Bもう一度\u200B起動してください。"},
     {u8"Le jeu s'est fermé pendant son démarrage, avant le mod. Cause la plus fréquente : Steam fermé ou déconnecté. Ouvre Steam, attends qu'il soit connecté, puis relance.",
-     u8"ゲームが\u200B起動中に、\u200BMODの\u200B読み込み前に\u200B終了しました。\u200Bよくある\u200B原因：\u200BSteamが\u200B起動していないか、\u200B接続されていません。\u200BSteamを\u200B起動し、\u200B接続されるまで\u200B待ってから、\u200Bもう一度\u200B起動してください。"},
+     u8"ゲームが\u200B起動中に\u200B終了しました（MODの\u200B読み込み前）。\u200Bよくある\u200B原因：\u200BSteamが\u200B起動していないか、\u200B接続されていません。\u200BSteamを\u200B起動し、\u200B接続されるまで\u200B待ってから、\u200Bもう一度\u200B起動してください。"},
     {u8"Steam relance le jeu (ça peut prendre une minute ou deux)…",
      u8"Steamが\u200Bゲームを\u200B再起動しています（1、2分\u200Bかかる\u200Bことが\u200Bあります）…"},
-    {u8"Ouverture du jeu…", u8"ゲームを\u200B開いています…"},
+    {u8"Ouverture du jeu…", u8"ゲームを\u200B起動しています…"},
     {u8"Le jeu démarre…", u8"ゲーム起動中…"},
     {u8"Injection du mod dans le jeu…", u8"ゲームに\u200BMODを\u200B注入しています…"},
     {u8"Le mod est en place, le jeu reprend…", u8"MODの\u200B準備が\u200Bできました。\u200Bゲームを\u200B再開します…"},
@@ -97,17 +96,17 @@ const TrPair kTable_ja[] = {
      u8"MODの\u200B注入に\u200B失敗したため、\u200Bゲームを\u200B終了しました。\u200Bもう一度\u200B起動してください。\u200Bまた\u200B問題が\u200B起きたら、\u200Bloader.txtを\u200B送ってください。"},
     {u8"mgmp.json ne dit pas où est le jeu : dans Réglages, clique sur Parcourir… et choisis Mewgenics.exe.",
      u8"mgmp.jsonに\u200Bゲームの\u200B場所が\u200B書かれていません。\u200B「設定」で\u200B「参照…」を\u200Bクリックして、\u200BMewgenics.exeを\u200B選んでください。"},
-    {u8"build %s · protocole %u", u8"ビルド%s · プロトコル%u"},
+    {u8"build %s · protocole %u", u8"ビルド %s · プロトコル %u"},
     {u8"Steam ouvert", u8"Steam起動中"},
     {u8"Steam fermé", u8"Steam未起動"},
     {u8"Réglages (mgmp.json)", u8"設定（mgmp.json）"},
     {u8"Jeu trouvé", u8"ゲーム検出"},
-    {u8"Jeu incomplet", u8"ゲームが不完全"},
-    {u8"Jeu introuvable", u8"ゲームが見つからない"},
+    {u8"Jeu incomplet", u8"ゲームファイル不足"},
+    {u8"Jeu introuvable", u8"ゲーム未検出"},
     {u8"Fichiers du mod", u8"MODファイル"},
     {u8"Réparer", u8"修復"},
     {u8"Jouer", u8"プレイ"},
-    {u8"Règle d'abord les croix rouges.", u8"先に\u200B赤い\u200B×を\u200B解決してください。"},
+    {u8"Règle d'abord les croix rouges.", u8"先に\u200B赤い\u200B×の\u200B項目を\u200B解決してください。"},
     {u8"Réglages", u8"設定"},
     {u8"Journaux", u8"ログ"},
     {u8"Langue", u8"言語"},
@@ -129,7 +128,7 @@ const TrPair kTable_ja[] = {
     {u8"%d journaux du mod, à côté de Mewgenics\u00A0Multi.exe.",
      u8"MODの\u200Bログ：%d件（Mewgenics\u00A0Multi.exeと\u200B同じ\u200Bフォルダー）"},
     {u8"Le dernier : %s", u8"最新：%s"},
-    {u8"écrit le %s", u8"書き込み：%s"},
+    {u8"écrit le %s", u8"更新日時：%s"},
     {u8"Ouvrir le dossier", u8"フォルダーを開く"},
     {u8"Copier le dernier journal", u8"最新のログをコピー"},
     {u8"Pour demander de l'aide : copie le dernier journal, puis colle-le dans Discord avec Ctrl+V.",
@@ -166,7 +165,7 @@ const TrPair kTable_ja[] = {
      u8"mgmp_loader.exeを\u200B起動できませんでした。\u200Bzipから\u200BMODの\u200Bフォルダーを\u200B展開し直してください（アンチウイルスに\u200Bブロックされた\u200B可能性も\u200Bあります）。"},
     {u8"la connexion Steam avec l'hôte est coupée", u8"ホストとの\u200BSteam接続が\u200B切れました"},
     {u8"l'hôte ne répond pas par Steam (salon fermé, ou pas le mod ?)",
-     u8"ホストから\u200BSteamで\u200B応答が\u200Bありません（ロビーが\u200B閉じているか、\u200BMODが\u200Bない？）"},
+     u8"ホストが\u200BSteamで\u200B応答しません（ロビーが\u200B閉じているか、\u200BMODが\u200Bない？）"},
     {u8"Steam refuse la connexion", u8"Steamが\u200B接続を\u200B拒否しました"},
     {u8"À %s de choisir", u8"%sが選ぶ番です"},
     {u8"À toi de choisir", u8"あなたが選ぶ番です"},
@@ -206,8 +205,8 @@ const TrPair kTable_ja[] = {
      u8"タグ選び\n"
      u8"\n"
      u8"%sが\u200Bまだ\u200Bネコの\u200Bタグを\u200B選んでいます。\n"
-     u8"もう一度\u200B「やったる\u200Bニャ！」で\u200B決定すると、\n"
-     u8"すぐ\u200B出発します。"},
+     u8"もう一度\u200B「やったる\u200Bニャ！」を\u200B押すと\u200Bそのまま\n"
+     u8"出発します。"},
     {u8"Choix des colliers\n"
      u8"\n"
      u8"%s choisit encore les colliers de ses chats.\n"
@@ -216,8 +215,8 @@ const TrPair kTable_ja[] = {
      u8"タグ選び\n"
      u8"\n"
      u8"%sが\u200Bまだ\u200Bネコの\u200Bタグを\u200B選んでいます。\n"
-     u8"もう一度\u200B「やったる\u200Bニャ！」で\u200B決定すると、\n"
-     u8"すぐ\u200B出発します。"},
+     u8"もう一度\u200B「やったる\u200Bニャ！」を\u200B押すと\u200Bそのまま\n"
+     u8"出発します。"},
     {u8"Départ en aventure\n"
      u8"\n"
      u8"Le départ de %s ne s'affiche plus ici.\n"
@@ -237,7 +236,7 @@ const TrPair kTable_ja[] = {
      u8"\n",
      u8"冒険に出発\n"
      u8"\n"
-     u8"チームが\u200B一緒に\u200B出発するため、\u200Bあなたの\u200Bゲームを\u200B読み込んでいます：\n"
+     u8"チームが、\u200B一緒に\u200B出発するために\u200Bあなたの\u200Bゲームを\u200B読み込んでいます：\n"
      u8"\n"},
     {u8"Choix des objets\n"
      u8"\n"
@@ -255,8 +254,8 @@ const TrPair kTable_ja[] = {
      u8"アイテム選び\n"
      u8"\n"
      u8"%sが\u200Bまだ\u200Bネコの\u200B装備を\u200B選んでいます。\n"
-     u8"もう一度\u200B「やったる\u200Bニャ！」で\u200B決定すると、\n"
-     u8"すぐ\u200B出発します。"},
+     u8"もう一度\u200B「やったる\u200Bニャ！」を\u200B押すと\u200Bそのまま\n"
+     u8"出発します。"},
     {u8"Choix des objets\n"
      u8"\n"
      u8"%s équipe encore ses chats.\n"
@@ -265,8 +264,8 @@ const TrPair kTable_ja[] = {
      u8"アイテム選び\n"
      u8"\n"
      u8"%sが\u200Bまだ\u200Bネコの\u200B装備を\u200B選んでいます。\n"
-     u8"もう一度\u200B「やったる\u200Bニャ！」で\u200B決定すると、\n"
-     u8"すぐ\u200B出発します。"},
+     u8"もう一度\u200B「やったる\u200Bニャ！」を\u200B押すと\u200Bそのまま\n"
+     u8"出発します。"},
     {u8"Choix des objets\n"
      u8"\n"
      u8"Prêt ! Tes chats partent avec ces objets :\n"
@@ -310,7 +309,7 @@ const TrPair kTable_ja[] = {
     {u8"tu n'es pas dans ta maison", u8"自分の\u200B家に\u200Bいません"},
     {u8"ta save n'est pas chargée", u8"セーブデータが\u200B読み込まれていません"},
     {u8"un départ en aventure est en cours", u8"冒険に\u200B出発する\u200Bところです"},
-    {u8"ta maison est attaquée", u8"家が\u200B攻撃されています"},
+    {u8"ta maison est attaquée", u8"家を\u200B防衛中です"},
     {u8"ta maison est illisible", u8"家の\u200Bデータを\u200B読み込めません"},
     {u8"ton rangement attend ce que tes chats rapportent de l'aventure de l'hôte (s'ils sont rentrés, recharge ta save : Échap, « Sauvegarder et retourner au menu », puis « Jouer » et ta save)",
      u8"倉庫は、\u200Bネコたちが\u200Bホストの\u200B冒険から\u200B持ち帰る\u200Bものを\u200B待っています（帰ってきているなら、\u200Bセーブデータを\u200B再ロードしてください：\u200BEsc、\u200B「セーブして\u200Bメニューへ」、\u200B「プレイ」で\u200Bセーブデータを\u200B選択）"},
@@ -337,7 +336,7 @@ const TrPair kTable_ja[] = {
     {u8"Un objet choisi ne peut pas se donner.", u8"選んだ\u200Bアイテムの\u200B1つは\u200B渡せません。"},
     {u8"Le don n'a pas pu partir (connexion).", u8"プレゼントを\u200B送れませんでした（接続）。"},
     {u8"Don envoyé à %s (%s) : en attente de sa réponse…", u8"%sに\u200Bプレゼントを\u200B送りました（%s）。\u200B返事を\u200B待っています…"},
-    {u8"Don demandé à l'hôte : en attente de sa réponse…", u8"ホストに\u200Bプレゼントを\u200B依頼しました。\u200B返事を\u200B待っています…"},
+    {u8"Don demandé à l'hôte : en attente de sa réponse…", u8"プレゼントの\u200B送信を\u200Bホストに\u200B依頼しました。\u200B返事を\u200B待っています…"},
     {u8"Pas de don : %s.", u8"渡せません：%s。"},
     {u8"%s a bien reçu ton don : tes objets quitteront ton rangement dès que l'écran des objets sera fermé.",
      u8"%sが\u200Bプレゼントを\u200B受け取りました。\u200Bアイテムは、\u200Bアイテム画面を\u200B閉じると\u200B倉庫から\u200Bなくなります。"},
@@ -372,8 +371,8 @@ const TrPair kTable_ja[] = {
     {u8"C'est dans ta maison, et ta save est à jour.", u8"家に\u200B届きました。\u200Bセーブデータも\u200B更新済みです。"},
     {u8"C'est dans ta maison.", u8"家に\u200B届きました。"},
     {u8"Finalement, %s a bien reçu %s : c'est parti de ta maison.",
-     u8"最終的に、\u200B%sが\u200B%sを\u200B受け取りました。\u200B家から\u200Bなくなりました。"},
-    {u8"%s a bien reçu %s : c'est parti de ta maison.", u8"%sが\u200B%sを\u200B受け取りました。\u200B家から\u200Bなくなりました。"},
+     u8"最終的に、\u200B%sが\u200B%sを\u200B受け取りました。\u200B家から\u200B送り出されました。"},
+    {u8"%s a bien reçu %s : c'est parti de ta maison.", u8"%sが\u200B%sを\u200B受け取りました。\u200B家から\u200B送り出されました。"},
     {u8"(1 objet n'a pas pu quitter ton rangement : il est aussi chez toi.)",
      u8"（アイテム1個を\u200B倉庫から\u200B出せなかったため、\u200Bあなたの\u200B家にも\u200B残っています）"},
     {u8"(%u objets n'ont pas pu quitter ton rangement : ils sont aussi chez toi.)",
@@ -432,7 +431,7 @@ const TrPair kTable_ja[] = {
     {u8"Partage du butin terminé", u8"戦利品の分配が完了"},
     {u8"Tu remportes : %s.", u8"あなたの獲得：%s。"},
     {u8"%s remporte : %s.", u8"%sの獲得：%s。"},
-    {u8"Remporté, mais resté chez %s : %s.", u8"獲得しましたが、\u200B%sの\u200B手元に\u200B残っています：%s。"},
+    {u8"Remporté, mais resté chez %s : %s.", u8"獲得（%sの\u200B手元に\u200B残っています）：%s。"},
     {u8"Personne n'en a voulu (restent chez toi) : %s.", u8"希望者なし（あなたの\u200B手元に\u200B残ります）：%s。"},
     {u8"Personne n'en a voulu (restent chez %s) : %s.", u8"希望者なし（%sの\u200B手元に\u200B残ります）：%s。"},
     {u8"Aucun objet n'a été partagé.", u8"分配された\u200Bアイテムは\u200Bありません。"},
@@ -442,13 +441,13 @@ const TrPair kTable_ja[] = {
      u8"戦利品ごと\u200B再ロードする\u200B方法を\u200B説明します。"},
     {u8"Ton butin t'attend dans ton rangement, chez toi.", u8"戦利品は\u200B家の\u200B倉庫で\u200Bあなたを\u200B待っています。"},
     {u8"Ce que les autres remportent quitte ton rangement.", u8"ほかの\u200B人が\u200B獲得した\u200Bものは、\u200Bあなたの\u200B倉庫から\u200Bなくなります。"},
-    {u8"Beanies", u8"ビーニーズ"},
+    {u8"Dr Beanies", u8"Dr. ビーニーズ"},
     {u8"Butch", u8"ブッチ"},
     {u8"Tink", u8"ティンク"},
     {u8"Frank", u8"フランク"},
-    {u8"Jack", u8"ジャック"},
+    {u8"Bébé Jack", u8"ジャック"},
     {u8"Tracy", u8"トレイシー"},
-    {u8"l'orgue de barbarie", u8"死体ひろい"},
+    {u8"Broyeur d'organe", u8"死体\u200Bひろい"},
     {u8"Steven", u8"スティーブン"},
     {u8"Récompense prête\n"
      u8"\n"
@@ -461,7 +460,7 @@ const TrPair kTable_ja[] = {
      u8"\n"
      u8"%sが\u200B%sに\u200B贈った\u200Bネコが\u200Bゲージを\n"
      u8"満たしました。\u200Bあなたが\u200B家に\u200B戻りしだい、\n"
-     u8"代わりに\u200B報酬を\u200B受け取ります。\u200Bコイン、\n"
+     u8"その人の\u200B代わりに\u200B報酬を\u200B受け取ります。\u200Bコイン、\n"
      u8"フード、\u200Bアイテムは\u200B%sへ、\n"
      u8"アンロックは\u200B全員の\u200Bものに\u200Bなります。"},
     {u8"Récompense de %s\n"
@@ -470,7 +469,7 @@ const TrPair kTable_ja[] = {
      u8"lui être envoyée : elle reste chez toi.",
      u8"%sからの報酬\n"
      u8"\n"
-     u8"%sが\u200B贈った\u200Bネコの\u200B報酬を\u200B送れませんでした。\n"
+     u8"%sが\u200B贈った\u200Bネコの\u200B報酬を\u200B本人に\u200B送れませんでした。\n"
      u8"報酬は\u200Bあなたの\u200B手元に\u200B残ります。"},
     {u8"Récompense pour %s\n"
      u8"\n"
@@ -480,7 +479,7 @@ const TrPair kTable_ja[] = {
      u8"%sへの報酬\n"
      u8"\n"
      u8"%sが、\u200B%sの\u200B贈った\u200Bネコに\n"
-     u8"報酬を\u200Bくれました。\u200B%sは\u200Bその人に\u200B送ります。\n"
+     u8"報酬を\u200Bくれました。\u200B%sは\u200Bその人に\u200B送られます。\n"
      u8"アンロックは\u200B全員の\u200Bものです。"},
     {u8"Récompense pour tout le monde\n"
      u8"\n"
@@ -539,7 +538,7 @@ const TrPair kTable_ja[] = {
      u8"\n"
      u8"あなたの\u200Bネコが\u200B%sの\u200Bゲージを\u200B満たしました！\n"
      u8"%sが\u200B家に\u200B戻りしだい、\n"
-     u8"代わりに\u200B報酬を\u200B受け取ります。"},
+     u8"あなたの\u200B代わりに\u200B報酬を\u200B受け取ります。"},
     {u8"les bourses ne marchent pas dans cette partie", u8"この\u200Bゲームでは\u200Bサイフが\u200B使えません"},
     {u8"rien à donner", u8"渡すものが\u200Bありません"},
     {u8"c'est trop d'un coup", u8"一度に\u200B渡せる\u200B量を\u200B超えています"},
@@ -564,8 +563,8 @@ const TrPair kTable_ja[] = {
     {u8"(et d'autres trouvailles)", u8"（ほかにも\u200B見つけた\u200Bものが\u200Bあります）"},
     {u8"pas de bourse pour ce joueur dans cette aventure", u8"この\u200B冒険では、\u200Bこの\u200Bプレイヤーの\u200Bサイフが\u200Bありません"},
     {u8"ta bourse n'en a pas autant", u8"サイフの\u200B中身が\u200B足りません"},
-    {u8"l'aventure n'est plus suivie", u8"冒険の\u200B追跡が\u200B終わっています"},
-    {u8"%s t'a donné %s : c'est dans ta bourse.", u8"%sから\u200B%sを\u200Bもらいました。\u200Bサイフに\u200B入っています。"},
+    {u8"l'aventure n'est plus suivie", u8"冒険の\u200B同期が\u200B切れています"},
+    {u8"%s t'a donné %s : c'est dans ta bourse.", u8"%sから\u200B%sを\u200Bもらい、\u200Bサイフに\u200B入りました。"},
     {u8"Tu as donné %s à %s : c'est dans sa bourse.", u8"%sを\u200B%sに\u200B渡しました。\u200B相手の\u200Bサイフに\u200B入っています。"},
     {u8"%s a donné %s à %s.", u8"%sが\u200B%sを\u200B%sに\u200B渡しました。"},
     {u8"Un chat", u8"あるネコ"},
@@ -575,9 +574,9 @@ const TrPair kTable_ja[] = {
      u8"%sが\u200B%sを\u200B見つけ、\u200B%sを\u200B失いました：\u200B%sの\u200Bサイフに\u200B反映されます。"},
     {u8"%s a trouvé %s et perdu %s : ça compte pour la bourse d'%s.",
      u8"%sが\u200B%sを\u200B見つけ、\u200B%sを\u200B失いました：\u200B%sの\u200Bサイフに\u200B反映されます。"},
-    {u8"%s a trouvé %s : c'est pour ta bourse.", u8"%sが\u200B%sを\u200B見つけました：\u200Bあなたの\u200Bサイフに\u200B入ります。"},
-    {u8"%s a trouvé %s : c'est pour la bourse de %s.", u8"%sが\u200B%sを\u200B見つけました：\u200B%sの\u200Bサイフに\u200B入ります。"},
-    {u8"%s a trouvé %s : c'est pour la bourse d'%s.", u8"%sが\u200B%sを\u200B見つけました：\u200B%sの\u200Bサイフに\u200B入ります。"},
+    {u8"%s a trouvé %s : c'est pour ta bourse.", u8"%sが\u200B%sを\u200B発見：\u200Bあなたの\u200Bサイフに\u200B入ります。"},
+    {u8"%s a trouvé %s : c'est pour la bourse de %s.", u8"%sが\u200B%sを\u200B発見：\u200B%sの\u200Bサイフに\u200B入ります。"},
+    {u8"%s a trouvé %s : c'est pour la bourse d'%s.", u8"%sが\u200B%sを\u200B発見：\u200B%sの\u200Bサイフに\u200B入ります。"},
     {u8"%s a dépensé %s : c'est pris sur ta bourse.", u8"%sが\u200B%sを\u200B使いました：\u200Bあなたの\u200Bサイフから\u200B引かれます。"},
     {u8"%s a dépensé %s : c'est pris sur la bourse de %s.", u8"%sが\u200B%sを\u200B使いました：\u200B%sの\u200Bサイフから\u200B引かれます。"},
     {u8"%s a dépensé %s : c'est pris sur la bourse d'%s.", u8"%sが\u200B%sを\u200B使いました：\u200B%sの\u200Bサイフから\u200B引かれます。"},
@@ -598,7 +597,7 @@ const TrPair kTable_ja[] = {
      u8"バトルで、\u200Bあなたの\u200Bネコが\u200B%sを\u200B見つけました：\u200Bサイフに\u200B入ります。"},
     {u8"En combat, tes chats ont perdu %s : c'est pris sur ta bourse.",
      u8"バトルで、\u200Bあなたの\u200Bネコが\u200B%sを\u200B失いました：\u200Bサイフから\u200B引かれます。"},
-    {u8"En combat, tes chats n'ont rien trouvé.", u8"バトルで、\u200Bあなたの\u200Bネコは\u200B何も\u200B見つけませんでした。"},
+    {u8"En combat, tes chats n'ont rien trouvé.", u8"バトルでは、\u200Bあなたの\u200Bネコの\u200B収穫は\u200Bなし。"},
     {u8"En combat, les chats d'%s ont trouvé %s et perdu %s : ça compte pour sa bourse.",
      u8"バトルで、\u200B%sの\u200Bネコが\u200B%sを\u200B見つけ、\u200B%sを\u200B失いました：\u200B本人の\u200Bサイフに\u200B反映されます。"},
     {u8"En combat, les chats de %s ont trouvé %s et perdu %s : ça compte pour sa bourse.",
@@ -611,8 +610,8 @@ const TrPair kTable_ja[] = {
      u8"バトルで、\u200B%sの\u200Bネコが\u200B%sを\u200B失いました：\u200B本人の\u200Bサイフから\u200B引かれます。"},
     {u8"En combat, les chats de %s ont perdu %s : c'est pris sur sa bourse.",
      u8"バトルで、\u200B%sの\u200Bネコが\u200B%sを\u200B失いました：\u200B本人の\u200Bサイフから\u200B引かれます。"},
-    {u8"En combat, les chats d'%s n'ont rien trouvé.", u8"バトルで、\u200B%sの\u200Bネコは\u200B何も\u200B見つけませんでした。"},
-    {u8"En combat, les chats de %s n'ont rien trouvé.", u8"バトルで、\u200B%sの\u200Bネコは\u200B何も\u200B見つけませんでした。"},
+    {u8"En combat, les chats d'%s n'ont rien trouvé.", u8"バトルでは、\u200B%sの\u200Bネコの\u200B収穫は\u200Bなし。"},
+    {u8"En combat, les chats de %s n'ont rien trouvé.", u8"バトルでは、\u200B%sの\u200Bネコの\u200B収穫は\u200Bなし。"},
     {u8"Ton sac est ouvert\n"
      u8"\n"
      u8"L'hôte est entré dans une case :\n"
@@ -853,7 +852,7 @@ const TrPair kTable_ja[] = {
      u8"混成チーム\n"
      u8"\n"
      u8"%sが\u200Bチームに\u200B加われませんでした。\n"
-     u8"ネコを\u200B操作せずに\u200B冒険に\u200B同行します。"},
+     u8"あなたは\u200Bネコを\u200B操作せずに\u200B冒険に\u200B同行します。"},
     {u8"Équipe mixte\n"
      u8"\n"
      u8"%s n'a pas pu rejoindre l'équipe :\n"
@@ -861,7 +860,7 @@ const TrPair kTable_ja[] = {
      u8"混成チーム\n"
      u8"\n"
      u8"%sが\u200Bチームに\u200B加われませんでした。\n"
-     u8"ネコを\u200B操作せずに\u200B冒険に\u200B同行します。"},
+     u8"あなたは\u200Bネコを\u200B操作せずに\u200B冒険に\u200B同行します。"},
     {u8"Équipe mixte\n"
      u8"\n"
      u8"%s n'ont pas pu partir et restent à la maison.",
@@ -895,7 +894,7 @@ const TrPair kTable_ja[] = {
      u8"elle est à toi, tu emmènes 2 chats.",
      u8"4番目の枠\n"
      u8"\n"
-     u8"3人プレイでは、\u200Bチームに\u200B空き枠が\u200B1つ\u200Bあります。\n"
+     u8"3人プレイでは、\u200B空き枠が\u200B1つ\u200Bあります。\n"
      u8"あなたの\u200B枠です。\u200Bネコを\u200B2匹\u200B連れていけます。"},
     {u8"La 4e place\n"
      u8"\n"
@@ -1033,7 +1032,7 @@ const TrPair kTable_ja[] = {
      u8"à la fin de l'aventure.",
      u8"チームに新しい仲間\n"
      u8"\n"
-     u8"%sが\u200Bチームに\u200B加わりました。\u200Bあなたの\u200Bネコです！\n"
+     u8"%sが\u200B仲間に\u200Bなりました。\u200Bあなたの\u200Bネコです！\n"
      u8"あなたが\u200B操作し、\u200B冒険が\u200B終わると\n"
      u8"あなたの\u200B家に\u200B帰ってきます。"},
     {u8"Nouveau chat dans l'équipe\n"
@@ -1041,13 +1040,13 @@ const TrPair kTable_ja[] = {
      u8"%s rejoint l'équipe : ce chat est à toi.",
      u8"チームに新しい仲間\n"
      u8"\n"
-     u8"%sが\u200Bチームに\u200B加わりました。\u200Bあなたの\u200Bネコです。"},
+     u8"%sが\u200B仲間に\u200Bなりました。\u200Bあなたの\u200Bネコです。"},
     {u8"Nouveau chat dans l'équipe\n"
      u8"\n"
      u8"%s rejoint l'équipe : ce chat est à %s.",
      u8"チームに新しい仲間\n"
      u8"\n"
-     u8"%sが\u200Bチームに\u200B加わりました。\u200B%sの\u200Bネコです。"},
+     u8"%sが\u200B仲間に\u200Bなりました。\u200B%sの\u200Bネコです。"},
     {u8"Un nouveau chat", u8"新しいネコ"},
     {u8"en bas", u8"下"},
     {u8"en haut", u8"上"},
@@ -1056,7 +1055,7 @@ const TrPair kTable_ja[] = {
     {u8"au milieu", u8"中央"},
     {u8"n°%d", u8"%d番"},
     {u8"%s (%s)", u8"%s（%s）"},
-    {u8"[c:red]Ton vote n'a pas été pris : %s.[/c]", u8"[c:red]あなたの\u200B選択は\u200B通りませんでした：%s。[/c]"},
+    {u8"[c:red]Ton vote n'a pas été pris : %s.[/c]", u8"[c:red]あなたの\u200B選択は\u200B反映されませんでした：%s。[/c]"},
     {u8"Choix du chemin\n"
      u8"\n",
      u8"道選び\n"
@@ -1111,7 +1110,7 @@ const TrPair kTable_ja[] = {
      u8"%s\n"
      u8"\n"
      u8"%s",
-     u8"1日の終わり\n"
+     u8"1日を\u200B終える\n"
      u8"\n"
      u8"夜を\u200B迎える\u200B準備が\u200Bできました。\n"
      u8"%s\n"
@@ -1128,7 +1127,7 @@ const TrPair kTable_ja[] = {
      u8"1 joueur attend pour passer la nuit.\n"
      u8"\n"
      u8"%s%s",
-     u8"1日の終わり\n"
+     u8"1日を\u200B終える\n"
      u8"\n"
      u8"1人が\u200B夜を\u200B迎えるのを\u200B待っています。\n"
      u8"\n"
@@ -1138,7 +1137,7 @@ const TrPair kTable_ja[] = {
      u8"%d joueurs attendent pour passer la nuit.\n"
      u8"\n"
      u8"%s%s",
-     u8"1日の終わり\n"
+     u8"1日を\u200B終える\n"
      u8"\n"
      u8"%d人が\u200B夜を\u200B迎えるのを\u200B待っています。\n"
      u8"\n"
@@ -1205,8 +1204,8 @@ const TrPair kTable_ja[] = {
      u8"チームを待っています\n"
      u8"\n"
      u8"%s\n"
-     u8"待たずに\u200B進むと、\u200Bその人が\u200B着くまで、\n"
-     u8"その人の\u200Bネコは\u200Bバトルで\u200Bゲームの\u200BAIが\n"
+     u8"待たずに\u200B進むと、\u200Bまだ\u200B来ていない\u200B人の\u200Bネコは\n"
+     u8"到着するまで\u200Bバトルで\u200Bゲームの\u200BAIが\n"
      u8"操作します。"},
     {u8"Départ en aventure\n"
      u8"\n"
@@ -1229,7 +1228,7 @@ const TrPair kTable_ja[] = {
      u8"\n"
      u8"%sが\u200B冒険中です！\n"
      u8"あなたの\u200Bネコは\u200B参加していないので、\n"
-     u8"ネコを\u200B操作せずに\u200B冒険に\u200B同行します。"},
+     u8"あなたは\u200Bネコを\u200B操作せずに\u200B冒険に\u200B同行します。"},
     {u8"Aventure en cours\n"
      u8"\n"
      u8"%s est en aventure avec tes chats !\n"
@@ -1546,7 +1545,7 @@ const TrPair kTable_ja[] = {
      u8"\n"
      u8"返事の\u200Bあとで\u200B取りやめたため、\u200B%sは\n"
      u8"あなたも\u200Bネコも\u200B連れずに\u200B出発します。\n"
-     u8"マップに\u200B着いたら、\u200B冒険に\u200B参加できます。"},
+     u8"その人が\u200Bマップに\u200B着いたら、\u200B冒険に\u200B参加できます。"},
     {u8"Départ en aventure\n"
      u8"\n"
      u8"Aucun chat ne peut partir cette fois :\n"
@@ -1823,7 +1822,7 @@ const TrPair kTable_ja[] = {
     {u8"Haut ou Bas pour choisir, puis Entrée.", u8"上下キーで\u200B選んで、\u200BEnterで\u200B決定します。"},
     {u8"Pièces à donner : %lld_", u8"渡すコイン：%lld_"},
     {u8"Nourriture à donner : %lld_", u8"渡すフード：%lld_"},
-    {u8"Tape un nombre (T : tout), puis Entrée.", u8"数を\u200B入力して（T：全部）、\u200BEnterで\u200B決定します。"},
+    {u8"Tape un nombre (T : tout), puis Entrée.", u8"数を\u200B入力し（T：全部）、\u200BEnterで\u200B決定します。"},
     {u8"Échanger avec %s : les objets de ton rangement", u8"%sとトレード：\u200B倉庫の\u200Bアイテム"},
     {u8"16 au plus par don : %u choisis.", u8"1回16個まで：\u200B%u個\u200B選択中。"},
     {u8"16 au plus par don : %u choisi.", u8"1回16個まで：\u200B%u個\u200B選択中。"},
@@ -1836,16 +1835,16 @@ const TrPair kTable_ja[] = {
     {u8"Tu n'as rien à donner pour l'instant.", u8"今は\u200B渡せる\u200Bものが\u200Bありません。"},
     {u8"Donner %s de ta bourse\n"
      u8"à %s ?",
-     u8"サイフから\u200B%sを\n"
-     u8"%sに渡す？"},
+     u8"サイフから\u200B%sを\u200B%sに\n"
+     u8"渡しますか？"},
     {u8"Donner %s\n"
      u8"à %s ?",
-     u8"%sを\n"
-     u8"%sに渡す？"},
+     u8"%sを\u200B%sに\n"
+     u8"渡しますか？"},
     {u8"Envoi du don...", u8"プレゼントを送信中..."},
     {u8"Personne ne peut recevoir maintenant.", u8"今は\u200B誰も\u200B受け取れません。"},
     {u8"Personne d'autre n'est dans la partie.", u8"ゲームに\u200Bほかの\u200Bプレイヤーが\u200Bいません。"},
-    {u8"Valider", u8"決定"},
+    {u8"Confirmer", u8"決定"},
     {u8"Donner", u8"渡す"},
     {u8"Recommencer", u8"やり直す"},
     {u8"Fermer", u8"閉じる"},
