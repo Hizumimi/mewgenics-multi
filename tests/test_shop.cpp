@@ -264,6 +264,15 @@ static void test_texts() {
     CHECK(shop_amount_label(kShopTypeCoins, 10) == u8"10 pièces");
     CHECK(shop_amount_label(kShopTypeCoins, 1) == u8"1 pièce");
     CHECK(shop_amount_label(kShopTypeItem, 3).empty());
+
+    // L'etiquette d'un achat sans nom du jeu, nommee chez celui qui la lit.
+    CHECK(shop_label_text(shop_kind_tag(kShopTypeFood, 5)) == u8"5 nourritures");
+    CHECK(shop_label_text(shop_kind_tag(kShopTypeCoins, 1)) == u8"1 pièce");
+    CHECK(shop_label_text(shop_kind_tag(kShopTypeLevelUp, 0)) == u8"un bonbon");
+    CHECK(shop_label_text(shop_kind_tag(kShopTypeFamiliar, 0)) == u8"un familier");
+    CHECK(shop_label_text(shop_kind_tag(kShopTypeItem, 0)) == u8"un objet");
+    CHECK(shop_label_text(shop_kind_tag(0, 0)) == u8"un article");
+    CHECK(shop_label_text(u8"Épée") == u8"Épée");
 }
 
 static void test_index_and_ledger() {

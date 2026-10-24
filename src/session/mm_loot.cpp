@@ -7,6 +7,7 @@
 #include "mm_shop.h"
 #include "mm_team.h"
 #include "mm_team_merge.h"
+#include "mm_lang.h"
 
 #include "mgmp_addresses.h"
 #include "mgmp_hooks.h"
@@ -935,7 +936,9 @@ void guest_give(const LootMsg& m) {
             g.noted.push_back(key);
             // Deja chez lui, sa save ouverte : la fenetre « Recharger » (mm_menu),
             // apres le defile (loot_holds_home).
-            mm_offer_reload(u8"Butin : " + item_name(m.index) + ".");
+            char line[512];
+            snprintf(line, sizeof(line), tr(u8"Butin : %s."), item_name(m.index).c_str());
+            mm_offer_reload(line);
         }
     }
     r.ok = ok ? 1 : 0;
