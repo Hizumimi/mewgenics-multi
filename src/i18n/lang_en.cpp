@@ -38,7 +38,7 @@ const TrPair kTable_en[] = {
     {u8"steam_appid.txt : à vérifier une fois le jeu trouvé.",
      u8"steam_appid.txt: will be checked once the game is found."},
     {u8"Il manque à côté de Mewgenics.exe : sans lui, Steam relance le jeu sans le mod.",
-     u8"Missing next to Mewgenics.exe: without it, Steam restarts the game without the mod."},
+     u8"It's missing next to Mewgenics.exe: without it, Steam restarts the game without the mod."},
     {u8"Celui à côté de Mewgenics.exe ne contient pas 686060 : Steam relancerait le jeu sans le mod.",
      u8"The one next to Mewgenics.exe doesn't contain 686060: Steam would restart the game without the mod."},
     {u8"steam_appid.txt est en place à côté du jeu.", u8"steam_appid.txt is in place next to the game."},
@@ -54,7 +54,7 @@ const TrPair kTable_en[] = {
     {u8"steam_appid.txt n'a pas pu être écrit à côté du jeu : copie-le à la main (LISEZ-MOI, étape 2).",
      u8"steam_appid.txt could not be written next to the game: copy it by hand (LISEZ-MOI, step 2)."},
     {u8"Windows n'a pas eu ton accord : steam_appid.txt n'est pas copié. Tu peux réessayer, ou le copier à la main (LISEZ-MOI, étape 2).",
-     u8"Windows didn't get your permission: steam_appid.txt was not copied. You can try again, or copy it by hand (LISEZ-MOI, step 2)."},
+     u8"You didn't give Windows permission: steam_appid.txt was not copied. You can try again, or copy it by hand (LISEZ-MOI, step 2)."},
     {u8"Mewgenics Multi n'a pas pu se relancer en administrateur : copie steam_appid.txt à la main (LISEZ-MOI, étape 2).",
      u8"Mewgenics Multi could not restart as administrator: copy steam_appid.txt by hand (LISEZ-MOI, step 2)."},
     {u8"La copie en administrateur n'a pas marché : copie steam_appid.txt à la main (LISEZ-MOI, étape 2).",
@@ -74,7 +74,7 @@ const TrPair kTable_en[] = {
     {u8"Injection du mod dans le jeu…", u8"Injecting the mod into the game…"},
     {u8"Le mod est en place, le jeu reprend…", u8"The mod is in place, the game resumes…"},
     {u8"Toujours en attente du jeu relancé par Steam… Si Steam vient de s'ouvrir, il te pose peut-être une question.",
-     u8"Still waiting for the game restarted by Steam… If Steam just opened, it may be asking you something."},
+     u8"Still waiting for Steam to restart the game… If Steam just opened, it may be asking you something."},
     {u8"Jeu relancé trouvé : injection du mod…", u8"Restarted game found: injecting the mod…"},
     {u8"Le jeu est lancé avec le mod.", u8"The game is running with the mod."},
     {u8"Le mod a tardé à se mettre en place ; le jeu reprend quand même.",
@@ -90,7 +90,7 @@ const TrPair kTable_en[] = {
     {u8"Steam a relancé le jeu sans le mod : vérifie steam_appid.txt à côté de Mewgenics.exe (bouton Réparer), puis relance.",
      u8"Steam restarted the game without the mod: check steam_appid.txt next to Mewgenics.exe (Repair button), then try again."},
     {u8"Ce jeu n'est pas la version visée par le mod (1.1.21239) : a-t-il été mis à jour ?",
-     u8"This game is not the version the mod targets (1.1.21239): was it updated?"},
+     u8"This isn't the game version the mod was made for (1.1.21239): was it updated?"},
     {u8"Un programme (overlay, antivirus, anti-triche) a empêché le chargement du mod.",
      u8"A program (overlay, antivirus, anti-cheat) stopped the mod from loading."},
     {u8"Le jeu a mis trop longtemps à démarrer : le mod n'est pas chargé. Relance.",
@@ -122,7 +122,7 @@ const TrPair kTable_en[] = {
      u8"No Mewgenics.exe here: choose it with Browse."},
     {u8"Jouer ensemble par Steam (liste d'amis)", u8"Play together through Steam (friends list)"},
     {u8"Décoche si Steam pose problème : il ne reste que l'adresse, dans le menu Multijoueur du jeu.",
-     u8"Uncheck if Steam causes problems: only the address remains, in the game's Multiplayer menu."},
+     u8"Uncheck this if Steam causes problems: you'll connect by address only, from the game's Multiplayer menu."},
     {u8"Enregistrer", u8"Save"},
     {u8"Retour", u8"Back"},
     {u8"Aucun journal pour l'instant : le mod en écrit un à chaque partie.",
@@ -138,7 +138,8 @@ const TrPair kTable_en[] = {
      u8"To ask for help: copy the latest log, then paste it into Discord with Ctrl+V."},
     {u8"Lancement", u8"Launching"},
     {u8"Le jeu se lance avec le mod…", u8"The game is launching with the mod…"},
-    {u8"Bonne partie ! Cette fenêtre se ferme toute seule.", u8"Have fun! This window closes by itself."},
+    {u8"Bonne partie ! Cette fenêtre se ferme toute seule.",
+     u8"Have fun! This window will close on its own."},
     {u8"Le détail est dans loader.txt, à côté de Mewgenics\u00A0Multi.exe.",
      u8"Details are in loader.txt, next to Mewgenics\u00A0Multi.exe."},
     {u8"Réessayer", u8"Retry"},
@@ -169,7 +170,7 @@ const TrPair kTable_en[] = {
      u8"mgmp_loader.exe could not start: extract the mod folder from the zip again (or your antivirus quarantined it)."},
     {u8"la connexion Steam avec l'hôte est coupée", u8"the Steam connection to the host was lost"},
     {u8"l'hôte ne répond pas par Steam (salon fermé, ou pas le mod ?)",
-     u8"the host isn't answering through Steam (lobby closed, or no mod?)"},
+     u8"the host isn't answering through Steam (lobby closed, or mod missing?)"},
     {u8"Steam refuse la connexion", u8"Steam refused the connection"},
     {u8"À %s de choisir", u8"%s's turn to choose"},
     {u8"À toi de choisir", u8"Your turn to choose"},
@@ -197,7 +198,7 @@ const TrPair kTable_en[] = {
      u8"dis-lui quand tes chats ont leurs colliers.",
      u8"Choosing Collars\n"
      u8"\n"
-     u8"%s confirms the departure:\n"
+     u8"%s is the one confirming the departure:\n"
      u8"tell them when your cats have their collars."},
     {u8"%s et %s", u8"%s and %s"},
     {u8"%s, %s", u8"%s, %s"},
@@ -350,7 +351,7 @@ const TrPair kTable_en[] = {
     {u8"%s a bien reçu ton don : tes objets quitteront ton rangement dès que l'écran des objets sera fermé.",
      u8"%s received your gift: your items will leave your storage as soon as the item screen is closed."},
     {u8"%s a bien reçu ton don : tes objets quitteront ton rangement dès que possible (après le départ, la défense de ta maison ou le retour de tes chats).",
-     u8"%s received your gift: your items will leave your storage as soon as possible (after the departure, the defense of your house or your cats' return)."},
+     u8"%s received your gift: your items will leave your storage as soon as possible (after departing, defending your house, or when your cats come back)."},
     {u8"%s a bien reçu ton don : ce que tu as donné quittera ta maison à ton retour dans cette save.",
      u8"%s received your gift: what you gave will leave your house when you return to this save."},
     {u8"Pas de réponse d'%s pour ton don : rien n'a quitté ta maison.",
@@ -431,7 +432,7 @@ const TrPair kTable_en[] = {
     {u8"Ton choix : %s.", u8"Your choice: %s."},
     {u8"Ton choix est fait.", u8"Your choice is made."},
     {u8"En attente de %s (%s).", u8"Waiting for %s (%s)."},
-    {u8"Le résultat arrive...", u8"Result coming..."},
+    {u8"Le résultat arrive...", u8"Here comes the result..."},
     {u8"%s ne sont pas là : leur tour passe.", u8"%s aren't here: their turn is skipped."},
     {u8"%s n'est pas là : son tour passe.", u8"%s isn't here: their turn is skipped."},
     {u8"Personne n'en veut : il reste chez toi.", u8"Nobody wants it: you keep it."},
@@ -443,7 +444,7 @@ const TrPair kTable_en[] = {
     {u8"Partage du butin terminé", u8"Loot Split Complete"},
     {u8"Tu remportes : %s.", u8"You win: %s."},
     {u8"%s remporte : %s.", u8"%s wins: %s."},
-    {u8"Remporté, mais resté chez %s : %s.", u8"Won, but still with %s: %s."},
+    {u8"Remporté, mais resté chez %s : %s.", u8"Won, but stayed with %s: %s."},
     {u8"Personne n'en a voulu (restent chez toi) : %s.", u8"Nobody wanted these (you keep them): %s."},
     {u8"Personne n'en a voulu (restent chez %s) : %s.", u8"Nobody wanted these (%s keeps them): %s."},
     {u8"Aucun objet n'a été partagé.", u8"No items were shared."},
@@ -531,8 +532,8 @@ const TrPair kTable_en[] = {
      u8"Reward from %s\n"
      u8"\n"
      u8"Your cat filled %s's meter:\n"
-     u8"the reward, some unlocks, is for\n"
-     u8"everyone. It reaches your save\n"
+     u8"the reward (unlocks) is for\n"
+     u8"everyone. It'll reach your save\n"
      u8"the next time it loads."},
     {u8"Récompense de %s\n"
      u8"\n"
@@ -573,7 +574,7 @@ const TrPair kTable_en[] = {
     {u8"%s : %s.", u8"%s: %s."},
     {u8"Toi : %s.", u8"You: %s."},
     {u8"Pas encore de réponse de l'hôte pour ton don : regarde ta bourse dans la fenêtre du chemin.",
-     u8"No answer from the host about your gift yet: check your purse in the path window."},
+     u8"No answer from the host about your gift yet: check your purse in the path vote window."},
     {u8"Ton don n'est pas passé : %s.", u8"Your gift didn't go through: %s."},
     {u8"(et d'autres trouvailles)", u8"(and other finds)"},
     {u8"pas de bourse pour ce joueur dans cette aventure", u8"no purse for this player on this adventure"},
@@ -679,8 +680,8 @@ const TrPair kTable_en[] = {
      u8"Items\n"
      u8"\n"
      u8"Another player took this item just before you:\n"
-     u8"your change didn't go through. Your backpack goes\n"
-     u8"back to match the host's when you close it."},
+     u8"your change didn't go through. Your backpack will\n"
+     u8"match the host's again when you close it."},
     {u8"Objets\n"
      u8"\n"
      u8"L'hôte est entré dans une case avant que ton\n"
@@ -734,7 +735,7 @@ const TrPair kTable_en[] = {
      u8"the purchase didn't happen."},
     {u8"Cet objet n'est plus à vendre chez l'hôte :\n"
      u8"l'achat ne s'est pas fait.",
-     u8"This item is no longer on sale in the host's shop:\n"
+     u8"This item is no longer for sale in the host's shop:\n"
      u8"the purchase didn't happen."},
     {u8"Cet objet vient d'être vendu :\n"
      u8"l'achat ne s'est pas fait.",
@@ -742,7 +743,8 @@ const TrPair kTable_en[] = {
      u8"the purchase didn't happen."},
     {u8"Il coûte %s ; ta bourse en a %lld.", u8"It costs %s; your purse has %lld."},
     {u8"Ta bourse ne suffit pas pour cet objet.", u8"Your purse can't cover this item."},
-    {u8"(Chacun paie avec sa bourse, toi aussi.)", u8"(Everyone pays from their own purse, you too.)"},
+    {u8"(Chacun paie avec sa bourse, toi aussi.)",
+     u8"(Everyone pays from their own purse, including you.)"},
     {u8"(Chacun paie avec sa bourse.)", u8"(Everyone pays from their own purse.)"},
     {u8"Pour l'instant, seul l'hôte achète les\n"
      u8"bonbons et les familiers (avec sa bourse).",
@@ -904,7 +906,7 @@ const TrPair kTable_en[] = {
      u8"New Cat on the Team\n"
      u8"\n"
      u8"%s joins %s's team: this cat is\n"
-     u8"yours! Until you're there, the game's AI\n"
+     u8"yours! Until you join, the game's AI\n"
      u8"plays it in battle and %s chooses for it,\n"
      u8"and it will go home to you when the adventure ends."},
     {u8"Nouveaux chats : %s arrivent chez toi.", u8"New cats: %s are coming to your house."},
@@ -1013,7 +1015,7 @@ const TrPair kTable_en[] = {
     {u8"La 4e place est en train de t'être attribuée :\n"
      u8"la question revient dans un instant.",
      u8"The 4th slot is being given to you:\n"
-     u8"the question will come back in a moment."},
+     u8"you'll be asked again in a moment."},
     {u8"Tes chats n'ont pas pu être préparés\n"
      u8"pour l'aventure (voir mgmp.log).",
      u8"Your cats couldn't be prepared\n"
@@ -1023,8 +1025,8 @@ const TrPair kTable_en[] = {
      u8"avant de les faire repartir (« Recharger » te sera\n"
      u8"proposé après ce départ ; sinon Échap, « Sauvegarder\n"
      u8"et retourner au menu », puis « Jouer » et ta save).",
-     u8"%s are back from an adventure, but their return\n"
-     u8"isn't copied into your save yet: reload it\n"
+     u8"%s are back from an adventure, but their results\n"
+     u8"aren't in your save yet: reload it\n"
      u8"before sending them out again (\"Reload\" will be\n"
      u8"offered after this departure; otherwise Esc, \"Save and\n"
      u8"Quit to Menu\", then \"Play\" and your save)."},
@@ -1033,12 +1035,12 @@ const TrPair kTable_en[] = {
      u8"avant de le faire repartir (« Recharger » te sera\n"
      u8"proposé après ce départ ; sinon Échap, « Sauvegarder\n"
      u8"et retourner au menu », puis « Jouer » et ta save).",
-     u8"%s is back from an adventure, but their return\n"
-     u8"isn't copied into your save yet: reload it\n"
+     u8"%s is back from an adventure, but their results\n"
+     u8"aren't in your save yet: reload it\n"
      u8"before sending them out again (\"Reload\" will be\n"
      u8"offered after this departure; otherwise Esc, \"Save and\n"
      u8"Quit to Menu\", then \"Play\" and your save)."},
-    {u8"Le retour de %s attend d'être recopié.", u8"%s's return is waiting to be copied."},
+    {u8"Le retour de %s attend d'être recopié.", u8"%s's results are waiting to be copied."},
     {u8"L'envoi de ta réponse à l'hôte a échoué :\n"
      u8"réessaie.",
      u8"Sending your answer to the host failed:\n"
@@ -1112,9 +1114,10 @@ const TrPair kTable_en[] = {
     {u8"pas encore voté", u8"hasn't voted yet"},
     {u8"%s (toi) : %s", u8"%s (you): %s"},
     {u8"%s : %s", u8"%s: %s"},
-    {u8"En pause : on attend tout le monde sur la carte.", u8"Paused: waiting for everyone on the map."},
-    {u8"À toi de choisir : encore %u s.", u8"Your turn to choose: %u s left."},
-    {u8"En attente des autres : encore %u s.", u8"Waiting for the others: %u s left."},
+    {u8"En pause : on attend tout le monde sur la carte.",
+     u8"Paused: waiting for everyone to reach the map."},
+    {u8"À toi de choisir : encore %u s.", u8"Your turn to choose: %us left."},
+    {u8"En attente des autres : encore %u s.", u8"Waiting for the others: %us left."},
     {u8"Égalité entre %s :\n"
      u8"le sort choisit %s.",
      u8"Tie between %s:\n"
@@ -1143,7 +1146,7 @@ const TrPair kTable_en[] = {
      u8"Ton panneau sert au départ en aventure :\n"
      u8"retire tes chats de l'équipe pour finir la journée.",
      u8"\n"
-     u8"Your sign is set to depart on an adventure:\n"
+     u8"Your sign is set to go on an adventure:\n"
      u8"remove your cats from the team to end the day."},
     {u8"Fin de journée\n"
      u8"\n"
@@ -1171,7 +1174,7 @@ const TrPair kTable_en[] = {
     {u8"Plus tard", u8"Later"},
     {u8"Pour continuer, appuie sur Échap\n"
      u8"puis sur « Sauvegarder et retourner au menu ».",
-     u8"To continue, press Esc\n"
+     u8"To continue, press Esc,\n"
      u8"then \"Save and Quit to Menu\"."},
     {u8"Ce qui t'attend\n"
      u8"\n"
@@ -1184,8 +1187,8 @@ const TrPair kTable_en[] = {
      u8"\n"
      u8"%s\n"
      u8"\n"
-     u8"Your save is already open: all of this will\n"
-     u8"only be in it the next time it loads. \"Reload\":\n"
+     u8"Your save is already open: none of this will\n"
+     u8"be in it until it loads again. \"Reload\":\n"
      u8"the mod goes through the menu and reopens it."},
     {u8"Ce qui t'attend\n"
      u8"\n"
@@ -1199,8 +1202,8 @@ const TrPair kTable_en[] = {
      u8"\n"
      u8"%s\n"
      u8"\n"
-     u8"Your save is already open: all of this will\n"
-     u8"only be in it the next time it loads. Reload it:\n"
+     u8"Your save is already open: none of this will\n"
+     u8"be in it until it loads again. Reload it:\n"
      u8"Esc, \"Save and Quit to Menu\",\n"
      u8"then \"Play\" and your save."},
     {u8"%s : j'arrive !", u8"%s: on my way!"},
@@ -1228,7 +1231,7 @@ const TrPair kTable_en[] = {
      u8"\n"
      u8"%s\n"
      u8"If you move on without waiting, the game's AI\n"
-     u8"plays their cats in fights until\n"
+     u8"plays their cats in battle until\n"
      u8"they arrive."},
     {u8"Départ en aventure\n"
      u8"\n"
@@ -1261,7 +1264,7 @@ const TrPair kTable_en[] = {
      u8"Adventure in Progress\n"
      u8"\n"
      u8"%s is on an adventure with your cats!\n"
-     u8"Until you're there, the game's AI plays them\n"
+     u8"Until you join, the game's AI plays them\n"
      u8"in battle and %s chooses for them.\n"
      u8"Join their team?"},
     {u8"Aventure en cours\n"
@@ -1538,18 +1541,18 @@ const TrPair kTable_en[] = {
      u8"Departure\n"
      u8"\n"
      u8"Your cats already left with %s's team:\n"
-     u8"until you're there, the game's AI plays them\n"
+     u8"until you join, the game's AI plays them\n"
      u8"in battle and %s chooses for them; they'll come\n"
      u8"home to you at the end of the adventure."},
     {u8"Internet", u8"Internet"},
     {u8"%s défend sa maison : un combat qu'il joue\n"
      u8"seul, avec ses chats. Il revient ensuite.",
      u8"%s is defending their house: a fight they play\n"
-     u8"alone, with their cats. They'll be back after."},
+     u8"alone, with their cats. They'll be back afterward."},
     {u8"%s défendent leur maison : chacun joue\n"
      u8"son combat seul, avec ses chats. Ils reviennent ensuite.",
      u8"%s are defending their houses: each plays\n"
-     u8"their fight alone, with their cats. They'll be back after."},
+     u8"their fight alone, with their cats. They'll be back afterward."},
     {u8"%s a fini de défendre sa maison.", u8"%s finished defending their house."},
     {u8"%s a fini de défendre sa maison.\n"
      u8"%s défend la sienne encore.",
@@ -1618,8 +1621,8 @@ const TrPair kTable_en[] = {
     {u8"Tes amis Steam te rejoignent en un clic : dans leur\n"
      u8"liste d'amis Steam, « Rejoindre la partie » sur ton nom.\n"
      u8"\n",
-     u8"Your Steam friends join you in one click: in their\n"
-     u8"Steam friends list, \"Join Game\" on your name.\n"
+     u8"Your Steam friends can join in one click: in their\n"
+     u8"Steam friends list, they pick \"Join Game\" on your name.\n"
      u8"\n"},
     {u8"Ou par adresse :\n"
      u8"%s   (%s, port %u)\n"
@@ -1670,7 +1673,7 @@ const TrPair kTable_en[] = {
      u8"\n"
      u8"\n"
      u8"Through Steam, it's easier: in your friends\n"
-     u8"list, \"Join Game\" on your friend."},
+     u8"list, pick \"Join Game\" on your friend."},
     {u8"Rejoindre une partie\n"
      u8"\n"
      u8"[c:red]Adresse invalide : %s[/c]\n"
@@ -1691,11 +1694,11 @@ const TrPair kTable_en[] = {
     {u8"Vous n'avez pas la même version du mod :\n"
      u8"prenez tous les deux la dernière.",
      u8"You don't have the same mod version:\n"
-     u8"both of you get the latest one."},
+     u8"you both need the latest one."},
     {u8"Vous n'avez pas la même version du jeu :\n"
      u8"mettez Mewgenics à jour tous les deux (Steam).",
      u8"You don't have the same game version:\n"
-     u8"both of you update Mewgenics (Steam)."},
+     u8"you both need to update Mewgenics (Steam)."},
     {u8"Les fichiers du jeu ne sont pas les mêmes :\n"
      u8"vérifiez-les dans Steam (Propriétés, Fichiers installés).",
      u8"Your game files don't match:\n"
@@ -1723,7 +1726,7 @@ const TrPair kTable_en[] = {
      u8"\n"
      u8"[c:red]Couldn't join %s:[/c]\n"
      u8"%s.\n"
-     u8"Leave the lobby, then try again (or by address)."},
+     u8"Leave the lobby, then try again (or join by address)."},
     {u8"Salon multijoueur\n"
      u8"\n"
      u8"Connexion à %s...",
@@ -1873,7 +1876,7 @@ const TrPair kTable_en[] = {
     {u8"Donner", u8"Give"},
     {u8"Recommencer", u8"Start Over"},
     {u8"Fermer", u8"Close"},
-    {u8"Pas d'échange possible ici.", u8"No trading possible here."},
+    {u8"Pas d'échange possible ici.", u8"You can't trade here."},
     {u8"La fenêtre s'est fermée : l'hôte est entré dans une case.\n"
      u8"Ce que tu avais choisi est gardé (E pour reprendre).",
      u8"The window closed: the host entered a room.\n"
