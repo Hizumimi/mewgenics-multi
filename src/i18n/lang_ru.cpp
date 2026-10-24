@@ -54,12 +54,11 @@ const TrPair kTable_ru[] = {
     {u8"steam_appid.txt n'a pas pu être écrit à côté du jeu : copie-le à la main (LISEZ-MOI, étape 2).",
      u8"Не удалось записать steam_appid.txt рядом с игрой: скопируй его вручную (LISEZ-MOI, шаг 2)."},
     {u8"Windows n'a pas eu ton accord : steam_appid.txt n'est pas copié. Tu peux réessayer, ou le copier à la main (LISEZ-MOI, étape 2).",
-     u8"Windows не получила твоего согласия: steam_appid.txt не скопирован. Можешь попробовать ещё раз или скопировать его вручную (LISEZ-MOI, шаг 2)."},
+     u8"Запрос Windows отклонён: steam_appid.txt не скопирован. Можешь попробовать ещё раз или скопировать его вручную (LISEZ-MOI, шаг 2)."},
     {u8"Mewgenics Multi n'a pas pu se relancer en administrateur : copie steam_appid.txt à la main (LISEZ-MOI, étape 2).",
      u8"Mewgenics Multi не смог перезапуститься от имени администратора: скопируй steam_appid.txt вручную (LISEZ-MOI, шаг 2)."},
     {u8"La copie en administrateur n'a pas marché : copie steam_appid.txt à la main (LISEZ-MOI, étape 2).",
      u8"Копирование от имени администратора не удалось: скопируй steam_appid.txt вручную (LISEZ-MOI, шаг 2)."},
-    {u8"%02u/%02u/%04u à %02u:%02u", u8"%02u.%02u.%04u в %02u:%02u"},
     {u8"Le mod n'a pas pu être chargé : %s", u8"Не удалось загрузить мод: %s"},
     {u8"mgmp_loader.exe s'est arrêté sans charger le mod. Relance ; si ça recommence, envoie loader.txt.",
      u8"mgmp_loader.exe завершился, не загрузив мод. Запусти снова; если это повторится, пришли loader.txt."},
@@ -88,7 +87,7 @@ const TrPair kTable_ru[] = {
     {u8"mgmp.json est illisible : corrige-le, ou remets celui du zip.",
      u8"mgmp.json не читается: исправь его или верни файл из zip-архива."},
     {u8"Steam a relancé le jeu sans le mod : vérifie steam_appid.txt à côté de Mewgenics.exe (bouton Réparer), puis relance.",
-     u8"Steam перезапустил игру без мода: проверь steam_appid.txt рядом с Mewgenics.exe (кнопка «Исправить») и попробуй снова."},
+     u8"Steam перезапустил игру без мода: проверь steam_appid.txt рядом с Mewgenics.exe (кнопка «Починить») и попробуй снова."},
     {u8"Ce jeu n'est pas la version visée par le mod (1.1.21239) : a-t-il été mis à jour ?",
      u8"Это не та версия игры, для которой сделан мод (1.1.21239): может, игра обновилась?"},
     {u8"Un programme (overlay, antivirus, anti-triche) a empêché le chargement du mod.",
@@ -107,7 +106,7 @@ const TrPair kTable_ru[] = {
     {u8"Jeu incomplet", u8"Игра неполная"},
     {u8"Jeu introuvable", u8"Игра не найдена"},
     {u8"Fichiers du mod", u8"Файлы мода"},
-    {u8"Réparer", u8"Исправить"},
+    {u8"Réparer", u8"Починить"},
     {u8"Jouer", u8"Играть"},
     {u8"Règle d'abord les croix rouges.", u8"Сначала исправь красные крестики."},
     {u8"Réglages", u8"Настройки"},
@@ -120,13 +119,13 @@ const TrPair kTable_ru[] = {
      u8"Рядом нет resources.gpak: это не та папка."},
     {u8"Aucun Mewgenics.exe ici : choisis-le avec Parcourir.",
      u8"Здесь нет Mewgenics.exe: выбери его через «Обзор…»."},
-    {u8"Jouer ensemble par Steam (liste d'amis)", u8"Играть вместе через Steam (список друзей)"},
+    {u8"Jouer ensemble par Steam (liste d'amis)", u8"Играть через Steam (список друзей)"},
     {u8"Décoche si Steam pose problème : il ne reste que l'adresse, dans le menu Multijoueur du jeu.",
-     u8"Сними галочку, если со Steam проблемы: останется только адрес, в меню «Мультиплеер» игры."},
+     u8"Сними галочку, если со Steam проблемы: останется подключение по адресу (меню «Мультиплеер» в игре)."},
     {u8"Enregistrer", u8"Сохранить"},
     {u8"Retour", u8"Назад"},
     {u8"Aucun journal pour l'instant : le mod en écrit un à chaque partie.",
-     u8"Журналов пока нет: мод создаёт новый журнал в каждой игре."},
+     u8"Журналов пока нет: мод создаёт журнал при каждом запуске игры."},
     {u8"1 journal du mod, à côté de Mewgenics\u00A0Multi.exe.",
      u8"1 журнал мода, рядом с Mewgenics\u00A0Multi.exe."},
     {u8"%d journaux du mod, à côté de Mewgenics\u00A0Multi.exe.",
@@ -191,14 +190,14 @@ const TrPair kTable_ru[] = {
      u8"Выбор ошейников\n"
      u8"\n"
      u8"Готово! Хост %s знает, что у тебя всё:\n"
-     u8"он подтвердит выход за всю партию."},
+     u8"он подтвердит отправку за всю партию."},
     {u8"Choix des colliers\n"
      u8"\n"
      u8"C'est %s qui valide le départ :\n"
      u8"dis-lui quand tes chats ont leurs colliers.",
      u8"Выбор ошейников\n"
      u8"\n"
-     u8"Выход подтверждает %s:\n"
+     u8"Отправку подтверждает %s:\n"
      u8"скажи, когда твои котейки будут в ошейниках."},
     {u8"%s et %s", u8"%s и %s"},
     {u8"%s, %s", u8"%s, %s"},
@@ -278,7 +277,7 @@ const TrPair kTable_ru[] = {
      u8"Выбор предметов\n"
      u8"\n"
      u8"Готово! Котейки уйдут с этими предметами:\n"
-     u8"%s подтвердит выход за всю партию."},
+     u8"%s подтвердит отправку за всю партию."},
     {u8"Choix des objets\n"
      u8"\n"
      u8"Les objets choisis pour tes chats n'ont pas pu\n"
@@ -298,7 +297,7 @@ const TrPair kTable_ru[] = {
      u8"ne compte plus.",
      u8"Выбор предметов\n"
      u8"\n"
-     u8"Игрок %s уже подтвердил выход:\n"
+     u8"Игрок %s уже подтвердил отправку:\n"
      u8"котейки уйдут с тем, что выбрано,\n"
      u8"остальное не в счёт."},
     {u8"Ta bourse : %s.", u8"Твой кошелёк: %s."},
@@ -315,7 +314,7 @@ const TrPair kTable_ru[] = {
     {u8"ta save n'est pas chargée", u8"твоё сохранение не загружено"},
     {u8"un départ en aventure est en cours", u8"идут сборы в поход"},
     {u8"ta maison est attaquée", u8"твой дом атакуют"},
-    {u8"ta maison est illisible", u8"не удаётся прочитать данные дома"},
+    {u8"ta maison est illisible", u8"дом не читается"},
     {u8"ton rangement attend ce que tes chats rapportent de l'aventure de l'hôte (s'ils sont rentrés, recharge ta save : Échap, « Sauvegarder et retourner au menu », puis « Jouer » et ta save)",
      u8"твоя кладовая ждёт добычу котеек из похода хоста (если они уже вернулись, загрузи сохранение заново: Esc, «Сохраниться и выйти в меню», затем «Играть» и твоё сохранение)"},
     {u8"des objets de ton rangement attendent encore leur nouveau propriétaire (butin, achats, PNJ)",
@@ -332,10 +331,10 @@ const TrPair kTable_ru[] = {
      u8"Выбери монеты, еду или предметы для подарка."},
     {u8"16 objets au plus par don.", u8"Максимум 16 предметов в подарке."},
     {u8"Pas d'objets maintenant : %s.", u8"Сейчас предметы недоступны: %s."},
-    {u8"Ta maison est illisible : pas de don.", u8"Данные дома не читаются: подарка не будет."},
+    {u8"Ta maison est illisible : pas de don.", u8"Дом не читается: подарка не будет."},
     {u8"Tu n'as pas autant de pièces.", u8"У тебя нет столько монет."},
     {u8"Tu n'as pas autant de nourriture.", u8"У тебя нет столько еды."},
-    {u8"Ton rangement est illisible : pas de don.", u8"Данные кладовой не читаются: подарка не будет."},
+    {u8"Ton rangement est illisible : pas de don.", u8"Кладовая не читается: подарка не будет."},
     {u8"Un objet choisi est déjà promis à un don pas encore fini.",
      u8"Выбранный предмет уже обещан в незавершённом подарке."},
     {u8"Un objet choisi n'est plus dans ton rangement : choisis à nouveau.",
@@ -369,8 +368,8 @@ const TrPair kTable_ru[] = {
     {u8"%s n'est pas dans sa maison", u8"игрока %s нет дома"},
     {u8"une fenêtre ou l'écran des objets est resté ouvert chez %s",
      u8"у игрока %s открыто окно или экран предметов"},
-    {u8"le jeu d'%s n'a pas pu les ranger", u8"игре игрока %s не удалось их разместить"},
-    {u8"le jeu de %s n'a pas pu les ranger", u8"игре игрока %s не удалось их разместить"},
+    {u8"le jeu d'%s n'a pas pu les ranger", u8"у игрока %s не удалось их разместить"},
+    {u8"le jeu de %s n'a pas pu les ranger", u8"у игрока %s не удалось их разместить"},
     {u8"les dons ne marchent pas chez %s", u8"у игрока %s подарки не работают"},
     {u8"%s n'est plus dans la partie", u8"игрока %s больше нет в игре"},
     {u8"%s a encore des chats dans l'aventure de l'hôte (son rangement attend leur retour)",
@@ -404,13 +403,13 @@ const TrPair kTable_ru[] = {
     {u8"toi", u8"ты"},
     {u8"Joueur %u", u8"Игрок %u"},
     {u8"Un objet", u8"Предмет"},
-    {u8"Partage du butin : objet %u sur %u", u8"Дележ добычи: предмет %u из %u"},
+    {u8"Partage du butin : objet %u sur %u", u8"Делёж добычи: предмет %u из %u"},
     {u8"Besoin : %s", u8"Нужно: %s"},
     {u8"Cupidité : %s", u8"Не откажусь: %s"},
     {u8"Passer : %s", u8"Пропустить: %s"},
-    {u8"Partage du butin", u8"Дележ добычи"},
-    {u8"%u objets du sac à partager entre %s.", u8"Предметов из рюкзака к дележу: %u. Участники: %s."},
-    {u8"%u objet du sac à partager entre %s.", u8"%u предмет из рюкзака к дележу. Участники: %s."},
+    {u8"Partage du butin", u8"Делёж добычи"},
+    {u8"%u objets du sac à partager entre %s.", u8"Предметов из рюкзака: %u. Делят: %s."},
+    {u8"%u objet du sac à partager entre %s.", u8"%u предмет из рюкзака делят: %s."},
     {u8"Pour chaque objet : Besoin (il te sert), Cupidité (si\n"
      u8"personne n'en a besoin) ou Passer. Un dé de 100 départage.",
      u8"Для каждого предмета: Нужно (он тебе пригодится), Не откажусь (если\n"
@@ -434,16 +433,16 @@ const TrPair kTable_ru[] = {
     {u8"Le résultat arrive...", u8"Результат на подходе..."},
     {u8"%s ne sont pas là : leur tour passe.", u8"%s отсутствуют: их ход пропущен."},
     {u8"%s n'est pas là : son tour passe.", u8"%s отсутствует: ход пропущен."},
-    {u8"Personne n'en veut : il reste chez toi.", u8"Никому не нужен: остаётся у тебя."},
-    {u8"Personne n'en veut : il reste chez %s.", u8"Никому не нужен: остаётся у игрока %s."},
+    {u8"Personne n'en veut : il reste chez toi.", u8"Никто не взял: остаётся у тебя."},
+    {u8"Personne n'en veut : il reste chez %s.", u8"Никто не взял: остаётся у игрока %s."},
     {u8"Tu l'emportes (%s) !", u8"Предмет твой (%s)!"},
     {u8"%s l'emporte (%s).", u8"%s забирает предмет (%s)."},
     {u8"Dés : %s (égalité départagée).", u8"Броски: %s (ничья переброшена)."},
     {u8"Dés : %s.", u8"Броски: %s."},
-    {u8"Partage du butin terminé", u8"Дележ добычи окончен"},
+    {u8"Partage du butin terminé", u8"Делёж добычи окончен"},
     {u8"Tu remportes : %s.", u8"Тебе достаётся: %s."},
     {u8"%s remporte : %s.", u8"%s получает: %s."},
-    {u8"Remporté, mais resté chez %s : %s.", u8"Выиграно, но осталось у игрока %s: %s."},
+    {u8"Remporté, mais resté chez %s : %s.", u8"Выигрыш остался у игрока %s: %s."},
     {u8"Personne n'en a voulu (restent chez toi) : %s.", u8"Никому не нужно (остаётся у тебя): %s."},
     {u8"Personne n'en a voulu (restent chez %s) : %s.", u8"Никому не нужно (остаётся у игрока %s): %s."},
     {u8"Aucun objet n'a été partagé.", u8"Ни один предмет не разыгран."},
@@ -454,13 +453,13 @@ const TrPair kTable_ru[] = {
     {u8"Ton butin t'attend dans ton rangement, chez toi.", u8"Добыча ждёт тебя дома, в кладовой."},
     {u8"Ce que les autres remportent quitte ton rangement.",
      u8"То, что выиграли другие, уходит из твоей кладовой."},
-    {u8"Beanies", u8"Душечкин"},
+    {u8"Dr Beanies", u8"П.\u00A0О.\u00A0Душечкин"},
     {u8"Butch", u8"Бутч"},
     {u8"Tink", u8"Тинк"},
     {u8"Frank", u8"Фрэнк"},
-    {u8"Jack", u8"Джек"},
+    {u8"Bébé Jack", u8"Малыш Джек"},
     {u8"Tracy", u8"Трейси"},
-    {u8"l'orgue de barbarie", u8"Органоид"},
+    {u8"Broyeur d'organe", u8"Органоид"},
     {u8"Steven", u8"Стивен"},
     {u8"Récompense prête\n"
      u8"\n"
@@ -471,16 +470,16 @@ const TrPair kTable_ru[] = {
      u8"ses déblocages à tout le monde.",
      u8"Награда готова\n"
      u8"\n"
-     u8"Котейка, которого игрок %s отдал NPC %s,\n"
-     u8"заполнил шкалу. Ты заберёшь награду за этого игрока,\n"
-     u8"как только будешь дома: монеты, еда\n"
-     u8"и предметы уйдут игроку %s,\n"
+     u8"Игрок %s отдал котейку NPC %s,\n"
+     u8"и шкала заполнена. Ты заберёшь награду\n"
+     u8"за него, когда будешь дома: монеты,\n"
+     u8"еда и предметы уйдут игроку %s,\n"
      u8"а разблокировки — всем."},
     {u8"Récompense de %s\n"
      u8"\n"
      u8"La récompense du don de %s n'a pas pu\n"
      u8"lui être envoyée : elle reste chez toi.",
-     u8"Награда: %s\n"
+     u8"Награда от NPC %s\n"
      u8"\n"
      u8"Награду за подарок игрока %s не удалось\n"
      u8"ему отправить: она остаётся у тебя."},
@@ -492,7 +491,7 @@ const TrPair kTable_ru[] = {
      u8"Награда для игрока %s\n"
      u8"\n"
      u8"%s награждает за котейку игрока %s:\n"
-     u8"ему достаётся: %s.\n"
+     u8"к нему домой отправится: %s.\n"
      u8"Разблокировки — для всех."},
     {u8"Récompense pour tout le monde\n"
      u8"\n"
@@ -506,7 +505,7 @@ const TrPair kTable_ru[] = {
      u8"всем."},
     {u8"%s te remercie pour ton chat : %s\n"
      u8"(ses déblocages sont pour tout le monde).",
-     u8"%s благодарит за котейку: %s\n"
+     u8"%s благодарит тебя за котейку: %s\n"
      u8"(разблокировки — для всех)."},
     {u8"Récompense de %s\n"
      u8"\n"
@@ -515,9 +514,9 @@ const TrPair kTable_ru[] = {
      u8"chargement de ta save (au retour de\n"
      u8"l'aventure). Ses déblocages sont pour\n"
      u8"tout le monde.",
-     u8"Награда: %s\n"
+     u8"Награда от NPC %s\n"
      u8"\n"
-     u8"%s благодарит за котейку: %s.\n"
+     u8"%s благодарит тебя за котейку: %s.\n"
      u8"Всё это будет дома после следующей\n"
      u8"загрузки сохранения (по возвращении\n"
      u8"из похода). Разблокировки — для\n"
@@ -528,17 +527,17 @@ const TrPair kTable_ru[] = {
      u8"sa récompense, des déblocages, est pour\n"
      u8"tout le monde. Elle arrive dans ta save\n"
      u8"à son prochain chargement.",
-     u8"Награда: %s\n"
+     u8"Награда от NPC %s\n"
      u8"\n"
      u8"Твой котейка заполнил шкалу NPC %s:\n"
-     u8"награда — разблокировки — для\n"
+     u8"награда (разблокировки) — для\n"
      u8"всех. Она появится в твоём сохранении\n"
      u8"при следующей загрузке."},
     {u8"Récompense de %s\n"
      u8"\n"
      u8"%s, qui avait rempli la jauge de %s,\n"
      u8"n'est plus là : la récompense reste chez toi.",
-     u8"Награда: %s\n"
+     u8"Награда от NPC %s\n"
      u8"\n"
      u8"Игрок %s, заполнивший шкалу NPC %s,\n"
      u8"уже ушёл: награда остаётся у тебя."},
@@ -550,7 +549,7 @@ const TrPair kTable_ru[] = {
      u8"Награда готова\n"
      u8"\n"
      u8"Твой котейка заполнил шкалу NPC %s!\n"
-     u8"%s заберёт награду за тебя,\n"
+     u8"%s заберёт для тебя награду,\n"
      u8"как только будет у себя дома."},
     {u8"les bourses ne marchent pas dans cette partie", u8"кошельки в этой игре не работают"},
     {u8"rien à donner", u8"нечего дарить"},
@@ -580,7 +579,7 @@ const TrPair kTable_ru[] = {
     {u8"pas de bourse pour ce joueur dans cette aventure", u8"у этого игрока нет кошелька в этом походе"},
     {u8"ta bourse n'en a pas autant", u8"в твоём кошельке столько нет"},
     {u8"l'aventure n'est plus suivie", u8"поход больше не отслеживается"},
-    {u8"%s t'a donné %s : c'est dans ta bourse.", u8"%s дарит тебе %s: это в твоём кошельке."},
+    {u8"%s t'a donné %s : c'est dans ta bourse.", u8"%s дарит тебе %s — в твой кошелёк."},
     {u8"Tu as donné %s à %s : c'est dans sa bourse.", u8"Ты даришь %s игроку %s: это в его кошельке."},
     {u8"%s a donné %s à %s.", u8"%s дарит %s игроку %s."},
     {u8"Un chat", u8"Котейка"},
@@ -874,7 +873,7 @@ const TrPair kTable_ru[] = {
      u8"Смешанная партия\n"
      u8"\n"
      u8"%s не смогли вступить в партию:\n"
-     u8"ты следишь за походом, не управляя котейками."},
+     u8"ты следишь за походом как зритель."},
     {u8"Équipe mixte\n"
      u8"\n"
      u8"%s n'a pas pu rejoindre l'équipe :\n"
@@ -882,7 +881,7 @@ const TrPair kTable_ru[] = {
      u8"Смешанная партия\n"
      u8"\n"
      u8"%s не может вступить в партию:\n"
-     u8"ты следишь за походом, не управляя котейками."},
+     u8"ты следишь за походом как зритель."},
     {u8"Équipe mixte\n"
      u8"\n"
      u8"%s n'ont pas pu partir et restent à la maison.",
@@ -917,7 +916,7 @@ const TrPair kTable_ru[] = {
      u8"4-е место\n"
      u8"\n"
      u8"При 3 игроках есть свободное место:\n"
-     u8"оно твоё: ты берёшь двух котеек."},
+     u8"оно твоё — ты берёшь двух котеек."},
     {u8"La 4e place\n"
      u8"\n"
      u8"La place libre est déjà prise par %s :\n"
@@ -937,7 +936,7 @@ const TrPair kTable_ru[] = {
      u8"Есть четвёртый игрок: каждый берёт по\n"
      u8"1 котейке. Убери одного из коробки похода."},
     {u8"La 4e place va au premier qui met un 2e chat dans sa boîte.",
-     u8"4-е место достанется тому, кто первым положит в коробку двух котеек."},
+     u8"4-е место — тому, кто первым положит в коробку 2-го котейку."},
     {u8"La 4e place est à %s.", u8"4-е место — у игрока %s."},
     {u8"Équipe mixte\n"
      u8"\n"
@@ -946,9 +945,9 @@ const TrPair kTable_ru[] = {
      u8"Les autres joueurs compléteront l'équipe avec les leurs.",
      u8"Смешанная партия\n"
      u8"\n"
-     u8"При %d игроках ты берёшь не больше %d котеек:\n"
+     u8"При %d игроках бери до %d котеек:\n"
      u8"убери %d котеек из коробки похода.%s\n"
-     u8"Остальные игроки дополнят партию своими."},
+     u8"Остальные дополнят партию своими."},
     {u8"Équipe mixte\n"
      u8"\n"
      u8"À %d joueurs, tu emmènes %d chats au maximum :\n"
@@ -956,9 +955,9 @@ const TrPair kTable_ru[] = {
      u8"Les autres joueurs compléteront l'équipe avec les leurs.",
      u8"Смешанная партия\n"
      u8"\n"
-     u8"При %d игроках ты берёшь не больше %d котеек:\n"
+     u8"При %d игроках бери до %d котеек:\n"
      u8"убери %d котейку из коробки похода.%s\n"
-     u8"Остальные игроки дополнят партию своими."},
+     u8"Остальные дополнят партию своими."},
     {u8"Équipe mixte\n"
      u8"\n"
      u8"À %d joueurs, tu emmènes %d chat au maximum :\n"
@@ -966,9 +965,9 @@ const TrPair kTable_ru[] = {
      u8"Les autres joueurs compléteront l'équipe avec les leurs.",
      u8"Смешанная партия\n"
      u8"\n"
-     u8"При %d игроках ты берёшь не больше %d котейки:\n"
+     u8"При %d игроках бери до %d котейки:\n"
      u8"убери %d котеек из коробки похода.%s\n"
-     u8"Остальные игроки дополнят партию своими."},
+     u8"Остальные дополнят партию своими."},
     {u8"Équipe mixte\n"
      u8"\n"
      u8"À %d joueurs, tu emmènes %d chat au maximum :\n"
@@ -976,9 +975,9 @@ const TrPair kTable_ru[] = {
      u8"Les autres joueurs compléteront l'équipe avec les leurs.",
      u8"Смешанная партия\n"
      u8"\n"
-     u8"При %d игроках ты берёшь не больше %d котейки:\n"
+     u8"При %d игроках бери до %d котейки:\n"
      u8"убери %d котейку из коробки похода.%s\n"
-     u8"Остальные игроки дополнят партию своими."},
+     u8"Остальные дополнят партию своими."},
     {u8"Tu n'es pas dans ta maison :\n"
      u8"tu joueras avec les chats des autres.",
      u8"Ты не у себя дома:\n"
@@ -991,13 +990,13 @@ const TrPair kTable_ru[] = {
      u8"Pour emmener les tiens : « Pas encore », mets-en 1 ou 2 dans ta boîte\n"
      u8"(chez Butch), puis clique sur ton panneau « À l'aventure ! ».",
      u8"Коробка похода пуста: ты будешь играть котейками других.\n"
-     u8"Чтобы взять своих: «Ещё нет», положи 1 или 2 в коробку\n"
+     u8"Чтобы взять своих: ответь «Ещё нет», положи 1 или 2 в коробку\n"
      u8"(у Бутча), затем нажми на свою табличку «В путь!»."},
     {u8"Ta boîte de départ est vide : tu joueras avec les chats des autres.\n"
      u8"Pour emmener les tiens : « Pas encore », mets-en un dans ta boîte\n"
      u8"(chez Butch), puis clique sur ton panneau « À l'aventure ! ».",
      u8"Коробка похода пуста: ты будешь играть котейками других.\n"
-     u8"Чтобы взять своих: «Ещё нет», положи одну в коробку\n"
+     u8"Чтобы взять своих: ответь «Ещё нет», положи одного в коробку\n"
      u8"(у Бутча), затем нажми на свою табличку «В путь!»."},
     {u8"Ta boîte de départ contient %d chats, %d au maximum :\n"
      u8"réponds « Pas encore », retires-en %d,\n"
@@ -1064,13 +1063,13 @@ const TrPair kTable_ru[] = {
      u8"%s rejoint l'équipe : ce chat est à toi.",
      u8"Новый котейка в партии\n"
      u8"\n"
-     u8"%s вступает в партию: этот котейка твой."},
+     u8"%s в партии, и это твой котейка."},
     {u8"Nouveau chat dans l'équipe\n"
      u8"\n"
      u8"%s rejoint l'équipe : ce chat est à %s.",
      u8"Новый котейка в партии\n"
      u8"\n"
-     u8"%s вступает в партию: это котейка игрока %s."},
+     u8"%s в партии: это котейка игрока %s."},
     {u8"Un nouveau chat", u8"Новый котейка"},
     {u8"en bas", u8"внизу"},
     {u8"en haut", u8"вверху"},
@@ -1168,7 +1167,7 @@ const TrPair kTable_ru[] = {
      u8"%s%s"},
     {u8"1 joueur attend", u8"1 игрок ждёт"},
     {u8"%d joueurs attendent", u8"Ждут игроков: %d"},
-    {u8"Passer la nuit", u8"Закончить день"},
+    {u8"Passer la nuit", u8"Конец дня"},
     {u8"Plus tard", u8"Позже"},
     {u8"Pour continuer, appuie sur Échap\n"
      u8"puis sur « Sauvegarder et retourner au menu ».",
@@ -1580,7 +1579,7 @@ const TrPair kTable_ru[] = {
      u8"%s не отправляется в поход."},
     {u8"Le partage du butin n'est pas fini :\n"
      u8"attends la fin du défilé des objets.",
-     u8"Дележ добычи ещё не окончен:\n"
+     u8"Делёж добычи ещё не окончен:\n"
      u8"дождись конца показа предметов."},
     {u8"Tu pars rejoindre l'aventure de %s :\n"
      u8"tu défendras ta maison à ton retour.",
@@ -1840,7 +1839,7 @@ const TrPair kTable_ru[] = {
     {u8"Rejoindre", u8"Подключиться"},
     {u8"Choisir la sauvegarde", u8"Выбрать сохранение"},
     {u8"Arrêter", u8"Закрыть"},
-    {u8"Choisir ta sauvegarde", u8"Выбрать своё сохранение"},
+    {u8"Choisir ta sauvegarde", u8"Выбрать сохранение"},
     {u8"Quitter", u8"Выйти"},
     {u8"Annuler", u8"Отмена"},
     {u8"Échanger avec %s", u8"Обмен с игроком %s"},
@@ -1870,7 +1869,7 @@ const TrPair kTable_ru[] = {
     {u8"Envoi du don...", u8"Отправка подарка..."},
     {u8"Personne ne peut recevoir maintenant.", u8"Сейчас подарок никто не примет."},
     {u8"Personne d'autre n'est dans la partie.", u8"В игре больше никого нет."},
-    {u8"Valider", u8"Подтвердить"},
+    {u8"Confirmer", u8"Подтвердить"},
     {u8"Donner", u8"Подарить"},
     {u8"Recommencer", u8"Заново"},
     {u8"Fermer", u8"Закрыть"},
