@@ -2,8 +2,10 @@
 // mm_loot_core.h.
 
 #include "mm_loot_core.h"
+#include "mm_lang.h"
 
 #include <algorithm>
+#include <cstdarg>
 #include <cstdio>
 #include <cstring>
 
@@ -423,11 +425,28 @@ LootState LootHost::state(uint64_t now) const {
 
 // --- les textes ------------------------------------------------------------------------------
 
+namespace {
+
+// Un texte compose (format traduit par tr(), longueur libre : une liste d'objets).
+std::string fmt(const char* f, ...) {
+    va_list ap, ap2;
+    va_start(ap, f);
+    va_copy(ap2, ap);
+    const int n = vsnprintf(nullptr, 0, f, ap);
+    va_end(ap);
+    std::string s(n > 0 ? (size_t)n : 0, '\0');
+    if (n > 0) vsnprintf(&s[0], (size_t)n + 1, f, ap2);
+    va_end(ap2);
+    return s;
+}
+
+} // namespace
+
 const char* loot_choice_word(uint8_t choice) {
     switch (choice) {
-    case kLootNeed:  return u8"Besoin";
-    case kLootGreed: return u8"Cupidité";
-    default:         return u8"Passer";
+    case kLootNeed:  return tr(u8"Besoin");
+    case kLootGreed: return tr(u8"Cupidité");
+    default:         return tr(u8"Passer");
     }
 }
 
@@ -448,17 +467,15 @@ std::string loot_time_text(uint32_t ms) {
     const uint32_t s = (ms + 999) / 1000;
     char buf[32];
     if (s >= 60) snprintf(buf, sizeof(buf), "%u:%02u", s / 60, s % 60);
-    else snprintf(buf, sizeof(buf), "%u s", s);
+    else snprintf(buf, sizeof(buf), tr(u8"%u s"), s);
     return buf;
 }
 
 std::string loot_join(const std::vector<std::string>& v) {
-    std::string s;
-    for (size_t i = 0; i < v.size(); ++i) {
-        if (i) s += (i + 1 == v.size()) ? " et " : ", ";
-        s += v[i];
-    }
-    return s;
+    if (v.empty()) return std::string();
+    std::string head;
+    for (size_t i = 0; i + 1 < v.size(); ++i) head += (i ? ", " : "") + v[i];
+    return v.size() == 1 ? v[0] : fmt(tr(u8"%s et %s"), head.c_str(), v.back().c_str());
 }
 
 // --- les fenetres ----------------------------------------------------------------------------
@@ -466,9 +483,9 @@ std::string loot_join(const std::vector<std::string>& v) {
 namespace {
 
 std::string who(const LootView& v, uint8_t peer) {
-    if (peer == v.self) return u8"toi";
+    if (peer == v.self) return tr(u8"toi");
     if (v.name) return v.name(peer);
-    return "Joueur " + std::to_string(peer);
+    return fmt(tr(u8"Joueur %u"), (unsigned)peer);
 }
 
 std::vector<std::string> names_of(const LootView& v, uint32_t mask, bool skip_self) {
@@ -479,14 +496,11 @@ std::vector<std::string> names_of(const LootView& v, uint32_t mask, bool skip_se
 }
 
 std::string item_label(const LootView& v, size_t i) {
-    return i < v.item_names.size() && !v.item_names[i].empty() ? v.item_names[i] : std::string(u8"Un objet");
+    return i < v.item_names.size() && !v.item_names[i].empty() ? v.item_names[i] : std::string(tr(u8"Un objet"));
 }
 
 std::string header(const LootView& v) {
-    char buf[96];
-    snprintf(buf, sizeof(buf), u8"Partage du butin : objet %u sur %u", (unsigned)v.st.index + 1,
-             (unsigned)v.item_names.size());
-    return buf;
+    return fmt(tr(u8"Partage du butin : objet %u sur %u"), (unsigned)v.st.index + 1, (unsigned)v.item_names.size());
 }
 
 // « En attente de l'hôte » quand il ne voit pas le defile (chez un invite : le
@@ -502,7 +516,8 @@ std::string choices_text(const LootView& v, const LootResult& r) {
             if (x.choice == c) who_chose.push_back(who(v, x.peer));
         if (who_chose.empty()) continue;
         if (!out.empty()) out += " ; ";
-        out += std::string(loot_choice_word(c)) + " : " + loot_join(who_chose);
+        const char* f = c == kLootNeed ? tr(u8"Besoin : %s") : c == kLootGreed ? tr(u8"Cupidité : %s") : tr(u8"Passer : %s");
+        out += fmt(f, loot_join(who_chose).c_str());
     }
     return out;
 }
@@ -531,20 +546,20 @@ LootScreen loot_screen(const LootView& v) {
     switch (st.phase) {
     case LootPhase::Waiting: {
         s.layout = kLayWait;
-        s.text   = u8"Partage du butin\n\n";
-        s.text  += std::to_string(n) + (n > 1 ? u8" objets du sac à partager entre " : u8" objet du sac à partager entre ") +
-                   loot_join(names_of(v, st.players, false)) + ".\n";
-        s.text  += u8"Pour chaque objet : Besoin (il te sert), Cupidité (si\n"
-                   u8"personne n'en a besoin) ou Passer. Un dé de 100 départage.\n";
+        s.text   = std::string(tr(u8"Partage du butin")) + "\n\n";
+        s.text  += fmt(n > 1 ? tr(u8"%u objets du sac à partager entre %s.") : tr(u8"%u objet du sac à partager entre %s."),
+                       (unsigned)n, loot_join(names_of(v, st.players, false)).c_str()) + "\n";
+        s.text  += std::string(tr(u8"Pour chaque objet : Besoin (il te sert), Cupidité (si\n"
+                                  u8"personne n'en a besoin) ou Passer. Un dé de 100 départage.")) + "\n";
         const uint32_t missing = st.players & ~st.ready & ~me;
         if (host_away(v))
-            s.text += u8"\nEn attente de " + who(v, v.host) + u8"...";
+            s.text += "\n" + fmt(tr(u8"En attente de %s..."), who(v, v.host).c_str());
         else if (missing)
-            s.text += u8"\nEn attente de " + loot_join(names_of(v, missing, true)) + u8"... (" +
-                      loot_time_text(st.ms_left) + ")";
+            s.text += "\n" + fmt(tr(u8"En attente de %s... (%s)"), loot_join(names_of(v, missing, true)).c_str(),
+                                 loot_time_text(st.ms_left).c_str());
         else
-            s.text += u8"\nTout le monde est là : ça commence !";
-        s.yes = v.is_host ? u8"Commencer" : u8"D'accord";
+            s.text += "\n" + std::string(tr(u8"Tout le monde est là : ça commence !"));
+        s.yes = v.is_host ? tr(u8"Commencer") : tr(u8"D'accord");
         return s;
     }
     case LootPhase::Choosing: {
@@ -555,39 +570,41 @@ LootScreen loot_screen(const LootView& v) {
             s.text   = header(v) + "\n\n" + item;
             if (st.index < v.item_descs.size() && !v.item_descs[st.index].empty())
                 s.text += "\n" + v.item_descs[st.index];
-            s.text  += u8"\n\nLe veux-tu ? (" + loot_time_text(st.ms_left) + ")";
-            s.yes    = u8"Je le veux";
-            s.no     = u8"Passer";
+            s.text  += "\n\n" + fmt(tr(u8"Le veux-tu ? (%s)"), loot_time_text(st.ms_left).c_str());
+            s.yes    = tr(u8"Je le veux");
+            s.no     = tr(u8"Passer");
             return s;
         }
         if (!chosen) {
             s.layout = kLayNeedGreed;
             s.text   = header(v) + "\n\n" + item + "\n\n" +
-                       u8"Besoin : il te sert, tu passes avant les autres.\n"
-                       u8"Cupidité : tu le prends si personne n'en a besoin.\n(" + loot_time_text(st.ms_left) + ")";
-            s.yes    = u8"Besoin";
-            s.no     = u8"Cupidité";
+                       fmt(tr(u8"Besoin : il te sert, tu passes avant les autres.\n"
+                              u8"Cupidité : tu le prends si personne n'en a besoin.\n(%s)"),
+                           loot_time_text(st.ms_left).c_str());
+            s.yes    = tr(u8"Besoin");
+            s.no     = tr(u8"Cupidité");
             return s;
         }
         s.layout = kLayChosen;
         s.text   = header(v) + "\n\n" + item + "\n";
-        s.text  += v.my_choice != kLootNone ? u8"Ton choix : " + std::string(loot_choice_word(v.my_choice)) + "."
-                                            : std::string(u8"Ton choix est fait.");
+        s.text  += v.my_choice != kLootNone ? fmt(tr(u8"Ton choix : %s."), loot_choice_word(v.my_choice))
+                                            : std::string(tr(u8"Ton choix est fait."));
         const uint32_t waiting = st.players & st.ready & ~st.chosen & ~me;
         const uint32_t absent  = st.players & ~st.ready & ~st.chosen & ~me;
         if (host_away(v))
-            s.text += u8"\nEn attente de " + who(v, v.host) + u8"...";
+            s.text += "\n" + fmt(tr(u8"En attente de %s..."), who(v, v.host).c_str());
         else if (waiting)
-            s.text += u8"\nEn attente de " + loot_join(names_of(v, waiting, true)) + " (" +
-                      loot_time_text(st.ms_left) + ").";
+            s.text += "\n" + fmt(tr(u8"En attente de %s (%s)."), loot_join(names_of(v, waiting, true)).c_str(),
+                                 loot_time_text(st.ms_left).c_str());
         else
-            s.text += u8"\nLe résultat arrive...";
+            s.text += "\n" + std::string(tr(u8"Le résultat arrive..."));
         if (absent) {
             const std::vector<std::string> a = names_of(v, absent, true);
-            s.text += "\n" + loot_join(a) + (a.size() > 1 ? u8" ne sont pas là : leur tour passe."
-                                                         : u8" n'est pas là : son tour passe.");
+            s.text += "\n" + fmt(a.size() > 1 ? tr(u8"%s ne sont pas là : leur tour passe.")
+                                              : tr(u8"%s n'est pas là : son tour passe."),
+                                 loot_join(a).c_str());
         }
-        s.yes = u8"D'accord";
+        s.yes = tr(u8"D'accord");
         return s;
     }
     case LootPhase::Result: {
@@ -595,23 +612,23 @@ LootScreen loot_screen(const LootView& v) {
         s.layout = kLayResult;
         s.text   = header(v) + "\n\n" + item_label(v, st.index) + "\n";
         if (r.winner == kLootNobody)
-            s.text += v.is_host ? std::string(u8"Personne n'en veut : il reste chez toi.")
-                                : u8"Personne n'en veut : il reste chez " + who(v, v.host) + ".";
+            s.text += v.is_host ? std::string(tr(u8"Personne n'en veut : il reste chez toi."))
+                                : fmt(tr(u8"Personne n'en veut : il reste chez %s."), who(v, v.host).c_str());
         else if (r.winner == v.self)
-            s.text += u8"Tu l'emportes (" + std::string(loot_choice_word(r.category)) + ") !";
+            s.text += fmt(tr(u8"Tu l'emportes (%s) !"), loot_choice_word(r.category));
         else
-            s.text += who(v, r.winner) + u8" l'emporte (" + loot_choice_word(r.category) + ").";
+            s.text += fmt(tr(u8"%s l'emporte (%s)."), who(v, r.winner).c_str(), loot_choice_word(r.category));
         const std::string rolls = rolls_text(v, r);
         if (!rolls.empty())
-            s.text += u8"\nDés : " + rolls + (r.rerolls ? u8" (égalité départagée)." : ".");
+            s.text += "\n" + fmt(r.rerolls ? tr(u8"Dés : %s (égalité départagée).") : tr(u8"Dés : %s."), rolls.c_str());
         const std::string ch = choices_text(v, r);
         if (!ch.empty()) s.text += "\n" + ch + ".";
-        s.yes = u8"D'accord";
+        s.yes = tr(u8"D'accord");
         return s;
     }
     case LootPhase::Done: {
         s.layout = kLaySummary;
-        s.text   = u8"Partage du butin terminé\n";
+        s.text   = std::string(tr(u8"Partage du butin terminé")) + "\n";
         std::vector<std::string> per[kLootSlots];
         std::vector<std::string> nobody, kept;
         for (size_t i = 0; i < st.winners.size() && i < n; ++i) {
@@ -621,27 +638,29 @@ LootScreen loot_screen(const LootView& v) {
             else if (w < kLootSlots) per[w].push_back(item_label(v, i));
         }
         bool any = !nobody.empty();
-        if (!per[v.self].empty()) s.text += u8"\nTu remportes : " + loot_join(per[v.self]) + ".";
+        if (!per[v.self].empty()) s.text += "\n" + fmt(tr(u8"Tu remportes : %s."), loot_join(per[v.self]).c_str());
         bool others = false;
         for (int p = 0; p < kLootSlots; ++p) {
             if (p == v.self || per[p].empty()) continue;
-            s.text += "\n" + who(v, (uint8_t)p) + u8" remporte : " + loot_join(per[p]) + ".";
+            s.text += "\n" + fmt(tr(u8"%s remporte : %s."), who(v, (uint8_t)p).c_str(), loot_join(per[p]).c_str());
             others = true;
         }
         any = any || others || !per[v.self].empty() || !kept.empty();
         if (!kept.empty())
-            s.text += u8"\nRemporté, mais resté chez " + who(v, v.host) + " : " + loot_join(kept) + ".";
+            s.text += "\n" + fmt(tr(u8"Remporté, mais resté chez %s : %s."), who(v, v.host).c_str(),
+                                 loot_join(kept).c_str());
         if (!nobody.empty())
-            s.text += (v.is_host ? std::string(u8"\nPersonne n'en a voulu (restent chez toi) : ")
-                                 : u8"\nPersonne n'en a voulu (restent chez " + who(v, v.host) + ") : ") +
-                      loot_join(nobody) + ".";
-        if (!any) s.text += u8"\nAucun objet n'a été partagé.";
+            s.text += "\n" + (v.is_host ? fmt(tr(u8"Personne n'en a voulu (restent chez toi) : %s."),
+                                              loot_join(nobody).c_str())
+                                        : fmt(tr(u8"Personne n'en a voulu (restent chez %s) : %s."),
+                                              who(v, v.host).c_str(), loot_join(nobody).c_str()));
+        if (!any) s.text += "\n" + std::string(tr(u8"Aucun objet n'a été partagé."));
         if (!v.is_host && !per[v.self].empty())
-            s.text += v.at_home ? u8"\n\nTa save est déjà ouverte : la fenêtre suivante\n"
-                                  u8"te dit comment la recharger avec ton butin."
-                                : u8"\n\nTon butin t'attend dans ton rangement, chez toi.";
-        if (v.is_host && others) s.text += u8"\n\nCe que les autres remportent quitte ton rangement.";
-        s.yes = u8"D'accord";
+            s.text += "\n\n" + std::string(v.at_home ? tr(u8"Ta save est déjà ouverte : la fenêtre suivante\n"
+                                                          u8"te dit comment la recharger avec ton butin.")
+                                                     : tr(u8"Ton butin t'attend dans ton rangement, chez toi."));
+        if (v.is_host && others) s.text += "\n\n" + std::string(tr(u8"Ce que les autres remportent quitte ton rangement."));
+        s.yes = tr(u8"D'accord");
         return s;
     }
     default:

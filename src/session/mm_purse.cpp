@@ -6,8 +6,10 @@
 #include "mm_loot.h"
 #include "mm_menu.h"
 #include "mm_shop.h"
+#include "mm_shop_core.h"   // shop_label_text
 #include "mm_team.h"
 #include "mm_team_merge.h"
+#include "mm_lang.h"
 
 #include "mgmp_addresses.h"
 #include "mgmp_catsync.h"
@@ -22,12 +24,24 @@
 
 #include <windows.h>
 #include <algorithm>
+#include <cstdarg>
+#include <cstdio>
 #include <cstring>
 #include <string>
 #include <vector>
 
 namespace mgmp {
 namespace {
+
+// Un texte compose a partir d'un format traduit par tr().
+std::string fmt(const char* f, ...) {
+    char buf[1024];
+    va_list ap;
+    va_start(ap, f);
+    vsnprintf(buf, sizeof(buf), f, ap);
+    va_end(ap);
+    return buf;
+}
 
 // --- le jeu (1.1.21239), voir mm_purse.h ----------------------------------------------
 
@@ -229,12 +243,13 @@ bool write_run(int64_t coins, int64_t food) {
     return true;
 }
 
-// Le nom d'un chat (CatData*), tel que le jeu le serialise.
+// Le nom d'un chat (CatData*), tel que le jeu le serialise ; "" sans nom (part
+// ainsi chez les autres : purse_find_line dit « Un chat » dans leur langue).
 std::string cat_name(void* cat) {
     std::vector<uint8_t> raw;
     CatInfo info;
     if (cat && catsync_serialize_cat(cat, raw) && cat_info(raw, info) && !info.name.empty()) return info.name;
-    return u8"Un chat";
+    return std::string();
 }
 
 // L'id du chat d'un Character (0 : pas un chat).
@@ -698,18 +713,18 @@ void host_victory() {
     const PursePayout p = g.book.settle(paid, c, f);
     int64_t     out_c = 0, out_f = 0;
     unsigned    sent  = 0;
-    std::string note  = u8"Fin de l'aventure\n\nChacun rapporte sa bourse dans sa maison :";
+    std::string note  = tr(u8"Fin de l'aventure\n\nChacun rapporte sa bourse dans sa maison :");
     for (uint8_t s = 0; s < kPurseSlots; ++s) {
         if (s == kHostPeer || !(g.slots & (1u << s))) continue;
         const std::string who = purse_safe(team_slot_name(s));
         if (!(paid & (1u << s))) {
-            note += "\n" + who + u8" n'est plus là : sa bourse reste chez toi.";
+            note += "\n" + fmt(tr(u8"%s n'est plus là : sa bourse reste chez toi."), who.c_str());
             log_line("PURSE", "fin : %s n'est plus la -- sa bourse (%lld et %lld) reste a l'hote", who.c_str(),
                      (long long)g.book.at(s).coins, (long long)g.book.at(s).food);
             continue;
         }
         if (!p.coins[s] && !p.food[s]) {
-            note += "\n" + who + u8" : rien.";
+            note += "\n" + fmt(tr(u8"%s : rien."), who.c_str());
             continue;
         }
         // Un message a lui seul : retire du compte d'abord (le jeu vide ensuite
@@ -729,7 +744,7 @@ void host_victory() {
             ok = false;
         }
         if (!ok) {
-            note += "\n" + who + u8" n'a pas pu recevoir sa bourse : elle reste chez toi.";
+            note += "\n" + fmt(tr(u8"%s n'a pas pu recevoir sa bourse : elle reste chez toi."), who.c_str());
             log_line("PURSE", "!! fin : la bourse de %s (%d et %d) n'a pas pu partir -- elle reste a l'hote",
                      who.c_str(), line.coins, line.food);
             continue;
@@ -737,9 +752,9 @@ void host_victory() {
         out_c += line.coins;
         out_f += line.food;
         ++sent;
-        note += "\n" + who + " : " + purse_amount_text(line.coins, line.food) + ".";
+        note += "\n" + fmt(tr(u8"%s : %s."), who.c_str(), purse_amount_text(line.coins, line.food).c_str());
     }
-    note += u8"\nToi : " + purse_amount_text(c - out_c, f - out_f) + ".";
+    note += "\n" + fmt(tr(u8"Toi : %s."), purse_amount_text(c - out_c, f - out_f).c_str());
     g.home_notes.push_back(note);
     log_line("PURSE", "fin de l'aventure : %u invite(s) payes, %lld piece(s) et %lld nourriture(s) parties chez "
                       "eux ; l'hote rapporte %lld et %lld", sent, (long long)out_c, (long long)out_f,
@@ -849,8 +864,8 @@ void purse_pump() {
     if (g.give_pending && GetTickCount64() - g.give_at > kGiveAnswerMs) {
         g.give_pending = false;
         log_line("PURSE", "!! don %u : pas de reponse de l'hote", (unsigned)g.give_seq);
-        gift_purse_note(u8"Pas encore de réponse de l'hôte pour ton don : regarde ta bourse dans la "
-                        u8"fenêtre du chemin.", true);
+        gift_purse_note(tr(u8"Pas encore de réponse de l'hôte pour ton don : regarde ta bourse dans la "
+                           u8"fenêtre du chemin."), true);
     }
 }
 
@@ -952,7 +967,7 @@ void purse_on_mm(uint8_t from, const MmMsg& m) {
             if (giver != net_self()) return;
             if (g.give_pending && seq == g.give_seq) g.give_pending = false;
             log_line("PURSE", "<- ton don n'est pas passe (raison %u)", (unsigned)why);
-            gift_purse_note(u8"Ton don n'est pas passé : " + purse_give_no_text(why) + ".", true);
+            gift_purse_note(fmt(tr(u8"Ton don n'est pas passé : %s."), purse_give_no_text(why).c_str()), true);
             break;
         }
         default:
@@ -981,18 +996,19 @@ std::string purse_vote_line(bool mark) {
     size_t shown = 0;
     for (Find& fd : g.finds) {
         if (shown == kShownFinds) {
-            out += u8"\n(et d'autres trouvailles)";
+            out += "\n" + std::string(tr(u8"(et d'autres trouvailles)"));
             break;
         }
         const bool mine = fd.owner == self;
         out += "\n" + ((fd.flags & kFindBattle) ? purse_battle_line(fd.coins, fd.food, mine, fd.owner_name)
-                      : (fd.flags & kFindShop)  ? purse_shop_line(fd.cat, fd.coins, fd.food, mine, fd.owner_name)
+                      : (fd.flags & kFindShop)  ? purse_shop_line(shop_label_text(fd.cat), fd.coins, fd.food, mine,
+                                                                  fd.owner_name)
                                                 : purse_find_line(fd.cat, fd.coins, fd.food, mine, fd.owner_name,
                                                                   (fd.flags & kFindSpent) != 0));
         if (mark) fd.shown = true;
         ++shown;
     }
-    if (purse) out += u8"\nTa bourse : " + purse_balance_text(c, f) + ".";
+    if (purse) out += "\n" + fmt(tr(u8"Ta bourse : %s."), purse_balance_text(c, f).c_str());
     return out;
 }
 
@@ -1054,21 +1070,21 @@ bool purse_holders(std::vector<PurseHolder>& out) {
 bool purse_give(uint8_t to, int64_t coins, int64_t food, std::string& why) {
     why.clear();
     if (!g.armed) {
-        why = u8"les bourses ne marchent pas dans cette partie";
+        why = tr(u8"les bourses ne marchent pas dans cette partie");
         return false;
     }
     if (coins < 0 || food < 0 || (!coins && !food)) {
-        why = u8"rien à donner";
+        why = tr(u8"rien à donner");
         return false;
     }
     if (coins > kPurseGiveMax || food > kPurseGiveMax) {
-        why = u8"c'est trop d'un coup";
+        why = tr(u8"c'est trop d'un coup");
         return false;
     }
     const bool    guest = net_role() == NetRole::Client;
     const uint8_t self  = guest ? net_self() : (uint8_t)kHostPeer;
     if (to == self || to >= kPurseSlots) {
-        why = u8"choisis un autre joueur";
+        why = tr(u8"choisis un autre joueur");
         return false;
     }
     if (!guest) {
@@ -1085,12 +1101,12 @@ bool purse_give(uint8_t to, int64_t coins, int64_t food, std::string& why) {
         return true;
     }
     if (g.give_pending) {
-        why = u8"ton don précédent attend encore la réponse de l'hôte";
+        why = tr(u8"ton don précédent attend encore la réponse de l'hôte");
         return false;
     }
     int64_t mc = 0, mf = 0;
     if (!purse_mine(mc, mf)) {
-        why = u8"tu n'as pas de bourse dans cette aventure";
+        why = tr(u8"tu n'as pas de bourse dans cette aventure");
         return false;
     }
     if (coins > mc || food > mf) {
@@ -1108,7 +1124,7 @@ bool purse_give(uint8_t to, int64_t coins, int64_t food, std::string& why) {
     MmMsg m;
     purse_encode_give_req(m, to, (int32_t)coins, (int32_t)food, seq);
     if (!net_send_mm(m)) {
-        why = u8"envoi impossible (connexion)";
+        why = tr(u8"envoi impossible (connexion)");
         return false;
     }
     g.give_seq     = seq;

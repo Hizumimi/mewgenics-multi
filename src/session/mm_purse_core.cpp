@@ -1,6 +1,9 @@
 // mm_purse_core.cpp -- voir mm_purse_core.h.
 #include "mm_purse_core.h"
 #include "mgmp_proto.h"
+#include "mm_lang.h"
+
+#include <cstdarg>
 
 #include <cstdio>
 #include <cstring>
@@ -122,10 +125,10 @@ bool PurseBook::transfer(uint8_t from, uint8_t to, int64_t coins, int64_t food) 
 
 std::string purse_give_no_text(uint8_t why) {
     switch (why) {
-    case kPurseNoPurse:  return u8"pas de bourse pour ce joueur dans cette aventure";
-    case kPurseNoEnough: return u8"ta bourse n'en a pas autant";
-    case kPurseNoRun:    return u8"l'aventure n'est plus suivie";
-    default:             return u8"raison inconnue";
+    case kPurseNoPurse:  return tr(u8"pas de bourse pour ce joueur dans cette aventure");
+    case kPurseNoEnough: return tr(u8"ta bourse n'en a pas autant");
+    case kPurseNoRun:    return tr(u8"l'aventure n'est plus suivie");
+    default:             return tr(u8"raison inconnue");
     }
 }
 
@@ -278,39 +281,56 @@ bool purse_decode_give_no(const MmMsg& m, uint8_t& giver, uint8_t& why, uint8_t&
     return true;
 }
 
+namespace {
+
+// Un texte compose a partir d'un format traduit par tr().
+std::string fmt(const char* f, ...) {
+    va_list ap, ap2;
+    va_start(ap, f);
+    va_copy(ap2, ap);
+    const int n = vsnprintf(nullptr, 0, f, ap);
+    va_end(ap);
+    std::string s(n > 0 ? (size_t)n : 0, '\0');
+    if (n > 0) vsnprintf(&s[0], (size_t)n + 1, f, ap2);
+    va_end(ap2);
+    return s;
+}
+
+} // namespace
+
 std::string purse_given_line(bool from_me, bool to_me, const std::string& giver, const std::string& to,
                              int64_t coins, int64_t food) {
     const std::string what = purse_amount_text(coins, food);
-    if (to_me) return purse_safe(giver) + u8" t'a donné " + what + u8" : c'est dans ta bourse.";
-    if (from_me) return u8"Tu as donné " + what + u8" à " + purse_safe(to) + u8" : c'est dans sa bourse.";
-    return purse_safe(giver) + u8" a donné " + what + u8" à " + purse_safe(to) + ".";
+    if (to_me) return fmt(tr(u8"%s t'a donné %s : c'est dans ta bourse."), purse_safe(giver).c_str(), what.c_str());
+    if (from_me) return fmt(tr(u8"Tu as donné %s à %s : c'est dans sa bourse."), what.c_str(), purse_safe(to).c_str());
+    return fmt(tr(u8"%s a donné %s à %s."), purse_safe(giver).c_str(), what.c_str(), purse_safe(to).c_str());
 }
 
 std::string purse_amount_text(int64_t coins, int64_t food) {
     if (coins < 0) coins = 0;
     if (food < 0) food = 0;
-    char c[48] = {}, f[48] = {};
-    snprintf(c, sizeof(c), coins > 1 ? u8"%lld pièces" : u8"%lld pièce", (long long)coins);
-    snprintf(f, sizeof(f), food > 1 ? u8"%lld nourritures" : u8"%lld nourriture", (long long)food);
-    if (coins && food) return std::string(c) + " et " + f;
+    const std::string c = fmt(coins > 1 ? tr(u8"%lld pièces") : tr(u8"%lld pièce"), (long long)coins);
+    const std::string f = fmt(food > 1 ? tr(u8"%lld nourritures") : tr(u8"%lld nourriture"), (long long)food);
+    if (coins && food) return fmt(tr(u8"%s et %s"), c.c_str(), f.c_str());
     if (coins) return c;
     if (food) return f;
-    return "rien";
+    return tr(u8"rien");
 }
 
 std::string purse_balance_text(int64_t coins, int64_t food) {
-    auto part = [](int64_t v, const char* one, const char* many) {
-        char b[64] = {};
-        const long long a = (long long)(v < 0 ? -v : v);
-        snprintf(b, sizeof(b), "%s%lld %s", v < 0 ? "-" : "", a, a > 1 ? many : one);
-        return std::string(b);
+    // Le signe vient du nombre (« -11 pièces ») ; le pluriel, de sa valeur absolue.
+    auto part = [](int64_t v, bool food) {
+        const bool many = v > 1 || v < -1;
+        return fmt(food ? (many ? tr(u8"%lld nourritures") : tr(u8"%lld nourriture"))
+                        : (many ? tr(u8"%lld pièces") : tr(u8"%lld pièce")),
+                   (long long)v);
     };
-    const std::string c = part(coins, u8"pièce", u8"pièces");
-    const std::string f = part(food, u8"nourriture", u8"nourritures");
-    if (coins && food) return c + " et " + f;
+    const std::string c = part(coins, false);
+    const std::string f = part(food, true);
+    if (coins && food) return fmt(tr(u8"%s et %s"), c.c_str(), f.c_str());
     if (coins) return c;
     if (food) return f;
-    return "rien";
+    return tr(u8"rien");
 }
 
 std::string purse_safe(const std::string& name) {
@@ -322,9 +342,9 @@ std::string purse_safe(const std::string& name) {
     return out;
 }
 
-std::string purse_of(const std::string& raw) {
+bool purse_elide(const std::string& raw) {
     const std::string name = purse_safe(raw);
-    if (name.empty()) return "de ?";
+    if (name.empty()) return false;
     const uint8_t c0 = (uint8_t)name[0];
     bool elide = c0 < 0x80 && strchr("AEIOUHaeiouh", (char)c0) != nullptr;
     // Un y : voyelle devant une consonne (Yves), consonne devant une voyelle (Yannick).
@@ -337,49 +357,108 @@ std::string purse_of(const std::string& raw) {
         const uint8_t c1 = (uint8_t)name[1] & 0xDF;     // minuscule -> majuscule (A0 -> 80)
         elide = c1 >= 0x80 && c1 <= 0x9C && c1 != 0x87 && c1 != 0x91 && c1 != 0x97 && c1 != 0x90;
     }
-    return (elide ? "d'" : "de ") + name;
+    return elide;
 }
+
+std::string purse_of(const std::string& raw) {
+    const std::string name = purse_safe(raw);
+    if (name.empty()) return "de ?";
+    return (purse_elide(name) ? "d'" : "de ") + name;
+}
+
+namespace {
+
+// Le format d'une phrase selon la bourse : la sienne (mine), celle d'un autre
+// (« de %s » / « d'%s » selon purse_elide : le francais elide, les autres langues
+// traduisent les deux formats pareil).
+const char* pick(bool mine, const std::string& owner, const char* f_mine, const char* f_de, const char* f_elided) {
+    return mine ? f_mine : purse_elide(owner) ? f_elided : f_de;
+}
+
+} // namespace
 
 std::string purse_find_line(const std::string& cat, int64_t coins, int64_t food, bool mine,
                             const std::string& owner, bool spent) {
     const bool gain = coins > 0 || food > 0;
     const bool loss = coins < 0 || food < 0;
-    const std::string who   = cat.empty() ? std::string(u8"Un chat") : purse_safe(cat);
-    const std::string purse = mine ? std::string("ta bourse") : "la bourse " + purse_of(owner);
-    const std::string got   = purse_amount_text(coins > 0 ? coins : 0, food > 0 ? food : 0);
-    const std::string lost  = purse_amount_text(coins < 0 ? -coins : 0, food < 0 ? -food : 0);
+    const std::string who  = cat.empty() ? std::string(tr(u8"Un chat")) : purse_safe(cat);
+    const std::string name = owner.empty() ? std::string("?") : purse_safe(owner);
+    const std::string got  = purse_amount_text(coins > 0 ? coins : 0, food > 0 ? food : 0);
+    const std::string lost = purse_amount_text(coins < 0 ? -coins : 0, food < 0 ? -food : 0);
+    // Les formats « ta bourse » ont un %s de moins : le nom du joueur en trop est ignore.
     if (gain && loss)
-        return who + u8" a trouvé " + got + u8" et perdu " + lost + u8" : ça compte pour " + purse + ".";
-    if (gain) return who + u8" a trouvé " + got + u8" : c'est pour " + purse + ".";
-    if (loss) return who + (spent ? u8" a dépensé " : u8" a perdu ") + lost + u8" : c'est pris sur " + purse + ".";
-    return who + u8" n'a rien trouvé.";
+        return fmt(pick(mine, name, tr(u8"%s a trouvé %s et perdu %s : ça compte pour ta bourse."),
+                        tr(u8"%s a trouvé %s et perdu %s : ça compte pour la bourse de %s."),
+                        tr(u8"%s a trouvé %s et perdu %s : ça compte pour la bourse d'%s.")),
+                   who.c_str(), got.c_str(), lost.c_str(), name.c_str());
+    if (gain)
+        return fmt(pick(mine, name, tr(u8"%s a trouvé %s : c'est pour ta bourse."),
+                        tr(u8"%s a trouvé %s : c'est pour la bourse de %s."),
+                        tr(u8"%s a trouvé %s : c'est pour la bourse d'%s.")),
+                   who.c_str(), got.c_str(), name.c_str());
+    if (loss && spent)
+        return fmt(pick(mine, name, tr(u8"%s a dépensé %s : c'est pris sur ta bourse."),
+                        tr(u8"%s a dépensé %s : c'est pris sur la bourse de %s."),
+                        tr(u8"%s a dépensé %s : c'est pris sur la bourse d'%s.")),
+                   who.c_str(), lost.c_str(), name.c_str());
+    if (loss)
+        return fmt(pick(mine, name, tr(u8"%s a perdu %s : c'est pris sur ta bourse."),
+                        tr(u8"%s a perdu %s : c'est pris sur la bourse de %s."),
+                        tr(u8"%s a perdu %s : c'est pris sur la bourse d'%s.")),
+                   who.c_str(), lost.c_str(), name.c_str());
+    return fmt(tr(u8"%s n'a rien trouvé."), who.c_str());
 }
 
 std::string purse_shop_line(const std::string& what, int64_t coins, int64_t food, bool mine,
                             const std::string& owner) {
     (void)food;
-    const std::string thing = what.empty() ? std::string(u8"un objet") : purse_safe(what);
-    const std::string who   = mine ? std::string(u8"Tu as acheté ") : purse_safe(owner) + u8" a acheté ";
-    const std::string purse = mine ? std::string("ta bourse") : std::string("sa bourse");
-    if (coins < 0)
-        return who + thing + u8" pour " + purse_amount_text(-coins, 0) + u8" : c'est pris sur " + purse + ".";
-    if (coins > 0)
-        return who + thing + u8" : " + purse_amount_text(coins, 0) + u8" de plus pour " + purse + ".";
-    return who + thing + u8" (gratuit).";
+    const std::string thing = what.empty() ? std::string(tr(u8"un objet")) : purse_safe(what);
+    const std::string who   = purse_safe(owner);
+    if (coins < 0) {
+        const std::string price = purse_amount_text(-coins, 0);
+        return mine ? fmt(tr(u8"Tu as acheté %s pour %s : c'est pris sur ta bourse."), thing.c_str(), price.c_str())
+                    : fmt(tr(u8"%s a acheté %s pour %s : c'est pris sur sa bourse."), who.c_str(), thing.c_str(),
+                          price.c_str());
+    }
+    if (coins > 0) {
+        const std::string more = purse_amount_text(coins, 0);
+        return mine ? fmt(tr(u8"Tu as acheté %s : %s de plus pour ta bourse."), thing.c_str(), more.c_str())
+                    : fmt(tr(u8"%s a acheté %s : %s de plus pour sa bourse."), who.c_str(), thing.c_str(),
+                          more.c_str());
+    }
+    return mine ? fmt(tr(u8"Tu as acheté %s (gratuit)."), thing.c_str())
+                : fmt(tr(u8"%s a acheté %s (gratuit)."), who.c_str(), thing.c_str());
 }
 
 std::string purse_battle_line(int64_t coins, int64_t food, bool mine, const std::string& owner) {
     const bool gain = coins > 0 || food > 0;
     const bool loss = coins < 0 || food < 0;
-    const std::string who   = mine ? std::string(u8"En combat, tes chats") : u8"En combat, les chats " + purse_of(owner);
-    const std::string purse = mine ? std::string("ta bourse") : std::string("sa bourse");
-    const std::string got   = purse_amount_text(coins > 0 ? coins : 0, food > 0 ? food : 0);
-    const std::string lost  = purse_amount_text(coins < 0 ? -coins : 0, food < 0 ? -food : 0);
+    const std::string name = owner.empty() ? std::string("?") : purse_safe(owner);
+    const std::string got  = purse_amount_text(coins > 0 ? coins : 0, food > 0 ? food : 0);
+    const std::string lost = purse_amount_text(coins < 0 ? -coins : 0, food < 0 ? -food : 0);
+    if (mine) {
+        if (gain && loss)
+            return fmt(tr(u8"En combat, tes chats ont trouvé %s et perdu %s : ça compte pour ta bourse."), got.c_str(),
+                       lost.c_str());
+        if (gain) return fmt(tr(u8"En combat, tes chats ont trouvé %s : c'est pour ta bourse."), got.c_str());
+        if (loss) return fmt(tr(u8"En combat, tes chats ont perdu %s : c'est pris sur ta bourse."), lost.c_str());
+        return tr(u8"En combat, tes chats n'ont rien trouvé.");
+    }
+    const bool el = purse_elide(name);
     if (gain && loss)
-        return who + u8" ont trouvé " + got + u8" et perdu " + lost + u8" : ça compte pour " + purse + ".";
-    if (gain) return who + u8" ont trouvé " + got + u8" : c'est pour " + purse + ".";
-    if (loss) return who + u8" ont perdu " + lost + u8" : c'est pris sur " + purse + ".";
-    return who + u8" n'ont rien trouvé.";
+        return fmt(el ? tr(u8"En combat, les chats d'%s ont trouvé %s et perdu %s : ça compte pour sa bourse.")
+                      : tr(u8"En combat, les chats de %s ont trouvé %s et perdu %s : ça compte pour sa bourse."),
+                   name.c_str(), got.c_str(), lost.c_str());
+    if (gain)
+        return fmt(el ? tr(u8"En combat, les chats d'%s ont trouvé %s : c'est pour sa bourse.")
+                      : tr(u8"En combat, les chats de %s ont trouvé %s : c'est pour sa bourse."),
+                   name.c_str(), got.c_str());
+    if (loss)
+        return fmt(el ? tr(u8"En combat, les chats d'%s ont perdu %s : c'est pris sur sa bourse.")
+                      : tr(u8"En combat, les chats de %s ont perdu %s : c'est pris sur sa bourse."),
+                   name.c_str(), lost.c_str());
+    return fmt(el ? tr(u8"En combat, les chats d'%s n'ont rien trouvé.") : tr(u8"En combat, les chats de %s n'ont rien trouvé."),
+               name.c_str());
 }
 
 } // namespace mgmp

@@ -161,6 +161,13 @@ std::string shop_refusal_text(ShopResult r, bool host, int32_t price, int64_t pu
 // « 10 pièces ») ; "" pour les autres genres.
 std::string shop_amount_label(int32_t type, int32_t amount);
 
+// Le nom d'un achat qui n'a pas de nom du jeu (« un bonbon », « 5 nourritures »...),
+// tel qu'il part chez les autres (MM_PURSE kFindShop) : une etiquette
+// (« #mm-shop:16:5 », genre et quantite) que shop_label_text nomme dans la langue
+// de celui qui la lit. shop_label_text rend tout autre nom tel quel.
+std::string shop_kind_tag(int32_t type, int32_t amount);
+std::string shop_label_text(const std::string& label);
+
 // La place de l'objet dans la boutique, de son adresse : le vecteur
 // [begin, end) d'elements de `stride` octets. Faux hors du vecteur, ou pas au
 // debut d'un element.

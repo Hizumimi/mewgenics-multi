@@ -2,9 +2,12 @@
 // partie portable. Voir mm_shop_core.h.
 
 #include "mm_shop_core.h"
+#include "mm_lang.h"
 
 #include <algorithm>
+#include <cstdarg>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 namespace mgmp {
@@ -50,7 +53,21 @@ struct Reader {
     }
 };
 
-const char* coins_word(long long n) { return (n > 1 || n < -1) ? u8"pièces" : u8"pièce"; }
+// Un texte compose a partir d'un format traduit par tr().
+std::string fmt(const char* f, ...) {
+    char buf[1024];
+    va_list ap;
+    va_start(ap, f);
+    vsnprintf(buf, sizeof(buf), f, ap);
+    va_end(ap);
+    return buf;
+}
+
+// « 10 pièces », « 1 pièce » (les memes cles que mm_purse_core).
+std::string coins_text(long long n) { return fmt((n > 1 || n < -1) ? tr(u8"%lld pièces") : tr(u8"%lld pièce"), n); }
+
+// shop_kind_tag : un achat sans nom du jeu, nomme chez celui qui le lit.
+constexpr char kKindTag[] = "#mm-shop:";
 
 } // namespace
 
@@ -240,67 +257,81 @@ ShopResult shop_host_check(bool has_purse, int64_t purse, int32_t price) {
 }
 
 std::string shop_wait_text(const std::string& names, bool several) {
+    const std::string title = std::string(tr(u8"Boutique")) + "\n\n";
     if (several)
-        return u8"Boutique\n\n" + names + u8" n'ont pas fini dans cette\n"
-               u8"boutique : attends-les (une fois sorti, tu ne\n"
-               u8"pourrais plus acheter pour eux).\n"
-               u8"Clique encore pour sortir quand même.";
-    return u8"Boutique\n\n" + names + u8" n'a pas fini dans cette\n"
-           u8"boutique : attends-le (une fois sorti, tu ne\n"
-           u8"pourrais plus acheter pour lui).\n"
-           u8"Clique encore pour sortir quand même.";
+        return title + fmt(tr(u8"%s n'ont pas fini dans cette\n"
+                              u8"boutique : attends-les (une fois sorti, tu ne\n"
+                              u8"pourrais plus acheter pour eux).\n"
+                              u8"Clique encore pour sortir quand même."), names.c_str());
+    return title + fmt(tr(u8"%s n'a pas fini dans cette\n"
+                          u8"boutique : attends-le (une fois sorti, tu ne\n"
+                          u8"pourrais plus acheter pour lui).\n"
+                          u8"Clique encore pour sortir quand même."), names.c_str());
 }
 
 std::string shop_local_failure_text() {
-    return u8"Boutique\n\nTon achat n'a pas pu être demandé à l'hôte :\nrien n'a été acheté. Réessaie dans un instant.";
+    return std::string(tr(u8"Boutique")) + "\n\n" +
+           tr(u8"Ton achat n'a pas pu être demandé à l'hôte :\nrien n'a été acheté. Réessaie dans un instant.");
 }
 
 std::string shop_refusal_text(ShopResult r, bool host, int32_t price, int64_t purse) {
-    const std::string title = u8"Boutique\n\n";
+    const std::string title = std::string(tr(u8"Boutique")) + "\n\n";
     switch (r) {
     case ShopResult::Bought:
         return "";
     case ShopResult::NoShop:
-        return title + u8"L'hôte n'est plus dans cette boutique :\nl'achat ne s'est pas fait.";
+        return title + tr(u8"L'hôte n'est plus dans cette boutique :\nl'achat ne s'est pas fait.");
     case ShopResult::NoItem:
-        return title + u8"Cet objet n'est plus à vendre chez l'hôte :\nl'achat ne s'est pas fait.";
+        return title + tr(u8"Cet objet n'est plus à vendre chez l'hôte :\nl'achat ne s'est pas fait.");
     case ShopResult::SoldOut:
-        return title + u8"Cet objet vient d'être vendu :\nl'achat ne s'est pas fait.";
+        return title + tr(u8"Cet objet vient d'être vendu :\nl'achat ne s'est pas fait.");
     case ShopResult::Poor: {
         const long long have = purse < 0 ? 0 : (long long)purse;
-        char line[160];
-        snprintf(line, sizeof(line), u8"Il coûte %lld %s ; ta bourse en a %lld.", (long long)price,
-                 coins_word(price), have);
-        return title + u8"Ta bourse ne suffit pas pour cet objet.\n" + line +
-               (host ? u8"\n(Chacun paie avec sa bourse, toi aussi.)" : u8"\n(Chacun paie avec sa bourse.)");
+        const std::string line = fmt(tr(u8"Il coûte %s ; ta bourse en a %lld."), coins_text(price).c_str(), have);
+        return title + tr(u8"Ta bourse ne suffit pas pour cet objet.") + "\n" + line + "\n" +
+               (host ? tr(u8"(Chacun paie avec sa bourse, toi aussi.)") : tr(u8"(Chacun paie avec sa bourse.)"));
     }
     case ShopResult::NotItem:
-        return title + u8"Pour l'instant, seul l'hôte achète les\nbonbons et les familiers (avec sa bourse).";
+        return title + tr(u8"Pour l'instant, seul l'hôte achète les\nbonbons et les familiers (avec sa bourse).");
     case ShopResult::Failed:
-        return title + u8"Le jeu n'a pas pu faire l'achat chez l'hôte.";
+        return title + tr(u8"Le jeu n'a pas pu faire l'achat chez l'hôte.");
     case ShopResult::NotRun:
-        return title + u8"Pas de bourses dans cette aventure :\nseul l'hôte achète.";
+        return title + tr(u8"Pas de bourses dans cette aventure :\nseul l'hôte achète.");
     case ShopResult::NoPurse:
-        return host ? title + u8"Tu n'as pas amené de chats dans cette\naventure : tu n'as pas de bourse pour\nacheter."
-                    : title + u8"Tu n'as pas de bourse dans cette aventure\n(tu n'y as pas amené de chats) : pas d'achat.";
+        return title + (host ? tr(u8"Tu n'as pas amené de chats dans cette\naventure : tu n'as pas de bourse pour\nacheter.")
+                             : tr(u8"Tu n'as pas de bourse dans cette aventure\n(tu n'y as pas amené de chats) : pas d'achat."));
     case ShopResult::Busy:
-        return title + u8"L'hôte ne peut pas acheter pour toi en ce\nmoment (une fenêtre est ouverte chez lui) :\nrien n'a été acheté. Réessaie dans un instant.";
+        return title + tr(u8"L'hôte ne peut pas acheter pour toi en ce\nmoment (une fenêtre est ouverte chez lui) :\nrien n'a été acheté. Réessaie dans un instant.");
     }
     return "";
 }
 
 std::string shop_amount_label(int32_t type, int32_t amount) {
     const long long a = amount < 0 ? 0 : amount;
-    char buf[64];
-    if (type == kShopTypeFood) {
-        snprintf(buf, sizeof(buf), a > 1 ? u8"%lld nourritures" : u8"%lld nourriture", a);
-        return buf;
-    }
-    if (type == kShopTypeCoins) {
-        snprintf(buf, sizeof(buf), u8"%lld %s", a, coins_word(a));
-        return buf;
-    }
+    if (type == kShopTypeFood) return fmt(a > 1 ? tr(u8"%lld nourritures") : tr(u8"%lld nourriture"), a);
+    if (type == kShopTypeCoins) return coins_text(a);
     return "";
+}
+
+std::string shop_kind_tag(int32_t type, int32_t amount) {
+    return std::string(kKindTag) + std::to_string(type) + ":" + std::to_string(amount);
+}
+
+std::string shop_label_text(const std::string& label) {
+    const size_t n = sizeof(kKindTag) - 1;
+    if (label.compare(0, n, kKindTag) != 0) return label;
+    const char* p   = label.c_str() + n;
+    char*       end = nullptr;
+    const long type = strtol(p, &end, 10);
+    const long amount = (end && *end == ':') ? strtol(end + 1, nullptr, 10) : 0;
+    switch (type) {
+    case kShopTypeItem:     return tr(u8"un objet");
+    case kShopTypeFood:
+    case kShopTypeCoins:    return shop_amount_label((int32_t)type, (int32_t)amount);
+    case kShopTypeLevelUp:  return tr(u8"un bonbon");
+    case kShopTypeFamiliar: return tr(u8"un familier");
+    default:                return tr(u8"un article");
+    }
 }
 
 bool shop_index_of(uintptr_t begin, uintptr_t end, uintptr_t item, size_t stride, uint16_t& index) {

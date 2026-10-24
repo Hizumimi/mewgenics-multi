@@ -158,6 +158,10 @@ std::string purse_balance_text(int64_t coins, int64_t food);
 // devant une voyelle (accentuee ou non), un h, ou un y suivi d'une consonne
 // (« d'Yves », mais « de Yannick »).
 std::string purse_of(const std::string& name);
+// La regle d'elision de purse_of : vrai pour « d'Ami ». Pour choisir entre deux
+// phrases traduites (« ... de %s » / « ... d'%s »), que les autres langues
+// traduisent pareil.
+bool purse_elide(const std::string& name);
 
 // Un nom (joueur, chat) pret a aller dans une fenetre du jeu : ni crochet (les
 // balises du texte, [c:red]...) ni retour a la ligne.

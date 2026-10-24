@@ -5,6 +5,8 @@
 #include "mm_shop_core.h"
 
 #include "mm_loot.h"          // le sac et le rangement : objets, retrait, noms
+#include "mm_loot_core.h"     // loot_join
+#include "mm_lang.h"
 #include "mm_purse.h"         // purse_tracking, purse_slot, purse_charge
 #include "mm_purse_core.h"    // purse_safe, purse_of
 #include "mm_team.h"          // team_send, team_run_slots, team_slot_peer, team_note_loot
@@ -284,12 +286,11 @@ void* item_at(uintptr_t begin, uint16_t index) { return (void*)(begin + (uintptr
 
 std::string item_label(const ItemView& v) {
     switch (v.type) {
-    case kShopTypeItem:     return v.has_f ? loot_item_label(v.f) : std::string(u8"un objet");
+    // Sans nom du jeu : une etiquette, nommee chez celui qui la lit (shop_label_text).
+    case kShopTypeItem:     return v.has_f ? loot_item_label(v.f) : shop_kind_tag(v.type, 0);
     case kShopTypeFood:
-    case kShopTypeCoins:    return shop_amount_label(v.type, v.amount);
-    case kShopTypeLevelUp:  return u8"un bonbon";
-    case kShopTypeFamiliar: return u8"un familier";
-    default:                return u8"un article";
+    case kShopTypeCoins:    return shop_kind_tag(v.type, v.amount);
+    default:                return shop_kind_tag(v.type, 0);
     }
 }
 
@@ -465,7 +466,7 @@ void host_own_buy(void* shop, void* item) {
         log_line("SHOP", "!! achat de l'hote : objet illisible -- achete par le jeu sur ta bourse, pas rejoue "
                          "chez les invites");
         BuyCall call{ shop, item, false };
-        purse_charge(kHostPeer, u8"un article", &buy_trampoline, &call);   // sans bourses suivies : le jeu seul
+        purse_charge(kHostPeer, shop_kind_tag(0, 0), &buy_trampoline, &call);   // sans bourses suivies : le jeu seul
         return;
     }
     if (!purse_tracking()) {             // pas de bourses : le jeu, puis les copies
@@ -794,15 +795,11 @@ std::string guests_still_here(uint64_t now, int& count) {
         if (shopping || arriving) names.push_back(mm_peer_name(p));
     }
     count = (int)names.size();
-    std::string out;
-    for (size_t i = 0; i < names.size(); ++i) {
-        std::string n = names[i];
+    for (std::string& n : names)
         for (char& c : n)
             if (c == '[') c = '(';
             else if (c == ']') c = ')';
-        out += (i == 0 ? "" : (i + 1 == names.size() ? " et " : ", ")) + n;
-    }
-    return out;
+    return loot_join(names);
 }
 
 // Le compteur de pieces de la boutique montre la bourse de ce joueur, pas le
@@ -1040,7 +1037,7 @@ void shop_victory_after() {
         }
         if (w.peer < 0 || !in_session() || !peer_present((uint8_t)w.peer)) {
             log_line("SHOP", "victoire : %s n'est plus la -- ses achats restent chez toi (%s)", w.name.c_str(), list.c_str());
-            note += fmt(u8"\n%s n'est plus là : ses achats restent chez toi (%s).", who.c_str(), list.c_str());
+            note += "\n" + fmt(tr(u8"%s n'est plus là : ses achats restent chez toi (%s)."), who.c_str(), list.c_str());
             continue;
         }
         bool sent_all = true;
@@ -1074,11 +1071,13 @@ void shop_victory_after() {
             g.gives.push_back(std::move(gv));
         }
         if (sent_all)
-            note += fmt(u8"\n%s rapporte ses achats : %s.", who.c_str(), list.c_str());
+            note += "\n" + fmt(tr(u8"%s rapporte ses achats : %s."), who.c_str(), list.c_str());
         else
-            note += u8"\nLes achats " + purse_of(w.name) + u8" n'ont pas pu lui être envoyés : ils restent chez toi.";
+            note += "\n" + fmt(purse_elide(who) ? tr(u8"Les achats d'%s n'ont pas pu lui être envoyés : ils restent chez toi.")
+                                                : tr(u8"Les achats de %s n'ont pas pu lui être envoyés : ils restent chez toi."),
+                               who.empty() ? "?" : who.c_str());
     }
-    if (!note.empty()) g.home_notes.push_back(u8"Achats de l'aventure\n" + note);
+    if (!note.empty()) g.home_notes.push_back(tr(u8"Achats de l'aventure") + ("\n" + note));
     g.snap = false;
 }
 
